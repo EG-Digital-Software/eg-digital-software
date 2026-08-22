@@ -1,0 +1,52 @@
+name: Deploy Backend (Azure App Service)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: eg-digital-api   # <-- apne App Service ka naam yahan daalein
+  NODE_VERSION: '22.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Build (TypeScript -> dist)
+        working-directory: backend
+        run: npm run build
+
+      - name: Package deployment artifact
+        working-directory: backend
+        run: |
+          mkdir -p ../deploy-pkg
+          cp -r dist package.json package-lock.json prisma node_modules ../deploy-pkg/
+          mkdir -p ../deploy-pkg/uploads
+          cd ../deploy-pkg && zip -qry ../backend.zip .
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: backend.zip

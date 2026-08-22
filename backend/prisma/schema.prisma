@@ -1,0 +1,479 @@
+// EG Digital — Prisma schema
+// PostgreSQL (local dev / Azure Database for PostgreSQL – Flexible Server)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  CLIENT
+  SUPPLIER
+  EMPLOYEE
+}
+
+enum AccountStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CustomerStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AddressType {
+  PRINCIPAL
+  BILLING
+  SHIPPING
+}
+
+/// Industry the client operates in. Drives segmentation and reporting.
+enum BusinessType {
+  HOSPITALITY_AND_TOURISM
+  FARMING_AND_AGRICULTURE
+  MINING
+  FISHING_AND_FORESTRY
+  MANUFACTURING
+  CONSTRUCTION
+  PROCESSING
+  RETAIL_AND_WHOLESALE
+  HEALTHCARE_AND_TRANSPORT
+  INFORMATION_TECHNOLOGY
+  EDUCATION_AND_RESEARCH
+  FINANCE_AND_MEDIA
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum LicenceStatus {
+  ACTIVE
+  EXPIRING_SOON
+  CRITICAL
+  EXPIRED
+  SUSPENDED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum ActivityAction {
+  LOGIN
+  LOGOUT
+  CUSTOMER_CREATED
+  CUSTOMER_UPDATED
+  CUSTOMER_ARCHIVED
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  PRODUCT_IMPORTED
+  INVOICE_CREATED
+  INVOICE_UPDATED
+  PAYMENT_RECEIVED
+  LICENCE_ASSIGNED
+  LICENCE_RENEWED
+}
+
+// ─── Auth / Users ─────────────────────────────────────────
+// Each portal has its OWN accounts table — no shared user store, no overlap.
+// Email uniqueness is enforced per-table by the DB and globally (across all
+// four tables) at the application layer (see services/accounts.ts).
+
+model AdminUser {
+  id             String        @id @default(uuid())
+  firstName      String
+  lastName       String
+  email          String        @unique
+  passwordHash   String
+  approvalStatus AccountStatus @default(APPROVED)
+  avatarUrl      String?
+  isActive       Boolean       @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model ClientUser {
+  id             String        @id @default(uuid())
+  firstName      String
+  lastName       String
+  email          String        @unique
+  passwordHash   String
+  approvalStatus AccountStatus @default(PENDING)
+  approvedById   String?
+  avatarUrl      String?
+  isActive       Boolean       @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Link to a Customer record (Client portal)
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  customerId String?
+
+  @@index([approvalStatus])
+  @@index([customerId])
+}
+
+model SupplierUser {
+  id             String        @id @default(uuid())
+  firstName      String
+  lastName       String
+  email          String        @unique
+  passwordHash   String
+  approvalStatus AccountStatus @default(PENDING)
+  approvedById   String?
+  avatarUrl      String?
+  isActive       Boolean       @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Products supplied by this user (Supplier portal)
+  suppliedProducts Product[] @relation("SuppliedProducts")
+
+  @@index([approvalStatus])
+}
+
+model EmployeeUser {
+  id             String        @id @default(uuid())
+  firstName      String
+  lastName       String
+  email          String        @unique
+  passwordHash   String
+  approvalStatus AccountStatus @default(PENDING)
+  approvedById   String?
+  avatarUrl      String?
+  isActive       Boolean       @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([approvalStatus])
+}
+
+// Polymorphic auxiliary tables — reference a user by (userId, userType) across
+// the four account tables. No FK relation because the target table varies.
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  userType   Role
+  type       String
+  title      String
+  body       String?
+  link       String?
+  entityType String?
+  entityId   String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, type, createdAt])
+  @@index([createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  userType  Role
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  userType  Role
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ─── Customers ────────────────────────────────────────────
+
+model Customer {
+  id       String @id @default(uuid())
+  /// Auto-generated, immutable business key (e.g. EGD-CL-000001).
+  clientId String @unique
+
+  // ── Basic Information ──────────────────────────────────
+  firstName          String
+  lastName           String
+  email              String
+  phoneNumber        String?
+  /// ISO-3166 alpha-2 of the dial code chosen for phoneNumber.
+  phoneNumberCountry String? @default("AU")
+
+  // ── Company Information ────────────────────────────────
+  /// Australian Business Number — 11 digits, stored unformatted.
+  abn          String?
+  /// Australian Company Number — 9 digits, stored unformatted.
+  acn          String?
+  /// Registered business name.
+  companyName  String?
+  tradingAs    String?
+  businessType BusinessType?
+
+  // ── Contact Information ────────────────────────────────
+  contactPerson           String?
+  contactEmail            String?
+  contactMobile           String?
+  contactMobileCountry    String? @default("AU")
+  contactPosition         String?
+  /// Whether an authorised representative acts for this client.
+  authorized              Boolean @default(false)
+  authorizedPerson        String?
+  authorizedEmail         String?
+  authorizedMobile        String?
+  authorizedMobileCountry String? @default("AU")
+
+  // ── Invoicing Details ──────────────────────────────────
+  /// Accounts-payable contact — invoices and reminders are sent here.
+  billingEmail                String?
+  billingContactPerson        String?
+  billingContactNumber        String?
+  billingContactNumberCountry String? @default("AU")
+  /// Credit score as reported by the bureau (0–1200).
+  creditScore                 Int?
+
+  reference String?
+  status    CustomerStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  addresses        Address[]
+  customerProducts CustomerProduct[]
+  invoices         Invoice[]
+  users            ClientUser[]
+
+  @@index([status])
+  @@index([email])
+  @@index([businessType])
+  @@index([companyName])
+  @@index([createdAt])
+}
+
+model Address {
+  id         String      @id @default(uuid())
+  type       AddressType
+  line1      String?
+  line2      String?
+  city       String?
+  state      String?
+  postcode   String?
+  country    String      @default("Australia")
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  /// One address per type per customer — the form saves exactly one Principal
+  /// and one Billing address, and this stops a concurrent save duplicating them.
+  @@unique([customerId, type])
+}
+
+// ─── Products / Inventory ────────────────────────────────
+
+model Product {
+  id                String        @id @default(uuid())
+  productCode       String        @unique
+  sku               String?       @unique
+  type              String?
+  name              String
+  description       String?
+  unit              String?       @default("unit")
+  category          String?
+  pricePerQty       Decimal       @default(0) @db.Decimal(12, 2)
+  taxRate           Decimal       @default(0) @db.Decimal(5, 2)
+  totalStock        Int           @default(0)
+  availableStock    Int           @default(0)
+  reservedStock     Int           @default(0)
+  lowStockThreshold Int           @default(10)
+  status            ProductStatus @default(ACTIVE)
+  supplier          SupplierUser? @relation("SuppliedProducts", fields: [supplierId], references: [id])
+  supplierId        String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  customerProducts CustomerProduct[]
+  invoiceItems     InvoiceItem[]
+
+  @@index([status])
+  @@index([name])
+  @@index([supplierId])
+  @@index([category])
+}
+
+model CustomerProduct {
+  id         String        @id @default(uuid())
+  customer   Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  product    Product       @relation(fields: [productId], references: [id])
+  productId  String
+  quantity   Int           @default(1)
+  price      Decimal       @default(0) @db.Decimal(12, 2)
+  issueDate  DateTime      @default(now())
+  expiryDate DateTime?
+  status     LicenceStatus @default(ACTIVE)
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  licence Licence?
+
+  @@index([customerId])
+  @@index([productId])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+model Licence {
+  id                String          @id @default(uuid())
+  customerProduct   CustomerProduct @relation(fields: [customerProductId], references: [id], onDelete: Cascade)
+  customerProductId String          @unique
+  licenceKey        String          @unique
+  issueDate         DateTime        @default(now())
+  expiryDate        DateTime?
+  status            LicenceStatus   @default(ACTIVE)
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+// ─── Billing ──────────────────────────────────────────────
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  customerId    String
+  invoiceDate   DateTime      @default(now())
+  dueDate       DateTime
+  term          String? // e.g. "30 Days", "Due on Receipt", "Custom"
+  customDays    Int?
+  reference     String?
+  subtotal      Decimal       @default(0) @db.Decimal(12, 2)
+  tax           Decimal       @default(0) @db.Decimal(12, 2)
+  discount      Decimal       @default(0) @db.Decimal(12, 2)
+  total         Decimal       @default(0) @db.Decimal(12, 2)
+  amountPaid    Decimal       @default(0) @db.Decimal(12, 2)
+  currency      String        @default("AUD")
+  status        InvoiceStatus @default(DRAFT)
+  paymentUrl    String?
+  paymentQrUrl  String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([invoiceDate])
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  product     Product? @relation(fields: [productId], references: [id])
+  productId   String?
+  sku         String?
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @default(0) @db.Decimal(12, 2)
+  taxRate     Decimal  @default(0) @db.Decimal(5, 2)
+  taxAmount   Decimal  @default(0) @db.Decimal(12, 2)
+  lineTotal   Decimal  @default(0) @db.Decimal(12, 2)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
+  invoiceId     String
+  provider      String        @default("mock")
+  transactionId String?
+  /// Amount credited against the invoice balance.
+  amount        Decimal       @db.Decimal(12, 2)
+  /// Card-processing fee charged on top of `amount`; not credited to the invoice.
+  surcharge     Decimal       @default(0) @db.Decimal(12, 2)
+  currency      String        @default("AUD")
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([invoiceId])
+  @@index([status, paidAt])
+}
+
+// ─── Audit ────────────────────────────────────────────────
+
+model ActivityLog {
+  id         String         @id @default(uuid())
+  userId     String?
+  userType   Role?
+  action     ActivityAction
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime       @default(now())
+
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ─── Counters (atomic sequence for Client ID / Invoice No) ─
+
+model Counter {
+  key   String @id
+  value Int    @default(0)
+}
+
+// ─── Settings (key/value singletons, e.g. payment config) ──
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

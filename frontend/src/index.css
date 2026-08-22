@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 99%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 243 75% 96%;
+    --accent-foreground: 243 75% 40%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 243 75% 59%;
+
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+  body {
+    background: #fff;
+  }
+}
+
+@layer utilities {
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-muted;
+  }
+  .skeleton::after {
+    @apply absolute inset-0 -translate-x-full;
+    content: '';
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(0 0% 100% / 0.6),
+      transparent
+    );
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* ---- Auth experience helpers ---- */
+
+  /* Frosted glass surface for the auth form card. */
+  .glass-card {
+    background: hsl(0 0% 100% / 0.72);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+  }
+
+  /* Subtle dot grid used behind the brand panel. */
+  .bg-dot-grid {
+    background-image: radial-gradient(hsl(0 0% 100% / 0.16) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  /* Animated conic gradient border for the CTA / card accents. */
+  .ring-gradient {
+    background:
+      linear-gradient(var(--card), var(--card)) padding-box,
+      linear-gradient(120deg, hsl(var(--primary)), #34b98c, hsl(var(--primary))) border-box;
+    border: 1px solid transparent;
+  }
+
+  /* Fade the top of the page in on mount, respecting reduced motion. */
+  .stagger > * {
+    animation: slide-up-lg 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.05s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.12s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.19s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.26s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.33s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.4s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.47s; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Auth animations — defined in plain CSS so they always compile,      */
+/* independent of Tailwind's keyframe generation.                       */
+/* ------------------------------------------------------------------ */
+
+@keyframes eg-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(1.5deg); }
+}
+@keyframes eg-float-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+@keyframes eg-float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-22px); }
+}
+@keyframes eg-aurora {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(6%, -8%) scale(1.15); }
+  66% { transform: translate(-6%, 6%) scale(0.9); }
+}
+@keyframes eg-shine {
+  0% { transform: translateX(-120%) skewX(-20deg); }
+  60%, 100% { transform: translateX(320%) skewX(-20deg); }
+}
+@keyframes eg-dash-flow {
+  to { stroke-dashoffset: -24; }
+}
+@keyframes eg-spin-slow {
+  to { transform: rotate(360deg); }
+}
+@keyframes eg-travel {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(14px, -18px); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes eg-slide-up-lg {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-float { animation: eg-float 6s ease-in-out infinite; }
+.animate-float-soft { animation: eg-float-soft 5s ease-in-out infinite; }
+.animate-float-slow { animation: eg-float-slow 9s ease-in-out infinite; }
+.animate-aurora { animation: eg-aurora 18s ease-in-out infinite; }
+.animate-shine { animation: eg-shine 4s ease-in-out infinite; }
+.animate-dash-flow { animation: eg-dash-flow 1s linear infinite; }
+.animate-spin-slow { animation: eg-spin-slow 22s linear infinite; transform-origin: center; }
+.animate-travel { animation: eg-travel 5s ease-in-out infinite; }
+.animate-slide-up-lg { animation: eg-slide-up-lg 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+.stagger > * { animation-name: eg-slide-up-lg; }
