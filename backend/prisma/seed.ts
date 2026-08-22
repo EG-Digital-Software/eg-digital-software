@@ -11,7 +11,31 @@ const prisma = new PrismaClient();
  * licences, payments or portal logins: the platform starts empty so every
  * record in the panel is real data entered by the operator.
  */
+/**
+ * Seeding wipes every table before recreating the Super Admin. That is right for
+ * a fresh install and catastrophic anywhere else, so a remote database has to be
+ * named out loud: run with SEED_ALLOW_REMOTE=true only when wiping it is exactly
+ * what you mean. Developers pointing their local API at the shared Azure
+ * database are one stray `npm run seed` away from losing it otherwise.
+ */
+function assertSafeTarget() {
+  const url = process.env.DATABASE_URL ?? '';
+  const host = /@([^/:]+)/.exec(url)?.[1]?.toLowerCase() ?? '';
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+
+  if (isLocal || process.env.SEED_ALLOW_REMOTE === 'true') return;
+
+  const target = host || 'an unknown host';
+  console.error('');
+  console.error(`❌ Refusing to seed: DATABASE_URL points at "${target}", not a local database.`);
+  console.error('   Seeding DELETES every customer, invoice, payment and login first.');
+  console.error('   To wipe that database anyway, re-run with SEED_ALLOW_REMOTE=true.');
+  console.error('');
+  process.exit(1);
+}
+
 async function main() {
+  assertSafeTarget();
   console.log('🌱 Seeding EG Digital (clean install)…');
 
   // ── Wipe all business + portal data (child rows first) ─

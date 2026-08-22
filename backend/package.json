@@ -13,7 +13,9 @@
     "start": "node dist/server.js",
     "seed": "tsx prisma/seed.ts",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "_comment_migrate": "One shared Azure database backs local and live. `migrate dev` offers to RESET on drift, so it is not wired to a script. Author SQL with prisma:migrate:new, review it, then apply with prisma:migrate.",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:new": "prisma migrate dev --create-only",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "lint": "eslint \"src/**/*.ts\""
