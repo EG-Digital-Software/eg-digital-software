@@ -10,13 +10,22 @@ import { apiLimiter } from './middleware/rateLimit.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import routes from './routes/index.js';
 
+/**
+ * Browsers never send a trailing slash on the Origin header, so a CORS_ORIGIN
+ * configured as "https://site.net/" matches nothing and blocks every request
+ * while the API still looks healthy. Normalise instead of failing silently.
+ */
+const allowedOrigins = env.CORS_ORIGIN.split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 export function createApp() {
   const app = express();
 
   app.use(helmet());
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(',').map((s) => s.trim()),
+      origin: allowedOrigins,
       credentials: true,
     })
   );
