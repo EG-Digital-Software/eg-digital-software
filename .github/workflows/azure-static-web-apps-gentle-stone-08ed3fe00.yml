@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
-      - '.github/workflows/frontend.yml'
+      - '.github/workflows/azure-static-web-apps-gentle-stone-08ed3fe00.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches: [main]
