@@ -94,6 +94,7 @@ type CreateInput = {
   acn?: string;
   companyName?: string;
   tradingAs?: string;
+  tradingNames?: string[];
   businessType?: BusinessType | '';
   principalAddress?: AddressInput;
   billingAddress?: AddressInput;
@@ -137,6 +138,29 @@ const digitsOrNull = (v?: string) => {
   const d = (v ?? '').replace(/\D/g, '');
   return d ? d : null;
 };
+/**
+ * Trading names arrive as a list from the form (the ABR hands back every name a
+ * business is registered under). Blanks and duplicates are dropped, and the
+ * first survivor is mirrored into `tradingAs` so search and the list views keep
+ * working off a single column.
+ */
+function tradingNameFields(input: Partial<CreateInput>) {
+  const seen = new Set<string>();
+  const names = (input.tradingNames ?? [])
+    .map((n) => n.trim())
+    .filter((n) => {
+      const key = n.toLowerCase();
+      if (!n || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  // An older client that only knows `tradingAs` must not be silently dropped.
+  if (!names.length && input.tradingAs?.trim()) names.push(input.tradingAs.trim());
+
+  return { tradingAs: names[0] ?? null, tradingNames: names };
+}
+
 const numOrNull = (v?: number | '') =>
   v === '' || v === undefined || v === null || Number.isNaN(v) ? null : Number(v);
 
@@ -149,7 +173,7 @@ function customerFields(input: Partial<CreateInput>) {
     abn: digitsOrNull(input.abn),
     acn: digitsOrNull(input.acn),
     companyName: orNull(input.companyName),
-    tradingAs: orNull(input.tradingAs),
+    ...tradingNameFields(input),
     businessType: (input.businessType || null) as BusinessType | null,
 
     contactPerson: orNull(input.contactPerson),

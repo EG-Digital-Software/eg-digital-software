@@ -125,6 +125,7 @@ export interface Customer {
   acn?: string | null;
   companyName?: string | null;
   tradingAs?: string | null;
+  tradingNames?: string[] | null;
   businessType?: BusinessType | null;
 
   // Contact Information

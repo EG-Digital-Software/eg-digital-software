@@ -229,7 +229,26 @@ export default function CustomerDetailPage() {
               <Detail label="ABN Number" value={formatAbn(c.abn)} />
               <Detail label="ACN" value={formatAcn(c.acn)} />
               <Detail label="Business Name" value={c.companyName} />
-              <Detail label="Trading As" value={c.tradingAs} />
+              {/* A business can trade under several names — list them all, with
+                  the primary first. Older records carry only tradingAs. */}
+              <Detail
+                label={
+                  (c.tradingNames?.length ?? 0) > 1
+                    ? `Trading As (${c.tradingNames!.length})`
+                    : 'Trading As'
+                }
+                value={
+                  c.tradingNames?.length ? (
+                    <ul className="space-y-0.5">
+                      {c.tradingNames.map((name) => (
+                        <li key={name}>{name}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    c.tradingAs
+                  )
+                }
+              />
               <Detail
                 label="Business Type"
                 value={

@@ -74,6 +74,8 @@ export const createCustomerSchema = z
     acn: acnSchema,
     companyName: z.string().optional(),
     tradingAs: z.string().optional(),
+    /// Every trading name; the first is mirrored into tradingAs.
+    tradingNames: z.array(z.string()).optional(),
     businessType: z.enum(BUSINESS_TYPES).optional().or(z.literal('')),
     principalAddress: addressSchema.optional(),
     billingAddress: addressSchema.optional(),

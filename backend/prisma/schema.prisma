@@ -244,7 +244,12 @@ model Customer {
   acn          String?
   /// Registered business name.
   companyName  String?
+  /// Primary trading name — mirrors tradingNames[0]. Kept as its own column
+  /// so search and list views stay simple.
   tradingAs    String?
+  /// Every trading name the business operates under. A company can hold
+  /// dozens on the ABR, so they are stored in full rather than truncated.
+  tradingNames String[]
   businessType BusinessType?
 
   // ── Contact Information ────────────────────────────────
