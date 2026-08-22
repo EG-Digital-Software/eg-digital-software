@@ -21,11 +21,27 @@ export interface ReverseGeocodeResult {
   country: string;
   /** ISO-3166 alpha-2, upper case. */
   countryCode: string;
+  /**
+   * How tightly the coordinates matched. 'approximate' means the provider only
+   * resolved a town or larger, so the postcode describes a wide area and should
+   * be checked rather than trusted.
+   */
+  precision: 'exact' | 'approximate';
 }
 
 interface NominatimAddress {
   house_number?: string;
   road?: string;
+  // Named features the point may sit on when no street is mapped.
+  amenity?: string;
+  building?: string;
+  shop?: string;
+  office?: string;
+  // Sub-locality names, finer than the suburb.
+  quarter?: string;
+  neighbourhood?: string;
+  residential?: string;
+  hamlet?: string;
   city?: string;
   town?: string;
   village?: string;
@@ -37,6 +53,25 @@ interface NominatimAddress {
   country?: string;
   country_code?: string;
 }
+
+/**
+ * Address types that describe a whole town or larger. A postcode taken from one
+ * of these covers far more ground than the point the operator is standing on.
+ */
+const COARSE_MATCHES = new Set([
+  'city',
+  // A district can span an entire desert — Nominatim hands back one postcode
+  // for the whole of Gibson Desert South.
+  'city_district',
+  'municipality',
+  'county',
+  'state',
+  'state_district',
+  'region',
+  'province',
+  'country',
+  'continent',
+]);
 
 const TIMEOUT_MS = 8000;
 
@@ -57,7 +92,7 @@ export async function reverseGeocode(lat: number, lon: number): Promise<ReverseG
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  let payload: { address?: NominatimAddress; error?: string };
+  let payload: { address?: NominatimAddress; addresstype?: string; error?: string };
   try {
     const res = await fetch(url, {
       signal: controller.signal,
@@ -89,12 +124,46 @@ export async function reverseGeocode(lat: number, lon: number): Promise<ReverseG
     throw ApiError.notFound('No address found for that location');
   }
 
+  // Providers label the locality differently by country — take the first hit.
+  const city =
+    a.city || a.town || a.village || a.municipality || a.city_district || a.suburb || a.county || '';
+
+  const precision = COARSE_MATCHES.has(payload.addresstype ?? '') ? 'approximate' : 'exact';
+
   return {
-    line1: [a.house_number, a.road].filter(Boolean).join(' '),
-    // Providers label the locality differently by country — take the first hit.
-    city: a.city || a.town || a.village || a.municipality || a.city_district || a.suburb || a.county || '',
-    postcode: a.postcode ?? '',
+    line1: streetLine(a, city),
+    city,
+    // A postcode read off a whole city or state is worse than none — it looks
+    // authoritative while being wrong for most of the area it covers.
+    postcode: precision === 'exact' ? (a.postcode ?? '') : '',
     country: a.country ?? '',
     countryCode: (a.country_code ?? '').toUpperCase(),
+    precision,
   };
+}
+
+/**
+ * Best available street line, most specific first.
+ *
+ * Plenty of the world has no house numbers mapped, and some points sit on no
+ * street at all — a housing estate, a market, a campus. Falling back through
+ * the named feature and the sub-locality means the operator gets the same first
+ * line the provider itself shows, instead of an empty box.
+ */
+function streetLine(a: NominatimAddress, city: string): string {
+  const street = [a.house_number, a.road].filter(Boolean).join(' ');
+  const candidate =
+    street ||
+    a.amenity ||
+    a.building ||
+    a.shop ||
+    a.office ||
+    a.quarter ||
+    a.neighbourhood ||
+    a.residential ||
+    a.hamlet ||
+    '';
+
+  // Never repeat the locality as the street line — "Patna / Patna" helps nobody.
+  return candidate && candidate !== city ? candidate : street;
 }

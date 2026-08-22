@@ -14,9 +14,11 @@ import {
   UserRound,
   Contact,
   MapPin,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { customerApi, productApi, geoApi } from '@/api/resources';
+import { customerApi, productApi, geoApi, abnApi } from '@/api/resources';
+import type { AbnLookupResult } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +34,7 @@ import {
   countryCodeByName,
   countryName,
 } from '@/lib/countries';
-import { BUSINESS_TYPES } from '@/lib/customer';
+import { BUSINESS_TYPES, formatAbn, isValidAbn } from '@/lib/customer';
 import { formatCurrency } from '@/lib/utils';
 import type { Address } from '@/types';
 
@@ -73,7 +75,10 @@ const schema = z
     abn: digitField(11, 'ABN'),
     acn: digitField(9, 'ACN'),
     companyName: z.string().optional(),
-    tradingAs: z.string().optional(),
+    // A business can trade under several names — the ABR hands back every one
+    // it holds. Objects rather than bare strings because useFieldArray keys on
+    // a stable field id.
+    tradingNames: z.array(z.object({ value: z.string() })).optional(),
     businessType: z.string().optional(),
     principalAddress: addressSchema.optional(),
     billingAddress: addressSchema.optional(),
@@ -137,7 +142,7 @@ const DEFAULTS: FormValues = {
   abn: '',
   acn: '',
   companyName: '',
-  tradingAs: '',
+  tradingNames: [{ value: '' }],
   businessType: '',
   principalAddress: { ...EMPTY_ADDRESS },
   billingAddress: { ...EMPTY_ADDRESS },
@@ -213,6 +218,11 @@ function Field({
   );
 }
 
+/** Metres for a rough fix, kilometres once it stops being a street-level number. */
+function formatDistance(metres: number): string {
+  return metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${metres} m`;
+}
+
 /**
  * Address block reused by the Principal and Billing addresses.
  *
@@ -253,7 +263,25 @@ function AddressFields({
           if (countryByCode(found.countryCode)) {
             setValue(`${prefix}.country`, found.countryCode, { shouldDirty: true });
           }
-          toast.success('Address filled from your location — check and adjust as needed');
+
+          // A postcode is only as good as the fix behind it. Browsers fall back
+          // to WiFi or IP when GPS is unavailable, which can be off by
+          // kilometres — and a wrong postcode looks just as confident as a right
+          // one, so say when the fix was too loose to trust.
+          const accuracy = Math.round(pos.coords.accuracy);
+          if (found.precision === 'approximate') {
+            toast.warning(
+              'Only the area could be identified — enter the street and postcode yourself'
+            );
+          } else if (accuracy > 500) {
+            toast.warning(
+              `Your location is only accurate to about ${formatDistance(accuracy)} — check the postcode`
+            );
+          } else if (!found.line1) {
+            toast.warning('No street is mapped here — enter the street address yourself');
+          } else {
+            toast.success('Address filled from your location — check and adjust as needed');
+          }
         } catch (err) {
           toast.error(apiErrorMessage(err, 'Could not look up that location'));
         } finally {
@@ -268,7 +296,7 @@ function AddressFields({
             : 'Could not get your location — enter the address manually'
         );
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -396,9 +424,75 @@ export default function CustomerFormPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'assignedProducts' });
+  const {
+    fields: tradingNameFields,
+    append: appendTradingName,
+    remove: removeTradingName,
+    replace: replaceTradingNames,
+  } = useFieldArray({ control, name: 'tradingNames' });
   const sameAsPrincipal = watch('sameAsPrincipal');
   const authorized = watch('authorized');
   const assigned = watch('assignedProducts');
+
+  const abn = watch('abn');
+
+  const [abnLooking, setAbnLooking] = useState(false);
+  const [abnResult, setAbnResult] = useState<AbnLookupResult | null>(null);
+
+  /**
+   * Fill Company Information from the Australian Business Register.
+   *
+   * Only fields the register actually resolved are written, so a sparse record
+   * never wipes something already typed. The register publishes no street or
+   * suburb — just the postcode and state of the main business address — so the
+   * remaining address fields are left for the operator. Everything stays
+   * editable afterwards; the lookup is a shortcut, not a lock-in.
+   */
+  const lookupAbn = async () => {
+    const digits = (abn ?? '').replace(/\D/g, '');
+    if (!isValidAbn(digits)) {
+      toast.error(
+        digits.length === 11
+          ? 'That ABN fails its check digits — retype it and try again'
+          : 'Enter all 11 digits of the ABN first'
+      );
+      return;
+    }
+
+    setAbnLooking(true);
+    try {
+      const found = await abnApi.lookup(digits);
+      setAbnResult(found);
+
+      const set = (name: Parameters<typeof setValue>[0], value: string) =>
+        setValue(name, value, { shouldDirty: true, shouldValidate: true });
+
+      // Normalise to the register's own record of the ABN.
+      if (found.abn) set('abn', formatAbn(found.abn));
+      if (found.acn) set('acn', found.acn);
+      if (found.entityName) set('companyName', found.entityName);
+      // A company can hold dozens of registered names on the ABR. Take them all —
+      // each gets its own row so the operator can see and prune the list.
+      if (found.businessNames.length) {
+        replaceTradingNames(found.businessNames.map((value) => ({ value })));
+      }
+      if (found.postcode) set('principalAddress.postcode', found.postcode);
+      // The ABR only covers Australian entities, so the country is a given.
+      set('principalAddress.country', 'AU');
+
+      if (found.abnStatus && found.abnStatus.toLowerCase() !== 'active') {
+        toast.warning(`This ABN is ${found.abnStatus.toLowerCase()} on the register`);
+      } else {
+        toast.success('Company details filled from the Business Register');
+      }
+    } catch (err) {
+      setAbnResult(null);
+      toast.error(apiErrorMessage(err, 'Could not look that ABN up'));
+    } finally {
+      setAbnLooking(false);
+    }
+  };
+
 
   // Watch the address leaves individually. `watch('principalAddress')` hands
   // back a reference that react-hook-form mutates in place, so its identity
@@ -445,7 +539,12 @@ export default function CustomerFormPage() {
       abn: existing.abn ?? '',
       acn: existing.acn ?? '',
       companyName: existing.companyName ?? '',
-      tradingAs: existing.tradingAs ?? '',
+      // Records saved before trading names were a list still carry only the
+      // single tradingAs column — fall back to it so nothing looks empty.
+      tradingNames: (existing.tradingNames?.length
+        ? existing.tradingNames
+        : [existing.tradingAs ?? '']
+      ).map((value) => ({ value })),
       businessType: existing.businessType ?? '',
       principalAddress: addr(principal),
       billingAddress: addr(billing),
@@ -488,6 +587,10 @@ export default function CustomerFormPage() {
         // Client ID is generated server-side and never sent from here.
         authorized: values.authorized === 'yes',
         creditScore: values.creditScore?.trim() ? Number(values.creditScore) : undefined,
+        // The API stores a plain string list and mirrors the first into tradingAs.
+        tradingNames: (values.tradingNames ?? [])
+          .map((n) => n.value.trim())
+          .filter(Boolean),
         principalAddress: withCountryName(values.principalAddress),
         billingAddress: withCountryName(values.billingAddress),
         assignedProducts: isEdit ? undefined : values.assignedProducts,
@@ -544,8 +647,29 @@ export default function CustomerFormPage() {
         {/* ── 2. Company Information ── */}
         <Section icon={Building2} title="Company Information">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="ABN Number" error={errors.abn?.message} hint="11 digits">
-              <Input maxLength={14} placeholder="51 824 753 556" {...register('abn')} />
+            <Field
+              label="ABN Number"
+              error={errors.abn?.message}
+              hint="11 digits — look it up to fill the details below"
+            >
+              <div className="flex gap-2">
+                <Input
+                  maxLength={14}
+                  placeholder="51 824 753 556"
+                  className="flex-1"
+                  {...register('abn')}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={abnLooking}
+                  onClick={lookupAbn}
+                  className="shrink-0"
+                >
+                  {abnLooking ? <Spinner /> : <Search className="h-3.5 w-3.5" />}
+                  {abnLooking ? 'Looking up…' : 'ABN Lookup'}
+                </Button>
+              </div>
             </Field>
             <Field label="ACN" error={errors.acn?.message} hint="9 digits">
               <Input maxLength={11} placeholder="004 085 616" {...register('acn')} />
@@ -553,8 +677,53 @@ export default function CustomerFormPage() {
             <Field label="Business Name">
               <Input {...register('companyName')} />
             </Field>
-            <Field label="Trading As">
-              <Input {...register('tradingAs')} />
+            {/*
+              One row per trading name. An ABN lookup replaces the whole list
+              with what the register holds, and each row stays removable — a
+              business with 40 registered names should not force 40 into the
+              record.
+            */}
+            <Field
+              label="Trading As"
+              hint={
+                tradingNameFields.length > 1
+                  ? `${tradingNameFields.length} trading names — the first is the primary`
+                  : undefined
+              }
+            >
+              <div className="space-y-2">
+                {tradingNameFields.map((field, i) => (
+                  <div key={field.id} className="flex gap-2">
+                    <Input
+                      className="flex-1"
+                      placeholder={i === 0 ? 'Primary trading name' : `Trading name ${i + 1}`}
+                      {...register(`tradingNames.${i}.value` as const)}
+                    />
+                    {tradingNameFields.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        aria-label={`Remove trading name ${i + 1}`}
+                        onClick={() => removeTradingName(i)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => appendTradingName({ value: '' })}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add trading name
+                </Button>
+              </div>
             </Field>
             <Field label="Business Type">
               <Select {...register('businessType')}>
@@ -576,6 +745,37 @@ export default function CustomerFormPage() {
               />
             </Field>
           </div>
+
+          {/*
+            What the register returned that has no field on this form — entity
+            type, ABN status, state, GST and any extra registered names. Shown
+            so the operator can see the whole record they just pulled, and copy
+            anything relevant into the notes.
+          */}
+          {abnResult && (
+            <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4">
+              <p className="text-sm font-medium">From the Business Register</p>
+              <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                {[
+                  ['ABN status', abnResult.abnStatus],
+                  ['Entity type', abnResult.entityTypeName],
+                  ['State', abnResult.state],
+                  ['GST registered from', abnResult.gstFrom],
+                ]
+                  .filter(([, value]) => !!value)
+                  .map(([label, value]) => (
+                    <div key={label} className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">{label}</dt>
+                      <dd className="text-right font-medium">{value}</dd>
+                    </div>
+                  ))}
+              </dl>
+              <p className="mt-3 text-xs text-muted-foreground">
+                The register publishes only the postcode and state of the main address — add the
+                street and suburb below.
+              </p>
+            </div>
+          )}
 
           <div className="mt-6 space-y-4 border-t border-border pt-5">
             <p className="text-sm font-medium">Principal Address</p>
