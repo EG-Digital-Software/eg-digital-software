@@ -48,16 +48,12 @@ jobs:
           VITE_APP_NAME: EG Digital
         run: npm run build
 
-      - name: Install OIDC client
-        run: npm install @actions/core@1.6.0 @actions/http-client
-
+      # github-script already injects `core`; redeclaring it is a syntax error.
       - name: Get id token
         uses: actions/github-script@v7
         id: idtoken
         with:
-          script: |
-            const core = require('@actions/core')
-            return await core.getIDToken()
+          script: return await core.getIDToken()
           result-encoding: string
 
       - name: Deploy to Static Web Apps
