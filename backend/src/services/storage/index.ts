@@ -1,11 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
 import { env } from '../../config/env.js';
+import { logger } from '../../config/logger.js';
 
 /**
- * File-storage abstraction. Local disk in development, pluggable to Azure Blob
- * Storage in production (implement AzureBlobStorage and switch on STORAGE_DRIVER).
- * Production must not assume a local filesystem.
+ * File-storage abstraction. Local disk in development, Azure Blob Storage in
+ * production. Production must not assume a local filesystem — App Service
+ * instances have ephemeral disks and lose uploads on every restart.
  */
 export interface StorageProvider {
   save(key: string, data: Buffer, contentType?: string): Promise<string>;
@@ -27,15 +29,63 @@ class LocalStorage implements StorageProvider {
   }
 }
 
-// Placeholder for Azure Blob — wire @azure/storage-blob when enabling production.
 class AzureBlobStorage implements StorageProvider {
-  async save(): Promise<string> {
-    throw new Error('AzureBlobStorage not yet configured — set STORAGE_DRIVER=local');
+  private container: ContainerClient;
+  private ready?: Promise<void>;
+
+  constructor(connectionString: string, containerName: string) {
+    this.container = BlobServiceClient.fromConnectionString(connectionString).getContainerClient(
+      containerName
+    );
   }
+
+  /**
+   * Blob URLs are persisted on the record, so they must stay valid forever —
+   * hence a publicly readable container rather than expiring SAS links. Falls
+   * back to a private container when the account disallows anonymous access,
+   * so a misconfigured account degrades instead of failing every upload.
+   */
+  private ensureContainer(): Promise<void> {
+    this.ready ??= this.container
+      .createIfNotExists({ access: 'blob' })
+      .then(() => undefined)
+      .catch(async (err: unknown) => {
+        logger.warn(
+          { err },
+          'Blob container could not be created with public read access — creating it private. Enable anonymous blob access on the storage account, or uploaded files will not load.'
+        );
+        await this.container.createIfNotExists();
+      });
+    return this.ready;
+  }
+
+  async save(key: string, data: Buffer, contentType?: string): Promise<string> {
+    await this.ensureContainer();
+    const blob = this.container.getBlockBlobClient(key);
+    await blob.uploadData(data, {
+      blobHTTPHeaders: {
+        blobContentType: contentType ?? 'application/octet-stream',
+        blobCacheControl: 'public, max-age=31536000, immutable',
+      },
+    });
+    return blob.url;
+  }
+
   getUrl(key: string): string {
-    return key;
+    return this.container.getBlockBlobClient(key).url;
   }
 }
 
-export const storage: StorageProvider =
-  env.STORAGE_DRIVER === 'azure' ? new AzureBlobStorage() : new LocalStorage();
+function createStorage(): StorageProvider {
+  if (env.STORAGE_DRIVER !== 'azure') return new LocalStorage();
+
+  // env.ts already rejects an azure driver without a connection string; this
+  // keeps the non-null assertion out of the constructor call.
+  const connectionString = env.AZURE_STORAGE_CONNECTION_STRING;
+  if (!connectionString) {
+    throw new Error('AZURE_STORAGE_CONNECTION_STRING is required when STORAGE_DRIVER=azure');
+  }
+  return new AzureBlobStorage(connectionString, env.AZURE_STORAGE_CONTAINER);
+}
+
+export const storage: StorageProvider = createStorage();

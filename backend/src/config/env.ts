@@ -44,7 +44,17 @@ const schema = z.object({
 
   DEFAULT_CURRENCY: z.string().default('AUD'),
   DEFAULT_LOCALE: z.string().default('en-AU'),
-});
+})
+  // Fail at boot rather than on the first upload attempt in production.
+  .superRefine((cfg, ctx) => {
+    if (cfg.STORAGE_DRIVER === 'azure' && !cfg.AZURE_STORAGE_CONNECTION_STRING) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AZURE_STORAGE_CONNECTION_STRING'],
+        message: 'Required when STORAGE_DRIVER=azure',
+      });
+    }
+  });
 
 const parsed = schema.safeParse(process.env);
 
