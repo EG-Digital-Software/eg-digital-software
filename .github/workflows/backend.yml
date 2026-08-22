@@ -24,6 +24,13 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
+      # Root package.json declares npm workspaces, and its lockfile was generated
+      # on Windows (win32-only rollup/esbuild binaries). Installing from workspace
+      # root on Linux therefore misses @rollup/rollup-linux-x64-gnu. Detach the
+      # package so npm uses this folder's own complete lockfile.
+      - name: Detach from workspace root
+        run: rm -f package.json package-lock.json
+
       - name: Install dependencies
         working-directory: backend
         run: npm ci
