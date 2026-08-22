@@ -23,6 +23,22 @@ export function businessTypeLabel(value?: BusinessType | null): string {
   return BUSINESS_TYPES.find((t) => t.value === value)?.label ?? '';
 }
 
+/**
+ * The ATO's ABN check digit algorithm — mirrors backend/src/services/abn.service.ts
+ * so a typo is caught before it costs a round trip to the Business Register.
+ */
+const ABN_WEIGHTS = [10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+
+export function isValidAbn(abn?: string | null): boolean {
+  const digits = (abn ?? '').replace(/\D/g, '');
+  if (!/^\d{11}$/.test(digits)) return false;
+  const total = digits
+    .split('')
+    .map(Number)
+    .reduce((sum, digit, i) => sum + (i === 0 ? digit - 1 : digit) * ABN_WEIGHTS[i], 0);
+  return total % 89 === 0;
+}
+
 /** ABN is stored as 11 bare digits; display it in the ATO's 2-3-3-3 grouping. */
 export function formatAbn(abn?: string | null): string {
   const d = (abn ?? '').replace(/\D/g, '');

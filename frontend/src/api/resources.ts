@@ -242,6 +242,28 @@ export const settingsApi = {
     (await api.get<ApiEnvelope<PublicPaymentSettings>>('/payments/public/settings')).data.data,
 };
 
+// ── ABN lookup ───────────────────────────────────────────
+export interface AbnLookupResult {
+  abn: string;
+  abnStatus: string;
+  abnStatusFrom: string;
+  acn: string;
+  entityName: string;
+  businessNames: string[];
+  entityTypeCode: string;
+  entityTypeName: string;
+  postcode: string;
+  state: string;
+  gstFrom: string;
+}
+
+export const abnApi = {
+  /** Look an ABN up on the Australian Business Register to prefill the form. */
+  lookup: async (abn: string) =>
+    (await api.get<ApiEnvelope<AbnLookupResult>>(`/abn/lookup?abn=${encodeURIComponent(abn)}`)).data
+      .data,
+};
+
 // ── Geocoding ────────────────────────────────────────────
 export interface ReverseGeocodeResult {
   line1: string;
@@ -249,6 +271,8 @@ export interface ReverseGeocodeResult {
   postcode: string;
   country: string;
   countryCode: string;
+  /** 'approximate' means the match was a town or larger — no usable postcode. */
+  precision: 'exact' | 'approximate';
 }
 
 export const geoApi = {

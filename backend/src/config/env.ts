@@ -42,6 +42,17 @@ const schema = z.object({
   GEOCODER_USER_AGENT: z.string().default('EG-Digital-SaaS/1.0 (admin address autofill)'),
   GEOCODER_EMAIL: z.string().optional(),
 
+  // ── ABN lookup (Australian Business Register) ──────────
+  // The GUID is issued per registered party at
+  // https://abr.business.gov.au/Documentation/WebServiceRegistration
+  ABN_LOOKUP_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v.toLowerCase() !== 'false' && v !== '0'),
+  ABR_URL: z.string().url().default('https://abr.business.gov.au'),
+  ABR_GUID: z.string().optional(),
+  ABR_USER_AGENT: z.string().default('EG-Digital-SaaS/1.0 (customer ABN autofill)'),
+
   DEFAULT_CURRENCY: z.string().default('AUD'),
   DEFAULT_LOCALE: z.string().default('en-AU'),
 })

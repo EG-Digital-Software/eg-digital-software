@@ -11,6 +11,7 @@ import employeeRoutes from './employee.routes.js';
 import adminRoutes from './admin.routes.js';
 import notificationRoutes from './notification.routes.js';
 import geoRoutes from './geo.routes.js';
+import abnRoutes from './abn.routes.js';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/employee', employeeRoutes);
 router.use('/admin', adminRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/geo', geoRoutes);
+router.use('/abn', abnRoutes);
 
 export default router;
