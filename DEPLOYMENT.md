@@ -224,3 +224,137 @@ Domain badalne ke baad `CORS_ORIGIN`, `APP_URL`, `PAYMENT_PUBLIC_BASE_URL` aur `
 | App Service 503 | Log stream dekhein: `az webapp log tail -g $RG -n $API` |
 | SPA refresh par 404 | `frontend/public/staticwebapp.config.json` dist mein aana chahiye |
 | Prisma engine error | Build ubuntu runner par hua ho (workflow aisa hi hai) — local Windows `node_modules` deploy na karein |
+
+---
+
+# Appendix — Azure Portal (bina CLI ke)
+
+Agar Azure CLI install nahi karna, sab kuch https://portal.azure.com se ho jayega.
+(Teesra option: portal ke top bar mein `>_` **Cloud Shell** — usme `az` pehle se installed hai, to section 2 ke saare commands wahin paste kar sakte hain.)
+
+## P1. Resource group
+
+Portal → search **Resource groups** → **+ Create**
+- Name: `eg-digital-rg`, Region: `Australia East` → Review + create
+
+## P2. PostgreSQL database + firewall
+
+Portal → apna **Azure Database for PostgreSQL flexible server** kholein.
+
+**Database banayein:** left menu → **Settings → Databases** → **+ Add**
+- Name: `egdigital` → Save
+
+**Firewall:** left menu → **Settings → Networking**
+- ✅ *Allow public access from any Azure service within Azure to this server* — **zaroori hai**, warna App Service connect nahi kar payega
+- **+ Add current client IP address** — apne laptop se migrate/seed chalane ke liye
+- **Save**
+
+Connection string bana lein (SSL mandatory):
+```
+postgresql://<admin>:<PASSWORD>@<server>.postgres.database.azure.com:5432/egdigital?sslmode=require
+```
+Password mein special chars ho to URL-encode karein (`@` → `%40`, `#` → `%23`).
+
+## P3. App Service (backend)
+
+Portal → **App Services** → **+ Create → Web App**
+
+| Field | Value |
+|---|---|
+| Resource group | `eg-digital-rg` |
+| Name | `eg-digital-api` (globally unique) |
+| Publish | **Code** |
+| Runtime stack | **Node 22 LTS** |
+| OS | **Linux** |
+| Region | `Australia East` |
+| Pricing plan | **B1 Basic** (Free F1 se bhi chalega, par sleep karega) |
+
+Deployment tab mein **GitHub Actions = Disable** rakhein — humara apna workflow already repo mein hai.
+→ **Review + create**
+
+Ban jaane ke baad:
+
+**a) Startup command** — left menu → **Settings → Configuration → General settings**
+```
+npx prisma migrate deploy && node dist/server.js
+```
+→ Save
+
+**b) Environment variables** — **Settings → Environment variables → App settings → + Add** (ek-ek karke):
+
+| Name | Value |
+|---|---|
+| `NODE_ENV` | `production` |
+| `SCM_DO_BUILD_DURING_DEPLOYMENT` | `false` |
+| `DATABASE_URL` | P2 wali connection string |
+| `JWT_SECRET` | 32+ random chars |
+| `JWT_REFRESH_SECRET` | 32+ random chars (alag) |
+| `JWT_ACCESS_EXPIRES` | `15m` |
+| `JWT_REFRESH_EXPIRES` | `7d` |
+| `CORS_ORIGIN` | SWA ka URL, e.g. `https://xyz.azurestaticapps.net` (trailing `/` nahi) |
+| `APP_URL` | wahi SWA URL |
+| `PAYMENT_PUBLIC_BASE_URL` | wahi SWA URL |
+| `SUPER_ADMIN_EMAIL` | `admin@egdigital.com.au` |
+| `SUPER_ADMIN_PASSWORD` | strong password |
+| `STORAGE_DRIVER` | `local` |
+| `DEFAULT_CURRENCY` | `AUD` |
+| `DEFAULT_LOCALE` | `en-AU` |
+| `GEOCODING_ENABLED` | `true` |
+
+→ **Apply** → **Confirm**
+
+> `PORT` set **mat** karein — App Service khud deta hai.
+
+**c) Publish profile** — App Service ke **Overview** page par top bar → **Download publish profile**. Us `.PublishSettings` file ka **pura content** GitHub secret `AZURE_WEBAPP_PUBLISH_PROFILE` mein jayega.
+
+## P4. Static Web App (frontend)
+
+Portal → **Static Web Apps** → **+ Create**
+
+| Field | Value |
+|---|---|
+| Resource group | `eg-digital-rg` |
+| Name | `eg-digital-web` |
+| Plan type | **Free** |
+| Region | `East Asia` (SWA sirf kuch regions mein hai) |
+| Deployment source | **Other** ← GitHub *mat* chunein |
+
+→ Review + create
+
+> **GitHub source kyun nahi?** Portal khud ek workflow file repo mein commit kar deta hai jo humare `frontend.yml` se takrayega. "Other" chunne se sirf ek deployment token milta hai.
+
+Ban jaane ke baad: **Overview → Manage deployment token** → copy. Ye GitHub secret `AZURE_STATIC_WEB_APPS_API_TOKEN` hai.
+URL bhi Overview par milega — usi ko App Service ke `CORS_ORIGIN`/`APP_URL` mein daalein.
+
+## P5. GitHub secrets
+
+Repo → **Settings → Secrets and variables → Actions → New repository secret**
+
+| Secret | Value |
+|---|---|
+| `AZURE_WEBAPP_PUBLISH_PROFILE` | P3(c) wali file ka pura XML |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | P4 wala deployment token |
+| `VITE_API_URL` | `https://eg-digital-api.azurewebsites.net/api` |
+
+Aur `.github/workflows/backend.yml` mein `AZURE_WEBAPP_NAME` apne App Service ke naam se badal dein.
+
+## P6. Migrate + seed (local se, ek baar)
+
+Ye step CLI ke bina bhi chalega — sirf Node chahiye:
+
+```powershell
+cd "E:/website/Digital Saas/backend"
+$env:DATABASE_URL="postgresql://<admin>:<PASSWORD>@<server>.postgres.database.azure.com:5432/egdigital?sslmode=require"
+npx prisma migrate deploy
+npm run seed
+```
+
+## P7. Deploy chalayein
+
+GitHub repo → **Actions** tab → "Deploy Backend" → **Run workflow** → `main`
+Phir "Deploy Frontend" → **Run workflow**
+
+Verify: `https://eg-digital-api.azurewebsites.net/api/health` → `{"success":true,...}`
+Phir SWA URL → `/login` → super-admin credentials.
+
+Logs chahiye to: App Service → **Monitoring → Log stream**
