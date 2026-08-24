@@ -8,9 +8,9 @@ import {
   Phone,
   Building2,
   MapPin,
-  UserRound,
   Contact,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { customerApi } from '@/api/resources';
 import type { Address, Customer } from '@/types';
@@ -24,7 +24,7 @@ import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, EmptyState } from '@/components/shared/states';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials } from '@/lib/utils';
-import { businessTypeLabel, formatAbn, formatAcn } from '@/lib/customer';
+import { businessTypeLabel, customerName, formatAbn, formatAcn } from '@/lib/customer';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName } from '@/lib/countries';
 
@@ -101,6 +101,15 @@ function Section({
   );
 }
 
+const ACCOUNT_STATUS: Record<
+  NonNullable<Customer['accountStatusEffective']>,
+  { label: string; variant: 'success' | 'warning' | 'destructive' }
+> = {
+  ACTIVE: { label: 'Active', variant: 'success' },
+  DORMANT: { label: 'Dormant', variant: 'warning' },
+  SUSPENDED: { label: 'Suspended', variant: 'destructive' },
+};
+
 /** Principal address is the customer's real-world location; fall back to billing. */
 function primaryAddress(c: Customer) {
   return (
@@ -132,7 +141,7 @@ export default function CustomerDetailPage() {
           </Link>
         </Button>
         <PageHeader
-          title={c.companyName || `${c.firstName} ${c.lastName}`}
+          title={customerName(c)}
           description={c.clientId}
           actions={
             <>
@@ -153,13 +162,13 @@ export default function CustomerDetailPage() {
       <Card>
         <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start">
           <Avatar className="h-14 w-14">
-            <AvatarFallback className="text-lg">{initials(c.firstName, c.lastName)}</AvatarFallback>
+            <AvatarFallback className="text-lg">
+              {initials(...(customerName(c).split(' ') as [string, string?]))}
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-lg font-semibold">
-                {c.firstName} {c.lastName}
-              </p>
+              <p className="text-lg font-semibold">{customerName(c)}</p>
               <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
                 {c.clientId}
               </span>
@@ -167,20 +176,26 @@ export default function CustomerDetailPage() {
                 <Badge variant="secondary">{businessTypeLabel(c.businessType)}</Badge>
               )}
               <Badge variant={c.status === 'ACTIVE' ? 'success' : 'muted'}>{c.status}</Badge>
-              {c.authorized && (
+              {(() => {
+                const s = ACCOUNT_STATUS[c.accountStatusEffective ?? c.accountStatus];
+                return <Badge variant={s.variant}>{s.label}</Badge>;
+              })()}
+              {!c.authorized && (
                 <Badge variant="default">
                   <ShieldCheck className="h-3 w-3" /> Authorised rep
                 </Badge>
               )}
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5" /> {c.email}
-              </span>
-              {c.phoneNumber && (
+              {c.contactEmail && (
+                <span className="flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5" /> {c.contactEmail}
+                </span>
+              )}
+              {c.contactMobile && (
                 <span className="flex items-center gap-1.5">
                   <Phone className="h-3.5 w-3.5" />
-                  {formatPhone(c.phoneNumber, c.phoneNumberCountry)}
+                  {formatPhone(c.contactMobile, c.contactMobileCountry)}
                 </span>
               )}
               {c.companyName && (
@@ -215,16 +230,6 @@ export default function CustomerDetailPage() {
         {/* Mirrors the Add/Edit form section-for-section so the two read the same. */}
         <TabsContent value="overview">
           <div className="grid items-start gap-6 lg:grid-cols-2">
-            <Section icon={UserRound} title="Basic Information">
-              <Detail label="First Name" value={c.firstName} />
-              <Detail label="Last Name" value={c.lastName} />
-              <Detail label="Email" value={c.email} />
-              <Detail
-                label="Phone Number"
-                value={<PhoneValue number={c.phoneNumber} country={c.phoneNumberCountry} />}
-              />
-            </Section>
-
             <Section icon={Building2} title="Company Information">
               <Detail label="ABN Number" value={formatAbn(c.abn)} />
               <Detail label="ACN" value={formatAcn(c.acn)} />
@@ -274,7 +279,7 @@ export default function CustomerDetailPage() {
                 value={<PhoneValue number={c.contactMobile} country={c.contactMobileCountry} />}
               />
               <Detail label="Authorised" value={c.authorized ? 'Yes' : 'No'} />
-              {c.authorized && (
+              {!c.authorized && (
                 <>
                   <Detail label="Authorised Person" value={c.authorizedPerson} />
                   <Detail label="Authorised Email" value={c.authorizedEmail} />
@@ -287,6 +292,32 @@ export default function CustomerDetailPage() {
                 </>
               )}
             </Section>
+
+            {!!c.directors?.length && (
+              <Section icon={Users} title="Company C-Suite Details">
+                <div className="sm:col-span-2 space-y-3">
+                  {c.directors.map((d, i) => (
+                    <div
+                      key={d.id}
+                      className="rounded-lg border border-border bg-secondary/30 p-3 text-sm"
+                    >
+                      <p className="mb-1 font-medium">{d.designation || `Director ${i + 1}`}</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <Mail className="h-3.5 w-3.5" /> {d.email}
+                        </span>
+                        {d.contactNumber && (
+                          <span className="flex items-center gap-1.5">
+                            <Phone className="h-3.5 w-3.5" />
+                            {formatPhone(d.contactNumber, d.contactNumberCountry)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
 
             <Section icon={Receipt} title="Invoicing Details">
               <Detail label="Accounts Person Name" value={c.billingContactPerson} />
@@ -303,6 +334,13 @@ export default function CustomerDetailPage() {
               <Detail
                 label="Credit Score"
                 value={c.creditScore != null ? String(c.creditScore) : null}
+              />
+              <Detail
+                label="Account Status"
+                value={(() => {
+                  const s = ACCOUNT_STATUS[c.accountStatusEffective ?? c.accountStatus];
+                  return <Badge variant={s.variant}>{s.label}</Badge>;
+                })()}
               />
             </Section>
           </div>

@@ -60,9 +60,8 @@ export async function listInvoices(params: ListParams) {
         { customer: { companyName: like } },
         { customer: { tradingAs: like } },
         { customer: { clientId: like } },
-        { customer: { firstName: like } },
-        { customer: { lastName: like } },
-        { customer: { email: like } },
+        { customer: { contactPerson: like } },
+        { customer: { contactEmail: like } },
       ],
     });
   }
@@ -81,9 +80,8 @@ export async function listInvoices(params: ListParams) {
             clientId: true,
             companyName: true,
             tradingAs: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+            contactPerson: true,
+            contactEmail: true,
           },
         },
       },
@@ -118,7 +116,7 @@ export async function ensurePayable(
       currency: true,
       paymentUrl: true,
       paymentQrUrl: true,
-      customer: { select: { email: true, billingEmail: true } },
+      customer: { select: { contactEmail: true, billingEmail: true } },
     },
   });
 
@@ -131,7 +129,7 @@ export async function ensurePayable(
     invoiceNumber: inv.invoiceNumber,
     amount: inv.total.toString(),
     currency: inv.currency,
-    customerEmail: inv.customer?.billingEmail ?? inv.customer?.email ?? '',
+    customerEmail: inv.customer?.billingEmail ?? inv.customer?.contactEmail ?? '',
     description: `Payment for ${inv.invoiceNumber}`,
   });
   const paymentQrUrl = await generateQrDataUrl(payment.paymentUrl);
@@ -240,7 +238,7 @@ export async function createInvoice(input: CreateInput) {
     invoiceNumber: invoice.invoiceNumber,
     amount: totals.total.toString(),
     currency: invoice.currency,
-    customerEmail: customer.billingEmail ?? customer.email,
+    customerEmail: customer.billingEmail ?? customer.contactEmail ?? undefined,
     description: `Payment for ${invoice.invoiceNumber}`,
   });
   const qr = await generateQrDataUrl(payment.paymentUrl);
@@ -284,7 +282,7 @@ export async function getPublicInvoice(id: string) {
     where: { id },
     include: {
       items: true,
-      customer: { select: { clientId: true, companyName: true, firstName: true, lastName: true } },
+      customer: { select: { clientId: true, companyName: true, contactPerson: true } },
     },
   });
   if (!invoice) throw ApiError.notFound('Invoice not found');

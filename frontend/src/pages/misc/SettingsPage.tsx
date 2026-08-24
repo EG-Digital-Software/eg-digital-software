@@ -10,6 +10,7 @@ import { apiErrorMessage } from '@/api/client';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { numericField } from '@/lib/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
@@ -261,7 +262,7 @@ export default function SettingsPage() {
           error={errors.disputeWindowDays?.message}
           hint="Days customers have to raise a dispute — printed on the invoice"
         >
-          <Input type="number" min={0} max={365} {...register('disputeWindowDays')} />
+          <Input maxLength={3} {...numericField(register('disputeWindowDays'))} />
         </Field>
       </Section>
 

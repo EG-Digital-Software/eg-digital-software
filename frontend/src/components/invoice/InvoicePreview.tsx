@@ -51,8 +51,8 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
   const paid = Number(invoice.amountPaid);
   const amountDue = Math.max(total - paid, 0);
 
-  const customerName = c?.companyName || `${c?.firstName ?? ''} ${c?.lastName ?? ''}`.trim() || '—';
-  const customerEmail = c?.billingEmail || c?.email;
+  const customerName = c?.companyName || c?.contactPerson || c?.clientId || '—';
+  const customerEmail = c?.billingEmail || c?.contactEmail;
   const gstRate = invoice.items?.[0]?.taxRate ? Number(invoice.items[0].taxRate) : 10;
   const payUrl = invoice.paymentUrl ?? undefined;
 
@@ -89,8 +89,8 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
             <p className="font-semibold text-foreground">{customerName}</p>
             {c?.abn && <p className="text-muted-foreground">ABN {formatAbn(c.abn)}</p>}
             {customerEmail && <p className="text-muted-foreground">{customerEmail}</p>}
-            {c?.phoneNumber && (
-              <p className="text-muted-foreground">{formatPhone(c.phoneNumber, c.phoneNumberCountry)}</p>
+            {c?.contactMobile && (
+              <p className="text-muted-foreground">{formatPhone(c.contactMobile, c.contactMobileCountry)}</p>
             )}
             {c?.clientId && <p className="mt-1 text-xs text-muted-foreground">Client {c.clientId}</p>}
           </div>

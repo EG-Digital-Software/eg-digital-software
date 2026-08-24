@@ -137,7 +137,7 @@ export default function InvoiceDetailPage() {
               >
                 <Building2 className="h-3 w-3" />
                 {invoice.customer.companyName ||
-                  `${invoice.customer.firstName ?? ''} ${invoice.customer.lastName ?? ''}`.trim() ||
+                  invoice.customer.contactPerson ||
                   invoice.customer.clientId}
                 <span className="font-mono font-normal">{invoice.customer.clientId}</span>
               </Link>

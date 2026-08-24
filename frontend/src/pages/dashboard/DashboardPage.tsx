@@ -326,7 +326,7 @@ function RecentActivity() {
 
   const recent = data as
     | {
-        customers: Array<{ clientId: string; companyName?: string; firstName: string; lastName: string; createdAt: string }>;
+        customers: Array<{ clientId: string; companyName?: string; contactPerson?: string; createdAt: string }>;
         invoices: Array<{ id: string; invoiceNumber: string; total: string; createdAt: string; customer?: { companyName?: string } }>;
         payments: Array<{ id: string; amount: string; paidAt: string; invoice?: { invoiceNumber: string } }>;
       }
@@ -350,7 +350,7 @@ function RecentActivity() {
               {recent?.customers.map((c) => (
                 <li key={c.clientId} className="flex items-center justify-between px-5 py-2.5">
                   <div>
-                    <p className="text-sm font-medium">{c.companyName || `${c.firstName} ${c.lastName}`}</p>
+                    <p className="text-sm font-medium">{c.companyName || c.contactPerson || c.clientId}</p>
                     <p className="text-xs text-muted-foreground">{c.clientId}</p>
                   </div>
                   <span className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</span>

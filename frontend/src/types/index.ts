@@ -108,17 +108,12 @@ export interface CustomerProduct {
   licence?: { licenceKey: string } | null;
 }
 
+export type AccountStatus = 'ACTIVE' | 'DORMANT' | 'SUSPENDED';
+
 export interface Customer {
   id: string;
   /** System-generated, immutable business key (EGD-CL-000001). */
   clientId: string;
-
-  // Basic Information
-  firstName: string;
-  lastName: string;
-  email: string;
-  phoneNumber?: string | null;
-  phoneNumberCountry?: string | null;
 
   // Company Information
   abn?: string | null;
@@ -149,11 +144,24 @@ export interface Customer {
 
   reference?: string | null;
   status: 'ACTIVE' | 'ARCHIVED';
+  /** Admin-pinned account standing. ACTIVE means "auto-derive". */
+  accountStatus: AccountStatus;
+  /** Standing resolved for display: pinned override, else derived from activity. */
+  accountStatusEffective?: AccountStatus;
   createdAt: string;
   addresses?: Address[];
+  directors?: Director[];
   customerProducts?: CustomerProduct[];
   invoices?: Invoice[];
   _count?: { customerProducts: number };
+}
+
+export interface Director {
+  id: string;
+  designation?: string | null;
+  email: string;
+  contactNumber?: string | null;
+  contactNumberCountry?: string | null;
 }
 
 export interface InvoiceItem {

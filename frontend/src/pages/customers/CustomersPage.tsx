@@ -22,9 +22,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BUSINESS_TYPES, businessTypeLabel } from '@/lib/customer';
+import { BUSINESS_TYPES, businessTypeLabel, customerName } from '@/lib/customer';
 import { Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName } from '@/lib/countries';
+
+const ACCOUNT_STATUS: Record<
+  NonNullable<Customer['accountStatusEffective']>,
+  { label: string; variant: 'success' | 'warning' | 'destructive' }
+> = {
+  ACTIVE: { label: 'Active', variant: 'success' },
+  DORMANT: { label: 'Dormant', variant: 'warning' },
+  SUSPENDED: { label: 'Suspended', variant: 'destructive' },
+};
 
 function invoiceSummary(c: Customer): { label: string; variant: 'success' | 'warning' | 'muted' } {
   const invs = c.invoices ?? [];
@@ -188,6 +197,7 @@ export default function CustomersPage() {
                   <TableHead>Business</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Invoices</TableHead>
+                  <TableHead>Account Status</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -239,6 +249,12 @@ export default function CustomersPage() {
                       <TableCell>
                         <Badge variant={inv.variant}>{inv.label}</Badge>
                       </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const s = ACCOUNT_STATUS[c.accountStatusEffective ?? c.accountStatus];
+                          return <Badge variant={s.variant}>{s.label}</Badge>;
+                        })()}
+                      </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary">
@@ -273,7 +289,7 @@ export default function CustomersPage() {
         open={!!archiving}
         onOpenChange={(v) => !v && setArchiving(null)}
         title="Archive customer?"
-        description={`${archiving?.companyName || archiving?.firstName} will be archived. Their invoices and records are preserved.`}
+        description={`${archiving ? customerName(archiving) : ''} will be archived. Their invoices and records are preserved.`}
         confirmLabel="Archive"
         destructive
         loading={archive.isPending}

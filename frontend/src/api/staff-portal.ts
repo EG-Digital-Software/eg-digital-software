@@ -42,15 +42,11 @@ export interface EmployeeDashboard {
 export interface EmployeeCustomer {
   id: string;
   clientId: string;
-  firstName: string;
-  lastName: string;
   companyName?: string | null;
-  email: string;
-  phoneNumber?: string | null;
-  phoneNumberCountry?: string | null;
   tradingAs?: string | null;
   businessType?: import('@/types').BusinessType | null;
   contactPerson?: string | null;
+  contactEmail?: string | null;
   contactMobile?: string | null;
   contactMobileCountry?: string | null;
   addresses?: Array<{ type: string; city?: string | null; country?: string | null }>;

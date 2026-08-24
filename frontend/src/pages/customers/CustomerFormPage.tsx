@@ -11,10 +11,10 @@ import {
   Building2,
   Receipt,
   Package,
-  UserRound,
   Contact,
   MapPin,
   Search,
+  Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { customerApi, productApi, geoApi, abnApi } from '@/api/resources';
@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
-import { PhoneInput, CountrySelect } from '@/components/shared/PhoneInput';
+import { PhoneInput, CountrySelect, phoneComplete } from '@/components/shared/PhoneInput';
 import {
   DEFAULT_COUNTRY,
   DEFAULT_COUNTRY_NAME,
@@ -34,7 +34,8 @@ import {
   countryCodeByName,
   countryName,
 } from '@/lib/countries';
-import { BUSINESS_TYPES, formatAbn, isValidAbn } from '@/lib/customer';
+import { BUSINESS_TYPES, DIRECTOR_DESIGNATIONS, formatAbn, isValidAbn } from '@/lib/customer';
+import { numericField, guardedField } from '@/lib/input';
 import { formatCurrency } from '@/lib/utils';
 import type { Address } from '@/types';
 
@@ -64,13 +65,6 @@ const digitField = (length: number, label: string) =>
 
 const schema = z
   .object({
-    // Basic Information
-    firstName: z.string().min(1, 'Required'),
-    lastName: z.string().min(1, 'Required'),
-    email: z.string().email('Enter a valid email'),
-    phoneNumber: z.string().optional(),
-    phoneNumberCountry: z.string().optional(),
-
     // Company Information
     abn: digitField(11, 'ABN'),
     acn: digitField(9, 'ACN'),
@@ -110,6 +104,19 @@ const schema = z
         return Number.isInteger(n) && n >= 0 && n <= 1200;
       }, 'Credit score must be a whole number between 0 and 1200'),
 
+    accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).default('ACTIVE'),
+
+    directors: z
+      .array(
+        z.object({
+          designation: z.string().optional(),
+          email: z.string().optional(),
+          contactNumber: z.string().optional(),
+          contactNumberCountry: z.string().optional(),
+        })
+      )
+      .optional(),
+
     assignedProducts: z
       .array(
         z.object({
@@ -124,9 +131,43 @@ const schema = z
       )
       .optional(),
   })
-  .refine((v) => v.authorized !== 'yes' || !!v.authorizedPerson?.trim(), {
-    message: 'Required when Authorised is Yes',
+  .refine((v) => v.authorized !== 'no' || !!v.authorizedPerson?.trim(), {
+    message: 'Required when Authorised is No',
     path: ['authorizedPerson'],
+  })
+  // A phone number, once entered, must be a full 10 digits.
+  .refine((v) => phoneComplete(v.contactMobile), {
+    message: 'Phone number must be 10 digits',
+    path: ['contactMobile'],
+  })
+  .refine((v) => phoneComplete(v.authorizedMobile), {
+    message: 'Phone number must be 10 digits',
+    path: ['authorizedMobile'],
+  })
+  .refine((v) => phoneComplete(v.billingContactNumber), {
+    message: 'Phone number must be 10 digits',
+    path: ['billingContactNumber'],
+  })
+  // Each director row, once started, must be complete: a designation, a valid
+  // email and a full 10-digit contact number.
+  .superRefine((v, ctx) => {
+    (v.directors ?? []).forEach((d, i) => {
+      const started = !!(d.designation?.trim() || d.email?.trim() || d.contactNumber?.trim());
+      if (!started) return;
+      if (!d.designation?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Designation is required', path: ['directors', i, 'designation'] });
+      }
+      if (!d.email?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Email is required', path: ['directors', i, 'email'] });
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter a valid email', path: ['directors', i, 'email'] });
+      }
+      if (!d.contactNumber?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Contact number is required', path: ['directors', i, 'contactNumber'] });
+      } else if (!phoneComplete(d.contactNumber)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Phone number must be 10 digits', path: ['directors', i, 'contactNumber'] });
+      }
+    });
   });
 
 type FormValues = z.input<typeof schema>;
@@ -134,11 +175,6 @@ type FormValues = z.input<typeof schema>;
 const EMPTY_ADDRESS = { line1: '', line2: '', city: '', postcode: '', country: DEFAULT_COUNTRY };
 
 const DEFAULTS: FormValues = {
-  firstName: '',
-  lastName: '',
-  email: '',
-  phoneNumber: '',
-  phoneNumberCountry: DEFAULT_COUNTRY,
   abn: '',
   acn: '',
   companyName: '',
@@ -162,7 +198,16 @@ const DEFAULTS: FormValues = {
   billingContactNumberCountry: DEFAULT_COUNTRY,
   billingEmail: '',
   creditScore: '',
+  accountStatus: 'ACTIVE',
+  directors: [{ designation: '', email: '', contactNumber: '', contactNumberCountry: DEFAULT_COUNTRY }],
   assignedProducts: [],
+};
+
+const EMPTY_DIRECTOR = {
+  designation: '',
+  email: '',
+  contactNumber: '',
+  contactNumberCountry: DEFAULT_COUNTRY,
 };
 
 // ── Layout helpers ─────────────────────────────────────────
@@ -363,9 +408,8 @@ function PhoneField({
   disabled,
 }: {
   control: Control<FormValues>;
-  numberName: 'phoneNumber' | 'contactMobile' | 'authorizedMobile' | 'billingContactNumber';
+  numberName: 'contactMobile' | 'authorizedMobile' | 'billingContactNumber';
   countryName:
-    | 'phoneNumberCountry'
     | 'contactMobileCountry'
     | 'authorizedMobileCountry'
     | 'billingContactNumberCountry';
@@ -412,6 +456,13 @@ export default function CustomerFormPage() {
     queryFn: () => customerApi.get(clientId!),
     enabled: isEdit,
   });
+  // On the Add form, preview the Client ID this customer will be assigned so the
+  // field shows the real value instead of a generic "Auto-generated" placeholder.
+  const { data: nextClientId } = useQuery({
+    queryKey: ['customers', 'next-client-id'],
+    queryFn: () => customerApi.nextClientId(),
+    enabled: !isEdit,
+  });
 
   const {
     register,
@@ -430,6 +481,11 @@ export default function CustomerFormPage() {
     remove: removeTradingName,
     replace: replaceTradingNames,
   } = useFieldArray({ control, name: 'tradingNames' });
+  const {
+    fields: directorFields,
+    append: appendDirector,
+    remove: removeDirector,
+  } = useFieldArray({ control, name: 'directors' });
   const sameAsPrincipal = watch('sameAsPrincipal');
   const authorized = watch('authorized');
   const assigned = watch('assignedProducts');
@@ -531,11 +587,6 @@ export default function CustomerFormPage() {
     });
     reset({
       ...DEFAULTS,
-      firstName: existing.firstName,
-      lastName: existing.lastName,
-      email: existing.email,
-      phoneNumber: existing.phoneNumber ?? '',
-      phoneNumberCountry: existing.phoneNumberCountry ?? DEFAULT_COUNTRY,
       abn: existing.abn ?? '',
       acn: existing.acn ?? '',
       companyName: existing.companyName ?? '',
@@ -566,6 +617,15 @@ export default function CustomerFormPage() {
       billingContactNumberCountry: existing.billingContactNumberCountry ?? DEFAULT_COUNTRY,
       billingEmail: existing.billingEmail ?? '',
       creditScore: existing.creditScore != null ? String(existing.creditScore) : '',
+      accountStatus: existing.accountStatus ?? 'ACTIVE',
+      directors: existing.directors?.length
+        ? existing.directors.map((d) => ({
+            designation: d.designation ?? '',
+            email: d.email ?? '',
+            contactNumber: d.contactNumber ?? '',
+            contactNumberCountry: d.contactNumberCountry ?? DEFAULT_COUNTRY,
+          }))
+        : [{ ...EMPTY_DIRECTOR }],
       assignedProducts: [],
     });
   }, [existing, reset]);
@@ -593,6 +653,15 @@ export default function CustomerFormPage() {
           .filter(Boolean),
         principalAddress: withCountryName(values.principalAddress),
         billingAddress: withCountryName(values.billingAddress),
+        // Drop blank director rows; a row counts once it has an email.
+        directors: (values.directors ?? [])
+          .filter((d) => d.email?.trim())
+          .map((d) => ({
+            designation: d.designation?.trim() || undefined,
+            email: d.email!.trim(),
+            contactNumber: d.contactNumber?.trim() || undefined,
+            contactNumberCountry: d.contactNumberCountry,
+          })),
         assignedProducts: isEdit ? undefined : values.assignedProducts,
       };
       return isEdit ? customerApi.update(clientId!, payload) : customerApi.create(payload);
@@ -622,29 +691,7 @@ export default function CustomerFormPage() {
       </div>
 
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-6">
-        {/* ── 1. Basic Information ── */}
-        <Section icon={UserRound} title="Basic Information">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="First Name" error={errors.firstName?.message}>
-              <Input {...register('firstName')} />
-            </Field>
-            <Field label="Last Name" error={errors.lastName?.message}>
-              <Input {...register('lastName')} />
-            </Field>
-            <Field label="Email" error={errors.email?.message}>
-              <Input type="email" {...register('email')} />
-            </Field>
-            <Field label="Phone Number">
-              <PhoneField
-                control={control}
-                numberName="phoneNumber"
-                countryName="phoneNumberCountry"
-              />
-            </Field>
-          </div>
-        </Section>
-
-        {/* ── 2. Company Information ── */}
+        {/* ── 1. Company Information ── */}
         <Section icon={Building2} title="Company Information">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
@@ -657,7 +704,7 @@ export default function CustomerFormPage() {
                   maxLength={14}
                   placeholder="51 824 753 556"
                   className="flex-1"
-                  {...register('abn')}
+                  {...numericField(register('abn'), 'abn')}
                 />
                 <Button
                   type="button"
@@ -672,7 +719,7 @@ export default function CustomerFormPage() {
               </div>
             </Field>
             <Field label="ACN" error={errors.acn?.message} hint="9 digits">
-              <Input maxLength={11} placeholder="004 085 616" {...register('acn')} />
+              <Input maxLength={11} placeholder="004 085 616" {...numericField(register('acn'), 'abn')} />
             </Field>
             <Field label="Business Name">
               <Input {...register('companyName')} />
@@ -740,7 +787,7 @@ export default function CustomerFormPage() {
                 readOnly
                 disabled
                 className="font-mono"
-                value={isEdit ? (existing?.clientId ?? '') : ''}
+                value={isEdit ? (existing?.clientId ?? '') : (nextClientId ?? '')}
                 placeholder="Auto-generated"
               />
             </Field>
@@ -813,10 +860,10 @@ export default function CustomerFormPage() {
         <Section icon={Contact} title="Contact Information">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Contact Name">
-              <Input {...register('contactPerson')} />
+              <Input {...guardedField(register('contactPerson'), 'letters')} />
             </Field>
             <Field label="Contact Email" error={errors.contactEmail?.message}>
-              <Input type="email" {...register('contactEmail')} />
+              <Input type="email" {...guardedField(register('contactEmail'), 'email')} />
             </Field>
             <Field label="Contact Mobile">
               <PhoneField
@@ -836,15 +883,15 @@ export default function CustomerFormPage() {
             </Field>
           </div>
 
-          {authorized === 'yes' && (
+          {authorized === 'no' && (
             <div className="mt-6 space-y-4 border-t border-border pt-5">
               <p className="text-sm font-medium">Authorised Representative</p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Authorised Person" error={errors.authorizedPerson?.message}>
-                  <Input {...register('authorizedPerson')} />
+                  <Input {...guardedField(register('authorizedPerson'), 'letters')} />
                 </Field>
                 <Field label="Authorised Email" error={errors.authorizedEmail?.message}>
-                  <Input type="email" {...register('authorizedEmail')} />
+                  <Input type="email" {...guardedField(register('authorizedEmail'), 'email')} />
                 </Field>
                 <Field label="Authorised Mobile">
                   <PhoneField
@@ -858,6 +905,90 @@ export default function CustomerFormPage() {
           )}
         </Section>
 
+        {/* ── Company C-Suite Details ── */}
+        <Section
+          icon={Users}
+          title="Company C-Suite Details"
+          description="Every director we may need to contact about this account."
+        >
+          <div className="space-y-4">
+            {directorFields.map((field, index) => (
+              <div key={field.id} className="rounded-lg border border-border bg-secondary/30 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-medium">Director {index + 1}</span>
+                  {directorFields.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => removeDirector(index)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Remove
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <Field
+                    label="Designation"
+                    error={errors.directors?.[index]?.designation?.message}
+                  >
+                    <Select {...register(`directors.${index}.designation` as const)}>
+                      <option value="">Select…</option>
+                      {DIRECTOR_DESIGNATIONS.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field
+                    label="Director Email Address"
+                    error={errors.directors?.[index]?.email?.message}
+                  >
+                    <Input
+                      type="email"
+                      placeholder="director@example.com"
+                      {...guardedField(register(`directors.${index}.email` as const), 'email')}
+                    />
+                  </Field>
+                  <Field
+                    label="Director Contact Number"
+                    error={errors.directors?.[index]?.contactNumber?.message}
+                  >
+                    <Controller
+                      control={control}
+                      name={`directors.${index}.contactNumber` as const}
+                      render={({ field: numField }) => (
+                        <Controller
+                          control={control}
+                          name={`directors.${index}.contactNumberCountry` as const}
+                          render={({ field: cField }) => (
+                            <PhoneInput
+                              country={cField.value ?? DEFAULT_COUNTRY}
+                              onCountryChange={cField.onChange}
+                              value={numField.value ?? ''}
+                              onValueChange={numField.onChange}
+                              onBlur={numField.onBlur}
+                            />
+                          )}
+                        />
+                      )}
+                    />
+                  </Field>
+                </div>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => appendDirector({ ...EMPTY_DIRECTOR })}
+            >
+              <Plus className="h-4 w-4" /> Add More Director
+            </Button>
+          </div>
+        </Section>
+
         {/* ── 4. Invoicing Details ── */}
         <Section
           icon={Receipt}
@@ -866,7 +997,7 @@ export default function CustomerFormPage() {
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Accounts Person Name">
-              <Input {...register('billingContactPerson')} />
+              <Input {...guardedField(register('billingContactPerson'), 'letters')} />
             </Field>
             <Field label="Accounts Person Mobile">
               <PhoneField
@@ -876,10 +1007,20 @@ export default function CustomerFormPage() {
               />
             </Field>
             <Field label="Accounts Person Email" error={errors.billingEmail?.message}>
-              <Input type="email" {...register('billingEmail')} />
+              <Input type="email" {...guardedField(register('billingEmail'), 'email')} />
             </Field>
             <Field label="Credit Score" error={errors.creditScore?.message} hint="0 – 1200">
-              <Input type="number" min={0} max={1200} step={1} {...register('creditScore')} />
+              <Input maxLength={4} placeholder="0 – 1200" {...numericField(register('creditScore'))} />
+            </Field>
+            <Field
+              label="Account Status"
+              hint="Active auto-marks as Dormant after 6 months without an invoice; pin Dormant or Suspended to override"
+            >
+              <Select {...register('accountStatus')}>
+                <option value="ACTIVE">Active</option>
+                <option value="DORMANT">Dormant</option>
+                <option value="SUSPENDED">Suspended</option>
+              </Select>
             </Field>
           </div>
         </Section>
@@ -930,15 +1071,10 @@ export default function CustomerFormPage() {
                         label="Quantity"
                         error={errors.assignedProducts?.[index]?.quantity?.message}
                       >
-                        <Input
-                          type="number"
-                          min={1}
-                          max={selected?.availableStock}
-                          {...register(`assignedProducts.${index}.quantity`)}
-                        />
+                        <Input {...numericField(register(`assignedProducts.${index}.quantity`))} />
                       </Field>
                       <Field label="Price">
-                        <Input type="number" step="0.01" {...register(`assignedProducts.${index}.price`)} />
+                        <Input {...numericField(register(`assignedProducts.${index}.price`), 'decimal')} />
                       </Field>
                       <Field label="Licence Key">
                         <Input

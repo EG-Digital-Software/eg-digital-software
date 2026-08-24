@@ -90,15 +90,15 @@ export async function registerUser(input: {
     if (!input.clientId) throw ApiError.badRequest('Client ID is required');
     const customer = await prisma.customer.findUnique({ where: { clientId: input.clientId } });
     if (!customer) throw ApiError.badRequest('No customer found for that Client ID');
-    const matches = [customer.email, customer.billingEmail]
+    const matches = [customer.contactEmail, customer.billingEmail]
       .filter(Boolean)
       .map((e) => e!.toLowerCase());
     if (!matches.includes(email)) {
       throw ApiError.badRequest('Email does not match our records for this Client ID');
     }
     customerId = customer.id;
-    firstName = customer.firstName;
-    lastName = customer.lastName;
+    // The customer record no longer carries a personal name — keep the name the
+    // registrant entered on the sign-up form.
   }
 
   let avatarUrl: string | undefined;

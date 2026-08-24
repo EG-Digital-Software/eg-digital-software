@@ -35,7 +35,7 @@ export async function runLicenceReminders(): Promise<ReminderResult> {
     where: { expiryDate: { not: null } },
     include: {
       product: { select: { name: true } },
-      customer: { select: { id: true, companyName: true, firstName: true, lastName: true } },
+      customer: { select: { id: true, companyName: true, contactPerson: true } },
     },
   });
 

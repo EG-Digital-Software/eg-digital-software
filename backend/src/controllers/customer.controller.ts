@@ -17,6 +17,11 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   return paginated(res, items, total, page);
 });
 
+export const nextClientId = asyncHandler(async (_req: Request, res: Response) => {
+  const clientId = await customerService.previewNextClientId();
+  return ok(res, { clientId });
+});
+
 export const getOne = asyncHandler(async (req: Request, res: Response) => {
   const customer = await customerService.getCustomerByClientId(req.params.clientId);
   return ok(res, customer);

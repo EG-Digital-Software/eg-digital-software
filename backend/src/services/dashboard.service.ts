@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { computeLicenceStatus, daysRemaining } from '../utils/licence.js';
+import { customerDisplayName } from '../utils/customer.js';
 
 function pctChange(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
@@ -225,7 +226,7 @@ export async function getLicences() {
     take: 100,
     include: {
       product: { select: { name: true, sku: true } },
-      customer: { select: { clientId: true, companyName: true, firstName: true, lastName: true } },
+      customer: { select: { clientId: true, companyName: true, contactPerson: true } },
       licence: { select: { licenceKey: true } },
     },
     orderBy: { expiryDate: 'asc' },
@@ -237,7 +238,7 @@ export async function getLicences() {
       return {
         id: r.id,
         clientId: r.customer.clientId,
-        customer: r.customer.companyName || `${r.customer.firstName} ${r.customer.lastName}`,
+        customer: customerDisplayName(r.customer),
         product: r.product.name,
         licence: r.licence?.licenceKey ?? '—',
         expiryDate: r.expiryDate,
@@ -274,7 +275,7 @@ export async function getRecent() {
     prisma.customer.findMany({
       orderBy: { createdAt: 'desc' },
       take: 5,
-      select: { clientId: true, companyName: true, firstName: true, lastName: true, createdAt: true },
+      select: { clientId: true, companyName: true, contactPerson: true, createdAt: true },
     }),
     prisma.invoice.findMany({
       orderBy: { createdAt: 'desc' },

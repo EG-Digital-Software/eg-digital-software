@@ -15,6 +15,7 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
 import { formatCurrency } from '@/lib/utils';
+import { numericField } from '@/lib/input';
 
 const schema = z.object({
   clientId: z.string().min(1, 'Select a customer'),
@@ -133,7 +134,7 @@ export default function CreateInvoicePage() {
                 <option value="">Select customer…</option>
                 {customers?.items.map((c) => (
                   <option key={c.id} value={c.clientId}>
-                    {c.companyName || `${c.firstName} ${c.lastName}`} ({c.clientId})
+                    {c.companyName || c.contactPerson || c.clientId} ({c.clientId})
                   </option>
                 ))}
               </Select>
@@ -156,7 +157,7 @@ export default function CreateInvoicePage() {
             {term === 'Custom' ? (
               <div className="space-y-1.5">
                 <Label>Custom Days</Label>
-                <Input type="number" placeholder="45" {...register('customDays')} />
+                <Input placeholder="45" maxLength={4} {...numericField(register('customDays'))} />
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -224,15 +225,15 @@ export default function CreateInvoicePage() {
                   </div>
                   <div className="sm:col-span-2">
                     <Label className="text-xs">Qty</Label>
-                    <Input className="mt-1" type="number" min={1} {...register(`items.${index}.quantity`)} />
+                    <Input className="mt-1" {...numericField(register(`items.${index}.quantity`))} />
                   </div>
                   <div className="sm:col-span-2">
                     <Label className="text-xs">Unit Price</Label>
-                    <Input className="mt-1" type="number" step="0.01" {...register(`items.${index}.unitPrice`)} />
+                    <Input className="mt-1" {...numericField(register(`items.${index}.unitPrice`), 'decimal')} />
                   </div>
                   <div className="sm:col-span-2">
                     <Label className="text-xs">Tax %</Label>
-                    <Input className="mt-1" type="number" step="0.01" {...register(`items.${index}.taxRate`)} />
+                    <Input className="mt-1" {...numericField(register(`items.${index}.taxRate`), 'decimal')} />
                   </div>
                   <div className="flex items-end justify-between gap-2 sm:col-span-2">
                     <div>
@@ -278,7 +279,7 @@ export default function CreateInvoicePage() {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground">Discount</span>
-                <Input type="number" step="0.01" className="h-8 w-28 text-right" {...register('discount')} />
+                <Input className="h-8 w-28 text-right" {...numericField(register('discount'), 'decimal')} />
               </div>
               <div className="flex justify-between border-t border-border pt-3 text-base font-semibold">
                 <span>Total</span>

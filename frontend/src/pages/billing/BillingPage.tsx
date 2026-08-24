@@ -157,7 +157,8 @@ export default function BillingPage() {
                       <TableCell>
                         <p className="truncate text-sm">
                           {inv.customer?.companyName ||
-                            `${inv.customer?.firstName ?? ''} ${inv.customer?.lastName ?? ''}`.trim() ||
+                            inv.customer?.contactPerson ||
+                            inv.customer?.clientId ||
                             '—'}
                         </p>
                         <p className="truncate font-mono text-xs text-muted-foreground">

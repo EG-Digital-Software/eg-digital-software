@@ -49,6 +49,13 @@ export const BUSINESS_TYPES = [
   'FINANCE_AND_MEDIA',
 ] as const;
 
+const directorSchema = z.object({
+  designation: z.string().optional(),
+  email: optionalEmail,
+  contactNumber: z.string().optional(),
+  contactNumberCountry: countryCode,
+});
+
 const assignedProductSchema = z.object({
   productId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
@@ -62,13 +69,6 @@ const assignedProductSchema = z.object({
 
 export const createCustomerSchema = z
   .object({
-    // ── Basic Information ──
-    firstName: z.string().min(1, 'First name is required'),
-    lastName: z.string().min(1, 'Last name is required'),
-    email: z.string().email(),
-    phoneNumber: z.string().optional(),
-    phoneNumberCountry: countryCode,
-
     // ── Company Information ──
     abn: abnSchema,
     acn: acnSchema,
@@ -105,11 +105,15 @@ export const createCustomerSchema = z
       .regex(/^[a-zA-Z0-9]*$/, 'Reference must be alphanumeric')
       .optional(),
 
+    accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).optional(),
+
+    directors: z.array(directorSchema).optional(),
+
     assignedProducts: z.array(assignedProductSchema).optional(),
   })
   // An authorised representative is only meaningful with a name attached.
-  .refine((v) => !v.authorized || !!v.authorizedPerson?.trim(), {
-    message: 'Authorised person is required when Authorised is set to Yes',
+  .refine((v) => v.authorized || !!v.authorizedPerson?.trim(), {
+    message: 'Authorised person is required when Authorised is set to No',
     path: ['authorizedPerson'],
   });
 
@@ -117,8 +121,8 @@ export const updateCustomerSchema = createCustomerSchema
   .innerType()
   .partial()
   .omit({ assignedProducts: true })
-  .refine((v) => !v.authorized || !!v.authorizedPerson?.trim(), {
-    message: 'Authorised person is required when Authorised is set to Yes',
+  .refine((v) => v.authorized || !!v.authorizedPerson?.trim(), {
+    message: 'Authorised person is required when Authorised is set to No',
     path: ['authorizedPerson'],
   });
 

@@ -25,7 +25,7 @@ const STATUS_VARIANT: Record<PaymentRow['status'], 'success' | 'warning' | 'dest
 function customerName(p: PaymentRow): string {
   const c = p.invoice?.customer;
   if (!c) return '—';
-  return c.companyName || `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || c.clientId;
+  return c.companyName || c.contactPerson || c.clientId;
 }
 
 /** Every payment across every invoice — the money-in view. */

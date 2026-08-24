@@ -46,13 +46,11 @@ export async function listCustomers(
     const like = { contains: q, mode: 'insensitive' as const };
     const digits = q.replace(/\D/g, '') || q;
     where.OR = [
-      { firstName: like },
-      { lastName: like },
       { companyName: like },
       { tradingAs: like },
-      { email: like },
       { clientId: like },
       { contactPerson: like },
+      { contactEmail: like },
       { abn: { contains: digits } },
       { addresses: { some: { OR: [{ city: like }, { country: like }] } } },
     ];
@@ -66,15 +64,11 @@ export async function listCustomers(
       select: {
         id: true,
         clientId: true,
-        firstName: true,
-        lastName: true,
         companyName: true,
         tradingAs: true,
         businessType: true,
-        email: true,
-        phoneNumber: true,
-        phoneNumberCountry: true,
         contactPerson: true,
+        contactEmail: true,
         contactMobile: true,
         contactMobileCountry: true,
         createdAt: true,

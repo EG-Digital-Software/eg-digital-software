@@ -23,6 +23,31 @@ export function businessTypeLabel(value?: BusinessType | null): string {
   return BUSINESS_TYPES.find((t) => t.value === value)?.label ?? '';
 }
 
+/** Board / C-suite titles offered for a customer's directors. */
+export const DIRECTOR_DESIGNATIONS = [
+  'Chairperson',
+  'Managing Director',
+  'Director',
+  'Non-Executive Director',
+  'Chief Executive Officer (CEO)',
+  'Chief Financial Officer (CFO)',
+  'Chief Operating Officer (COO)',
+  'Chief Technology Officer (CTO)',
+  'Company Secretary',
+] as const;
+
+/**
+ * Label for a customer. The personal name fields are gone, so fall back
+ * company → contact person → Client ID; there is always something to show.
+ */
+export function customerName(c?: {
+  companyName?: string | null;
+  contactPerson?: string | null;
+  clientId?: string | null;
+}): string {
+  return c?.companyName?.trim() || c?.contactPerson?.trim() || c?.clientId || '—';
+}
+
 /**
  * The ATO's ABN check digit algorithm — mirrors backend/src/services/abn.service.ts
  * so a typo is caught before it costs a round trip to the Business Register.

@@ -114,10 +114,10 @@ export default function EmployeeCustomersPage() {
                   <TableRow key={c.id}>
                     <TableCell className="font-mono text-xs font-medium text-primary">{c.clientId}</TableCell>
                     <TableCell>
-                      <p className="font-medium">
-                        {c.firstName} {c.lastName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{c.email}</p>
+                      <p className="font-medium">{c.contactPerson || '—'}</p>
+                      {c.contactEmail && (
+                        <p className="text-xs text-muted-foreground">{c.contactEmail}</p>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm">
                       {c.companyName ? (
@@ -139,12 +139,11 @@ export default function EmployeeCustomersPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {c.contactPerson || c.contactMobile || c.phoneNumber ? (
+                      {c.contactPerson || c.contactMobile ? (
                         <div className="min-w-0">
                           {c.contactPerson && <p className="truncate">{c.contactPerson}</p>}
                           <p className="truncate text-xs text-muted-foreground">
-                            {formatPhone(c.contactMobile, c.contactMobileCountry) ||
-                              formatPhone(c.phoneNumber, c.phoneNumberCountry)}
+                            {formatPhone(c.contactMobile, c.contactMobileCountry)}
                           </p>
                         </div>
                       ) : (

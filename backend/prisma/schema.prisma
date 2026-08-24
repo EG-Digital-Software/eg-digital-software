@@ -30,6 +30,16 @@ enum CustomerStatus {
   ARCHIVED
 }
 
+/// Operational account standing, distinct from the ACTIVE/ARCHIVED lifecycle.
+/// ACTIVE here means "let the system decide": such accounts are shown as
+/// DORMANT automatically when they have no recent invoice activity. DORMANT and
+/// SUSPENDED are manual overrides an admin pins on the account.
+enum CustomerAccountStatus {
+  ACTIVE
+  DORMANT
+  SUSPENDED
+}
+
 enum AddressType {
   PRINCIPAL
   BILLING
@@ -229,14 +239,6 @@ model Customer {
   /// Auto-generated, immutable business key (e.g. EGD-CL-000001).
   clientId String @unique
 
-  // ── Basic Information ──────────────────────────────────
-  firstName          String
-  lastName           String
-  email              String
-  phoneNumber        String?
-  /// ISO-3166 alpha-2 of the dial code chosen for phoneNumber.
-  phoneNumberCountry String? @default("AU")
-
   // ── Company Information ────────────────────────────────
   /// Australian Business Number — 11 digits, stored unformatted.
   abn          String?
@@ -276,6 +278,9 @@ model Customer {
 
   reference String?
   status    CustomerStatus @default(ACTIVE)
+  /// Manual account-standing override. Left at ACTIVE, the effective standing is
+  /// auto-derived from invoice activity (see CustomerAccountStatus).
+  accountStatus CustomerAccountStatus @default(ACTIVE)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -283,12 +288,30 @@ model Customer {
   customerProducts CustomerProduct[]
   invoices         Invoice[]
   users            ClientUser[]
+  directors        Director[]
 
   @@index([status])
-  @@index([email])
   @@index([businessType])
   @@index([companyName])
   @@index([createdAt])
+}
+
+/// A company director/C-suite contact. A customer can list several — every one
+/// the business may need to be contacted about the account.
+model Director {
+  id                   String   @id @default(uuid())
+  customer             Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId           String
+  /// Board/C-suite title, e.g. "CEO", "CFO", "Managing Director".
+  designation          String?
+  email                String
+  contactNumber        String?
+  /// ISO-3166 alpha-2 of the dial code chosen for contactNumber.
+  contactNumberCountry String?  @default("AU")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([customerId])
 }
 
 model Address {

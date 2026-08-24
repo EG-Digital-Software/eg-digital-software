@@ -1,10 +1,18 @@
-import { Prisma, CustomerStatus, AddressType, LicenceStatus, BusinessType } from '@prisma/client';
+import {
+  Prisma,
+  CustomerStatus,
+  CustomerAccountStatus,
+  AddressType,
+  LicenceStatus,
+  BusinessType,
+} from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
 import { reserveStock } from './product.service.js';
 import { nextSequence, formatClientId, formatLicenceKey } from '../utils/sequence.js';
 import { computeLicenceStatus } from '../utils/licence.js';
+import { effectiveAccountStatus } from '../utils/accountStatus.js';
 
 interface ListParams extends PageQuery {
   search?: string;
@@ -23,11 +31,8 @@ export async function listCustomers(params: ListParams) {
     const q = params.search.trim();
     const like = { contains: q, mode: 'insensitive' as const };
     where.OR = [
-      { firstName: like },
-      { lastName: like },
       { companyName: like },
       { tradingAs: like },
-      { email: like },
       { clientId: like },
       { contactPerson: like },
       { contactEmail: like },
@@ -36,7 +41,6 @@ export async function listCustomers(params: ListParams) {
       // with any spacing removed, so "51 824 753 556" finds 51824753556.
       { abn: { contains: q.replace(/\D/g, '') || q } },
       { acn: { contains: q.replace(/\D/g, '') || q } },
-      { phoneNumber: { contains: q.replace(/\D/g, '') || q } },
       { contactMobile: { contains: q.replace(/\D/g, '') || q } },
       // The list shows a Location column, so let operators search by it too.
       { addresses: { some: { OR: [{ city: like }, { country: like }] } } },
@@ -55,7 +59,7 @@ export async function listCustomers(params: ListParams) {
       take: params.take,
       include: {
         _count: { select: { customerProducts: true } },
-        invoices: { select: { status: true, total: true, amountPaid: true } },
+        invoices: { select: { status: true, total: true, amountPaid: true, invoiceDate: true } },
         customerProducts: { select: { status: true, expiryDate: true } },
         addresses: { select: { type: true, city: true, country: true } },
       },
@@ -63,7 +67,25 @@ export async function listCustomers(params: ListParams) {
     prisma.customer.count({ where }),
   ]);
 
-  return { items, total };
+  const withStatus = items.map((c) => ({
+    ...c,
+    accountStatusEffective: effectiveAccountStatus(
+      c.accountStatus,
+      c.invoices.map((i) => i.invoiceDate)
+    ),
+  }));
+
+  return { items: withStatus, total };
+}
+
+/**
+ * Best-effort preview of the Client ID the next customer will receive, shown on
+ * the Add form. It peeks at the counter without incrementing, so it can shift if
+ * another customer is created first — the real ID is assigned atomically on save.
+ */
+export async function previewNextClientId(): Promise<string> {
+  const counter = await prisma.counter.findUnique({ where: { key: 'clientId' } });
+  return formatClientId((counter?.value ?? 0) + 1);
 }
 
 export async function getCustomerByClientId(clientId: string) {
@@ -71,24 +93,24 @@ export async function getCustomerByClientId(clientId: string) {
     where: { clientId },
     include: {
       addresses: true,
+      directors: true,
       customerProducts: { include: { product: true, licence: true } },
       invoices: { include: { payments: true }, orderBy: { createdAt: 'desc' } },
     },
   });
   if (!customer) throw ApiError.notFound('Customer not found');
-  return customer;
+  return {
+    ...customer,
+    accountStatusEffective: effectiveAccountStatus(
+      customer.accountStatus,
+      customer.invoices.map((i) => i.invoiceDate)
+    ),
+  };
 }
 
 type AddressInput = Record<string, string | undefined>;
 
 type CreateInput = {
-  // Basic Information
-  firstName: string;
-  lastName: string;
-  email: string;
-  phoneNumber?: string;
-  phoneNumberCountry?: string;
-
   // Company Information
   abn?: string;
   acn?: string;
@@ -112,6 +134,14 @@ type CreateInput = {
   authorizedMobile?: string;
   authorizedMobileCountry?: string;
 
+  // Company C-Suite Details
+  directors?: Array<{
+    designation?: string;
+    email?: string;
+    contactNumber?: string;
+    contactNumberCountry?: string;
+  }>;
+
   // Invoicing Details
   billingEmail?: string;
   billingContactPerson?: string;
@@ -120,6 +150,7 @@ type CreateInput = {
   creditScore?: number | '';
 
   reference?: string;
+  accountStatus?: CustomerAccountStatus;
   assignedProducts?: Array<{
     productId: string;
     quantity: number;
@@ -167,9 +198,6 @@ const numOrNull = (v?: number | '') =>
 /** Column values shared by create and update, derived from the form payload. */
 function customerFields(input: Partial<CreateInput>) {
   return {
-    phoneNumber: orNull(input.phoneNumber),
-    phoneNumberCountry: orNull(input.phoneNumberCountry) ?? 'AU',
-
     abn: digitsOrNull(input.abn),
     acn: digitsOrNull(input.acn),
     companyName: orNull(input.companyName),
@@ -182,12 +210,12 @@ function customerFields(input: Partial<CreateInput>) {
     contactMobileCountry: orNull(input.contactMobileCountry) ?? 'AU',
     contactPosition: orNull(input.contactPosition),
     authorized: input.authorized ?? false,
-    // Clearing the Authorised flag clears the representative's details with it,
-    // so a "No" answer can never leave stale contact data behind.
-    authorizedPerson: input.authorized ? orNull(input.authorizedPerson) : null,
-    authorizedEmail: input.authorized ? orNull(input.authorizedEmail) : null,
-    authorizedMobile: input.authorized ? orNull(input.authorizedMobile) : null,
-    authorizedMobileCountry: input.authorized
+    // Representative details are captured when Authorised is "No"; a "Yes" answer
+    // clears them so no stale contact data is left behind.
+    authorizedPerson: !input.authorized ? orNull(input.authorizedPerson) : null,
+    authorizedEmail: !input.authorized ? orNull(input.authorizedEmail) : null,
+    authorizedMobile: !input.authorized ? orNull(input.authorizedMobile) : null,
+    authorizedMobileCountry: !input.authorized
       ? (orNull(input.authorizedMobileCountry) ?? 'AU')
       : null,
 
@@ -198,6 +226,9 @@ function customerFields(input: Partial<CreateInput>) {
     creditScore: numOrNull(input.creditScore),
 
     reference: orNull(input.reference),
+    // Left undefined on create, Prisma falls back to the ACTIVE default; on
+    // update, undefined leaves the admin's pinned standing untouched.
+    accountStatus: input.accountStatus,
   };
 }
 
@@ -213,9 +244,6 @@ export async function createCustomer(input: CreateInput) {
       data: {
         clientId,
         ...customerFields(input),
-        firstName: input.firstName,
-        lastName: input.lastName,
-        email: input.email,
         addresses: {
           create: [
             ...(input.principalAddress
@@ -253,11 +281,34 @@ export async function createCustomer(input: CreateInput) {
       });
     }
 
+    const directors = cleanDirectors(input.directors);
+    if (directors.length) {
+      await tx.director.createMany({
+        data: directors.map((d) => ({ ...d, customerId: customer.id })),
+      });
+    }
+
     return tx.customer.findUniqueOrThrow({
       where: { id: customer.id },
-      include: { addresses: true, customerProducts: { include: { product: true, licence: true } } },
+      include: {
+        addresses: true,
+        directors: true,
+        customerProducts: { include: { product: true, licence: true } },
+      },
     });
   });
+}
+
+/** Drop blank director rows; a row counts once it has an email. */
+function cleanDirectors(list?: CreateInput['directors']) {
+  return (list ?? [])
+    .filter((d) => d.email?.trim())
+    .map((d) => ({
+      designation: d.designation?.trim() || null,
+      email: d.email!.trim(),
+      contactNumber: (d.contactNumber ?? '').replace(/\D/g, '') || null,
+      contactNumberCountry: d.contactNumberCountry?.trim() || 'AU',
+    }));
 }
 
 function cleanAddress(a: Record<string, string | undefined>) {
@@ -278,21 +329,28 @@ export async function updateCustomer(clientId: string, input: Partial<CreateInpu
   return prisma.$transaction(async (tx) => {
     await tx.customer.update({
       where: { clientId },
-      data: {
-        ...customerFields(input),
-        firstName: input.firstName,
-        lastName: input.lastName,
-        email: input.email,
-      },
+      data: customerFields(input),
     });
 
     const billing = input.sameAsPrincipal ? input.principalAddress : input.billingAddress;
     await upsertAddress(tx, existing.id, AddressType.PRINCIPAL, input.principalAddress);
     await upsertAddress(tx, existing.id, AddressType.BILLING, billing);
 
+    // Directors are a full list from the form — replace the set outright so a
+    // removed director actually disappears rather than lingering.
+    if (input.directors !== undefined) {
+      await tx.director.deleteMany({ where: { customerId: existing.id } });
+      const directors = cleanDirectors(input.directors);
+      if (directors.length) {
+        await tx.director.createMany({
+          data: directors.map((d) => ({ ...d, customerId: existing.id })),
+        });
+      }
+    }
+
     return tx.customer.findUniqueOrThrow({
       where: { id: existing.id },
-      include: { addresses: true },
+      include: { addresses: true, directors: true },
     });
   });
 }

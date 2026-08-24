@@ -1,5 +1,7 @@
 import * as React from 'react';
 import { ChevronDown, Search } from 'lucide-react';
+import { toast } from 'sonner';
+import { AsYouType, type CountryCode } from 'libphonenumber-js';
 import { cn } from '@/lib/utils';
 import {
   COUNTRIES,
@@ -11,10 +13,30 @@ import {
 
 export { COUNTRIES, DEFAULT_COUNTRY, dialCodeOf } from '@/lib/countries';
 
+/** National number in the country's own grouping, e.g. "412 345 678". */
+function formatNational(number: string, country?: string | null): string {
+  const digits = number.replace(/\D/g, '');
+  if (!digits) return '';
+  const formatted = new AsYouType((country || DEFAULT_COUNTRY) as CountryCode).input(digits);
+  return formatted || digits;
+}
+
 /** Render a stored (country, number) pair as a single display string. */
 export function formatPhone(number?: string | null, country?: string | null): string {
   if (!number) return '';
-  return `${dialCodeOf(country)} ${number}`;
+  return `${dialCodeOf(country)} ${formatNational(number, country)}`;
+}
+
+/** Phone numbers are a fixed 10 digits. */
+export const PHONE_DIGITS = 10;
+
+/**
+ * True when the field is empty or holds a full 10-digit number. Used by forms
+ * to reject half-typed numbers on submit.
+ */
+export function phoneComplete(number?: string | null): boolean {
+  const digits = (number ?? '').replace(/\D/g, '');
+  return digits.length === 0 || digits.length === PHONE_DIGITS;
 }
 
 /** Flag sprite from flag-icons — bundled locally, no network request. */
@@ -233,10 +255,18 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
         autoComplete="tel-national"
         disabled={disabled}
         placeholder={placeholder}
-        value={value ?? ''}
+        // Stored value is digits-only; show it in the country's own grouping.
+        value={formatNational(value ?? '', country)}
         onBlur={onBlur}
-        // Strip anything that is not a digit so stored numbers stay uniform.
-        onChange={(e) => onValueChange(e.target.value.replace(/\D/g, ''))}
+        onChange={(e) => {
+          const raw = e.target.value;
+          // Anything other than a digit (spaces come from the display grouping)
+          // is rejected with a warning; the number stays digits-only, max ten.
+          if (/[^\d\s]/.test(raw)) {
+            toast.warning('Only numbers are allowed in a phone number', { id: 'field-guard' });
+          }
+          onValueChange(raw.replace(/\D/g, '').slice(0, PHONE_DIGITS));
+        }}
         className="h-full w-full min-w-0 rounded-r-lg bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
       />
     </div>

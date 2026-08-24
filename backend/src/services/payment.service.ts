@@ -39,9 +39,8 @@ export async function listPayments(params: ListParams) {
         { invoice: { reference: like } },
         { invoice: { customer: { companyName: like } } },
         { invoice: { customer: { clientId: like } } },
-        { invoice: { customer: { firstName: like } } },
-        { invoice: { customer: { lastName: like } } },
-        { invoice: { customer: { email: like } } },
+        { invoice: { customer: { contactPerson: like } } },
+        { invoice: { customer: { contactEmail: like } } },
       ],
     });
   }
@@ -63,7 +62,7 @@ export async function listPayments(params: ListParams) {
             invoiceNumber: true,
             total: true,
             customer: {
-              select: { clientId: true, companyName: true, firstName: true, lastName: true },
+              select: { clientId: true, companyName: true, contactPerson: true },
             },
           },
         },

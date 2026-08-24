@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
+import { numericField } from '@/lib/input';
 
 const schema = z.object({
   productCode: z.string().min(1, 'Required'),
@@ -178,13 +179,13 @@ export function ProductFormDialog({
           <Section title="Pricing">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Price Per Quantity" error={errors.pricePerQty?.message}>
-                <Input type="number" step="0.01" min={0} {...register('pricePerQty')} />
+                <Input {...numericField(register('pricePerQty'), 'decimal')} />
               </Field>
               <Field label="Unit" hint="Shown as “per unit” on the catalogue">
                 <Input {...register('unit')} placeholder="unit / seat / licence" />
               </Field>
               <Field label="Tax Rate (%)" error={errors.taxRate?.message} hint="0 – 100">
-                <Input type="number" step="0.01" min={0} max={100} {...register('taxRate')} />
+                <Input {...numericField(register('taxRate'), 'decimal')} />
               </Field>
             </div>
           </Section>
@@ -200,14 +201,14 @@ export function ProductFormDialog({
                     : undefined
                 }
               >
-                <Input type="number" min={0} {...register('totalStock')} />
+                <Input {...numericField(register('totalStock'))} />
               </Field>
               <Field
                 label="Low Stock Threshold"
                 error={errors.lowStockThreshold?.message}
                 hint="Flagged as low once availability drops to this"
               >
-                <Input type="number" min={0} {...register('lowStockThreshold')} />
+                <Input {...numericField(register('lowStockThreshold'))} />
               </Field>
             </div>
           </Section>

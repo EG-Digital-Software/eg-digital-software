@@ -9,6 +9,7 @@ import { settingsApi, type PaymentSettingsInput } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Textarea, Select } from '@/components/ui/input';
+import { numericField } from '@/lib/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
@@ -172,13 +173,9 @@ export default function PaymentSettingsForm() {
             error={errors.cardSurchargePct?.message}
           >
             <Input
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
               disabled={!cardOn}
               className="max-w-[160px]"
-              {...register('cardSurchargePct')}
+              {...numericField(register('cardSurchargePct'), 'decimal')}
             />
           </Field>
         </CardContent>
@@ -233,10 +230,10 @@ export default function PaymentSettingsForm() {
               <Input disabled={!bankOn} placeholder="e.g. Commonwealth Bank" {...register('bankName')} />
             </Field>
             <Field label="BSB" error={errors.bsb?.message}>
-              <Input disabled={!bankOn} placeholder="000-000" {...register('bsb')} />
+              <Input disabled={!bankOn} maxLength={6} placeholder="000000" {...numericField(register('bsb'))} />
             </Field>
             <Field label="Account number" error={errors.accountNumber?.message}>
-              <Input disabled={!bankOn} placeholder="12345678" {...register('accountNumber')} />
+              <Input disabled={!bankOn} maxLength={10} placeholder="12345678" {...numericField(register('accountNumber'))} />
             </Field>
           </div>
         </CardContent>

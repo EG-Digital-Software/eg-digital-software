@@ -13,6 +13,8 @@ const router = Router();
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
 
 router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
+// Must precede `/:clientId` or "next-client-id" would be read as a Client ID.
+router.get('/next-client-id', ctrl.nextClientId);
 router.get('/:clientId', ctrl.getOne);
 router.post('/', validate({ body: createCustomerSchema }), ctrl.create);
 router.put('/:clientId', validate({ body: updateCustomerSchema }), ctrl.update);

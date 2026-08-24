@@ -43,6 +43,9 @@ export const customerApi = {
   },
   get: async (clientId: string) =>
     (await api.get<ApiEnvelope<Customer>>(`/customers/${clientId}`)).data.data,
+  nextClientId: async () =>
+    (await api.get<ApiEnvelope<{ clientId: string }>>('/customers/next-client-id')).data.data
+      .clientId,
   create: async (body: unknown) =>
     (await api.post<ApiEnvelope<Customer>>('/customers', body)).data.data,
   update: async (clientId: string, body: unknown) =>
@@ -146,8 +149,7 @@ export interface PaymentRow {
     customer?: {
       clientId: string;
       companyName?: string | null;
-      firstName?: string | null;
-      lastName?: string | null;
+      contactPerson?: string | null;
     };
   };
 }
