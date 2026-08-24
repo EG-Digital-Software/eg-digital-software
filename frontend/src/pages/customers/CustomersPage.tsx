@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Skeleton, Avatar, AvatarFallback } from '@/components/ui/misc';
+import { Skeleton } from '@/components/ui/misc';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -22,9 +22,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { initials } from '@/lib/utils';
-import { BUSINESS_TYPES, businessTypeLabel, formatAbn } from '@/lib/customer';
-import { formatPhone, Flag } from '@/components/shared/PhoneInput';
+import { BUSINESS_TYPES, businessTypeLabel } from '@/lib/customer';
+import { Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName } from '@/lib/countries';
 
 function invoiceSummary(c: Customer): { label: string; variant: 'success' | 'warning' | 'muted' } {
@@ -34,15 +33,6 @@ function invoiceSummary(c: Customer): { label: string; variant: 'success' | 'war
   return outstanding
     ? { label: `${outstanding} outstanding`, variant: 'warning' }
     : { label: 'Paid', variant: 'success' };
-}
-
-function licenceSummary(c: Customer): { label: string; variant: 'success' | 'warning' | 'destructive' | 'muted' } {
-  const cps = c.customerProducts ?? [];
-  if (!cps.length) return { label: 'None', variant: 'muted' };
-  if (cps.some((p) => p.status === 'EXPIRED' || p.status === 'CRITICAL'))
-    return { label: 'Attention', variant: 'destructive' };
-  if (cps.some((p) => p.status === 'EXPIRING_SOON')) return { label: 'Expiring soon', variant: 'warning' };
-  return { label: 'Active', variant: 'success' };
 }
 
 /** Principal address is the customer's real-world location; fall back to billing. */
@@ -195,21 +185,15 @@ export default function CustomersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Client ID</TableHead>
-                  <TableHead>Customer</TableHead>
                   <TableHead>Business</TableHead>
-                  <TableHead>ABN</TableHead>
-                  <TableHead>Contact</TableHead>
                   <TableHead>Location</TableHead>
-                  <TableHead className="text-center">Products</TableHead>
                   <TableHead>Invoices</TableHead>
-                  <TableHead>Licences</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.items.map((c) => {
                   const inv = invoiceSummary(c);
-                  const lic = licenceSummary(c);
                   return (
                     <TableRow
                       key={c.id}
@@ -220,21 +204,6 @@ export default function CustomersPage() {
                         <span className="inline-flex rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
                           {c.clientId}
                         </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-gradient-to-br from-primary to-[#34B98C] text-xs font-semibold text-white">
-                              {initials(c.firstName, c.lastName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">
-                              {c.firstName} {c.lastName}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground">{c.email}</p>
-                          </div>
-                        </div>
                       </TableCell>
                       <TableCell className="text-sm">
                         {c.companyName ? (
@@ -255,23 +224,6 @@ export default function CustomersPage() {
                           '—'
                         )}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap font-mono text-xs">
-                        {formatAbn(c.abn) || '—'}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {c.contactPerson || c.contactMobile ? (
-                          <div className="min-w-0">
-                            {c.contactPerson && <p className="truncate">{c.contactPerson}</p>}
-                            {c.contactMobile && (
-                              <p className="truncate text-xs text-muted-foreground">
-                                {formatPhone(c.contactMobile, c.contactMobileCountry)}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
                       <TableCell className="text-sm">
                         {(() => {
                           const loc = location(c);
@@ -284,16 +236,8 @@ export default function CustomersPage() {
                           );
                         })()}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold tabular-nums text-secondary-foreground">
-                          {c._count?.customerProducts ?? c.customerProducts?.length ?? 0}
-                        </span>
-                      </TableCell>
                       <TableCell>
                         <Badge variant={inv.variant}>{inv.label}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={lic.variant}>{lic.label}</Badge>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
