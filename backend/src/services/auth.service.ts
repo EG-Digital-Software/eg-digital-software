@@ -151,7 +151,7 @@ export async function login(email: string, password: string, portal?: Role) {
   if (!valid) throw ApiError.unauthorized('Invalid email or password');
 
   if (account.approvalStatus === 'PENDING') {
-    throw ApiError.forbidden('Your account is awaiting Super Admin approval');
+    throw ApiError.forbidden('Your account is awaiting Admin approval');
   }
   if (account.approvalStatus === 'REJECTED') {
     throw ApiError.forbidden('Your account request was declined. Please contact EG Digital.');

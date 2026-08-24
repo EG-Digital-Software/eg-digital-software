@@ -42,7 +42,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   return ok(
     res,
     { pending: true, email: user.email },
-    'Registration submitted — awaiting Super Admin approval',
+    'Registration submitted — awaiting Admin approval',
     201
   );
 });

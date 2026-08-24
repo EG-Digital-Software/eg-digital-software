@@ -8,7 +8,8 @@ export default defineConfig({
     alias: { '@': path.resolve(__dirname, './src') },
   },
   server: {
-    port: 5173,
+    host: '127.0.0.1',
+    port: 3000,
     proxy: {
       '/uploads': 'http://localhost:4000',
     },

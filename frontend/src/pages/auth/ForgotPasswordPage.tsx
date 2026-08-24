@@ -34,7 +34,7 @@ type RecoveryConfig = {
 
 const ROLES: Record<RoleKey, RecoveryConfig> = {
   'super-admin': {
-    label: 'Super Admin',
+    label: 'Admin',
     portal: 'SUPER_ADMIN',
     placeholder: 'admin@egdigital.com.au',
     allowSignup: false,

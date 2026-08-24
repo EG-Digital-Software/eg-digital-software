@@ -42,7 +42,7 @@ type RoleConfig = {
 
 const ROLES: Record<RoleKey, RoleConfig> = {
   'super-admin': {
-    label: 'Super Admin',
+    label: 'Admin',
     description: 'Administrative access to the EG Digital control panel.',
     placeholder: 'admin@egdigital.com.au',
     allowSignup: false,
@@ -110,7 +110,9 @@ export default function LoginPage() {
 
   const tabs: AuthTab[] = [
     { label: 'Sign In', to: authPaths.login(portal), active: true },
-    { label: 'Sign Up', to: authPaths.register(portal), disabled: !role.allowSignup },
+    ...(role.allowSignup
+      ? [{ label: 'Sign Up', to: authPaths.register(portal) }]
+      : []),
     { label: 'Password recovery', to: authPaths.forgot(portal) },
   ];
   const forgotPath = authPaths.forgot(portal);

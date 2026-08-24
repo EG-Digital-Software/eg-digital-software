@@ -31,7 +31,7 @@ type FormValues = z.infer<typeof schema>;
 type RoleKey = 'super-admin' | 'client' | 'supplier' | 'employee';
 
 const ROLES: Record<RoleKey, { label: string; allowSignup: boolean; accent: AuthAccent; variant: AuthVariant }> = {
-  'super-admin': { label: 'Super Admin', allowSignup: false, accent: { from: '#6366f1', to: '#8b5cf6' }, variant: 'admin' },
+  'super-admin': { label: 'Admin', allowSignup: false, accent: { from: '#6366f1', to: '#8b5cf6' }, variant: 'admin' },
   client: { label: 'Client', allowSignup: true, accent: { from: '#0d9488', to: '#10b981' }, variant: 'client' },
   supplier: { label: 'Supplier', allowSignup: true, accent: { from: '#ea580c', to: '#f59e0b' }, variant: 'supplier' },
   employee: { label: 'Employee', allowSignup: true, accent: { from: '#0284c7', to: '#38bdf8' }, variant: 'employee' },

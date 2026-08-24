@@ -159,7 +159,7 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Request submitted</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Your {cfg.label} account is{' '}
-            <span className="font-medium text-foreground">awaiting Super Admin approval</span>. You&apos;ll
+            <span className="font-medium text-foreground">awaiting Admin approval</span>. You&apos;ll
             be able to sign in once it&apos;s approved.
           </p>
           <div className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-border bg-secondary/40 px-4 py-2.5 text-sm text-muted-foreground">
@@ -180,7 +180,7 @@ export default function RegisterPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-800">Sign Up</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Accounts require Super Admin approval before first sign-in.
+              Accounts require Admin approval before first sign-in.
             </p>
           </div>
           <span
