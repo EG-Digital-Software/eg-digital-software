@@ -240,7 +240,14 @@ model Customer {
   clientId String @unique
 
   // ── Company Information ────────────────────────────────
-  /// Australian Business Number — 11 digits, stored unformatted.
+  /// ISO-3166 alpha-2 country the business is registered in. Drives which
+  /// company identifiers the form collects (ABN/ACN for AU, CRN/VAT for GB, …).
+  registrationCountry String? @default("AU")
+  /// Country-specific registration/tax identifiers, keyed by field (e.g.
+  /// { abn, acn } for AU, { companyNumber, vat } for GB). See lib/company.ts.
+  companyIdentifiers  Json?
+  /// Australian Business Number — 11 digits, stored unformatted. Mirrored from
+  /// companyIdentifiers.abn for AU so the ABN lookup and search keep working.
   abn          String?
   /// Australian Company Number — 9 digits, stored unformatted.
   acn          String?

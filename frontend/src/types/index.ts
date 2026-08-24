@@ -116,6 +116,10 @@ export interface Customer {
   clientId: string;
 
   // Company Information
+  /** ISO-3166 alpha-2 registration country; drives which identifiers apply. */
+  registrationCountry?: string | null;
+  /** Country-specific identifiers keyed by field, e.g. { abn, acn } or { companyNumber, vat }. */
+  companyIdentifiers?: Record<string, string> | null;
   abn?: string | null;
   acn?: string | null;
   companyName?: string | null;

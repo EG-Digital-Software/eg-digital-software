@@ -23,7 +23,10 @@ export const toLetters = (v: string): string => v.replace(/[^\p{L}\s'.-]/gu, '')
 /** Characters that are valid inside an email address. */
 export const toEmail = (v: string): string => v.replace(/[^a-zA-Z0-9@._%+-]/g, '');
 
-type Kind = 'int' | 'decimal' | 'abn' | 'letters' | 'email';
+/** Letters and digits with the separators registration numbers use (space / -). */
+export const toAlnum = (v: string): string => v.replace(/[^A-Za-z0-9\s/-]/g, '');
+
+export type Kind = 'int' | 'decimal' | 'abn' | 'letters' | 'email' | 'alnum';
 
 const CLEAN: Record<Kind, (v: string) => string> = {
   int: toDigits,
@@ -31,6 +34,7 @@ const CLEAN: Record<Kind, (v: string) => string> = {
   abn: toDigitsSpaced,
   letters: toLetters,
   email: toEmail,
+  alnum: toAlnum,
 };
 
 const WARNING: Record<Kind, string> = {
@@ -39,6 +43,7 @@ const WARNING: Record<Kind, string> = {
   abn: 'Only numbers are allowed here',
   letters: 'Only letters are allowed here',
   email: 'That character is not allowed in an email address',
+  alnum: 'Only letters and numbers are allowed here',
 };
 
 const INPUT_MODE: Record<Kind, 'numeric' | 'decimal' | 'text' | 'email'> = {
@@ -47,6 +52,7 @@ const INPUT_MODE: Record<Kind, 'numeric' | 'decimal' | 'text' | 'email'> = {
   abn: 'numeric',
   letters: 'text',
   email: 'email',
+  alnum: 'text',
 };
 
 /**

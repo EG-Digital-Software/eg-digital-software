@@ -35,6 +35,7 @@ import {
   countryName,
 } from '@/lib/countries';
 import { BUSINESS_TYPES, DIRECTOR_DESIGNATIONS, formatAbn, isValidAbn } from '@/lib/customer';
+import { companyFieldsFor } from '@/lib/company';
 import { numericField, guardedField } from '@/lib/input';
 import { formatCurrency } from '@/lib/utils';
 import type { Address } from '@/types';
@@ -54,20 +55,13 @@ const addressSchema = z.object({
 
 const optionalEmail = z.string().email('Enter a valid email').optional().or(z.literal(''));
 
-const digitField = (length: number, label: string) =>
-  z
-    .string()
-    .optional()
-    .refine((v) => {
-      const d = (v ?? '').replace(/\D/g, '');
-      return d.length === 0 || d.length === length;
-    }, `${label} must be ${length} digits`);
-
 const schema = z
   .object({
     // Company Information
-    abn: digitField(11, 'ABN'),
-    acn: digitField(9, 'ACN'),
+    /** ISO-3166 alpha-2 registration country. */
+    registrationCountry: z.string().default(DEFAULT_COUNTRY),
+    /** Country-specific identifiers keyed by field; validated in superRefine. */
+    companyIdentifiers: z.record(z.string()).default({}),
     companyName: z.string().optional(),
     // A business can trade under several names — the ABR hands back every one
     // it holds. Objects rather than bare strings because useFieldArray keys on
@@ -168,6 +162,26 @@ const schema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Phone number must be 10 digits', path: ['directors', i, 'contactNumber'] });
       }
     });
+  })
+  // Required identifiers for the selected registration country, plus the ABN
+  // checksum for Australia.
+  .superRefine((v, ctx) => {
+    for (const field of companyFieldsFor(v.registrationCountry)) {
+      const value = v.companyIdentifiers?.[field.key]?.trim() ?? '';
+      if (field.required && !value) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${field.label} is required`,
+          path: ['companyIdentifiers', field.key],
+        });
+      } else if (field.key === 'abn' && value && !isValidAbn(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'That ABN fails its check digits',
+          path: ['companyIdentifiers', field.key],
+        });
+      }
+    }
   });
 
 type FormValues = z.input<typeof schema>;
@@ -175,8 +189,8 @@ type FormValues = z.input<typeof schema>;
 const EMPTY_ADDRESS = { line1: '', line2: '', city: '', postcode: '', country: DEFAULT_COUNTRY };
 
 const DEFAULTS: FormValues = {
-  abn: '',
-  acn: '',
+  registrationCountry: DEFAULT_COUNTRY,
+  companyIdentifiers: {},
   companyName: '',
   tradingNames: [{ value: '' }],
   businessType: '',
@@ -490,7 +504,9 @@ export default function CustomerFormPage() {
   const authorized = watch('authorized');
   const assigned = watch('assignedProducts');
 
-  const abn = watch('abn');
+  const registrationCountry = watch('registrationCountry');
+  const companyFields = companyFieldsFor(registrationCountry);
+  const abn = watch('companyIdentifiers.abn');
 
   const [abnLooking, setAbnLooking] = useState(false);
   const [abnResult, setAbnResult] = useState<AbnLookupResult | null>(null);
@@ -524,8 +540,8 @@ export default function CustomerFormPage() {
         setValue(name, value, { shouldDirty: true, shouldValidate: true });
 
       // Normalise to the register's own record of the ABN.
-      if (found.abn) set('abn', formatAbn(found.abn));
-      if (found.acn) set('acn', found.acn);
+      if (found.abn) set('companyIdentifiers.abn', formatAbn(found.abn));
+      if (found.acn) set('companyIdentifiers.acn', found.acn);
       if (found.entityName) set('companyName', found.entityName);
       // A company can hold dozens of registered names on the ABR. Take them all —
       // each gets its own row so the operator can see and prune the list.
@@ -587,8 +603,13 @@ export default function CustomerFormPage() {
     });
     reset({
       ...DEFAULTS,
-      abn: existing.abn ?? '',
-      acn: existing.acn ?? '',
+      registrationCountry: existing.registrationCountry ?? DEFAULT_COUNTRY,
+      // Prefer the stored identifier map; fall back to the legacy ABN/ACN columns.
+      companyIdentifiers:
+        existing.companyIdentifiers ??
+        (existing.abn || existing.acn
+          ? { abn: existing.abn ?? '', acn: existing.acn ?? '' }
+          : {}),
       companyName: existing.companyName ?? '',
       // Records saved before trading names were a list still carry only the
       // single tradingAs column — fall back to it so nothing looks empty.
@@ -647,6 +668,13 @@ export default function CustomerFormPage() {
         // Client ID is generated server-side and never sent from here.
         authorized: values.authorized === 'yes',
         creditScore: values.creditScore?.trim() ? Number(values.creditScore) : undefined,
+        // Only send the selected country's identifiers, dropping blanks — this
+        // discards any values left over from a previously chosen country.
+        companyIdentifiers: Object.fromEntries(
+          companyFieldsFor(values.registrationCountry)
+            .map((f) => [f.key, values.companyIdentifiers?.[f.key]?.trim() ?? ''] as const)
+            .filter(([, val]) => val)
+        ),
         // The API stores a plain string list and mirrors the first into tradingAs.
         tradingNames: (values.tradingNames ?? [])
           .map((n) => n.value.trim())
@@ -694,33 +722,57 @@ export default function CustomerFormPage() {
         {/* ── 1. Company Information ── */}
         <Section icon={Building2} title="Company Information">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Ask for the registration country first — the identifiers below are
+                whatever that country issues (ABN/ACN for AU, CRN/VAT for GB, …). */}
             <Field
-              label="ABN Number"
-              error={errors.abn?.message}
-              hint="11 digits — look it up to fill the details below"
+              label="Registration Country"
+              hint="The company identifiers below depend on this"
             >
-              <div className="flex gap-2">
-                <Input
-                  maxLength={14}
-                  placeholder="51 824 753 556"
-                  className="flex-1"
-                  {...numericField(register('abn'), 'abn')}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={abnLooking}
-                  onClick={lookupAbn}
-                  className="shrink-0"
-                >
-                  {abnLooking ? <Spinner /> : <Search className="h-3.5 w-3.5" />}
-                  {abnLooking ? 'Looking up…' : 'ABN Lookup'}
-                </Button>
-              </div>
+              <Controller
+                control={control}
+                name="registrationCountry"
+                render={({ field }) => (
+                  <CountrySelect
+                    value={field.value ?? DEFAULT_COUNTRY}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
             </Field>
-            <Field label="ACN" error={errors.acn?.message} hint="9 digits">
-              <Input maxLength={11} placeholder="004 085 616" {...numericField(register('acn'), 'abn')} />
-            </Field>
+            {companyFields.map((f) => (
+              <Field
+                key={f.key}
+                label={f.label}
+                hint={f.hint}
+                error={errors.companyIdentifiers?.[f.key]?.message}
+              >
+                {f.lookup ? (
+                  <div className="flex gap-2">
+                    <Input
+                      maxLength={f.maxLength ? f.maxLength + 3 : undefined}
+                      placeholder="51 824 753 556"
+                      className="flex-1"
+                      {...guardedField(register(`companyIdentifiers.${f.key}` as const), 'abn')}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={abnLooking}
+                      onClick={lookupAbn}
+                      className="shrink-0"
+                    >
+                      {abnLooking ? <Spinner /> : <Search className="h-3.5 w-3.5" />}
+                      {abnLooking ? 'Looking up…' : 'ABN Lookup'}
+                    </Button>
+                  </div>
+                ) : (
+                  <Input
+                    maxLength={f.maxLength}
+                    {...guardedField(register(`companyIdentifiers.${f.key}` as const), f.kind)}
+                  />
+                )}
+              </Field>
+            ))}
             <Field label="Business Name">
               <Input {...register('companyName')} />
             </Field>

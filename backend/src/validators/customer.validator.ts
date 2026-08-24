@@ -17,23 +17,6 @@ const countryCode = z
 
 const optionalEmail = z.string().email().optional().or(z.literal(''));
 
-/**
- * Australian Business Number — exactly 11 digits. Accepts the spaced form
- * ("51 824 753 556"); the service strips separators before persisting.
- */
-const abnSchema = z
-  .string()
-  .transform((v) => v.replace(/\D/g, ''))
-  .refine((v) => v.length === 0 || v.length === 11, 'ABN must be 11 digits')
-  .optional();
-
-/** Australian Company Number — exactly 9 digits. */
-const acnSchema = z
-  .string()
-  .transform((v) => v.replace(/\D/g, ''))
-  .refine((v) => v.length === 0 || v.length === 9, 'ACN must be 9 digits')
-  .optional();
-
 export const BUSINESS_TYPES = [
   'HOSPITALITY_AND_TOURISM',
   'FARMING_AND_AGRICULTURE',
@@ -70,8 +53,11 @@ const assignedProductSchema = z.object({
 export const createCustomerSchema = z
   .object({
     // ── Company Information ──
-    abn: abnSchema,
-    acn: acnSchema,
+    /// ISO-3166 alpha-2 registration country; drives which identifiers apply.
+    registrationCountry: z.string().length(2).optional(),
+    /// Country-specific identifiers keyed by field. Kept permissive — the exact
+    /// field set is validated on the client from the per-country config.
+    companyIdentifiers: z.record(z.string()).optional(),
     companyName: z.string().optional(),
     tradingAs: z.string().optional(),
     /// Every trading name; the first is mirrored into tradingAs.

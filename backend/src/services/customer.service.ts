@@ -112,8 +112,9 @@ type AddressInput = Record<string, string | undefined>;
 
 type CreateInput = {
   // Company Information
-  abn?: string;
-  acn?: string;
+  registrationCountry?: string;
+  /** Country-specific identifiers keyed by field, e.g. { abn, acn } or { companyNumber, vat }. */
+  companyIdentifiers?: Record<string, string>;
   companyName?: string;
   tradingAs?: string;
   tradingNames?: string[];
@@ -195,11 +196,33 @@ function tradingNameFields(input: Partial<CreateInput>) {
 const numOrNull = (v?: number | '') =>
   v === '' || v === undefined || v === null || Number.isNaN(v) ? null : Number(v);
 
+/** Keep only the non-empty identifier values; return null when nothing is set. */
+function cleanIdentifiers(map?: Record<string, string>) {
+  if (!map) return null;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(map)) {
+    const trimmed = (v ?? '').trim();
+    if (trimmed) out[k] = trimmed;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /** Column values shared by create and update, derived from the form payload. */
 function customerFields(input: Partial<CreateInput>) {
+  const registrationCountry = orNull(input.registrationCountry) ?? 'AU';
+  const identifiers = cleanIdentifiers(input.companyIdentifiers);
+  // Mirror Australia's ABN/ACN into their own columns so the ABN lookup and the
+  // list search (which query these columns) keep working; other countries store
+  // everything in companyIdentifiers only.
+  const isAu = registrationCountry.toUpperCase() === 'AU';
+
   return {
-    abn: digitsOrNull(input.abn),
-    acn: digitsOrNull(input.acn),
+    registrationCountry,
+    // DbNull (not undefined) so switching to a country with no values actually
+    // clears a previously-saved set rather than leaving it behind.
+    companyIdentifiers: identifiers ?? Prisma.DbNull,
+    abn: isAu ? digitsOrNull(identifiers?.abn) : null,
+    acn: isAu ? digitsOrNull(identifiers?.acn) : null,
     companyName: orNull(input.companyName),
     ...tradingNameFields(input),
     businessType: (input.businessType || null) as BusinessType | null,

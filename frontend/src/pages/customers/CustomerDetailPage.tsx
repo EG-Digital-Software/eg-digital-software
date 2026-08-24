@@ -24,9 +24,10 @@ import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, EmptyState } from '@/components/shared/states';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials } from '@/lib/utils';
-import { businessTypeLabel, customerName, formatAbn, formatAcn } from '@/lib/customer';
+import { businessTypeLabel, customerName, formatAbn } from '@/lib/customer';
+import { companyFieldsFor } from '@/lib/company';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
-import { countryCodeByName } from '@/lib/countries';
+import { countryCodeByName, countryName } from '@/lib/countries';
 
 /**
  * Address rendered the way the form collects it: street, then country, city and
@@ -231,8 +232,30 @@ export default function CustomerDetailPage() {
         <TabsContent value="overview">
           <div className="grid items-start gap-6 lg:grid-cols-2">
             <Section icon={Building2} title="Company Information">
-              <Detail label="ABN Number" value={formatAbn(c.abn)} />
-              <Detail label="ACN" value={formatAcn(c.acn)} />
+              <Detail
+                label="Registration Country"
+                value={
+                  c.registrationCountry ? (
+                    <span className="flex items-center gap-1.5">
+                      <Flag code={c.registrationCountry} />
+                      {countryName(c.registrationCountry)}
+                    </span>
+                  ) : null
+                }
+              />
+              {(() => {
+                // Prefer the stored identifier map; fall back to legacy ABN/ACN columns.
+                const ids =
+                  c.companyIdentifiers ??
+                  (c.abn || c.acn ? { abn: c.abn ?? '', acn: c.acn ?? '' } : {});
+                return companyFieldsFor(c.registrationCountry).map((f) => {
+                  const val = ids[f.key];
+                  if (!val) return null;
+                  return (
+                    <Detail key={f.key} label={f.label} value={f.key === 'abn' ? formatAbn(val) : val} />
+                  );
+                });
+              })()}
               <Detail label="Business Name" value={c.companyName} />
               {/* A business can trade under several names — list them all, with
                   the primary first. Older records carry only tradingAs. */}
