@@ -1,7 +1,7 @@
 import * as React from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, type LucideIcon } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, type LucideIcon } from 'lucide-react';
 import { Logo } from '@/components/layout/Logo';
 import { brand } from '@/config/brand';
 import { cn } from '@/lib/utils';
@@ -54,6 +54,12 @@ export function AuthShell({ tabs, welcome, subline, accent, variant, children }:
         />
 
         <div className="animate-slide-up-lg relative z-10 w-full max-w-md">
+          <Link
+            to="/"
+            className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to main page
+          </Link>
           <div className="mb-8">
             <Logo className="text-2xl" />
           </div>

@@ -10,13 +10,27 @@ import { storage } from '../services/storage/index.js';
 
 const REFRESH_COOKIE = 'eg_refresh';
 
+// In production the SPA (Static Web Apps) and the API (App Service) live on
+// different domains, so the refresh cookie is sent cross-site. A browser only
+// includes a cross-site cookie when it is `SameSite=None; Secure` — with the
+// old `Lax` the cookie was dropped on the /auth/refresh XHR, so every reload
+// (and the logout revoke) silently failed and logged the user out. Locally
+// (same-site http://localhost) `Lax` is correct since `None` requires Secure.
+//
+// Detect the cross-site deployment from CORS_ORIGIN (an https origin) rather
+// than NODE_ENV, which Azure App Service does not set by default.
+const crossSite = env.CORS_ORIGIN.split(',').some((o) => o.trim().startsWith('https://'));
+const REFRESH_COOKIE_OPTS = {
+  httpOnly: true,
+  secure: crossSite,
+  sameSite: (crossSite ? 'none' : 'lax') as 'none' | 'lax',
+  path: '/api/auth',
+};
+
 function setRefreshCookie(res: Response, token: string) {
   res.cookie(REFRESH_COOKIE, token, {
-    httpOnly: true,
-    secure: env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    ...REFRESH_COOKIE_OPTS,
     maxAge: durationToMs(env.JWT_REFRESH_EXPIRES),
-    path: '/api/auth',
   });
 }
 
@@ -65,7 +79,8 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
       ipAddress: req.ip,
     });
   }
-  res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
+  // Clear with the SAME attributes it was set with, or the browser keeps it.
+  res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTS);
   return ok(res, null, 'Logged out');
 });
 
