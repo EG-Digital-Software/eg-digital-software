@@ -32,8 +32,18 @@ export const BUSINESS_TYPES = [
   'FINANCE_AND_MEDIA',
 ] as const;
 
+// Names carry letters, spaces, hyphens and apostrophes only — never digits.
+const nameField = z
+  .string()
+  .trim()
+  .regex(/^[\p{L}][\p{L} '-]*$/u, 'Use letters only')
+  .optional()
+  .or(z.literal(''));
+
 const directorSchema = z.object({
-  designation: z.string().optional(),
+  firstName: nameField,
+  middleName: nameField,
+  lastName: nameField,
   email: optionalEmail,
   contactNumber: z.string().optional(),
   contactNumberCountry: countryCode,

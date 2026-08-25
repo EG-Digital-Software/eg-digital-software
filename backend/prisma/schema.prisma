@@ -309,8 +309,10 @@ model Director {
   id                   String   @id @default(uuid())
   customer             Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   customerId           String
-  /// Board/C-suite title, e.g. "CEO", "CFO", "Managing Director".
-  designation          String?
+  /// Director's legal name, split so it can be addressed formally.
+  firstName            String?
+  middleName           String?
+  lastName             String?
   email                String
   contactNumber        String?
   /// ISO-3166 alpha-2 of the dial code chosen for contactNumber.

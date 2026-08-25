@@ -324,7 +324,10 @@ export default function CustomerDetailPage() {
                       key={d.id}
                       className="rounded-lg border border-border bg-secondary/30 p-3 text-sm"
                     >
-                      <p className="mb-1 font-medium">{d.designation || `Director ${i + 1}`}</p>
+                      <p className="mb-1 font-medium">
+                        {[d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ') ||
+                          `Director ${i + 1}`}
+                      </p>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
                         <span className="flex items-center gap-1.5">
                           <Mail className="h-3.5 w-3.5" /> {d.email}

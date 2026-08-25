@@ -75,6 +75,105 @@ const COARSE_MATCHES = new Set([
 
 const TIMEOUT_MS = 8000;
 
+/** One suggestion for the address autocomplete — a label plus the resolved parts. */
+export interface AddressSuggestion {
+  /** Human-readable single line, shown in the dropdown. */
+  label: string;
+  line1: string;
+  line2: string;
+  city: string;
+  postcode: string;
+  /** Country display name, matching what Address.country stores. */
+  country: string;
+  /** ISO-3166 alpha-2, upper case. */
+  countryCode: string;
+}
+
+interface NominatimSearchHit {
+  display_name?: string;
+  address?: NominatimAddress;
+}
+
+/**
+ * Forward geocoding for the address autocomplete: turn a few typed characters
+ * into a short list of matching addresses. Optionally scoped to one country so
+ * the suggestions stay relevant to the address the operator is filling in.
+ *
+ * Proxied through the API for the same reasons as the reverse lookup — one
+ * identifiable caller, provider config kept server-side.
+ */
+export async function searchAddresses(
+  query: string,
+  countryCode?: string
+): Promise<AddressSuggestion[]> {
+  if (!env.GEOCODING_ENABLED) {
+    throw ApiError.badRequest('Location lookup is disabled on this environment');
+  }
+
+  const q = query.trim();
+  // Suggest from the very first character the operator types.
+  if (q.length < 1) return [];
+
+  const url = new URL('/search', env.GEOCODER_URL);
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('q', q);
+  url.searchParams.set('addressdetails', '1');
+  url.searchParams.set('limit', '6');
+  if (countryCode && /^[A-Za-z]{2}$/.test(countryCode)) {
+    url.searchParams.set('countrycodes', countryCode.toLowerCase());
+  }
+  if (env.GEOCODER_EMAIL) url.searchParams.set('email', env.GEOCODER_EMAIL);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  let hits: NominatimSearchHit[];
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': env.GEOCODER_USER_AGENT,
+        'Accept-Language': env.DEFAULT_LOCALE,
+      },
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status }, 'Address search provider returned an error');
+      throw ApiError.badGateway('Location provider is unavailable, please enter the address manually');
+    }
+    hits = (await res.json()) as NominatimSearchHit[];
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    const aborted = err instanceof Error && err.name === 'AbortError';
+    logger.warn({ err }, 'Address search failed');
+    throw ApiError.badGateway(
+      aborted
+        ? 'Location lookup timed out, please enter the address manually'
+        : 'Could not reach the location provider, please enter the address manually'
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  return (Array.isArray(hits) ? hits : [])
+    .map((hit) => {
+      const a = hit.address ?? {};
+      const city =
+        a.city || a.town || a.village || a.municipality || a.city_district || a.suburb || a.county || '';
+      return {
+        label: hit.display_name ?? streetLine(a, city),
+        line1: streetLine(a, city),
+        // Suburb sits below the city — keep it on line 2 when it isn't the city itself.
+        line2: a.suburb && a.suburb !== city ? a.suburb : '',
+        city,
+        postcode: a.postcode ?? '',
+        country: a.country ?? '',
+        countryCode: (a.country_code ?? '').toUpperCase(),
+      };
+    })
+    // Only offer rows we could actually turn into a street line.
+    .filter((s) => !!s.line1 || !!s.label);
+}
+
 export async function reverseGeocode(lat: number, lon: number): Promise<ReverseGeocodeResult> {
   if (!env.GEOCODING_ENABLED) {
     throw ApiError.badRequest('Location lookup is disabled on this environment');

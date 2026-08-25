@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useForm, useFieldArray, Controller, type Control } from 'react-hook-form';
+import { useForm, useFieldArray, Controller, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { customerApi, productApi, geoApi, abnApi } from '@/api/resources';
-import type { AbnLookupResult } from '@/api/resources';
+import type { AbnLookupResult, AddressSuggestion } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,7 +34,7 @@ import {
   countryCodeByName,
   countryName,
 } from '@/lib/countries';
-import { BUSINESS_TYPES, DIRECTOR_DESIGNATIONS, formatAbn, isValidAbn } from '@/lib/customer';
+import { BUSINESS_TYPES, formatAbn, isValidAbn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { numericField, guardedField } from '@/lib/input';
 import { formatCurrency } from '@/lib/utils';
@@ -103,7 +103,9 @@ const schema = z
     directors: z
       .array(
         z.object({
-          designation: z.string().optional(),
+          firstName: z.string().optional(),
+          middleName: z.string().optional(),
+          lastName: z.string().optional(),
           email: z.string().optional(),
           contactNumber: z.string().optional(),
           contactNumberCountry: z.string().optional(),
@@ -145,11 +147,28 @@ const schema = z
   // Each director row, once started, must be complete: a designation, a valid
   // email and a full 10-digit contact number.
   .superRefine((v, ctx) => {
+    const isName = (s?: string) => /^[\p{L}][\p{L} '-]*$/u.test((s ?? '').trim());
     (v.directors ?? []).forEach((d, i) => {
-      const started = !!(d.designation?.trim() || d.email?.trim() || d.contactNumber?.trim());
+      const started = !!(
+        d.firstName?.trim() ||
+        d.middleName?.trim() ||
+        d.lastName?.trim() ||
+        d.email?.trim() ||
+        d.contactNumber?.trim()
+      );
       if (!started) return;
-      if (!d.designation?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Designation is required', path: ['directors', i, 'designation'] });
+      if (!d.firstName?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'First name is required', path: ['directors', i, 'firstName'] });
+      } else if (!isName(d.firstName)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use letters only', path: ['directors', i, 'firstName'] });
+      }
+      if (d.middleName?.trim() && !isName(d.middleName)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use letters only', path: ['directors', i, 'middleName'] });
+      }
+      if (!d.lastName?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Last name is required', path: ['directors', i, 'lastName'] });
+      } else if (!isName(d.lastName)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use letters only', path: ['directors', i, 'lastName'] });
       }
       if (!d.email?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Email is required', path: ['directors', i, 'email'] });
@@ -213,12 +232,16 @@ const DEFAULTS: FormValues = {
   billingEmail: '',
   creditScore: '',
   accountStatus: 'ACTIVE',
-  directors: [{ designation: '', email: '', contactNumber: '', contactNumberCountry: DEFAULT_COUNTRY }],
+  directors: [
+    { firstName: '', middleName: '', lastName: '', email: '', contactNumber: '', contactNumberCountry: DEFAULT_COUNTRY },
+  ],
   assignedProducts: [],
 };
 
 const EMPTY_DIRECTOR = {
-  designation: '',
+  firstName: '',
+  middleName: '',
+  lastName: '',
   email: '',
   contactNumber: '',
   contactNumberCountry: DEFAULT_COUNTRY,
@@ -280,6 +303,146 @@ function Field({
 /** Metres for a rough fix, kilometres once it stops being a street-level number. */
 function formatDistance(metres: number): string {
   return metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${metres} m`;
+}
+
+/**
+ * Street address field with live autocomplete.
+ *
+ * Once three characters are typed it asks the API for matching addresses in the
+ * currently selected country, debounced so a burst of keystrokes makes one call.
+ * Picking a suggestion fills line1, line2, city, postcode and — when the match
+ * lands in another country — the country picker too. Everything stays editable;
+ * the suggestion is a shortcut, and free typing always wins if none fits.
+ */
+function AddressAutocomplete({
+  prefix,
+  register,
+  control,
+  setValue,
+  disabled,
+}: {
+  prefix: 'principalAddress' | 'billingAddress';
+  register: ReturnType<typeof useForm<FormValues>>['register'];
+  control: Control<FormValues>;
+  setValue: ReturnType<typeof useForm<FormValues>>['setValue'];
+  disabled?: boolean;
+}) {
+  // The selected country scopes the search so suggestions stay relevant.
+  const country = useWatch({ control, name: `${prefix}.country` });
+  const [term, setTerm] = useState('');
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  // Bumped on every keystroke so a slow response for an old term is ignored.
+  const reqId = useRef(0);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const line1 = register(`${prefix}.line1` as const);
+
+  // Debounce: only fire once typing settles. Suggestions start from the first
+  // character typed.
+  useEffect(() => {
+    if (disabled) return;
+    const q = term.trim();
+    if (q.length < 1) {
+      // Nothing to search — abandon any in-flight response and stop the spinner.
+      reqId.current++;
+      setSuggestions([]);
+      setOpen(false);
+      setLoading(false);
+      return;
+    }
+    const id = ++reqId.current;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await geoApi.search(q, country || undefined);
+        // Drop the answer if a newer keystroke has already superseded it.
+        if (id !== reqId.current) return;
+        setSuggestions(results);
+        setOpen(true);
+      } catch {
+        // A failed lookup should never block manual entry — just show nothing.
+        if (id === reqId.current) {
+          setSuggestions([]);
+          setOpen(false);
+        }
+      } finally {
+        if (id === reqId.current) setLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [term, country, disabled]);
+
+  // Close the list when focus moves elsewhere on the page.
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
+
+  const choose = (s: AddressSuggestion) => {
+    setValue(`${prefix}.line1`, s.line1 || s.label, { shouldDirty: true });
+    setValue(`${prefix}.line2`, s.line2, { shouldDirty: true });
+    if (s.city) setValue(`${prefix}.city`, s.city, { shouldDirty: true });
+    if (s.postcode) setValue(`${prefix}.postcode`, s.postcode, { shouldDirty: true });
+    if (countryByCode(s.countryCode)) {
+      setValue(`${prefix}.country`, s.countryCode, { shouldDirty: true });
+    }
+    setTerm('');
+    setSuggestions([]);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={boxRef} className="relative">
+      <Input
+        placeholder="Start typing an address…"
+        autoComplete="off"
+        disabled={disabled}
+        {...line1}
+        onChange={(e) => {
+          line1.onChange(e);
+          setTerm(e.target.value);
+        }}
+        onFocus={() => {
+          if (suggestions.length) setOpen(true);
+        }}
+        onBlur={(e) => {
+          line1.onBlur(e);
+          // Leaving the field: ignore any in-flight response and drop the spinner.
+          // A suggestion click uses onMouseDown/preventDefault, so it still lands.
+          reqId.current++;
+          setLoading(false);
+          setOpen(false);
+        }}
+      />
+      {loading && (
+        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+          <Spinner />
+        </div>
+      )}
+      {open && suggestions.length > 0 && (
+        <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover py-1 shadow-md">
+          {suggestions.map((s, i) => (
+            <li key={`${s.label}-${i}`}>
+              <button
+                type="button"
+                className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                // Blur fires before click otherwise, closing the list first.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => choose(s)}
+              >
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="leading-snug">{s.label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -374,11 +537,16 @@ function AddressFields({
         </Button>
       </div>
       <div className="sm:col-span-2">
-        <Field label="Street Address">
-          <Input
-            placeholder="Address line 1"
+        <Field
+          label="Street Address"
+          hint="Type a few letters and pick your address to fill the fields below"
+        >
+          <AddressAutocomplete
+            prefix={prefix}
+            register={register}
+            control={control}
+            setValue={setValue}
             disabled={disabled}
-            {...register(`${prefix}.line1` as const)}
           />
         </Field>
       </div>
@@ -641,7 +809,9 @@ export default function CustomerFormPage() {
       accountStatus: existing.accountStatus ?? 'ACTIVE',
       directors: existing.directors?.length
         ? existing.directors.map((d) => ({
-            designation: d.designation ?? '',
+            firstName: d.firstName ?? '',
+            middleName: d.middleName ?? '',
+            lastName: d.lastName ?? '',
             email: d.email ?? '',
             contactNumber: d.contactNumber ?? '',
             contactNumberCountry: d.contactNumberCountry ?? DEFAULT_COUNTRY,
@@ -685,7 +855,9 @@ export default function CustomerFormPage() {
         directors: (values.directors ?? [])
           .filter((d) => d.email?.trim())
           .map((d) => ({
-            designation: d.designation?.trim() || undefined,
+            firstName: d.firstName?.trim() || undefined,
+            middleName: d.middleName?.trim() || undefined,
+            lastName: d.lastName?.trim() || undefined,
             email: d.email!.trim(),
             contactNumber: d.contactNumber?.trim() || undefined,
             contactNumberCountry: d.contactNumberCountry,
@@ -982,17 +1154,31 @@ export default function CustomerFormPage() {
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <Field
-                    label="Designation"
-                    error={errors.directors?.[index]?.designation?.message}
+                    label="First Name"
+                    error={errors.directors?.[index]?.firstName?.message}
                   >
-                    <Select {...register(`directors.${index}.designation` as const)}>
-                      <option value="">Select…</option>
-                      {DIRECTOR_DESIGNATIONS.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </Select>
+                    <Input
+                      placeholder="First name"
+                      {...guardedField(register(`directors.${index}.firstName` as const), 'letters')}
+                    />
+                  </Field>
+                  <Field
+                    label="Middle Name"
+                    error={errors.directors?.[index]?.middleName?.message}
+                  >
+                    <Input
+                      placeholder="Middle name (optional)"
+                      {...guardedField(register(`directors.${index}.middleName` as const), 'letters')}
+                    />
+                  </Field>
+                  <Field
+                    label="Last Name"
+                    error={errors.directors?.[index]?.lastName?.message}
+                  >
+                    <Input
+                      placeholder="Last name"
+                      {...guardedField(register(`directors.${index}.lastName` as const), 'letters')}
+                    />
                   </Field>
                   <Field
                     label="Director Email Address"

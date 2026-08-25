@@ -277,12 +277,35 @@ export interface ReverseGeocodeResult {
   precision: 'exact' | 'approximate';
 }
 
+export interface AddressSuggestion {
+  label: string;
+  line1: string;
+  line2: string;
+  city: string;
+  postcode: string;
+  country: string;
+  countryCode: string;
+}
+
 export const geoApi = {
   /** Turn browser coordinates into an address the form can prefill. */
   reverse: async (lat: number, lon: number) =>
     (
       await api.get<ApiEnvelope<ReverseGeocodeResult>>(
         `/geo/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`
+      )
+    ).data.data,
+
+  /**
+   * Suggest addresses for a few typed characters, optionally scoped to one
+   * country (ISO-3166 alpha-2). Powers the address autocomplete.
+   */
+  search: async (query: string, country?: string) =>
+    (
+      await api.get<ApiEnvelope<AddressSuggestion[]>>(
+        `/geo/search?q=${encodeURIComponent(query)}${
+          country ? `&country=${encodeURIComponent(country)}` : ''
+        }`
       )
     ).data.data,
 };

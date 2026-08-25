@@ -23,19 +23,6 @@ export function businessTypeLabel(value?: BusinessType | null): string {
   return BUSINESS_TYPES.find((t) => t.value === value)?.label ?? '';
 }
 
-/** Board / C-suite titles offered for a customer's directors. */
-export const DIRECTOR_DESIGNATIONS = [
-  'Chairperson',
-  'Managing Director',
-  'Director',
-  'Non-Executive Director',
-  'Chief Executive Officer (CEO)',
-  'Chief Financial Officer (CFO)',
-  'Chief Operating Officer (COO)',
-  'Chief Technology Officer (CTO)',
-  'Company Secretary',
-] as const;
-
 /**
  * Label for a customer. The personal name fields are gone, so fall back
  * company → contact person → Client ID; there is always something to show.

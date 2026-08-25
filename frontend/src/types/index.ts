@@ -162,7 +162,9 @@ export interface Customer {
 
 export interface Director {
   id: string;
-  designation?: string | null;
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
   email: string;
   contactNumber?: string | null;
   contactNumberCountry?: string | null;

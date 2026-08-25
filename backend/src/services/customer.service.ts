@@ -137,7 +137,9 @@ type CreateInput = {
 
   // Company C-Suite Details
   directors?: Array<{
-    designation?: string;
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
     email?: string;
     contactNumber?: string;
     contactNumberCountry?: string;
@@ -327,7 +329,9 @@ function cleanDirectors(list?: CreateInput['directors']) {
   return (list ?? [])
     .filter((d) => d.email?.trim())
     .map((d) => ({
-      designation: d.designation?.trim() || null,
+      firstName: d.firstName?.trim() || null,
+      middleName: d.middleName?.trim() || null,
+      lastName: d.lastName?.trim() || null,
       email: d.email!.trim(),
       contactNumber: (d.contactNumber ?? '').replace(/\D/g, '') || null,
       contactNumberCountry: d.contactNumberCountry?.trim() || 'AU',
