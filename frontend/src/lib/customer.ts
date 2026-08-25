@@ -24,6 +24,41 @@ export function businessTypeLabel(value?: BusinessType | null): string {
 }
 
 /**
+ * Default invoice payment terms offered on the customer form. The code is
+ * stored; the label is what the operator sees. Keep in step with the
+ * `invoiceTerm` enum in backend/src/validators/customer.validator.ts.
+ */
+export const INVOICE_TERMS = [
+  { value: 'DUE_ON_RECEIPT', label: 'Due on receipt' },
+  { value: 'NET_7', label: 'Net 7 days' },
+  { value: 'NET_14', label: 'Net 14 days' },
+  { value: 'NET_30', label: 'Net 30 days' },
+  { value: 'NET_45', label: 'Net 45 days' },
+  { value: 'NET_60', label: 'Net 60 days' },
+  { value: 'NET_90', label: 'Net 90 days' },
+] as const;
+
+export function invoiceTermLabel(value?: string | null): string {
+  return INVOICE_TERMS.find((t) => t.value === value)?.label ?? value ?? '';
+}
+
+/**
+ * Payment methods the business accepts — the stored value is the label itself,
+ * so it reads the same everywhere it surfaces (payments list, invoices). Keep in
+ * step with the `paymentMethod` enum in the customer validator.
+ */
+export const PAYMENT_METHODS = [
+  'Bank Transfer (EFT)',
+  'Credit/Debit Card',
+  'UPI',
+  'BPAY',
+  'PayID',
+  'Direct Debit',
+  'Cheque',
+  'Cash',
+] as const;
+
+/**
  * Label for a customer. The personal name fields are gone, so fall back
  * company → contact person → Client ID; there is always something to show.
  */

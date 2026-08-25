@@ -19,5 +19,7 @@ router.get('/:clientId', ctrl.getOne);
 router.post('/', validate({ body: createCustomerSchema }), ctrl.create);
 router.put('/:clientId', validate({ body: updateCustomerSchema }), ctrl.update);
 router.delete('/:clientId', ctrl.archive);
+// Permanent, irreversible delete — distinct from the soft archive above.
+router.delete('/:clientId/permanent', ctrl.remove);
 
 export default router;

@@ -99,6 +99,7 @@ enum ActivityAction {
   CUSTOMER_CREATED
   CUSTOMER_UPDATED
   CUSTOMER_ARCHIVED
+  CUSTOMER_DELETED
   PRODUCT_CREATED
   PRODUCT_UPDATED
   PRODUCT_IMPORTED
@@ -282,6 +283,10 @@ model Customer {
   billingContactNumberCountry String? @default("AU")
   /// Credit score as reported by the bureau (0–1200).
   creditScore                 Int?
+  /// Default payment terms for this customer, e.g. "NET_30" or "DUE_ON_RECEIPT".
+  invoiceTerm                 String?
+  /// Preferred payment method, e.g. "Bank Transfer (EFT)" or "Credit/Debit Card".
+  paymentMethod               String?
 
   reference String?
   status    CustomerStatus @default(ACTIVE)

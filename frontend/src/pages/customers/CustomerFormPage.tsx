@@ -34,7 +34,7 @@ import {
   countryCodeByName,
   countryName,
 } from '@/lib/countries';
-import { BUSINESS_TYPES, formatAbn, isValidAbn } from '@/lib/customer';
+import { BUSINESS_TYPES, INVOICE_TERMS, PAYMENT_METHODS, formatAbn, isValidAbn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { numericField, guardedField } from '@/lib/input';
 import { formatCurrency } from '@/lib/utils';
@@ -98,6 +98,12 @@ const schema = z
         return Number.isInteger(n) && n >= 0 && n <= 1200;
       }, 'Credit score must be a whole number between 0 and 1200'),
 
+    // Either a preset code (INVOICE_TERMS), or the sentinel 'MANUAL' — in which
+    // case the free-text term lives in invoiceTermCustom until submit.
+    invoiceTerm: z.string().optional(),
+    invoiceTermCustom: z.string().optional(),
+    paymentMethod: z.string().optional(),
+
     accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).default('ACTIVE'),
 
     directors: z
@@ -130,6 +136,11 @@ const schema = z
   .refine((v) => v.authorized !== 'no' || !!v.authorizedPerson?.trim(), {
     message: 'Required when Authorised is No',
     path: ['authorizedPerson'],
+  })
+  // A manually entered invoice term must actually be typed in.
+  .refine((v) => v.invoiceTerm !== 'MANUAL' || !!v.invoiceTermCustom?.trim(), {
+    message: 'Enter the invoice term',
+    path: ['invoiceTermCustom'],
   })
   // A phone number, once entered, must be a full 10 digits.
   .refine((v) => phoneComplete(v.contactMobile), {
@@ -231,6 +242,9 @@ const DEFAULTS: FormValues = {
   billingContactNumberCountry: DEFAULT_COUNTRY,
   billingEmail: '',
   creditScore: '',
+  invoiceTerm: '',
+  invoiceTermCustom: '',
+  paymentMethod: '',
   accountStatus: 'ACTIVE',
   directors: [
     { firstName: '', middleName: '', lastName: '', email: '', contactNumber: '', contactNumberCountry: DEFAULT_COUNTRY },
@@ -671,6 +685,7 @@ export default function CustomerFormPage() {
   const sameAsPrincipal = watch('sameAsPrincipal');
   const authorized = watch('authorized');
   const assigned = watch('assignedProducts');
+  const invoiceTerm = watch('invoiceTerm');
 
   const registrationCountry = watch('registrationCountry');
   const companyFields = companyFieldsFor(registrationCountry);
@@ -806,6 +821,18 @@ export default function CustomerFormPage() {
       billingContactNumberCountry: existing.billingContactNumberCountry ?? DEFAULT_COUNTRY,
       billingEmail: existing.billingEmail ?? '',
       creditScore: existing.creditScore != null ? String(existing.creditScore) : '',
+      // A stored term is either a preset code or free text. Free text loads the
+      // dropdown as "Enter manually" with the text in the custom field.
+      invoiceTerm: !existing.invoiceTerm
+        ? ''
+        : INVOICE_TERMS.some((t) => t.value === existing.invoiceTerm)
+          ? existing.invoiceTerm
+          : 'MANUAL',
+      invoiceTermCustom:
+        existing.invoiceTerm && !INVOICE_TERMS.some((t) => t.value === existing.invoiceTerm)
+          ? existing.invoiceTerm
+          : '',
+      paymentMethod: existing.paymentMethod ?? '',
       accountStatus: existing.accountStatus ?? 'ACTIVE',
       directors: existing.directors?.length
         ? existing.directors.map((d) => ({
@@ -838,6 +865,12 @@ export default function CustomerFormPage() {
         // Client ID is generated server-side and never sent from here.
         authorized: values.authorized === 'yes',
         creditScore: values.creditScore?.trim() ? Number(values.creditScore) : undefined,
+        // Resolve the manual term to its typed text; drop the helper field.
+        invoiceTerm:
+          values.invoiceTerm === 'MANUAL'
+            ? values.invoiceTermCustom?.trim() || undefined
+            : values.invoiceTerm || undefined,
+        invoiceTermCustom: undefined,
         // Only send the selected country's identifiers, dropping blanks — this
         // discards any values left over from a previously chosen country.
         companyIdentifiers: Object.fromEntries(
@@ -1249,6 +1282,40 @@ export default function CustomerFormPage() {
             </Field>
             <Field label="Credit Score" error={errors.creditScore?.message} hint="0 – 1200">
               <Input maxLength={4} placeholder="0 – 1200" {...numericField(register('creditScore'))} />
+            </Field>
+            <Field label="Invoice Term" hint="Default payment terms on this customer's invoices">
+              <Select {...register('invoiceTerm')}>
+                <option value="">Select invoice term…</option>
+                {INVOICE_TERMS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+                <option value="MANUAL">Enter manually…</option>
+              </Select>
+            </Field>
+            {invoiceTerm === 'MANUAL' && (
+              <Field
+                label="Invoice Term (manual)"
+                error={errors.invoiceTermCustom?.message}
+                hint="Type the term, e.g. Net 21 days or 50% upfront"
+              >
+                <Input
+                  placeholder="e.g. Net 21 days"
+                  maxLength={60}
+                  {...register('invoiceTermCustom')}
+                />
+              </Field>
+            )}
+            <Field label="Payment Method" hint="Preferred way this customer pays">
+              <Select {...register('paymentMethod')}>
+                <option value="">Select payment method…</option>
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </Select>
             </Field>
             <Field
               label="Account Status"

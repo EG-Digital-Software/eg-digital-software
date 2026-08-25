@@ -145,6 +145,8 @@ export interface Customer {
   billingContactNumber?: string | null;
   billingContactNumberCountry?: string | null;
   creditScore?: number | null;
+  invoiceTerm?: string | null;
+  paymentMethod?: string | null;
 
   reference?: string | null;
   status: 'ACTIVE' | 'ARCHIVED';

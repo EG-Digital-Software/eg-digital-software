@@ -1,7 +1,14 @@
 import { CustomerAccountStatus } from '@prisma/client';
 
 /** An account with no invoice this recent is treated as dormant. */
-const DORMANT_AFTER_MONTHS = 6;
+export const DORMANT_AFTER_MONTHS = 6;
+
+/** Start of the activity window: an invoice older than this no longer counts. */
+export function dormancyCutoff(now: Date = new Date()): Date {
+  const cutoff = new Date(now);
+  cutoff.setMonth(cutoff.getMonth() - DORMANT_AFTER_MONTHS);
+  return cutoff;
+}
 
 /**
  * Resolve the account standing shown in the UI.
@@ -16,9 +23,7 @@ export function effectiveAccountStatus(
 ): CustomerAccountStatus {
   if (stored !== CustomerAccountStatus.ACTIVE) return stored;
 
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - DORMANT_AFTER_MONTHS);
-
+  const cutoff = dormancyCutoff();
   const hasRecent = invoiceDates.some((d) => d != null && new Date(d) >= cutoff);
   return hasRecent ? CustomerAccountStatus.ACTIVE : CustomerAccountStatus.DORMANT;
 }

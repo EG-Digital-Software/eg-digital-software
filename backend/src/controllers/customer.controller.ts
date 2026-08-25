@@ -63,3 +63,15 @@ export const archive = asyncHandler(async (req: Request, res: Response) => {
   });
   return ok(res, customer, 'Customer archived');
 });
+
+export const remove = asyncHandler(async (req: Request, res: Response) => {
+  const deleted = await customerService.deleteCustomer(req.params.clientId);
+  logActivity({
+    userId: req.user?.sub,
+    userType: req.user?.role,
+    action: ActivityAction.CUSTOMER_DELETED,
+    entityType: 'Customer',
+    entityId: deleted.id,
+  });
+  return ok(res, deleted, 'Customer permanently deleted');
+});

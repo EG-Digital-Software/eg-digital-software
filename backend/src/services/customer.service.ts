@@ -12,11 +12,18 @@ import type { PageQuery } from '../utils/http.js';
 import { reserveStock } from './product.service.js';
 import { nextSequence, formatClientId, formatLicenceKey } from '../utils/sequence.js';
 import { computeLicenceStatus } from '../utils/licence.js';
-import { effectiveAccountStatus } from '../utils/accountStatus.js';
+import { effectiveAccountStatus, dormancyCutoff } from '../utils/accountStatus.js';
+
+/**
+ * The customer-list filter. `ACTIVE`/`ARCHIVED` select the archive state; the
+ * two account standings (`DORMANT`, `SUSPENDED`) narrow the non-archived set by
+ * the *effective* status shown in the table — matching what the operator sees.
+ */
+export type CustomerListStatus = 'ACTIVE' | 'ARCHIVED' | 'DORMANT' | 'SUSPENDED';
 
 interface ListParams extends PageQuery {
   search?: string;
-  status?: CustomerStatus;
+  status?: CustomerListStatus;
   businessType?: BusinessType;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
@@ -24,7 +31,33 @@ interface ListParams extends PageQuery {
 
 export async function listCustomers(params: ListParams) {
   const where: Prisma.CustomerWhereInput = {};
-  where.status = params.status ?? CustomerStatus.ACTIVE;
+  const status = params.status ?? 'ACTIVE';
+
+  if (status === 'ARCHIVED') {
+    where.status = CustomerStatus.ARCHIVED;
+  } else {
+    // Account-status filters live inside the working (non-archived) set.
+    where.status = CustomerStatus.ACTIVE;
+    if (status === 'SUSPENDED') {
+      // Suspended is always a pinned override, so stored == effective.
+      where.accountStatus = CustomerAccountStatus.SUSPENDED;
+    } else if (status === 'DORMANT') {
+      // Effective dormant: pinned dormant, or active with no recent invoice.
+      where.AND = [
+        {
+          OR: [
+            { accountStatus: CustomerAccountStatus.DORMANT },
+            {
+              accountStatus: CustomerAccountStatus.ACTIVE,
+              invoices: { none: { invoiceDate: { gte: dormancyCutoff() } } },
+            },
+          ],
+        },
+      ];
+    }
+    // status === 'ACTIVE' keeps the whole non-archived set (unchanged default).
+  }
+
   if (params.businessType) where.businessType = params.businessType;
 
   if (params.search) {
@@ -151,6 +184,8 @@ type CreateInput = {
   billingContactNumber?: string;
   billingContactNumberCountry?: string;
   creditScore?: number | '';
+  invoiceTerm?: string;
+  paymentMethod?: string;
 
   reference?: string;
   accountStatus?: CustomerAccountStatus;
@@ -249,6 +284,8 @@ function customerFields(input: Partial<CreateInput>) {
     billingContactNumber: orNull(input.billingContactNumber),
     billingContactNumberCountry: orNull(input.billingContactNumberCountry) ?? 'AU',
     creditScore: numOrNull(input.creditScore),
+    invoiceTerm: orNull(input.invoiceTerm),
+    paymentMethod: orNull(input.paymentMethod),
 
     reference: orNull(input.reference),
     // Left undefined on create, Prisma falls back to the ACTIVE default; on
@@ -405,4 +442,48 @@ export async function archiveCustomer(clientId: string) {
     where: { clientId },
     data: { status: CustomerStatus.ARCHIVED },
   });
+}
+
+/**
+ * Permanently delete a customer and everything scoped to it — addresses,
+ * directors, assigned products and their licences cascade at the database level,
+ * and portal users are unlinked. Any stock the customer's products were holding
+ * is returned to available first.
+ *
+ * A customer with invoices is refused: invoices are financial records and must
+ * be kept, so the operator is directed to archive instead. This is irreversible.
+ */
+export async function deleteCustomer(clientId: string) {
+  const existing = await prisma.customer.findUnique({
+    where: { clientId },
+    include: {
+      _count: { select: { invoices: true } },
+      customerProducts: { select: { productId: true, quantity: true } },
+    },
+  });
+  if (!existing) throw ApiError.notFound('Customer not found');
+
+  if (existing._count.invoices > 0) {
+    throw ApiError.badRequest(
+      'This customer has invoices and cannot be permanently deleted. Archive it instead to keep the billing history.'
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Hand back the stock each assigned product was holding — the inverse of the
+    // reservation made when the product was assigned.
+    for (const cp of existing.customerProducts) {
+      await tx.product.update({
+        where: { id: cp.productId },
+        data: {
+          availableStock: { increment: cp.quantity },
+          reservedStock: { decrement: cp.quantity },
+        },
+      });
+    }
+    await tx.customer.delete({ where: { id: existing.id } });
+  });
+
+  // Bare details for the audit log — the row itself is gone.
+  return { id: existing.id, clientId: existing.clientId, companyName: existing.companyName };
 }

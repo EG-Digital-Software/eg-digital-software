@@ -24,7 +24,7 @@ import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, EmptyState } from '@/components/shared/states';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials } from '@/lib/utils';
-import { businessTypeLabel, customerName, formatAbn } from '@/lib/customer';
+import { businessTypeLabel, customerName, formatAbn, invoiceTermLabel } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName, countryName } from '@/lib/countries';
@@ -361,6 +361,8 @@ export default function CustomerDetailPage() {
                 label="Credit Score"
                 value={c.creditScore != null ? String(c.creditScore) : null}
               />
+              <Detail label="Invoice Term" value={invoiceTermLabel(c.invoiceTerm) || null} />
+              <Detail label="Payment Method" value={c.paymentMethod} />
               <Detail
                 label="Account Status"
                 value={(() => {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, MoreHorizontal, Eye, Pencil, Archive, Users } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Eye, Pencil, Archive, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { customerApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
@@ -61,7 +61,10 @@ export default function CustomersPage() {
   const [status, setStatus] = useState('ACTIVE');
   const [businessType, setBusinessType] = useState('');
   const [archiving, setArchiving] = useState<Customer | null>(null);
-  const debounced = useDebounce(search);
+  const [deleting, setDeleting] = useState<Customer | null>(null);
+  // Short debounce so results refresh almost as fast as the operator types,
+  // while still collapsing a burst of keystrokes into one request.
+  const debounced = useDebounce(search, 200);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['customers', { page, debounced, status, businessType }],
@@ -81,6 +84,17 @@ export default function CustomersPage() {
       qc.invalidateQueries({ queryKey: ['customers'] });
       toast.success('Customer archived');
       setArchiving(null);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const remove = useMutation({
+    mutationFn: (clientId: string) => customerApi.remove(clientId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success('Customer permanently deleted');
+      setDeleting(null);
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
@@ -134,9 +148,11 @@ export default function CustomersPage() {
               setStatus(e.target.value);
               setPage(1);
             }}
-            className="sm:w-36"
+            className="sm:w-40"
           >
             <option value="ACTIVE">Active</option>
+            <option value="DORMANT">Dormant</option>
+            <option value="SUSPENDED">Suspended</option>
             <option value="ARCHIVED">Archived</option>
           </Select>
           {data?.meta && (
@@ -162,17 +178,18 @@ export default function CustomersPage() {
               icon={<Users className="h-6 w-6" />}
               title="No customers found"
               description={
-                debounced || businessType
-                  ? 'No customer matches these filters. Try clearing the search or business type.'
+                debounced || businessType || status !== 'ACTIVE'
+                  ? 'No customer matches these filters. Try clearing the search, business type or status.'
                   : 'Add your first customer to start managing clients.'
               }
               action={
-                debounced || businessType ? (
+                debounced || businessType || status !== 'ACTIVE' ? (
                   <Button
                     variant="outline"
                     onClick={() => {
                       setSearch('');
                       setBusinessType('');
+                      setStatus('ACTIVE');
                       setPage(1);
                     }}
                   >
@@ -272,6 +289,9 @@ export default function CustomersPage() {
                             <DropdownMenuItem destructive onClick={() => setArchiving(c)}>
                               <Archive /> Archive
                             </DropdownMenuItem>
+                            <DropdownMenuItem destructive onClick={() => setDeleting(c)}>
+                              <Trash2 /> Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -294,6 +314,17 @@ export default function CustomersPage() {
         destructive
         loading={archive.isPending}
         onConfirm={() => archiving && archive.mutate(archiving.clientId)}
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(v) => !v && setDeleting(null)}
+        title="Delete customer permanently?"
+        description={`${deleting ? customerName(deleting) : ''} and all its data — addresses, directors and assigned products — will be permanently deleted. This cannot be undone. A customer with invoices can't be deleted; archive it instead.`}
+        confirmLabel="Delete permanently"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => deleting && remove.mutate(deleting.clientId)}
       />
     </div>
   );

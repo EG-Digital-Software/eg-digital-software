@@ -51,6 +51,8 @@ export const customerApi = {
   update: async (clientId: string, body: unknown) =>
     (await api.put<ApiEnvelope<Customer>>(`/customers/${clientId}`, body)).data.data,
   archive: async (clientId: string) => (await api.delete(`/customers/${clientId}`)).data,
+  remove: async (clientId: string) =>
+    (await api.delete(`/customers/${clientId}/permanent`)).data,
 };
 
 // ── Products ─────────────────────────────────────────────
