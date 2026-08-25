@@ -3,9 +3,12 @@ import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
 import { computeInvoiceTotals, computeLine, D } from '../utils/money.js';
-import { nextSequence, formatInvoiceNumber } from '../utils/sequence.js';
+import { nextSequence, formatInvoiceNumber, formatInvoiceReference } from '../utils/sequence.js';
 import { paymentProvider, generateQrDataUrl } from './payments/index.js';
 import { notify } from './notification.service.js';
+import { deliverEmail } from './email/index.js';
+import { buildInvoiceEmail } from './email/templates.js';
+import { env } from '../config/env.js';
 
 interface ListParams extends PageQuery {
   search?: string;
@@ -195,6 +198,13 @@ export async function createInvoice(input: CreateInput) {
       invoiceDate
     );
 
+    // Every invoice gets its own unique reference. An admin-supplied reference
+    // wins; otherwise one is generated from a dedicated counter. The column is
+    // unique, so two invoices can never share a reference.
+    const reference =
+      input.reference?.trim() ||
+      formatInvoiceReference(await nextSequence(tx, 'invoiceReference'), invoiceDate);
+
     const created = await tx.invoice.create({
       data: {
         invoiceNumber,
@@ -203,7 +213,7 @@ export async function createInvoice(input: CreateInput) {
         dueDate,
         term: input.term,
         customDays: input.customDays,
-        reference: input.reference,
+        reference,
         subtotal: totals.subtotal,
         tax: totals.tax,
         discount: totals.discount,
@@ -266,6 +276,82 @@ export async function createInvoice(input: CreateInput) {
     data: { paymentUrl: payment.paymentUrl, paymentQrUrl: qr },
     include: { items: true, customer: { include: { addresses: true } } },
   });
+}
+
+/**
+ * Email the invoice to the client and mark it as sent.
+ *
+ * Recipients are gathered from the customer record (billing/contact email) and
+ * every linked, active client-account login — so it reaches whichever address
+ * the client actually uses. Sending is awaited so the admin sees a real
+ * success/failure, and the invoice moves to SENT once it goes out.
+ */
+export async function sendInvoiceEmail(id: string): Promise<{ recipients: string[] }> {
+  const invoice = await prisma.invoice.findUniqueOrThrow({
+    where: { id },
+    include: {
+      customer: {
+        select: {
+          companyName: true,
+          contactPerson: true,
+          contactEmail: true,
+          billingEmail: true,
+          users: { where: { isActive: true }, select: { email: true } },
+        },
+      },
+    },
+  });
+
+  const c = invoice.customer;
+  // Primary goes to the accounts/billing address; the general contact and any
+  // client-portal logins are CC'd. Deduped and lower-cased so the same address
+  // never appears twice.
+  const seen = new Set<string>();
+  const dedupe = (email?: string | null): string | null => {
+    const e = email?.trim().toLowerCase();
+    if (!e || seen.has(e)) return null;
+    seen.add(e);
+    return e;
+  };
+
+  const primary = dedupe(c?.billingEmail) ?? dedupe(c?.contactEmail);
+  if (!primary) {
+    throw ApiError.badRequest(
+      'This customer has no email address — add a billing or contact email first'
+    );
+  }
+  const cc = [
+    dedupe(c?.contactEmail),
+    ...(c?.users ?? []).map((u) => dedupe(u.email)),
+  ].filter((e): e is string => !!e);
+
+  // Make sure there is a working pay link + QR, then link the client to the
+  // public invoice/pay page.
+  await ensurePayable(id);
+  const payUrl = `${env.APP_URL.replace(/\/$/, '')}/pay/${invoice.id}`;
+
+  const message = buildInvoiceEmail({
+    to: primary,
+    cc: cc.length ? cc.join(', ') : undefined,
+    companyName: c?.companyName ?? 'there',
+    contactName: c?.contactPerson ?? undefined,
+    invoiceNumber: invoice.invoiceNumber,
+    reference: invoice.reference,
+    amount: invoice.total.toString(),
+    currency: invoice.currency,
+    dueDate: invoice.dueDate.toISOString().slice(0, 10),
+    payUrl,
+  });
+
+  await deliverEmail(message);
+
+  // Once it's out the door it's no longer a draft.
+  if (invoice.status === InvoiceStatus.DRAFT || invoice.status === InvoiceStatus.PENDING) {
+    await prisma.invoice.update({ where: { id }, data: { status: InvoiceStatus.SENT } });
+  }
+
+  const recipients = [primary, ...cc];
+  return { recipients };
 }
 
 export async function updateStatus(id: string, status: InvoiceStatus) {

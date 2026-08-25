@@ -1,127 +1,65 @@
-import { useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import {
-  ShieldCheck,
-  UserRound,
-  Truck,
-  Briefcase,
-  ArrowUpRight,
-  Sparkles,
-} from 'lucide-react';
+import { ShieldCheck, UserRound, Truck, Briefcase, ArrowRight, Lock } from 'lucide-react';
 import { brand } from '@/config/brand';
 import { useAuth } from '@/store/auth';
-import { Logo } from '@/components/layout/Logo';
 
 type Portal = {
   to: string;
   label: string;
   description: string;
   icon: typeof ShieldCheck;
-  accent: string; // primary accent (rgb)
-  glow: string; // soft glow (rgba)
 };
 
 const PORTALS: Portal[] = [
   {
     to: '/admin/login',
     label: 'Admin',
-    description: 'Full control — customers, billing, products & analytics.',
+    description: 'Full control over customers, billing, products and analytics.',
     icon: ShieldCheck,
-    accent: '79, 70, 229',
-    glow: 'rgba(99, 102, 241, 0.18)',
   },
   {
     to: '/client/login',
     label: 'Client',
-    description: 'View invoices, licences & make payments.',
+    description: 'View invoices and licences, and make secure payments.',
     icon: UserRound,
-    accent: '13, 148, 136',
-    glow: 'rgba(16, 185, 129, 0.18)',
   },
   {
     to: '/supplier/login',
     label: 'Supplier',
-    description: 'Manage supply, orders & fulfilment.',
+    description: 'Manage supply, orders and fulfilment in one place.',
     icon: Truck,
-    accent: '234, 88, 12',
-    glow: 'rgba(234, 88, 12, 0.16)',
   },
   {
     to: '/employee/login',
     label: 'Employee',
-    description: 'Access your workspace, tasks & internal tools.',
+    description: 'Reach your workspace, tasks and internal tools.',
     icon: Briefcase,
-    accent: '2, 132, 199',
-    glow: 'rgba(2, 132, 199, 0.16)',
   },
 ];
 
-/** A portal card that tracks the cursor to drive a spotlight + border glow. */
+/** A large, full-height portal card — icon, copy, and a sliding call-to-action. */
 function PortalCard({ portal }: { portal: Portal }) {
-  const ref = useRef<HTMLAnchorElement>(null);
-  const [pos, setPos] = useState({ x: 50, y: 50 });
-
-  const onMove = (e: React.MouseEvent) => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setPos({
-      x: ((e.clientX - r.left) / r.width) * 100,
-      y: ((e.clientY - r.top) / r.height) * 100,
-    });
-  };
-
   const Icon = portal.icon;
-
   return (
     <Link
-      ref={ref}
       to={portal.to}
-      onMouseMove={onMove}
-      className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-transparent hover:shadow-card-hover"
-      style={{ '--x': `${pos.x}%`, '--y': `${pos.y}%` } as React.CSSProperties}
+      aria-label={`Continue to ${portal.label} login`}
+      className="group relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-slate-300 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B223B] focus-visible:ring-offset-2 sm:p-8"
     >
-      {/* cursor spotlight */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{
-          background: `radial-gradient(220px circle at var(--x) var(--y), ${portal.glow}, transparent 70%)`,
-        }}
-      />
-      {/* thin top accent line */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-40 transition-opacity duration-300 group-hover:opacity-100"
-        style={{
-          background: `linear-gradient(90deg, transparent, rgb(${portal.accent}), transparent)`,
-        }}
-      />
+      {/* thin brand accent that reveals on hover */}
+      <span className="absolute inset-x-0 top-0 h-1 origin-left scale-x-0 bg-[#34B98C] transition-transform duration-300 group-hover:scale-x-100" />
 
-      <div className="relative flex items-start justify-between gap-4">
-        <span
-          className="flex h-12 w-12 items-center justify-center rounded-2xl border border-black/[0.04] transition-transform duration-300 group-hover:scale-110"
-          style={{
-            background: `linear-gradient(135deg, rgba(${portal.accent}, 0.16), rgba(${portal.accent}, 0.04))`,
-            color: `rgb(${portal.accent})`,
-          }}
-        >
-          <Icon className="h-6 w-6" />
-        </span>
-        <ArrowUpRight className="h-5 w-5 text-muted-foreground/40 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-700" />
-      </div>
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition-all duration-300 group-hover:scale-105 group-hover:bg-[#0B223B] group-hover:text-white">
+        <Icon className="h-7 w-7" />
+      </span>
 
-      <div className="relative mt-5">
-        <h3 className="text-lg font-semibold text-slate-800">{portal.label}</h3>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          {portal.description}
-        </p>
-      </div>
+      <h3 className="mt-6 text-xl font-semibold text-slate-900">{portal.label}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-slate-500">{portal.description}</p>
 
-      <div
-        className="relative mt-auto flex items-center gap-1.5 pt-5 text-xs font-medium transition-colors duration-300"
-        style={{ color: `rgb(${portal.accent})` }}
-      >
+      <span className="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold text-[#0B223B]">
         Continue to login
-      </div>
+        <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+      </span>
     </Link>
   );
 }
@@ -142,68 +80,68 @@ export default function PortalPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-6 py-16">
-      {/* ---- animated mesh-gradient blobs (soft on white) ---- */}
-      <div className="animate-aurora pointer-events-none absolute -left-40 -top-40 h-[32rem] w-[32rem] rounded-full bg-[#6366f1]/15 blur-[120px]" />
-      <div
-        className="animate-aurora pointer-events-none absolute -bottom-48 -right-32 h-[34rem] w-[34rem] rounded-full bg-[#10b981]/12 blur-[120px]"
-        style={{ animationDelay: '7s' }}
+    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-white">
+      {/* ── Light hero background image (self-hosted), full-bleed ── */}
+      <img
+        src="/portal-bg.jpg"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-cover"
       />
-      <div
-        className="animate-float-slow pointer-events-none absolute left-1/3 top-1/4 h-72 w-72 rounded-full bg-[#38bdf8]/10 blur-[120px]"
-        style={{ animationDelay: '3s' }}
-      />
+      {/* Light white wash — enough to keep text legible while the image shows through. */}
+      <div className="absolute inset-0 bg-white/55 backdrop-blur-[1px]" />
 
-      {/* ---- fine grid overlay ---- */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-70"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(11,34,59,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(11,34,59,0.05) 1px, transparent 1px)',
-          backgroundSize: '54px 54px',
-          maskImage:
-            'radial-gradient(ellipse 80% 60% at 50% 40%, black, transparent 100%)',
-          WebkitMaskImage:
-            'radial-gradient(ellipse 80% 60% at 50% 40%, black, transparent 100%)',
-        }}
-      />
-
-      <div className="relative z-10 w-full max-w-3xl">
-        {/* ---- header ---- */}
-        <div className="stagger mb-10 flex flex-col items-center text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-3.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
-            <Sparkles className="h-3.5 w-3.5 text-[#34b98c]" />
-            {brand.tagline}
+      {/* ── Top bar (full width) ── */}
+      <header className="relative z-10 flex items-center justify-between px-6 py-6 sm:px-10 lg:px-16">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center bg-transparent">
+            <img src={brand.icon} alt="" className="h-9 w-9 object-contain" />
           </span>
+          <span className="text-lg font-semibold lowercase tracking-tight text-[#0B223B]">
+            eg <span style={{ color: brand.colors.green }}>digital</span>
+          </span>
+        </div>
+        <span className="hidden items-center gap-2 text-xs font-medium text-slate-500 sm:flex">
+          <Lock className="h-3.5 w-3.5" />
+          Secure sign-in · {brand.legal.country}
+        </span>
+      </header>
 
-          <div className="mt-6">
-            <Logo className="text-4xl" />
+      {/* ── Hero + portal grid (full width) ── */}
+      <main className="relative z-10 flex flex-1 flex-col justify-center px-6 py-12 sm:px-10 lg:px-16">
+        <div className="stagger w-full">
+          <div className="mx-auto max-w-3xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-xs font-medium text-slate-600 shadow-sm backdrop-blur">
+              {brand.tagline}
+            </span>
+            <h1 className="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-[#0B223B] sm:text-5xl lg:text-6xl">
+              One platform for your entire business.
+            </h1>
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-600">
+              Choose your portal to sign in to {brand.companyName} — customers, billing, licences
+              and fulfilment, each team in its own secure workspace.
+            </p>
           </div>
 
-          <h1
-            className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl"
-            style={{ color: brand.colors.navy }}
-          >
-            Welcome back
-          </h1>
-          <p className="mt-2 max-w-md text-sm text-muted-foreground sm:text-base">
-            Select your portal to sign in to {brand.companyName}.
-          </p>
+          {/* full-width four-across grid */}
+          <div className="mt-12 grid w-full grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+            {PORTALS.map((p) => (
+              <PortalCard key={p.to} portal={p} />
+            ))}
+          </div>
         </div>
+      </main>
 
-        {/* ---- bento portal grid ---- */}
-        <div className="stagger grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {PORTALS.map((p) => (
-            <PortalCard key={p.to} portal={p} />
-          ))}
-        </div>
-
-        {/* ---- footer ---- */}
-        <p className="stagger mt-10 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          Protected area · {brand.legal.country} · Unauthorised access is prohibited.
+      {/* ── Footer (full width) ── */}
+      <footer className="relative z-10 flex flex-col items-center justify-between gap-2 px-6 py-6 text-center sm:flex-row sm:px-10 sm:text-left lg:px-16">
+        <p className="flex items-center gap-2 text-xs text-slate-400">
+          <Lock className="h-3.5 w-3.5" />
+          Protected area · Unauthorised access is prohibited.
         </p>
-      </div>
+        <p className="text-xs text-slate-400">
+          © {new Date().getFullYear()} {brand.companyName} · {brand.legal.country}
+        </p>
+      </footer>
     </div>
   );
 }

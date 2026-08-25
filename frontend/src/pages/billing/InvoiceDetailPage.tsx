@@ -8,6 +8,7 @@ import {
   ExternalLink,
   AlertTriangle,
   Building2,
+  Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { invoiceApi, paymentApi } from '@/api/resources';
@@ -60,10 +61,22 @@ export default function InvoiceDetailPage() {
   const { id } = useParams();
   const qc = useQueryClient();
   const [confirmPaid, setConfirmPaid] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
 
   const { data: invoice, isLoading, isError, refetch } = useQuery({
     queryKey: ['invoice', id],
     queryFn: () => invoiceApi.get(id!),
+  });
+
+  const sendInvoice = useMutation({
+    mutationFn: () => invoiceApi.send(id!),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['invoice', id] });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success(`Invoice sent to ${res.recipients.join(', ')}`);
+      setConfirmSend(false);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
   const markPaid = useMutation({
@@ -108,6 +121,13 @@ export default function InvoiceDetailPage() {
               )}
               <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="h-4 w-4" /> Print / PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmSend(true)}
+                disabled={sendInvoice.isPending}
+              >
+                <Send className="h-4 w-4" /> Send to Client
               </Button>
               {!isPaid && (
                 <Button onClick={() => setConfirmPaid(true)}>
@@ -203,6 +223,22 @@ export default function InvoiceDetailPage() {
         confirmLabel="Record payment"
         loading={markPaid.isPending}
         onConfirm={() => markPaid.mutate()}
+      />
+
+      <ConfirmDialog
+        open={confirmSend}
+        onOpenChange={setConfirmSend}
+        title="Send invoice to client?"
+        description={
+          invoice.customer?.billingEmail || invoice.customer?.contactEmail
+            ? `Emails the invoice with a secure pay link to ${
+                invoice.customer.billingEmail || invoice.customer.contactEmail
+              } and any linked client-account addresses.`
+            : 'This customer has no billing or contact email — add one on the customer record first.'
+        }
+        confirmLabel="Send invoice"
+        loading={sendInvoice.isPending}
+        onConfirm={() => sendInvoice.mutate()}
       />
     </div>
   );

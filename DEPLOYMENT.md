@@ -214,6 +214,37 @@ Domain badalne ke baad `CORS_ORIGIN`, `APP_URL`, `PAYMENT_PUBLIC_BASE_URL` aur `
 
 ---
 
+## 8. Email bhejna (invoice) — inbox mein aaye, spam mein nahi
+
+"Send to Client" button invoice ko client ke email par bhejta hai. Real send ke liye:
+
+**a) App Service env variables** (section 3 jaisa):
+```
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=admin@egdigital.com.au      # jis address se bhejna hai
+EMAIL_FROM_NAME=EG Digital
+SMTP_HOST=smtp.office365.com           # M365; Google ke liye smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false                      # 587=STARTTLS(false), 465=SSL(true)
+SMTP_USER=admin@egdigital.com.au       # aksar EMAIL_FROM jaisa
+SMTP_PASS=<app-password>               # mailbox ka app password (normal password nahi)
+```
+> `EMAIL_PROVIDER=smtp` hai par `SMTP_HOST` blank hai to app crash nahi hoga — console par log karega.
+
+**b) Spam/junk se bachne ke liye DNS records** (domain `egdigital.com.au` ke DNS par — **yeh sabse zaroori hai**, warna mail junk mein jaayega):
+
+| Record | Type | Value (example) |
+|--------|------|-----------------|
+| SPF | TXT `@` | `v=spf1 include:spf.protection.outlook.com -all` (M365) ya `include:_spf.google.com` (Google) |
+| DKIM | CNAME | Mail provider ke admin panel se DKIM enable karein, wahan diye 2 CNAME add karein |
+| DMARC | TXT `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:dmarc@egdigital.com.au` |
+
+- `EMAIL_FROM` ka domain **wahi** ho jis par SPF/DKIM laga hai.
+- Personal Gmail/Outlook se generic domain par bhejna spam-flag karta hai — hamesha apne domain ka authenticated mailbox use karein.
+- Test: pehle apne aap ko invoice bhejein, phir https://www.mail-tester.com par score check karein (10/10 target).
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |

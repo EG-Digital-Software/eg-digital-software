@@ -27,6 +27,13 @@ export function formatInvoiceNumber(n: number, date = new Date()): string {
   return `EGD-INV-${year}-${String(n).padStart(5, '0')}`;
 }
 
+// Every invoice carries a unique reference number of its own, generated from a
+// dedicated counter so it never collides — even across years.
+export function formatInvoiceReference(n: number, date = new Date()): string {
+  const year = date.getFullYear();
+  return `EGD-REF-${year}-${String(n).padStart(5, '0')}`;
+}
+
 export function formatLicenceKey(): string {
   const block = () =>
     Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, 'X');

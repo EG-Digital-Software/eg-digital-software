@@ -15,12 +15,12 @@ import {
   MapPin,
   Search,
   Users,
+  Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { customerApi, productApi, geoApi, abnApi } from '@/api/resources';
 import type { AbnLookupResult, AddressSuggestion } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
-import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
@@ -37,7 +37,7 @@ import {
 import { BUSINESS_TYPES, INVOICE_TERMS, PAYMENT_METHODS, formatAbn, isValidAbn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { numericField, guardedField } from '@/lib/input';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import type { Address } from '@/types';
 
 // ── Validation ─────────────────────────────────────────────
@@ -263,6 +263,10 @@ const EMPTY_DIRECTOR = {
 
 // ── Layout helpers ─────────────────────────────────────────
 
+/** Filled-grey styling for the composite controls (phone, country picker,
+    address autocomplete) so they match the plain inputs around them. */
+const FILLED_CONTROL = 'border-slate-200 bg-slate-50 shadow-none';
+
 function Section({
   icon: Icon,
   title,
@@ -276,7 +280,7 @@ function Section({
 }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-start gap-3 space-y-0">
+      <CardHeader className="flex-row items-start gap-3 space-y-0 rounded-t-2xl border-b border-border/60 bg-secondary/30">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Icon className="h-[18px] w-[18px]" />
         </div>
@@ -285,11 +289,16 @@ function Section({
           {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
         </div>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="pt-6">{children}</CardContent>
     </Card>
   );
 }
 
+/**
+ * A form field: a small label above a standard-height control. Every control is
+ * `h-10`, so a grid row of fields lines up perfectly. (The unused `plain` prop
+ * is accepted so existing call sites keep compiling.)
+ */
 function Field({
   label,
   error,
@@ -299,17 +308,46 @@ function Field({
   label: string;
   error?: string;
   hint?: string;
+  plain?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
       {error ? (
         <p className="text-xs text-destructive">{error}</p>
       ) : hint ? (
         <p className="text-xs text-muted-foreground">{hint}</p>
       ) : null}
+    </div>
+  );
+}
+
+/** Slim progress card mirroring the reference — a filled track with milestone
+    dots that light up as the operator completes the form. */
+function FormProgress({ percent }: { percent: number }) {
+  const steps = [20, 40, 60, 80, 100];
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <p className="text-xs font-medium text-muted-foreground">Your progress</p>
+      <p className="text-sm font-semibold text-primary">{percent}% to complete</p>
+      <div className="relative mt-3 h-1.5 rounded-full bg-slate-100">
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-500"
+          style={{ width: `${percent}%` }}
+        />
+        {steps.map((s) => (
+          <span
+            key={s}
+            className={cn(
+              'absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors duration-500',
+              percent >= s ? 'bg-primary' : 'bg-slate-300'
+            )}
+            style={{ left: `${s}%` }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -415,6 +453,7 @@ function AddressAutocomplete({
         placeholder="Start typing an address…"
         autoComplete="off"
         disabled={disabled}
+        className={FILLED_CONTROL}
         {...line1}
         onChange={(e) => {
           line1.onChange(e);
@@ -553,6 +592,7 @@ function AddressFields({
       <div className="sm:col-span-2">
         <Field
           label="Street Address"
+          plain
           hint="Type a few letters and pick your address to fill the fields below"
         >
           <AddressAutocomplete
@@ -565,20 +605,23 @@ function AddressFields({
         </Field>
       </div>
       <div className="sm:col-span-2">
-        <Input
-          placeholder="Address line 2 (optional)"
-          disabled={disabled}
-          {...register(`${prefix}.line2` as const)}
-        />
+        <Field label="Address Line 2">
+          <Input
+            placeholder="Optional"
+            disabled={disabled}
+            {...register(`${prefix}.line2` as const)}
+          />
+        </Field>
       </div>
       <div className="sm:col-span-2">
-        <Field label="Country">
+        <Field label="Country" plain>
           <Controller
             control={control}
             name={`${prefix}.country` as const}
             render={({ field }) => (
               <CountrySelect
                 disabled={disabled}
+                className={FILLED_CONTROL}
                 value={field.value ?? DEFAULT_COUNTRY}
                 onChange={field.onChange}
               />
@@ -622,6 +665,7 @@ function PhoneField({
           render={({ field: cField }) => (
             <PhoneInput
               disabled={disabled}
+              className={FILLED_CONTROL}
               country={cField.value ?? DEFAULT_COUNTRY}
               onCountryChange={cField.onChange}
               value={numField.value ?? ''}
@@ -693,6 +737,67 @@ export default function CustomerFormPage() {
 
   const [abnLooking, setAbnLooking] = useState(false);
   const [abnResult, setAbnResult] = useState<AbnLookupResult | null>(null);
+  const [addrFetching, setAddrFetching] = useState(false);
+
+  /**
+   * Fill the Principal Address from the customer's ABN.
+   *
+   * The Business Register only publishes the postcode and state of the main
+   * address, so those are taken from the ABR and the suburb/city is resolved by
+   * geocoding that postcode. The street line has no public source and is left
+   * for the operator — every field stays editable, so this is a shortcut, never
+   * a lock-in.
+   */
+  const fillPrincipalFromAbn = async () => {
+    const digits = (abn ?? '').replace(/\D/g, '');
+    if (!isValidAbn(digits)) {
+      toast.error(
+        digits.length === 11
+          ? 'That ABN fails its check digits — retype it and try again'
+          : 'Enter all 11 digits of the ABN first'
+      );
+      return;
+    }
+
+    setAddrFetching(true);
+    try {
+      const found = await abnApi.lookup(digits);
+      const set = (name: Parameters<typeof setValue>[0], value: string) =>
+        setValue(name, value, { shouldDirty: true });
+
+      set('principalAddress.country', 'AU');
+      if (found.postcode) set('principalAddress.postcode', found.postcode);
+
+      // Turn the postcode + state into a suburb/city the register doesn't carry.
+      let city = '';
+      if (found.postcode) {
+        try {
+          const query = [found.postcode, found.state, 'Australia'].filter(Boolean).join(' ');
+          const [hit] = await geoApi.search(query, 'AU');
+          if (hit?.city) {
+            city = hit.city;
+            set('principalAddress.city', hit.city);
+          }
+        } catch {
+          // Geocoding is a bonus — a failure still leaves postcode/country filled.
+        }
+      }
+
+      if (!found.postcode) {
+        toast.warning('The register holds no address for this ABN — enter it manually');
+      } else {
+        toast.success(
+          `Address filled from ABN (${[city, found.state, found.postcode]
+            .filter(Boolean)
+            .join(' ')}) — add the street line manually`
+        );
+      }
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not fetch the address for that ABN'));
+    } finally {
+      setAddrFetching(false);
+    }
+  };
 
   /**
    * Fill Company Information from the Australian Business Register.
@@ -909,28 +1014,68 @@ export default function CustomerFormPage() {
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
+  // ── Completion meter ──
+  // A light "how full is this record" gauge driven by the fields most worth
+  // filling. It never blocks submit — it's a nudge, not a gate.
+  const all = watch();
+  const identifiersFilled = Object.values(all.companyIdentifiers ?? {}).some((v) => !!v?.trim());
+  const progressChecks = [
+    !!all.companyName?.trim(),
+    identifiersFilled,
+    !!all.businessType?.trim(),
+    !!all.principalAddress?.line1?.trim(),
+    !!all.principalAddress?.city?.trim(),
+    !!all.principalAddress?.postcode?.trim(),
+    !!all.contactPerson?.trim(),
+    !!all.contactEmail?.trim(),
+    !!all.contactMobile?.trim(),
+    (all.directors ?? []).some((d) => d.email?.trim()),
+    !!all.billingContactPerson?.trim() || !!all.billingEmail?.trim(),
+    !!all.invoiceTerm?.trim(),
+    !!all.paymentMethod?.trim(),
+  ];
+  const progress = Math.round(
+    (progressChecks.filter(Boolean).length / progressChecks.length) * 100
+  );
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/admin/customers">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <PageHeader
-          title={isEdit ? 'Edit Customer' : 'Add Customer'}
-          description={isEdit ? existing?.clientId : 'Create a new client record'}
-        />
+    <div className="w-full space-y-6">
+      {/* ── Page header + completion meter ── */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+        <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-secondary/30 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" asChild>
+              <Link to="/admin/customers">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">
+                {isEdit ? 'Edit Customer' : 'Add Customer'}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {isEdit ? (existing?.clientId ?? ' ') : 'Create a new client record'}
+              </p>
+            </div>
+          </div>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm">
+            <Pencil className="h-4 w-4" />
+          </span>
+        </div>
+        <div className="p-4 sm:p-5">
+          <FormProgress percent={progress} />
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-6">
+      <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="ff-form space-y-6">
         {/* ── 1. Company Information ── */}
         <Section icon={Building2} title="Company Information">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {/* Ask for the registration country first — the identifiers below are
                 whatever that country issues (ABN/ACN for AU, CRN/VAT for GB, …). */}
             <Field
               label="Registration Country"
+              plain
               hint="The company identifiers below depend on this"
             >
               <Controller
@@ -938,6 +1083,7 @@ export default function CustomerFormPage() {
                 name="registrationCountry"
                 render={({ field }) => (
                   <CountrySelect
+                    className={FILLED_CONTROL}
                     value={field.value ?? DEFAULT_COUNTRY}
                     onChange={field.onChange}
                   />
@@ -948,6 +1094,7 @@ export default function CustomerFormPage() {
               <Field
                 key={f.key}
                 label={f.label}
+                plain
                 hint={f.hint}
                 error={errors.companyIdentifiers?.[f.key]?.message}
               >
@@ -956,7 +1103,7 @@ export default function CustomerFormPage() {
                     <Input
                       maxLength={f.maxLength ? f.maxLength + 3 : undefined}
                       placeholder="51 824 753 556"
-                      className="flex-1"
+                      className={cn('flex-1', FILLED_CONTROL)}
                       {...guardedField(register(`companyIdentifiers.${f.key}` as const), 'abn')}
                     />
                     <Button
@@ -973,6 +1120,7 @@ export default function CustomerFormPage() {
                 ) : (
                   <Input
                     maxLength={f.maxLength}
+                    className={FILLED_CONTROL}
                     {...guardedField(register(`companyIdentifiers.${f.key}` as const), f.kind)}
                   />
                 )}
@@ -989,6 +1137,7 @@ export default function CustomerFormPage() {
             */}
             <Field
               label="Trading As"
+              plain
               hint={
                 tradingNameFields.length > 1
                   ? `${tradingNameFields.length} trading names — the first is the primary`
@@ -999,7 +1148,7 @@ export default function CustomerFormPage() {
                 {tradingNameFields.map((field, i) => (
                   <div key={field.id} className="flex gap-2">
                     <Input
-                      className="flex-1"
+                      className={cn('flex-1', FILLED_CONTROL)}
                       placeholder={i === 0 ? 'Primary trading name' : `Trading name ${i + 1}`}
                       {...register(`tradingNames.${i}.value` as const)}
                     />
@@ -1082,7 +1231,23 @@ export default function CustomerFormPage() {
           )}
 
           <div className="mt-6 space-y-4 border-t border-border pt-5">
-            <p className="text-sm font-medium">Principal Address</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">Principal Address</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={addrFetching}
+                onClick={fillPrincipalFromAbn}
+              >
+                {addrFetching ? <Spinner /> : <Search className="h-3.5 w-3.5" />}
+                {addrFetching ? 'Fetching…' : 'Fetch from ABN'}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Fills postcode, suburb and country from the ABN — add the street line yourself, or
+              enter the whole address manually below.
+            </p>
             <AddressFields
               prefix="principalAddress"
               register={register}
@@ -1115,14 +1280,14 @@ export default function CustomerFormPage() {
 
         {/* ── 3. Contact Information ── */}
         <Section icon={Contact} title="Contact Information">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Contact Name">
               <Input {...guardedField(register('contactPerson'), 'letters')} />
             </Field>
             <Field label="Contact Email" error={errors.contactEmail?.message}>
               <Input type="email" {...guardedField(register('contactEmail'), 'email')} />
             </Field>
-            <Field label="Contact Mobile">
+            <Field label="Contact Mobile" plain>
               <PhoneField
                 control={control}
                 numberName="contactMobile"
@@ -1143,14 +1308,14 @@ export default function CustomerFormPage() {
           {authorized === 'no' && (
             <div className="mt-6 space-y-4 border-t border-border pt-5">
               <p className="text-sm font-medium">Authorised Representative</p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Authorised Person" error={errors.authorizedPerson?.message}>
                   <Input {...guardedField(register('authorizedPerson'), 'letters')} />
                 </Field>
                 <Field label="Authorised Email" error={errors.authorizedEmail?.message}>
                   <Input type="email" {...guardedField(register('authorizedEmail'), 'email')} />
                 </Field>
-                <Field label="Authorised Mobile">
+                <Field label="Authorised Mobile" plain>
                   <PhoneField
                     control={control}
                     numberName="authorizedMobile"
@@ -1225,6 +1390,7 @@ export default function CustomerFormPage() {
                   </Field>
                   <Field
                     label="Director Contact Number"
+                    plain
                     error={errors.directors?.[index]?.contactNumber?.message}
                   >
                     <Controller
@@ -1236,6 +1402,7 @@ export default function CustomerFormPage() {
                           name={`directors.${index}.contactNumberCountry` as const}
                           render={({ field: cField }) => (
                             <PhoneInput
+                              className={FILLED_CONTROL}
                               country={cField.value ?? DEFAULT_COUNTRY}
                               onCountryChange={cField.onChange}
                               value={numField.value ?? ''}
@@ -1266,11 +1433,11 @@ export default function CustomerFormPage() {
           title="Invoicing Details"
           description="Invoices and payment reminders are sent to the accounts contact"
         >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Accounts Person Name">
               <Input {...guardedField(register('billingContactPerson'), 'letters')} />
             </Field>
-            <Field label="Accounts Person Mobile">
+            <Field label="Accounts Person Mobile" plain>
               <PhoneField
                 control={control}
                 numberName="billingContactNumber"

@@ -60,12 +60,15 @@ function CountryPicker({
   /** 'phone' shows the dial code, 'address' shows the country name. */
   variant,
   className,
+  triggerClassName,
 }: {
   value: string;
   onChange: (code: string) => void;
   disabled?: boolean;
   variant: 'phone' | 'address';
   className?: string;
+  /** Extra classes for the trigger button (address variant). */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
@@ -130,7 +133,8 @@ function CountryPicker({
           'flex h-full w-full items-center gap-1.5 px-2 text-sm outline-none disabled:cursor-not-allowed',
           variant === 'phone'
             ? 'shrink-0 border-r border-input bg-secondary/40'
-            : 'h-10 justify-between rounded-lg border border-input bg-card px-3 shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
+            : 'h-10 justify-between rounded-lg border border-input bg-card px-3 shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+          variant === 'address' && triggerClassName
         )}
       >
         <span className="flex min-w-0 items-center gap-1.5">
@@ -188,12 +192,23 @@ export function CountrySelect({
   value,
   onChange,
   disabled,
+  className,
 }: {
   value: string;
   onChange: (code: string) => void;
   disabled?: boolean;
+  /** Extra classes for the trigger button — used to match filled field styling. */
+  className?: string;
 }) {
-  return <CountryPicker variant="address" value={value} onChange={onChange} disabled={disabled} />;
+  return (
+    <CountryPicker
+      variant="address"
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      triggerClassName={className}
+    />
+  );
 }
 
 interface PhoneInputProps {

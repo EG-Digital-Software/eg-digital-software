@@ -15,6 +15,7 @@ router.use(authenticate, authorize(Role.SUPER_ADMIN));
 router.get('/', validate({ query: listInvoiceQuerySchema }), ctrl.list);
 router.get('/:id', ctrl.getOne);
 router.post('/', validate({ body: createInvoiceSchema }), ctrl.create);
+router.post('/:id/send', ctrl.send);
 router.put('/:id/status', validate({ body: updateInvoiceStatusSchema }), ctrl.updateStatus);
 
 export default router;

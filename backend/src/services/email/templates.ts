@@ -1,6 +1,6 @@
 import { env } from '../../config/env.js';
 import type { Role } from '@prisma/client';
-import { sendEmail } from './index.js';
+import { sendEmail, type EmailMessage } from './index.js';
 
 const ROLE_SLUG: Record<string, string> = {
   CLIENT: 'client',
@@ -140,6 +140,55 @@ export function sendInvoiceOverdueClient(
       { label: 'View and pay online', url: loginUrl }
     ),
   });
+}
+
+/**
+ * Builds (does not send) the "here is your invoice" email a client receives when
+ * an admin clicks Send. Returns the message so the caller can await delivery and
+ * report success/failure. Includes a plain-text part and a single clear CTA to
+ * view and pay online — both help it land in the inbox.
+ */
+export function buildInvoiceEmail(params: {
+  to: string;
+  cc?: string;
+  companyName: string;
+  contactName?: string;
+  invoiceNumber: string;
+  reference?: string | null;
+  amount: string;
+  currency: string;
+  dueDate: string;
+  payUrl: string;
+}): EmailMessage {
+  const greeting = params.contactName ? `Hi ${params.contactName},` : `Hi ${params.companyName},`;
+  const refLine = params.reference
+    ? `<tr><td style="padding:4px 0;color:#64748b">Reference</td><td style="padding:4px 0;text-align:right;color:#0B223B;font-weight:600">${params.reference}</td></tr>`
+    : '';
+
+  return {
+    to: params.to,
+    cc: params.cc,
+    subject: `Invoice ${params.invoiceNumber} from EG Digital — ${params.currency} ${params.amount}`,
+    text:
+      `${greeting}\n\n` +
+      `Please find your invoice ${params.invoiceNumber}` +
+      (params.reference ? ` (reference ${params.reference})` : '') +
+      ` for ${params.currency} ${params.amount}, due ${params.dueDate}.\n\n` +
+      `View and pay online: ${params.payUrl}\n\n` +
+      `If you have already paid, please ignore this message.\n\nEG Digital · Australia`,
+    html: shell(
+      `Invoice ${params.invoiceNumber}`,
+      `${greeting}<br/><br/>Please find your invoice below. You can view the full invoice and pay securely online using the button.
+       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px">
+         <tr><td style="padding:4px 0;color:#64748b">Invoice</td><td style="padding:4px 0;text-align:right;color:#0B223B;font-weight:600">${params.invoiceNumber}</td></tr>
+         ${refLine}
+         <tr><td style="padding:4px 0;color:#64748b">Amount due</td><td style="padding:4px 0;text-align:right;color:#0B223B;font-weight:700">${params.currency} ${params.amount}</td></tr>
+         <tr><td style="padding:4px 0;color:#64748b">Due date</td><td style="padding:4px 0;text-align:right;color:#0B223B;font-weight:600">${params.dueDate}</td></tr>
+       </table>
+       <br/>If you have already paid, please ignore this message.`,
+      { label: 'View & pay invoice', url: params.payUrl }
+    ),
+  };
 }
 
 export function sendInvoiceOverdueDigestAdmin(

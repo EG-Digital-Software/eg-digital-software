@@ -426,7 +426,9 @@ model Invoice {
   dueDate       DateTime
   term          String? // e.g. "30 Days", "Due on Receipt", "Custom"
   customDays    Int?
-  reference     String?
+  // Auto-generated, globally unique reference (e.g. EGD-REF-2026-00001). An
+  // admin may override it, but it can never collide with another invoice.
+  reference     String?       @unique
   subtotal      Decimal       @default(0) @db.Decimal(12, 2)
   tax           Decimal       @default(0) @db.Decimal(12, 2)
   discount      Decimal       @default(0) @db.Decimal(12, 2)

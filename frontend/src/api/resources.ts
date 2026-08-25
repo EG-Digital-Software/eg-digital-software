@@ -102,6 +102,8 @@ export const invoiceApi = {
     (await api.post<ApiEnvelope<Invoice>>('/invoices', body)).data.data,
   updateStatus: async (id: string, status: string) =>
     (await api.put<ApiEnvelope<Invoice>>(`/invoices/${id}/status`, { status })).data.data,
+  send: async (id: string) =>
+    (await api.post<ApiEnvelope<{ recipients: string[] }>>(`/invoices/${id}/send`)).data.data,
 };
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

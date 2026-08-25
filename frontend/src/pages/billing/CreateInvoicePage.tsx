@@ -162,7 +162,10 @@ export default function CreateInvoicePage() {
             ) : (
               <div className="space-y-1.5">
                 <Label>Reference</Label>
-                <Input {...register('reference')} />
+                <Input placeholder="Auto-generated if left blank" {...register('reference')} />
+                <p className="text-xs text-muted-foreground">
+                  A unique reference is generated automatically. Enter your own only to override.
+                </p>
               </div>
             )}
           </CardContent>

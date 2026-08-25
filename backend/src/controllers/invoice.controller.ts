@@ -47,6 +47,19 @@ export const updateStatus = asyncHandler(async (req: Request, res: Response) => 
   return ok(res, invoice, 'Invoice updated');
 });
 
+export const send = asyncHandler(async (req: Request, res: Response) => {
+  const { recipients } = await invoiceService.sendInvoiceEmail(req.params.id);
+  logActivity({
+    userId: req.user?.sub,
+    userType: req.user?.role,
+    action: ActivityAction.INVOICE_UPDATED,
+    entityType: 'Invoice',
+    entityId: req.params.id,
+    metadata: { sentTo: recipients.join(', ') },
+  });
+  return ok(res, { recipients }, `Invoice sent to ${recipients.join(', ')}`);
+});
+
 export const getPublic = asyncHandler(async (req: Request, res: Response) => {
   const invoice = await invoiceService.getPublicInvoice(req.params.id);
   return ok(res, invoice);

@@ -72,6 +72,21 @@
   }
 }
 
+@layer components {
+  /* Soft filled inputs on the customer form — one rule so every control shares
+     the same look and height, keeping the grid perfectly aligned. */
+  .ff-form input:not([type='checkbox']):not([type='radio']),
+  .ff-form select,
+  .ff-form textarea {
+    @apply border-slate-200 bg-slate-50;
+  }
+  .ff-form input:focus,
+  .ff-form select:focus,
+  .ff-form textarea:focus {
+    @apply bg-white;
+  }
+}
+
 @layer utilities {
   .skeleton {
     @apply relative overflow-hidden rounded-md bg-muted;
