@@ -334,6 +334,7 @@ model Address {
   line1      String?
   line2      String?
   city       String?
+  suburb     String?
   state      String?
   postcode   String?
   country    String      @default("Australia")

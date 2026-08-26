@@ -48,6 +48,8 @@ const addressSchema = z.object({
   line1: z.string().optional(),
   line2: z.string().optional(),
   city: z.string().optional(),
+  suburb: z.string().optional(),
+  state: z.string().optional(),
   postcode: z.string().optional(),
   /** ISO-3166 alpha-2 in the form; sent to the API as the country name. */
   country: z.string().optional(),
@@ -216,7 +218,7 @@ const schema = z
 
 type FormValues = z.input<typeof schema>;
 
-const EMPTY_ADDRESS = { line1: '', line2: '', city: '', postcode: '', country: DEFAULT_COUNTRY };
+const EMPTY_ADDRESS = { line1: '', line2: '', city: '', suburb: '', state: '', postcode: '', country: DEFAULT_COUNTRY };
 
 const DEFAULTS: FormValues = {
   registrationCountry: DEFAULT_COUNTRY,
@@ -613,6 +615,18 @@ function AddressFields({
           />
         </Field>
       </div>
+      <Field label="Suburb">
+        <Input disabled={disabled} {...register(`${prefix}.suburb` as const)} />
+      </Field>
+      <Field label="City">
+        <Input disabled={disabled} {...register(`${prefix}.city` as const)} />
+      </Field>
+      <Field label="State">
+        <Input disabled={disabled} {...register(`${prefix}.state` as const)} />
+      </Field>
+      <Field label="Postcode">
+        <Input maxLength={10} disabled={disabled} {...register(`${prefix}.postcode` as const)} />
+      </Field>
       <div className="sm:col-span-2">
         <Field label="Country" plain>
           <Controller
@@ -629,12 +643,6 @@ function AddressFields({
           />
         </Field>
       </div>
-      <Field label="City">
-        <Input disabled={disabled} {...register(`${prefix}.city` as const)} />
-      </Field>
-      <Field label="Postcode">
-        <Input maxLength={10} disabled={disabled} {...register(`${prefix}.postcode` as const)} />
-      </Field>
     </div>
   );
 }
@@ -852,10 +860,12 @@ export default function CustomerFormPage() {
   // Watch the address leaves individually. `watch('principalAddress')` hands
   // back a reference that react-hook-form mutates in place, so its identity
   // never changes and an effect keyed on it would never re-run.
-  const [pLine1, pLine2, pCity, pPostcode, pCountry] = watch([
+  const [pLine1, pLine2, pCity, pSuburb, pState, pPostcode, pCountry] = watch([
     'principalAddress.line1',
     'principalAddress.line2',
     'principalAddress.city',
+    'principalAddress.suburb',
+    'principalAddress.state',
     'principalAddress.postcode',
     'principalAddress.country',
   ]);
@@ -869,9 +879,11 @@ export default function CustomerFormPage() {
     setValue('billingAddress.line1', pLine1 ?? '');
     setValue('billingAddress.line2', pLine2 ?? '');
     setValue('billingAddress.city', pCity ?? '');
+    setValue('billingAddress.suburb', pSuburb ?? '');
+    setValue('billingAddress.state', pState ?? '');
     setValue('billingAddress.postcode', pPostcode ?? '');
     setValue('billingAddress.country', pCountry ?? DEFAULT_COUNTRY);
-  }, [sameAsPrincipal, pLine1, pLine2, pCity, pPostcode, pCountry, setValue]);
+  }, [sameAsPrincipal, pLine1, pLine2, pCity, pSuburb, pState, pPostcode, pCountry, setValue]);
 
   useEffect(() => {
     if (!existing) return;
@@ -881,6 +893,8 @@ export default function CustomerFormPage() {
       line1: a?.line1 ?? '',
       line2: a?.line2 ?? '',
       city: a?.city ?? '',
+      suburb: a?.suburb ?? '',
+      state: a?.state ?? '',
       postcode: a?.postcode ?? '',
       country: countryCodeByName(a?.country),
     });

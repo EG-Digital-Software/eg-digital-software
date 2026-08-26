@@ -42,16 +42,7 @@ export function AuthShell({ tabs, welcome, subline, accent, variant, children }:
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* ---------- Left: form (full height) ---------- */}
-      <div className="relative flex items-center justify-center overflow-hidden bg-background px-6 py-10 sm:px-10">
-        {/* soft ambient tint */}
-        <div
-          className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full opacity-10 blur-3xl"
-          style={{ background: accent.from }}
-        />
-        <div
-          className="pointer-events-none absolute -bottom-24 right-0 h-72 w-72 rounded-full opacity-10 blur-3xl"
-          style={{ background: accent.to }}
-        />
+      <div className="relative flex items-center justify-center overflow-hidden bg-white px-6 py-10 sm:px-10">
 
         <div className="animate-slide-up-lg relative z-10 w-full max-w-md">
           <Link
@@ -101,16 +92,7 @@ export function AuthShell({ tabs, welcome, subline, accent, variant, children }:
       </div>
 
       {/* ---------- Right: brand + animated illustration (white, full height) ---------- */}
-      <aside className="relative hidden flex-col items-center justify-center overflow-hidden border-l border-border bg-white p-12 lg:flex">
-        {/* drifting accent glows (subtle, on white) */}
-        <div
-          className="animate-aurora pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full opacity-20 blur-3xl"
-          style={{ background: accent.from }}
-        />
-        <div
-          className="animate-float-slow pointer-events-none absolute -bottom-32 right-1/4 h-[28rem] w-[28rem] rounded-full opacity-20 blur-3xl"
-          style={{ background: accent.to }}
-        />
+      <aside className="relative hidden flex-col items-center justify-center overflow-hidden bg-white p-12 lg:flex">
 
         <div className="relative z-10 flex w-full max-w-lg flex-col items-center text-center">
           <img

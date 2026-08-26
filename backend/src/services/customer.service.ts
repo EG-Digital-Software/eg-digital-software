@@ -380,6 +380,7 @@ function cleanAddress(a: Record<string, string | undefined>) {
     line1: a.line1 || null,
     line2: a.line2 || null,
     city: a.city || null,
+    suburb: a.suburb || null,
     state: a.state || null,
     postcode: a.postcode || null,
     country: a.country || 'Australia',
