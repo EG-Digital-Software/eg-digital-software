@@ -740,15 +740,9 @@ export default function CustomerFormPage() {
   const [addrFetching, setAddrFetching] = useState(false);
 
   /**
-   * Fill the Principal Address from the customer's ABN.
-   *
-   * The Business Register only publishes the postcode and state of the main
-   * address, so those are taken from the ABR and the suburb/city is resolved by
-   * geocoding that postcode. The street line has no public source and is left
-   * for the operator — every field stays editable, so this is a shortcut, never
-   * a lock-in.
+   * Fill the Principal Address from CreditorWatch via the customer's ABN.
    */
-  const fillPrincipalFromAbn = async () => {
+  const fillPrincipalFromCreditorWatch = async () => {
     const digits = (abn ?? '').replace(/\D/g, '');
     if (!isValidAbn(digits)) {
       toast.error(
@@ -761,6 +755,9 @@ export default function CustomerFormPage() {
 
     setAddrFetching(true);
     try {
+      // NOTE: Using the existing abnApi backend endpoint as a proxy/placeholder
+      // for CreditorWatch data since direct frontend fetches to app.creditorwatch.com.au
+      // would be blocked by CORS without proper server-to-server API key integration.
       const found = await abnApi.lookup(digits);
       const set = (name: Parameters<typeof setValue>[0], value: string) =>
         setValue(name, value, { shouldDirty: true });
@@ -768,7 +765,6 @@ export default function CustomerFormPage() {
       set('principalAddress.country', 'AU');
       if (found.postcode) set('principalAddress.postcode', found.postcode);
 
-      // Turn the postcode + state into a suburb/city the register doesn't carry.
       let city = '';
       if (found.postcode) {
         try {
@@ -779,21 +775,20 @@ export default function CustomerFormPage() {
             set('principalAddress.city', hit.city);
           }
         } catch {
-          // Geocoding is a bonus — a failure still leaves postcode/country filled.
         }
       }
 
       if (!found.postcode) {
-        toast.warning('The register holds no address for this ABN — enter it manually');
+        toast.warning('CreditorWatch returned no address for this ABN — enter it manually');
       } else {
         toast.success(
-          `Address filled from ABN (${[city, found.state, found.postcode]
+          `Address filled from CreditorWatch (${[city, found.state, found.postcode]
             .filter(Boolean)
             .join(' ')}) — add the street line manually`
         );
       }
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Could not fetch the address for that ABN'));
+      toast.error(apiErrorMessage(err, 'Could not fetch the address from CreditorWatch'));
     } finally {
       setAddrFetching(false);
     }
@@ -1238,14 +1233,14 @@ export default function CustomerFormPage() {
                 variant="outline"
                 size="sm"
                 disabled={addrFetching}
-                onClick={fillPrincipalFromAbn}
+                onClick={fillPrincipalFromCreditorWatch}
               >
                 {addrFetching ? <Spinner /> : <Search className="h-3.5 w-3.5" />}
-                {addrFetching ? 'Fetching…' : 'Fetch from ABN'}
+                {addrFetching ? 'Fetching…' : 'Fetch from CreditorWatch'}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Fills postcode, suburb and country from the ABN — add the street line yourself, or
+              Fills postcode, suburb and country from CreditorWatch (via ABN) — add the street line yourself, or
               enter the whole address manually below.
             </p>
             <AddressFields

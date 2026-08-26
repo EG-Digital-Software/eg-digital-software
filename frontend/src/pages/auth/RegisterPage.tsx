@@ -66,11 +66,11 @@ const ROLE_MAP: Record<string, RoleCfg> = {
  * need a name instead. These used to be checked in the submit handler and
  * reported as toasts, so the offending field was never highlighted.
  */
-const makeSchema = (isClient: boolean) =>
+const makeSchema = () =>
   z
     .object({
-      firstName: z.string().optional(),
-      lastName: z.string().optional(),
+      firstName: z.string().min(1, 'First name is required'),
+      lastName: z.string().min(1, 'Last name is required'),
       clientId: z.string().optional(),
       email: z.string().email('Enter a valid email'),
       password: z.string().min(8, 'At least 8 characters'),
@@ -79,17 +79,6 @@ const makeSchema = (isClient: boolean) =>
     .superRefine((v, ctx) => {
       if (v.password !== v.confirm) {
         ctx.addIssue({ code: 'custom', message: 'Passwords do not match', path: ['confirm'] });
-      }
-      if (isClient && !v.clientId?.trim()) {
-        ctx.addIssue({ code: 'custom', message: 'Client ID is required', path: ['clientId'] });
-      }
-      if (!isClient) {
-        if (!v.firstName?.trim()) {
-          ctx.addIssue({ code: 'custom', message: 'First name is required', path: ['firstName'] });
-        }
-        if (!v.lastName?.trim()) {
-          ctx.addIssue({ code: 'custom', message: 'Last name is required', path: ['lastName'] });
-        }
       }
     });
 type FormValues = z.infer<ReturnType<typeof makeSchema>>;
@@ -108,7 +97,7 @@ export default function RegisterPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
     watch,
-  } = useForm<FormValues>({ resolver: zodResolver(makeSchema(!!cfg?.client)) });
+  } = useForm<FormValues>({ resolver: zodResolver(makeSchema()) });
   const password = watch('password') ?? '';
 
   if (!cfg) return <Navigate to="/" replace />;
@@ -235,34 +224,34 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {cfg.client ? (
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="clientId">Client ID</Label>
+              <Label htmlFor="firstName">First name</Label>
+              <AuthField id="firstName" icon={User} {...register('firstName')} />
+              {errors.firstName && (
+                <p className="text-xs text-destructive">{errors.firstName.message}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lastName">Last name</Label>
+              <AuthField id="lastName" icon={User} {...register('lastName')} />
+              {errors.lastName && (
+                <p className="text-xs text-destructive">{errors.lastName.message}</p>
+              )}
+            </div>
+          </div>
+
+          {cfg.client && (
+            <div className="space-y-1.5">
+              <Label htmlFor="clientId">Client ID (Optional)</Label>
               <AuthField id="clientId" icon={Hash} placeholder="EGD-CL-000001" {...register('clientId')} />
               {errors.clientId ? (
                 <p className="text-xs text-destructive">{errors.clientId.message}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Use the Client ID EG Digital has on file.
+                  Leave blank to auto-link your account using your email address.
                 </p>
               )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="firstName">First name</Label>
-                <AuthField id="firstName" icon={User} {...register('firstName')} />
-                {errors.firstName && (
-                  <p className="text-xs text-destructive">{errors.firstName.message}</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="lastName">Last name</Label>
-                <AuthField id="lastName" icon={User} {...register('lastName')} />
-                {errors.lastName && (
-                  <p className="text-xs text-destructive">{errors.lastName.message}</p>
-                )}
-              </div>
             </div>
           )}
 

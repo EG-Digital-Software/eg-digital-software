@@ -3,16 +3,19 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { DollarSign, Archive, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 import { productApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import type { Product } from '@/types';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
 import { numericField } from '@/lib/input';
+import { cn } from '@/lib/utils';
 
 const schema = z.object({
   productCode: z.string().min(1, 'Required'),
@@ -30,6 +33,32 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+const FILLED_CONTROL = 'border-slate-200 bg-slate-50 shadow-none';
+
+function Section({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: any;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center gap-3 space-y-0 rounded-t-2xl border-b border-border/60 bg-secondary/30">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-[18px] w-[18px]" />
+        </div>
+        <div>
+          <CardTitle className="text-base">{title}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-6">{children}</CardContent>
+    </Card>
+  );
+}
+
 function Field({
   label,
   children,
@@ -43,7 +72,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
       {error ? (
         <p className="text-xs text-destructive">{error}</p>
@@ -51,16 +80,6 @@ function Field({
         <p className="text-xs text-muted-foreground">{hint}</p>
       ) : null}
     </div>
-  );
-}
-
-/** Groups the form the same way the customer form is grouped. */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      {children}
-    </section>
   );
 }
 
@@ -142,55 +161,57 @@ export function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">
+      <DialogContent size="lg" className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Product' : 'Add Product'}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-6">
-          <Section title="Basic Information">
+        <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="mt-2 space-y-6">
+          <Section icon={LayoutGrid} title="Basic Information">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Product Code" error={errors.productCode?.message}>
-                <Input {...register('productCode')} placeholder="EGD-P-016" />
+                <Input className={FILLED_CONTROL} {...register('productCode')} placeholder="EGD-P-016" />
               </Field>
               <Field label="Product Name" error={errors.name?.message}>
-                <Input {...register('name')} placeholder="Product name" />
+                <Input className={FILLED_CONTROL} {...register('name')} placeholder="Product name" />
               </Field>
               <Field label="Product Type">
-                <Input {...register('type')} placeholder="Software Licence" />
+                <Input className={FILLED_CONTROL} {...register('type')} placeholder="Software Licence" />
               </Field>
               <Field label="SKU">
-                <Input {...register('sku')} placeholder="SKU-016" />
+                <Input className={FILLED_CONTROL} {...register('sku')} placeholder="SKU-016" />
               </Field>
               <Field label="Category">
-                <Input {...register('category')} placeholder="Category" />
+                <Input className={FILLED_CONTROL} {...register('category')} placeholder="Category" />
               </Field>
               <Field label="Status">
-                <Select {...register('status')}>
+                <Select className={FILLED_CONTROL} {...register('status')}>
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
                 </Select>
               </Field>
             </div>
-            <Field label="Description">
-              <Textarea {...register('description')} placeholder="Optional description" />
-            </Field>
-          </Section>
-
-          <Section title="Pricing">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Price Per Quantity" error={errors.pricePerQty?.message}>
-                <Input {...numericField(register('pricePerQty'), 'decimal')} />
-              </Field>
-              <Field label="Unit" hint="Shown as “per unit” on the catalogue">
-                <Input {...register('unit')} placeholder="unit / seat / licence" />
-              </Field>
-              <Field label="Tax Rate (%)" error={errors.taxRate?.message} hint="0 – 100">
-                <Input {...numericField(register('taxRate'), 'decimal')} />
+            <div className="mt-4">
+              <Field label="Description">
+                <Textarea className={cn(FILLED_CONTROL, "min-h-[80px]")} {...register('description')} placeholder="Optional description" />
               </Field>
             </div>
           </Section>
 
-          <Section title="Inventory">
+          <Section icon={DollarSign} title="Pricing">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Price Per Quantity" error={errors.pricePerQty?.message}>
+                <Input className={FILLED_CONTROL} {...numericField(register('pricePerQty'), 'decimal')} />
+              </Field>
+              <Field label="Unit" hint="Shown as “per unit” on the catalogue">
+                <Input className={FILLED_CONTROL} {...register('unit')} placeholder="unit / seat / licence" />
+              </Field>
+              <Field label="Tax Rate (%)" error={errors.taxRate?.message} hint="0 – 100">
+                <Input className={FILLED_CONTROL} {...numericField(register('taxRate'), 'decimal')} />
+              </Field>
+            </div>
+          </Section>
+
+          <Section icon={Archive} title="Inventory">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
                 label="Number of Stock"
@@ -201,18 +222,18 @@ export function ProductFormDialog({
                     : undefined
                 }
               >
-                <Input {...numericField(register('totalStock'))} />
+                <Input className={FILLED_CONTROL} {...numericField(register('totalStock'))} />
               </Field>
               <Field
                 label="Low Stock Threshold"
                 error={errors.lowStockThreshold?.message}
                 hint="Flagged as low once availability drops to this"
               >
-                <Input {...numericField(register('lowStockThreshold'))} />
+                <Input className={FILLED_CONTROL} {...numericField(register('lowStockThreshold'))} />
               </Field>
             </div>
           </Section>
-          <DialogFooter>
+          <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

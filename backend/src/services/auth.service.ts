@@ -87,18 +87,38 @@ export async function registerUser(input: {
   let lastName = input.lastName;
 
   if (input.role === 'CLIENT') {
-    if (!input.clientId) throw ApiError.badRequest('Client ID is required');
-    const customer = await prisma.customer.findUnique({ where: { clientId: input.clientId } });
-    if (!customer) throw ApiError.badRequest('No customer found for that Client ID');
-    const matches = [customer.contactEmail, customer.billingEmail]
-      .filter(Boolean)
-      .map((e) => e!.toLowerCase());
-    if (!matches.includes(email)) {
-      throw ApiError.badRequest('Email does not match our records for this Client ID');
+    // If the client provided a clientId, use the strict lookup (legacy/fallback flow).
+    // Otherwise, auto-map by matching the signup email against the Customer record
+    // or its Directors.
+    if (input.clientId) {
+      const customer = await prisma.customer.findUnique({ where: { clientId: input.clientId } });
+      if (!customer) throw ApiError.badRequest('No customer found for that Client ID');
+      const matches = [customer.contactEmail, customer.billingEmail]
+        .filter(Boolean)
+        .map((e) => e!.toLowerCase());
+      if (!matches.includes(email)) {
+        throw ApiError.badRequest('Email does not match our records for this Client ID');
+      }
+      customerId = customer.id;
+    } else {
+      // Auto-link: find first customer where email matches contact, billing, auth, or director
+      const matchedCustomer = await prisma.customer.findFirst({
+        where: {
+          OR: [
+            { contactEmail: { equals: email, mode: 'insensitive' } },
+            { billingEmail: { equals: email, mode: 'insensitive' } },
+            { authorizedEmail: { equals: email, mode: 'insensitive' } },
+            { directors: { some: { email: { equals: email, mode: 'insensitive' } } } },
+          ],
+        },
+      });
+      // If we found a match, auto-link. If not, they can still register but won't
+      // have a customerId yet. A super-admin can link them later, or they can be blocked.
+      // Usually it's better to allow registration but leave customerId null.
+      if (matchedCustomer) {
+        customerId = matchedCustomer.id;
+      }
     }
-    customerId = customer.id;
-    // The customer record no longer carries a personal name — keep the name the
-    // registrant entered on the sign-up form.
   }
 
   let avatarUrl: string | undefined;
