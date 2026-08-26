@@ -141,6 +141,7 @@ export interface Customer {
   authorizedMobileCountry?: string | null;
 
   // Invoicing Details
+  invoiceCustomer?: string | null;
   billingEmail?: string | null;
   billingContactPerson?: string | null;
   billingContactNumber?: string | null;

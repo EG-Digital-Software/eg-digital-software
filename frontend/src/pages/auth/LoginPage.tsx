@@ -46,7 +46,7 @@ const ROLES: Record<RoleKey, RoleConfig> = {
     description: 'Administrative access to the EG Digital control panel.',
     placeholder: 'admin@egdigital.com.au',
     allowSignup: false,
-    welcome: 'EG Digital — Business & Licence Management',
+    welcome: 'Welcome to EG Digital',
     subline: 'Manage customers, licences, invoicing and analytics in one premium workspace.',
     accent: { from: '#6366f1', to: '#8b5cf6' }, // indigo → violet
     variant: 'admin',

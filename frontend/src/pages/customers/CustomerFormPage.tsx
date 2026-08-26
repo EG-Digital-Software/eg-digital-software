@@ -87,6 +87,7 @@ const schema = z
     authorizedMobileCountry: z.string().optional(),
 
     // Invoicing Details
+    invoiceCustomer: z.string().optional(),
     billingContactPerson: z.string().optional(),
     billingContactNumber: z.string().optional(),
     billingContactNumberCountry: z.string().optional(),
@@ -107,6 +108,8 @@ const schema = z
     paymentMethod: z.string().optional(),
 
     accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).default('ACTIVE'),
+
+    sameAsContactInfo: z.boolean().optional(),
 
     directors: z
       .array(
@@ -239,6 +242,7 @@ const DEFAULTS: FormValues = {
   authorizedEmail: '',
   authorizedMobile: '',
   authorizedMobileCountry: DEFAULT_COUNTRY,
+  invoiceCustomer: '',
   billingContactPerson: '',
   billingContactNumber: '',
   billingContactNumberCountry: DEFAULT_COUNTRY,
@@ -248,6 +252,7 @@ const DEFAULTS: FormValues = {
   invoiceTermCustom: '',
   paymentMethod: '',
   accountStatus: 'ACTIVE',
+  sameAsContactInfo: false,
   directors: [
     { firstName: '', middleName: '', lastName: '', email: '', contactNumber: '', contactNumberCountry: DEFAULT_COUNTRY },
   ],
@@ -719,7 +724,8 @@ export default function CustomerFormPage() {
     watch,
     setValue,
     reset,
-    formState: { errors },
+    getValues,
+    formState: { errors, dirtyFields },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'assignedProducts' });
@@ -874,6 +880,41 @@ export default function CustomerFormPage() {
   // is set individually — setting the parent object alone does not notify the
   // Controller subscribed to `billingAddress.country`, so the country picker
   // would keep showing a stale flag.
+  const companyName = watch('companyName');
+  const prevCompany = useRef(companyName);
+  const sameAsContactInfo = watch('sameAsContactInfo');
+  
+  useEffect(() => {
+    if (!dirtyFields.invoiceCustomer) {
+      const currentInvoiceCust = getValues('invoiceCustomer');
+      if (!currentInvoiceCust || currentInvoiceCust === prevCompany.current) {
+        setValue('invoiceCustomer', companyName ?? '');
+      }
+    }
+    prevCompany.current = companyName;
+  }, [companyName, dirtyFields.invoiceCustomer, setValue, getValues]);
+
+  const [cPerson, cEmail, cMobile, cMobileCountry] = watch([
+    'contactPerson',
+    'contactEmail',
+    'contactMobile',
+    'contactMobileCountry',
+  ]);
+
+  useEffect(() => {
+    if (!sameAsContactInfo) return;
+    const parts = (cPerson ?? '').split(' ');
+    const firstName = parts[0] || '';
+    const lastName = parts.slice(1).join(' ');
+    
+    setValue('directors.0.firstName', firstName, { shouldValidate: true });
+    setValue('directors.0.middleName', '');
+    setValue('directors.0.lastName', lastName, { shouldValidate: true });
+    setValue('directors.0.email', cEmail ?? '', { shouldValidate: true });
+    setValue('directors.0.contactNumber', cMobile ?? '', { shouldValidate: true });
+    setValue('directors.0.contactNumberCountry', cMobileCountry ?? DEFAULT_COUNTRY, { shouldValidate: true });
+  }, [sameAsContactInfo, cPerson, cEmail, cMobile, cMobileCountry, setValue]);
+
   useEffect(() => {
     if (!sameAsPrincipal) return;
     setValue('billingAddress.line1', pLine1 ?? '');
@@ -930,6 +971,7 @@ export default function CustomerFormPage() {
       authorizedEmail: existing.authorizedEmail ?? '',
       authorizedMobile: existing.authorizedMobile ?? '',
       authorizedMobileCountry: existing.authorizedMobileCountry ?? DEFAULT_COUNTRY,
+      invoiceCustomer: existing.invoiceCustomer ?? '',
       billingContactPerson: existing.billingContactPerson ?? '',
       billingContactNumber: existing.billingContactNumber ?? '',
       billingContactNumberCountry: existing.billingContactNumberCountry ?? DEFAULT_COUNTRY,
@@ -1343,6 +1385,26 @@ export default function CustomerFormPage() {
           description="Every director we may need to contact about this account."
         >
           <div className="space-y-4">
+            <div className="flex items-center space-x-2 pb-2">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-input"
+                  {...register('sameAsContactInfo', {
+                    onChange: (e) => {
+                      if (!e.target.checked) {
+                        setValue('directors.0.firstName', '', { shouldValidate: true });
+                        setValue('directors.0.middleName', '', { shouldValidate: true });
+                        setValue('directors.0.lastName', '', { shouldValidate: true });
+                        setValue('directors.0.email', '', { shouldValidate: true });
+                        setValue('directors.0.contactNumber', '', { shouldValidate: true });
+                      }
+                    }
+                  })}
+                />
+                Same as Contact Info
+              </label>
+            </div>
             {directorFields.map((field, index) => (
               <div key={field.id} className="rounded-lg border border-border bg-secondary/30 p-4">
                 <div className="mb-3 flex items-center justify-between">
@@ -1443,6 +1505,9 @@ export default function CustomerFormPage() {
           description="Invoices and payment reminders are sent to the accounts contact"
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Invoice Customer" hint="Name that appears on invoices">
+              <Input {...register('invoiceCustomer')} />
+            </Field>
             <Field label="Accounts Person Name">
               <Input {...guardedField(register('billingContactPerson'), 'letters')} />
             </Field>

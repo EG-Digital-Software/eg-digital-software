@@ -19,11 +19,18 @@ export function dormancyCutoff(now: Date = new Date()): Date {
  */
 export function effectiveAccountStatus(
   stored: CustomerAccountStatus,
-  invoiceDates: Array<Date | string | null | undefined>
+  invoiceDates: Array<Date | string | null | undefined>,
+  createdAt?: Date | string | null
 ): CustomerAccountStatus {
   if (stored !== CustomerAccountStatus.ACTIVE) return stored;
 
   const cutoff = dormancyCutoff();
+  
+  // A newly created customer has a grace period of 6 months before becoming dormant
+  if (createdAt && new Date(createdAt) >= cutoff) {
+    return CustomerAccountStatus.ACTIVE;
+  }
+
   const hasRecent = invoiceDates.some((d) => d != null && new Date(d) >= cutoff);
   return hasRecent ? CustomerAccountStatus.ACTIVE : CustomerAccountStatus.DORMANT;
 }

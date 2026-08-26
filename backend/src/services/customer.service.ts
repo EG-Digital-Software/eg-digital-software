@@ -50,6 +50,7 @@ export async function listCustomers(params: ListParams) {
             {
               accountStatus: CustomerAccountStatus.ACTIVE,
               invoices: { none: { invoiceDate: { gte: dormancyCutoff() } } },
+              createdAt: { lt: dormancyCutoff() },
             },
           ],
         },
@@ -104,7 +105,8 @@ export async function listCustomers(params: ListParams) {
     ...c,
     accountStatusEffective: effectiveAccountStatus(
       c.accountStatus,
-      c.invoices.map((i) => i.invoiceDate)
+      c.invoices.map((i) => i.invoiceDate),
+      c.createdAt
     ),
   }));
 
@@ -136,7 +138,8 @@ export async function getCustomerByClientId(clientId: string) {
     ...customer,
     accountStatusEffective: effectiveAccountStatus(
       customer.accountStatus,
-      customer.invoices.map((i) => i.invoiceDate)
+      customer.invoices.map((i) => i.invoiceDate),
+      customer.createdAt
     ),
   };
 }
@@ -179,6 +182,7 @@ type CreateInput = {
   }>;
 
   // Invoicing Details
+  invoiceCustomer?: string;
   billingEmail?: string;
   billingContactPerson?: string;
   billingContactNumber?: string;
@@ -279,6 +283,7 @@ function customerFields(input: Partial<CreateInput>) {
       ? (orNull(input.authorizedMobileCountry) ?? 'AU')
       : null,
 
+    invoiceCustomer: orNull(input.invoiceCustomer),
     billingEmail: orNull(input.billingEmail),
     billingContactPerson: orNull(input.billingContactPerson),
     billingContactNumber: orNull(input.billingContactNumber),

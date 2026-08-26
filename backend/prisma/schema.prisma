@@ -276,6 +276,8 @@ model Customer {
   authorizedMobileCountry String? @default("AU")
 
   // ── Invoicing Details ──────────────────────────────────
+  /// The customer name to appear on invoices. Defaults to companyName.
+  invoiceCustomer             String?
   /// Accounts-payable contact — invoices and reminders are sent here.
   billingEmail                String?
   billingContactPerson        String?

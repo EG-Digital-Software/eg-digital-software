@@ -1,5 +1,5 @@
 import { Link, Navigate } from 'react-router-dom';
-import { ShieldCheck, UserRound, Truck, Briefcase, ArrowRight, Lock, Sparkles } from 'lucide-react';
+import { ShieldCheck, UserRound, Truck, Briefcase, ArrowRight, Lock } from 'lucide-react';
 import { brand } from '@/config/brand';
 import { useAuth } from '@/store/auth';
 
@@ -110,10 +110,7 @@ export default function PortalPage() {
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 py-6 sm:px-12 lg:px-24">
         <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-1000">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-medium text-emerald-300 backdrop-blur-sm">
-              <Sparkles className="h-3.5 w-3.5" />
-              {brand.tagline}
-            </div>
+
             <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl drop-shadow-sm">
               One plat<span className="ml-[3px]">f</span>orm for your{' '}
               <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">

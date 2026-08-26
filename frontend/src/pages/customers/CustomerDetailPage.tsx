@@ -176,7 +176,9 @@ export default function CustomerDetailPage() {
               {c.businessType && (
                 <Badge variant="secondary">{businessTypeLabel(c.businessType)}</Badge>
               )}
-              <Badge variant={c.status === 'ACTIVE' ? 'success' : 'muted'}>{c.status}</Badge>
+              {c.status === 'ARCHIVED' && (
+                <Badge variant="muted">{c.status}</Badge>
+              )}
               {(() => {
                 const s = ACCOUNT_STATUS[c.accountStatusEffective ?? c.accountStatus];
                 return <Badge variant={s.variant}>{s.label}</Badge>;
