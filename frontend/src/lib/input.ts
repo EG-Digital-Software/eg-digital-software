@@ -83,6 +83,33 @@ export function guardedField(
   };
 }
 
+/**
+ * Title Case a value: capital first letter of every word, the rest lower —
+ * independent of Caps Lock. Word breaks are spaces and the separators addresses
+ * use (/ - . '). Digits and symbols pass through, so "12/3a george st" becomes
+ * "12/3A George St".
+ */
+export function toTitleCase(v: string): string {
+  return v
+    .toLowerCase()
+    .replace(/(^|[\s'/.\-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
+/**
+ * Wrap a `register()` so the field is Title-Cased as the operator types, however
+ * Caps Lock is set. Length never changes, so the caret stays put. Spread it in
+ * place of `{...register(name)}`.
+ */
+export function titleCaseField(registration: UseFormRegisterReturn): UseFormRegisterReturn {
+  return {
+    ...registration,
+    onChange: (e: RegisterChangeEvent) => {
+      e.target.value = toTitleCase(e.target.value as string);
+      return registration.onChange(e);
+    },
+  };
+}
+
 /** Back-compat alias — numeric fields are the common case. */
 export function numericField(
   registration: UseFormRegisterReturn,

@@ -6,9 +6,11 @@ import {
   LicenceStatus,
   BusinessType,
 } from '@prisma/client';
+import argon2 from 'argon2';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
+import { encryptSecret, decryptSecret } from '../utils/secretBox.js';
 import { reserveStock } from './product.service.js';
 import { nextSequence, formatClientId, formatLicenceKey } from '../utils/sequence.js';
 import { computeLicenceStatus } from '../utils/licence.js';
@@ -134,14 +136,132 @@ export async function getCustomerByClientId(clientId: string) {
     },
   });
   if (!customer) throw ApiError.notFound('Customer not found');
+  // The portal login (if any) linked to this customer. Never expose the hash or
+  // the encrypted copy here — only whether a login exists and its email.
+  const login = await prisma.clientUser.findFirst({
+    where: { customerId: customer.id },
+    select: { email: true },
+    orderBy: { createdAt: 'asc' },
+  });
   return {
     ...customer,
+    credentialEmail: login?.email ?? null,
+    hasCredential: !!login,
     accountStatusEffective: effectiveAccountStatus(
       customer.accountStatus,
       customer.invoices.map((i) => i.invoiceDate),
       customer.createdAt
     ),
   };
+}
+
+/** First + last name for a provisioned login, derived from the customer. */
+function credentialName(customer: { contactPerson: string | null; companyName: string | null }) {
+  const source = (customer.contactPerson || customer.companyName || 'Customer').trim();
+  const [first, ...rest] = source.split(/\s+/);
+  return { firstName: first || 'Customer', lastName: rest.join(' ') || 'Account' };
+}
+
+/**
+ * An email may exist in AT MOST ONE portal table (see services/accounts.ts).
+ * Enforce that inside the credential transaction, ignoring the login we're
+ * updating.
+ */
+async function ensureEmailFree(
+  tx: Prisma.TransactionClient,
+  email: string,
+  exceptClientUserId?: string
+) {
+  const e = email.toLowerCase();
+  const [admin, client, supplier, employee] = await Promise.all([
+    tx.adminUser.findUnique({ where: { email: e }, select: { id: true } }),
+    tx.clientUser.findUnique({ where: { email: e }, select: { id: true } }),
+    tx.supplierUser.findUnique({ where: { email: e }, select: { id: true } }),
+    tx.employeeUser.findUnique({ where: { email: e }, select: { id: true } }),
+  ]);
+  const clash = admin || supplier || employee || (client && client.id !== exceptClientUserId);
+  if (clash) throw ApiError.badRequest('That login email is already in use by another account');
+}
+
+/**
+ * Create or update the customer's portal login from the admin form.
+ *
+ * A brand-new login is auto-approved so the customer can sign in immediately.
+ * The password is stored twice: a one-way argon2 hash (used to authenticate)
+ * and a reversible AES copy (so the admin can reveal it later, as required).
+ */
+async function upsertCredential(
+  tx: Prisma.TransactionClient,
+  customer: { id: string; contactPerson: string | null; companyName: string | null },
+  credential?: { email?: string; password?: string }
+) {
+  if (!credential) return;
+  const email = credential.email?.trim().toLowerCase() || '';
+  const password = credential.password?.trim() || '';
+
+  const existing = await tx.clientUser.findFirst({
+    where: { customerId: customer.id },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  if (!existing) {
+    // Nothing typed and no login yet — leave it alone.
+    if (!email && !password) return;
+    if (!email) throw ApiError.badRequest('A login email is required to create customer credentials');
+    if (!password) throw ApiError.badRequest('A password is required to create customer credentials');
+    await ensureEmailFree(tx, email);
+    const { firstName, lastName } = credentialName(customer);
+    await tx.clientUser.create({
+      data: {
+        firstName,
+        lastName,
+        email,
+        passwordHash: await argon2.hash(password),
+        passwordEnc: encryptSecret(password),
+        approvalStatus: 'APPROVED',
+        customerId: customer.id,
+      },
+    });
+    return;
+  }
+
+  // Update the existing login — change the email and/or reset the password.
+  const data: Prisma.ClientUserUpdateInput = {};
+  if (email && email !== existing.email) {
+    await ensureEmailFree(tx, email, existing.id);
+    data.email = email;
+  }
+  if (password) {
+    data.passwordHash = await argon2.hash(password);
+    const enc = encryptSecret(password);
+    if (enc) data.passwordEnc = enc;
+  }
+  if (Object.keys(data).length) {
+    await tx.clientUser.update({ where: { id: existing.id }, data });
+  }
+}
+
+/**
+ * Reveal the customer's current portal password for an admin. Returns null when
+ * no reveal copy exists (self-registered login, or set before encryption was
+ * configured) — the admin can still reset it from the form.
+ */
+export async function revealCredential(clientId: string) {
+  const customer = await prisma.customer.findUnique({
+    where: { clientId },
+    select: {
+      users: {
+        select: { email: true, passwordEnc: true },
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+      },
+    },
+  });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const login = customer.users[0];
+  if (!login) throw ApiError.notFound('This customer has no portal login yet');
+  const password = decryptSecret(login.passwordEnc);
+  return { email: login.email, password, available: password !== null };
 }
 
 type AddressInput = Record<string, string | undefined>;
@@ -193,6 +313,14 @@ type CreateInput = {
 
   reference?: string;
   accountStatus?: CustomerAccountStatus;
+
+  // Customer Credential — the admin-provisioned client portal login. Optional:
+  // present it only when the admin is setting or changing the login.
+  credential?: {
+    email?: string;
+    password?: string;
+  };
+
   assignedProducts?: Array<{
     productId: string;
     quantity: number;
@@ -355,6 +483,8 @@ export async function createCustomer(input: CreateInput) {
       });
     }
 
+    await upsertCredential(tx, customer, input.credential);
+
     return tx.customer.findUniqueOrThrow({
       where: { id: customer.id },
       include: {
@@ -363,7 +493,10 @@ export async function createCustomer(input: CreateInput) {
         customerProducts: { include: { product: true, licence: true } },
       },
     });
-  });
+    // Creating a customer can assign several products + licences and a login, so
+    // allow more than Prisma's 5s interactive-transaction default over the
+    // remote database.
+  }, { timeout: 20000, maxWait: 15000 });
 }
 
 /** Drop blank director rows; a row counts once it has an email. */
@@ -418,11 +551,16 @@ export async function updateCustomer(clientId: string, input: Partial<CreateInpu
       }
     }
 
+    await upsertCredential(tx, existing, input.credential);
+
     return tx.customer.findUniqueOrThrow({
       where: { id: existing.id },
       include: { addresses: true, directors: true },
     });
-  });
+    // The shared Azure DB adds round-trip latency; this transaction touches
+    // addresses, directors and the portal login, so give it more than the 5s
+    // interactive default.
+  }, { timeout: 20000, maxWait: 15000 });
 }
 
 /** Create the address row on first save, update it on every save after that. */

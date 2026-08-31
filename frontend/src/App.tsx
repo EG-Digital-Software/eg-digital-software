@@ -32,6 +32,7 @@ const ClientDashboard = lazy(() => import('@/pages/client/ClientDashboard'));
 const ClientInvoicesPage = lazy(() => import('@/pages/client/ClientInvoicesPage'));
 const ClientInvoiceDetail = lazy(() => import('@/pages/client/ClientInvoiceDetail'));
 const ClientLicencesPage = lazy(() => import('@/pages/client/ClientLicencesPage'));
+const ClientDetailsPage = lazy(() => import('@/pages/client/ClientDetailsPage'));
 const AccountPage = lazy(() => import('@/pages/account/AccountPage'));
 const SupplierDashboard = lazy(() => import('@/pages/supplier/SupplierDashboard'));
 const SupplierProductsPage = lazy(() => import('@/pages/supplier/SupplierProductsPage'));
@@ -80,6 +81,7 @@ export default function App() {
                 <Route path="invoices" element={<ClientInvoicesPage />} />
                 <Route path="invoices/:id" element={<ClientInvoiceDetail />} />
                 <Route path="licences" element={<ClientLicencesPage />} />
+                <Route path="details" element={<ClientDetailsPage />} />
                 <Route path="account" element={<AccountPage />} />
               </Route>
             </Route>

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   ArrowLeft,
   Pencil,
@@ -11,8 +13,13 @@ import {
   Contact,
   ShieldCheck,
   Users,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Copy,
 } from 'lucide-react';
 import { customerApi } from '@/api/resources';
+import { apiErrorMessage } from '@/api/client';
 import type { Address, Customer } from '@/types';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
-import { LoadingBlock, ErrorState, EmptyState } from '@/components/shared/states';
+import { LoadingBlock, ErrorState, EmptyState, Spinner } from '@/components/shared/states';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials } from '@/lib/utils';
 import { businessTypeLabel, customerName, formatAbn, invoiceTermLabel } from '@/lib/customer';
@@ -98,6 +105,109 @@ function Section({
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</CardContent>
+    </Card>
+  );
+}
+
+/**
+ * The customer's portal login — admin-only. The password is never bundled with
+ * the customer record; it is fetched (decrypted) on demand via revealCredential.
+ */
+function CredentialCard({
+  clientId,
+  email,
+  hasCredential,
+}: {
+  clientId: string;
+  email?: string | null;
+  hasCredential?: boolean;
+}) {
+  const [revealing, setRevealing] = useState(false);
+  const [password, setPassword] = useState<string | null>(null);
+  const [show, setShow] = useState(false);
+
+  const reveal = async () => {
+    setRevealing(true);
+    try {
+      const res = await customerApi.revealCredential(clientId);
+      if (res.available && res.password) {
+        setPassword(res.password);
+        setShow(true);
+      } else {
+        toast.info('No stored password to reveal for this login');
+      }
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not reveal the password'));
+    } finally {
+      setRevealing(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center gap-3 space-y-0">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <KeyRound className="h-[18px] w-[18px]" />
+        </div>
+        <CardTitle className="text-base">Customer Credential</CardTitle>
+        <Badge variant="secondary" className="ml-auto">
+          Admin only
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {hasCredential ? (
+          <>
+            <Detail label="Customer Email (User ID)" value={email} />
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Password</p>
+              {password ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-sm">
+                    {show ? password : '•'.repeat(Math.max(password.length, 8))}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShow((s) => !s)}
+                    aria-label={show ? 'Hide password' : 'Show password'}
+                  >
+                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(password);
+                      toast.success('Password copied');
+                    }}
+                    aria-label="Copy password"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={reveal}
+                  disabled={revealing}
+                >
+                  {revealing ? <Spinner /> : <Eye className="h-3.5 w-3.5" />}
+                  Reveal password
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No portal login has been set for this customer. Use{' '}
+            <span className="font-medium text-foreground">Edit</span> to create one.
+          </p>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -373,6 +483,12 @@ export default function CustomerDetailPage() {
                 })()}
               />
             </Section>
+
+            <CredentialCard
+              clientId={c.clientId}
+              email={c.credentialEmail}
+              hasCredential={c.hasCredential}
+            />
           </div>
         </TabsContent>
 

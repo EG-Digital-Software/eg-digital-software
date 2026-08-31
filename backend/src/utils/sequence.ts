@@ -16,10 +16,11 @@ export async function nextSequence(
   return counter.value;
 }
 
-// Client IDs start at EGD-5000 and increment by 1 (nextSequence returns 1 for
-// the first customer, so offset by 4999).
+// Client IDs are EGD-2627-<n>, starting at EGD-2627-5000 and incrementing by 1
+// (nextSequence returns 1 for the first customer, so offset by 4999). The 2627
+// segment is a fixed account/branch code.
 export function formatClientId(n: number): string {
-  return `EGD-${4999 + n}`;
+  return `EGD-2627-${4999 + n}`;
 }
 
 export function formatInvoiceNumber(n: number, date = new Date()): string {

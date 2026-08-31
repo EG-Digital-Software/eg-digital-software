@@ -113,7 +113,7 @@ export type AccountStatus = 'ACTIVE' | 'DORMANT' | 'SUSPENDED';
 
 export interface Customer {
   id: string;
-  /** System-generated, immutable business key (EGD-CL-000001). */
+  /** System-generated, immutable business key (EGD-2627-5000). */
   clientId: string;
 
   // Company Information
@@ -151,6 +151,12 @@ export interface Customer {
   paymentMethod?: string | null;
 
   reference?: string | null;
+
+  // Customer Credential — the linked portal login (email only; the password is
+  // never sent with the record, it is fetched on demand via revealCredential).
+  credentialEmail?: string | null;
+  hasCredential?: boolean;
+
   status: 'ACTIVE' | 'ARCHIVED';
   /** Admin-pinned account standing. ACTIVE means "auto-derive". */
   accountStatus: AccountStatus;

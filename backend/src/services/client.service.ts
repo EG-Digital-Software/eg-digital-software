@@ -15,7 +15,7 @@ export async function resolveCustomerId(userId: string): Promise<string> {
 export async function getProfile(customerId: string) {
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
-    include: { addresses: true },
+    include: { addresses: true, directors: true },
   });
   if (!customer) throw ApiError.notFound('Customer not found');
   return customer;

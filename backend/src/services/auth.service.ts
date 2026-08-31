@@ -12,6 +12,7 @@ import {
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { storage } from './storage/index.js';
+import { encryptSecret } from '../utils/secretBox.js';
 import { notifySuperAdmins } from './notification.service.js';
 import * as accounts from './accounts.js';
 import type { Account } from './accounts.js';
@@ -273,9 +274,14 @@ export async function changePassword(role: Role, userId: string, current: string
     throw ApiError.badRequest('New password must be different from the current one');
   }
 
-  const updated = await accounts.updateAccount(role, userId, {
-    passwordHash: await hashPassword(next),
-  });
+  const data: Record<string, unknown> = { passwordHash: await hashPassword(next) };
+  // Admin-provisioned client logins keep an encrypted copy so the admin can
+  // still reveal the password after the customer changes it themselves.
+  if (role === 'CLIENT') {
+    const enc = encryptSecret(next);
+    if (enc) data.passwordEnc = enc;
+  }
+  const updated = await accounts.updateAccount(role, userId, data);
 
   // Everything issued before this moment is dead.
   const { count } = await prisma.refreshToken.updateMany({

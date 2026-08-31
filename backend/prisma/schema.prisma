@@ -135,6 +135,10 @@ model ClientUser {
   lastName       String
   email          String        @unique
   passwordHash   String
+  /// Admin-provisioned client logins keep a reversible, AES-256-GCM encrypted
+  /// copy of the current password so an admin can reveal it. Login always uses
+  /// passwordHash (argon2); this is view-only. Null for self-registered clients.
+  passwordEnc    String?
   approvalStatus AccountStatus @default(PENDING)
   approvedById   String?
   avatarUrl      String?
@@ -237,7 +241,7 @@ model PasswordResetToken {
 
 model Customer {
   id       String @id @default(uuid())
-  /// Auto-generated, immutable business key (e.g. EGD-CL-000001).
+  /// Auto-generated, immutable business key (e.g. EGD-2627-5000).
   clientId String @unique
 
   // ── Company Information ────────────────────────────────

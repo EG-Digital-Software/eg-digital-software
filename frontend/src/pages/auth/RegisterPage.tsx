@@ -244,7 +244,7 @@ export default function RegisterPage() {
           {cfg.client && (
             <div className="space-y-1.5">
               <Label htmlFor="clientId">Client ID (Optional)</Label>
-              <AuthField id="clientId" icon={Hash} placeholder="EGD-CL-000001" {...register('clientId')} />
+              <AuthField id="clientId" icon={Hash} placeholder="EGD-2627-5000" {...register('clientId')} />
               {errors.clientId ? (
                 <p className="text-xs text-destructive">{errors.clientId.message}</p>
               ) : (

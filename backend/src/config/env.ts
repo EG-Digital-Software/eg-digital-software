@@ -10,6 +10,10 @@ const schema = z.object({
 
   JWT_SECRET: z.string().min(8, 'JWT_SECRET must be set'),
   JWT_REFRESH_SECRET: z.string().min(8, 'JWT_REFRESH_SECRET must be set'),
+  // Key for encrypting admin-provisioned client passwords so an admin can reveal
+  // them. 32-byte key as 64 hex chars or base64. Without it, credential reveal is
+  // disabled (logins still work — they use the argon2 hash).
+  CREDENTIAL_ENC_KEY: z.string().optional(),
   JWT_ACCESS_EXPIRES: z.string().default('15m'),
   JWT_REFRESH_EXPIRES: z.string().default('7d'),
 
@@ -61,6 +65,10 @@ const schema = z.object({
   GEOCODER_URL: z.string().url().default('https://nominatim.openstreetmap.org'),
   GEOCODER_USER_AGENT: z.string().default('EG-Digital-SaaS/1.0 (admin address autofill)'),
   GEOCODER_EMAIL: z.string().optional(),
+  // When set, address search/reverse lookups use Google's Geocoding API instead
+  // of Nominatim. The key stays server-side — it is never shipped to the browser.
+  // Restrict it to the Geocoding API (and by IP) in the Google Cloud console.
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
 
   // ── ABN lookup (Australian Business Register) ──────────
   // The GUID is issued per registered party at

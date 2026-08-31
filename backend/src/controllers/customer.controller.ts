@@ -27,6 +27,11 @@ export const getOne = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, customer);
 });
 
+export const revealCredential = asyncHandler(async (req: Request, res: Response) => {
+  const credential = await customerService.revealCredential(req.params.clientId);
+  return ok(res, credential);
+});
+
 export const create = asyncHandler(async (req: Request, res: Response) => {
   const customer = await customerService.createCustomer(req.body);
   logActivity({

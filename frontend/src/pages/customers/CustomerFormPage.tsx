@@ -16,6 +16,11 @@ import {
   Search,
   Users,
   Pencil,
+  Server,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Copy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { customerApi, productApi, geoApi, abnApi } from '@/api/resources';
@@ -27,6 +32,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
 import { PhoneInput, CountrySelect, phoneComplete } from '@/components/shared/PhoneInput';
+import { StateSelect } from '@/components/shared/StateSelect';
 import {
   DEFAULT_COUNTRY,
   DEFAULT_COUNTRY_NAME,
@@ -36,7 +42,7 @@ import {
 } from '@/lib/countries';
 import { BUSINESS_TYPES, INVOICE_TERMS, PAYMENT_METHODS, formatAbn, isValidAbn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
-import { numericField, guardedField } from '@/lib/input';
+import { numericField, guardedField, titleCaseField, toTitleCase } from '@/lib/input';
 import { formatCurrency, cn } from '@/lib/utils';
 import type { Address } from '@/types';
 
@@ -109,6 +115,13 @@ const schema = z
 
     accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).default('ACTIVE'),
 
+    // Customer Credential — the portal login the admin provisions for this
+    // customer. Email + password; password left blank on edit keeps the current.
+    credential: z.object({
+      email: optionalEmail,
+      password: z.string().optional(),
+    }),
+
     sameAsContactInfo: z.boolean().optional(),
 
     directors: z
@@ -159,6 +172,11 @@ const schema = z
   .refine((v) => phoneComplete(v.billingContactNumber), {
     message: 'Phone number must be 10 digits',
     path: ['billingContactNumber'],
+  })
+  // A portal password, once typed, must be at least 8 characters.
+  .refine((v) => !v.credential?.password || v.credential.password.length >= 8, {
+    message: 'Password must be at least 8 characters',
+    path: ['credential', 'password'],
   })
   // Each director row, once started, must be complete: a designation, a valid
   // email and a full 10-digit contact number.
@@ -252,6 +270,7 @@ const DEFAULTS: FormValues = {
   invoiceTermCustom: '',
   paymentMethod: '',
   accountStatus: 'ACTIVE',
+  credential: { email: '', password: '' },
   sameAsContactInfo: false,
   directors: [
     { firstName: '', middleName: '', lastName: '', email: '', contactNumber: '', contactNumberCountry: DEFAULT_COUNTRY },
@@ -331,6 +350,190 @@ function Field({
   );
 }
 
+/**
+ * IT Details — placeholder section requested to sit after Invoicing Details.
+ *
+ * NOTE: these fields are UI-only for now and are held in local state, so nothing
+ * here is sent to the API or persisted. Once the final field list is agreed,
+ * wire them into the form schema, the backend validator/service and a migration.
+ */
+const EMPTY_IT_DETAILS = {
+  domainName: '',
+  websiteUrl: '',
+  hostingProvider: '',
+  serverIp: '',
+  emailPlatform: '',
+  userSeats: '',
+  antivirus: '',
+  backupSolution: '',
+  notes: '',
+};
+
+function ITDetailsSection({ disabled }: { disabled?: boolean }) {
+  const [it, setIt] = useState(EMPTY_IT_DETAILS);
+  const set = (key: keyof typeof EMPTY_IT_DETAILS) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setIt((prev) => ({ ...prev, [key]: e.target.value }));
+
+  return (
+    <Section
+      icon={Server}
+      title="IT Details"
+      description="Technical account details — placeholder fields for now, not yet saved"
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Field label="Domain Name" hint="e.g. acme.com.au">
+          <Input disabled={disabled} value={it.domainName} onChange={set('domainName')} />
+        </Field>
+        <Field label="Website URL">
+          <Input disabled={disabled} placeholder="https://" value={it.websiteUrl} onChange={set('websiteUrl')} />
+        </Field>
+        <Field label="Hosting Provider" hint="e.g. Azure, AWS, cPanel host">
+          <Input disabled={disabled} value={it.hostingProvider} onChange={set('hostingProvider')} />
+        </Field>
+        <Field label="Server / IP Address">
+          <Input disabled={disabled} value={it.serverIp} onChange={set('serverIp')} />
+        </Field>
+        <Field label="Email Platform" hint="e.g. Microsoft 365, Google Workspace">
+          <Input disabled={disabled} value={it.emailPlatform} onChange={set('emailPlatform')} />
+        </Field>
+        <Field label="Number of Users / Seats">
+          <Input disabled={disabled} inputMode="numeric" value={it.userSeats} onChange={set('userSeats')} />
+        </Field>
+        <Field label="Antivirus / Endpoint Protection">
+          <Input disabled={disabled} value={it.antivirus} onChange={set('antivirus')} />
+        </Field>
+        <Field label="Backup Solution">
+          <Input disabled={disabled} value={it.backupSolution} onChange={set('backupSolution')} />
+        </Field>
+        <div className="sm:col-span-2 lg:col-span-3">
+          <Field label="IT Notes" hint="Anything else worth recording about this customer's IT setup">
+            <textarea
+              disabled={disabled}
+              value={it.notes}
+              onChange={set('notes')}
+              rows={3}
+              className="flex min-h-20 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </Field>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+/**
+ * Customer Credential — the portal login the admin provisions for the customer.
+ *
+ * On create, both fields set up the login. On edit, the email prefills and the
+ * password box sets a NEW password (blank keeps the current one); the admin can
+ * also reveal the password currently in force.
+ */
+function CredentialSection({
+  register,
+  passwordError,
+  isEdit,
+  clientId,
+  hasCredential,
+}: {
+  register: ReturnType<typeof useForm<FormValues>>['register'];
+  passwordError?: string;
+  isEdit: boolean;
+  clientId?: string;
+  hasCredential?: boolean;
+}) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [revealing, setRevealing] = useState(false);
+  const [revealed, setRevealed] = useState<string | null>(null);
+
+  const reveal = async () => {
+    if (!clientId) return;
+    setRevealing(true);
+    try {
+      const res = await customerApi.revealCredential(clientId);
+      if (res.available && res.password) {
+        setRevealed(res.password);
+      } else {
+        toast.info('No stored password to reveal — set a new one below to reset it');
+      }
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not reveal the password'));
+    } finally {
+      setRevealing(false);
+    }
+  };
+
+  return (
+    <Section
+      icon={KeyRound}
+      title="Customer Credential"
+      description="The email and password the customer uses to sign in to their portal"
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field
+          label="Customer Email (User ID)"
+          hint="The email the customer logs in with"
+        >
+          <Input type="email" autoComplete="off" {...register('credential.email')} />
+        </Field>
+        <Field
+          label={isEdit ? 'New Password' : 'Password'}
+          error={passwordError}
+          hint={isEdit ? 'Leave blank to keep the current password' : 'At least 8 characters'}
+        >
+          <div className="relative">
+            <Input
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              className="pr-10"
+              {...register('credential.password')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((s) => !s)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </Field>
+      </div>
+
+      {isEdit && hasCredential && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button type="button" variant="outline" size="sm" onClick={reveal} disabled={revealing}>
+            {revealing ? <Spinner /> : <Eye className="h-3.5 w-3.5" />}
+            Reveal current password
+          </Button>
+          {revealed && (
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-1.5">
+              <code className="text-sm">{revealed}</code>
+              <button
+                type="button"
+                aria-label="Copy password"
+                onClick={() => {
+                  navigator.clipboard?.writeText(revealed);
+                  toast.success('Password copied');
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isEdit && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          The customer can sign in immediately with these details and change their own password later
+          — any change stays visible to you here.
+        </p>
+      )}
+    </Section>
+  );
+}
+
 /** Slim progress card mirroring the reference — a filled track with milestone
     dots that light up as the operator completes the form. */
 function FormProgress({ percent }: { percent: number }) {
@@ -395,7 +598,7 @@ function AddressAutocomplete({
   // Bumped on every keystroke so a slow response for an old term is ignored.
   const reqId = useRef(0);
   const boxRef = useRef<HTMLDivElement>(null);
-  const line1 = register(`${prefix}.line1` as const);
+  const line1 = titleCaseField(register(`${prefix}.line1` as const));
 
   // Debounce: only fire once typing settles. Suggestions start from the first
   // character typed.
@@ -442,9 +645,9 @@ function AddressAutocomplete({
   }, []);
 
   const choose = (s: AddressSuggestion) => {
-    setValue(`${prefix}.line1`, s.line1 || s.label, { shouldDirty: true });
-    setValue(`${prefix}.line2`, s.line2, { shouldDirty: true });
-    if (s.city) setValue(`${prefix}.city`, s.city, { shouldDirty: true });
+    setValue(`${prefix}.line1`, toTitleCase(s.line1 || s.label), { shouldDirty: true });
+    setValue(`${prefix}.line2`, toTitleCase(s.line2), { shouldDirty: true });
+    if (s.city) setValue(`${prefix}.city`, toTitleCase(s.city), { shouldDirty: true });
     if (s.postcode) setValue(`${prefix}.postcode`, s.postcode, { shouldDirty: true });
     if (countryByCode(s.countryCode)) {
       setValue(`${prefix}.country`, s.countryCode, { shouldDirty: true });
@@ -526,6 +729,8 @@ function AddressFields({
   disabled?: boolean;
 }) {
   const [locating, setLocating] = useState(false);
+  // Drives the State dropdown — its options follow whichever country is chosen.
+  const addressCountry = useWatch({ control, name: `${prefix}.country` });
 
   const useMyLocation = () => {
     if (!('geolocation' in navigator)) {
@@ -539,8 +744,8 @@ function AddressFields({
           const found = await geoApi.reverse(pos.coords.latitude, pos.coords.longitude);
           // Only overwrite what the lookup actually resolved, so a partial
           // result never wipes something already typed.
-          if (found.line1) setValue(`${prefix}.line1`, found.line1, { shouldDirty: true });
-          if (found.city) setValue(`${prefix}.city`, found.city, { shouldDirty: true });
+          if (found.line1) setValue(`${prefix}.line1`, toTitleCase(found.line1), { shouldDirty: true });
+          if (found.city) setValue(`${prefix}.city`, toTitleCase(found.city), { shouldDirty: true });
           if (found.postcode) setValue(`${prefix}.postcode`, found.postcode, { shouldDirty: true });
           if (countryByCode(found.countryCode)) {
             setValue(`${prefix}.country`, found.countryCode, { shouldDirty: true });
@@ -616,18 +821,30 @@ function AddressFields({
           <Input
             placeholder="Optional"
             disabled={disabled}
-            {...register(`${prefix}.line2` as const)}
+            {...titleCaseField(register(`${prefix}.line2` as const))}
           />
         </Field>
       </div>
       <Field label="Suburb">
-        <Input disabled={disabled} {...register(`${prefix}.suburb` as const)} />
+        <Input disabled={disabled} {...titleCaseField(register(`${prefix}.suburb` as const))} />
       </Field>
       <Field label="City">
-        <Input disabled={disabled} {...register(`${prefix}.city` as const)} />
+        <Input disabled={disabled} {...titleCaseField(register(`${prefix}.city` as const))} />
       </Field>
       <Field label="State">
-        <Input disabled={disabled} {...register(`${prefix}.state` as const)} />
+        <Controller
+          control={control}
+          name={`${prefix}.state` as const}
+          render={({ field }) => (
+            <StateSelect
+              countryCode={addressCountry ?? DEFAULT_COUNTRY}
+              value={field.value ?? ''}
+              onChange={field.onChange}
+              disabled={disabled}
+              className={FILLED_CONTROL}
+            />
+          )}
+        />
       </Field>
       <Field label="Postcode">
         <Input maxLength={10} disabled={disabled} {...register(`${prefix}.postcode` as const)} />
@@ -976,6 +1193,9 @@ export default function CustomerFormPage() {
       billingContactNumber: existing.billingContactNumber ?? '',
       billingContactNumberCountry: existing.billingContactNumberCountry ?? DEFAULT_COUNTRY,
       billingEmail: existing.billingEmail ?? '',
+      // Prefill the login email; the password is never loaded — the admin reveals
+      // it on demand and can type a new one to reset it.
+      credential: { email: existing.credentialEmail ?? '', password: '' },
       creditScore: existing.creditScore != null ? String(existing.creditScore) : '',
       // A stored term is either a preset code or free text. Free text loads the
       // dropdown as "Enter manually" with the text in the custom field.
@@ -1052,6 +1272,14 @@ export default function CustomerFormPage() {
             contactNumberCountry: d.contactNumberCountry,
           })),
         assignedProducts: isEdit ? undefined : values.assignedProducts,
+        // Send the login only when the admin actually set/changed something.
+        credential:
+          values.credential?.email?.trim() || values.credential?.password?.trim()
+            ? {
+                email: values.credential.email?.trim() || undefined,
+                password: values.credential.password?.trim() || undefined,
+              }
+            : undefined,
       };
       return isEdit ? customerApi.update(clientId!, payload) : customerApi.create(payload);
     },
@@ -1571,6 +1799,9 @@ export default function CustomerFormPage() {
           </div>
         </Section>
 
+        {/* ── 4b. IT Details (UI-only placeholder — not yet persisted) ── */}
+        <ITDetailsSection disabled={mutation.isPending} />
+
         {/* ── 5. Products ── */}
         {!isEdit && (
           <Section
@@ -1655,6 +1886,15 @@ export default function CustomerFormPage() {
             </div>
           </Section>
         )}
+
+        {/* ── 6. Customer Credential ── */}
+        <CredentialSection
+          register={register}
+          passwordError={errors.credential?.password?.message}
+          isEdit={isEdit}
+          clientId={clientId}
+          hasCredential={existing?.hasCredential}
+        />
 
         <div className="flex items-center justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => navigate('/admin/customers')}>

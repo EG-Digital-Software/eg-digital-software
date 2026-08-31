@@ -121,6 +121,16 @@ export const createCustomerSchema = z
 
     accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).optional(),
 
+    // ── Customer Credential (admin-provisioned portal login) ──
+    // Present only when the admin sets or changes the login. Empty strings are
+    // allowed so the form can submit the section untouched.
+    credential: z
+      .object({
+        email: optionalEmail,
+        password: z.string().min(8, 'At least 8 characters').optional().or(z.literal('')),
+      })
+      .optional(),
+
     directors: z.array(directorSchema).optional(),
 
     assignedProducts: z.array(assignedProductSchema).optional(),

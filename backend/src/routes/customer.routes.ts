@@ -16,6 +16,8 @@ router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
 // Must precede `/:clientId` or "next-client-id" would be read as a Client ID.
 router.get('/next-client-id', ctrl.nextClientId);
 router.get('/:clientId', ctrl.getOne);
+// Reveal the customer's portal password (admin-only, like every route here).
+router.get('/:clientId/credential', ctrl.revealCredential);
 router.post('/', validate({ body: createCustomerSchema }), ctrl.create);
 router.put('/:clientId', validate({ body: updateCustomerSchema }), ctrl.update);
 router.delete('/:clientId', ctrl.archive);

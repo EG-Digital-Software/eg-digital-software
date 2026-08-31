@@ -53,6 +53,13 @@ export const customerApi = {
   archive: async (clientId: string) => (await api.delete(`/customers/${clientId}`)).data,
   remove: async (clientId: string) =>
     (await api.delete(`/customers/${clientId}/permanent`)).data,
+  /** Reveal the customer's current portal password (admin only). */
+  revealCredential: async (clientId: string) =>
+    (
+      await api.get<ApiEnvelope<{ email: string; password: string | null; available: boolean }>>(
+        `/customers/${clientId}/credential`
+      )
+    ).data.data,
 };
 
 // ── Products ─────────────────────────────────────────────

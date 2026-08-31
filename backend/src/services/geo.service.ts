@@ -114,6 +114,12 @@ export async function searchAddresses(
   // Suggest from the very first character the operator types.
   if (q.length < 1) return [];
 
+  // Prefer Google when a key is configured — it returns more precise, better
+  // ranked matches. Nominatim remains the zero-config fallback.
+  if (env.GOOGLE_MAPS_API_KEY) {
+    return googleSearchAddresses(q, countryCode);
+  }
+
   const url = new URL('/search', env.GEOCODER_URL);
   url.searchParams.set('format', 'jsonv2');
   url.searchParams.set('q', q);
@@ -177,6 +183,10 @@ export async function searchAddresses(
 export async function reverseGeocode(lat: number, lon: number): Promise<ReverseGeocodeResult> {
   if (!env.GEOCODING_ENABLED) {
     throw ApiError.badRequest('Location lookup is disabled on this environment');
+  }
+
+  if (env.GOOGLE_MAPS_API_KEY) {
+    return googleReverseGeocode(lat, lon);
   }
 
   const url = new URL('/reverse', env.GEOCODER_URL);
@@ -265,4 +275,146 @@ function streetLine(a: NominatimAddress, city: string): string {
 
   // Never repeat the locality as the street line — "Patna / Patna" helps nobody.
   return candidate && candidate !== city ? candidate : street;
+}
+
+// ── Google Geocoding API provider ──────────────────────────
+// Used when GOOGLE_MAPS_API_KEY is set. Same request path (API-proxied) and the
+// same result shapes as the Nominatim provider, so the frontend never changes.
+
+const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
+
+interface GoogleAddressComponent {
+  long_name: string;
+  short_name: string;
+  types: string[];
+}
+
+interface GoogleResult {
+  formatted_address?: string;
+  address_components?: GoogleAddressComponent[];
+}
+
+interface GoogleGeocodeResponse {
+  status: string;
+  error_message?: string;
+  results?: GoogleResult[];
+}
+
+/** First component whose types include `type`. */
+function pick(components: GoogleAddressComponent[], type: string): GoogleAddressComponent | undefined {
+  return components.find((c) => c.types.includes(type));
+}
+
+function componentValue(components: GoogleAddressComponent[], type: string, short = false): string {
+  const c = pick(components, type);
+  return c ? (short ? c.short_name : c.long_name) : '';
+}
+
+/** Map Google's address_components onto our flat suggestion/result fields. */
+function mapGoogleComponents(result: GoogleResult) {
+  const components = result.address_components ?? [];
+
+  const streetNumber = componentValue(components, 'street_number');
+  const route = componentValue(components, 'route');
+  const line1Street = [streetNumber, route].filter(Boolean).join(' ');
+
+  const city =
+    componentValue(components, 'locality') ||
+    componentValue(components, 'postal_town') ||
+    componentValue(components, 'sublocality') ||
+    componentValue(components, 'administrative_area_level_2') ||
+    '';
+
+  const sublocality = componentValue(components, 'sublocality');
+  const premise = componentValue(components, 'premise') || componentValue(components, 'neighborhood');
+
+  const line1 = line1Street || premise || sublocality || city;
+  const line2 = sublocality && sublocality !== line1 && sublocality !== city ? sublocality : '';
+
+  return {
+    line1,
+    line2,
+    city,
+    postcode: componentValue(components, 'postal_code'),
+    country: componentValue(components, 'country'),
+    countryCode: componentValue(components, 'country', true).toUpperCase(),
+  };
+}
+
+async function googleGeocode(params: Record<string, string>): Promise<GoogleGeocodeResponse> {
+  const url = new URL(GOOGLE_GEOCODE_URL);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  url.searchParams.set('key', env.GOOGLE_MAPS_API_KEY!);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'Accept-Language': env.DEFAULT_LOCALE },
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status }, 'Google geocode returned an HTTP error');
+      throw ApiError.badGateway('Location provider is unavailable, please enter the address manually');
+    }
+    const body = (await res.json()) as GoogleGeocodeResponse;
+    // Google reports auth/quota problems in the body with HTTP 200.
+    if (body.status === 'REQUEST_DENIED' || body.status === 'OVER_QUERY_LIMIT' || body.status === 'INVALID_REQUEST') {
+      logger.warn({ status: body.status, error: body.error_message }, 'Google geocode rejected the request');
+      throw ApiError.badGateway('Location provider is unavailable, please enter the address manually');
+    }
+    return body;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    const aborted = err instanceof Error && err.name === 'AbortError';
+    logger.warn({ err }, 'Google geocode failed');
+    throw ApiError.badGateway(
+      aborted
+        ? 'Location lookup timed out, please enter the address manually'
+        : 'Could not reach the location provider, please enter the address manually'
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function googleSearchAddresses(q: string, countryCode?: string): Promise<AddressSuggestion[]> {
+  const params: Record<string, string> = { address: q };
+  if (countryCode && /^[A-Za-z]{2}$/.test(countryCode)) {
+    params.components = `country:${countryCode.toUpperCase()}`;
+    params.region = countryCode.toLowerCase();
+  }
+
+  const body = await googleGeocode(params);
+  if (body.status === 'ZERO_RESULTS') return [];
+
+  return (body.results ?? [])
+    .slice(0, 6)
+    .map((result) => {
+      const mapped = mapGoogleComponents(result);
+      return { label: result.formatted_address ?? mapped.line1, ...mapped };
+    })
+    .filter((s) => !!s.line1 || !!s.label);
+}
+
+async function googleReverseGeocode(lat: number, lon: number): Promise<ReverseGeocodeResult> {
+  const body = await googleGeocode({ latlng: `${lat},${lon}` });
+  const result = body.results?.[0];
+  if (!result || body.status === 'ZERO_RESULTS') {
+    throw ApiError.notFound('No address found for that location');
+  }
+
+  const mapped = mapGoogleComponents(result);
+  // Google's first result for a coordinate is a rooftop/street match — treat it
+  // as exact. Coarser locality-only responses lack a street_number + route.
+  const precision: ReverseGeocodeResult['precision'] = mapped.line1 && mapped.postcode ? 'exact' : 'approximate';
+
+  return {
+    line1: mapped.line1,
+    city: mapped.city,
+    postcode: precision === 'exact' ? mapped.postcode : '',
+    country: mapped.country,
+    countryCode: mapped.countryCode,
+    precision,
+  };
 }

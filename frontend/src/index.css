@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Brand fonts (Eloma) ──────────────────────────────────
+   Body copy uses ElomaSans; headings use the display cut ElomaSansHeading.
+   Both are bundled from src/assets/fonts and fingerprinted by Vite. */
+@font-face {
+  font-family: 'ElomaSans';
+  src: url('./assets/fonts/ElomaSans.otf') format('opentype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'ElomaSansHeading';
+  src: url('./assets/fonts/ElomaSansHeading.otf') format('opentype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     --background: 210 40% 99%;
@@ -48,6 +66,11 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'cv11', 'ss01';
+  }
+
+  /* Headings pick up the display cut; everything else inherits ElomaSans body. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: theme('fontFamily.heading');
   }
 
   ::-webkit-scrollbar {
