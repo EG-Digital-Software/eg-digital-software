@@ -10,7 +10,7 @@ export function AdminLayout() {
         {/* keyed by pathname → content fades in on every navigation */}
         <div
           key={location.pathname}
-          className="animate-fade-in mx-auto w-full max-w-[1600px] space-y-6 p-4 lg:p-6 xl:p-8"
+          className="animate-fade-in w-full space-y-6 p-4 lg:p-6 xl:p-8"
         >
           <Outlet />
         </div>

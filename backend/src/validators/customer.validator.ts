@@ -49,6 +49,13 @@ const directorSchema = z.object({
   contactNumberCountry: countryCode,
 });
 
+const itContactSchema = z.object({
+  name: z.string().optional(),
+  email: optionalEmail,
+  phone: z.string().optional(),
+  phoneCountry: countryCode,
+});
+
 const assignedProductSchema = z.object({
   productId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
@@ -133,6 +140,8 @@ export const createCustomerSchema = z
 
     directors: z.array(directorSchema).optional(),
 
+    itContacts: z.array(itContactSchema).optional(),
+
     assignedProducts: z.array(assignedProductSchema).optional(),
   })
   // An authorised representative is only meaningful with a name attached.
@@ -149,6 +158,15 @@ export const updateCustomerSchema = createCustomerSchema
     message: 'Authorised person is required when Authorised is set to No',
     path: ['authorizedPerson'],
   });
+
+export const addCredentialSchema = z.object({
+  email: z.string().email('Enter a valid email'),
+  password: z.string().min(8, 'At least 8 characters'),
+});
+
+export const changePasswordSchema = z.object({
+  password: z.string().min(8, 'At least 8 characters'),
+});
 
 export const listCustomerQuerySchema = z.object({
   page: z.coerce.number().optional(),

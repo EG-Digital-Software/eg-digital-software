@@ -35,7 +35,7 @@ export function ClientLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 lg:px-6">
+        <div className="flex h-16 w-full items-center gap-3 px-4 lg:px-6">
           <NavLink to="/client/dashboard" className="flex shrink-0 items-center">
             <Logo className="text-[24px]" />
           </NavLink>
@@ -93,7 +93,7 @@ export function ClientLayout() {
       </header>
 
       <main className="flex-1">
-        <div className="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6 xl:p-8">
+        <div className="w-full space-y-6 p-4 lg:p-6 xl:p-8">
           <Outlet />
         </div>
       </main>

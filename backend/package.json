@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "seed": "tsx prisma/seed.ts",
+    "normalize:names": "tsx prisma/normalizeTitleCase.ts",
     "prisma:generate": "prisma generate",
     "_comment_migrate": "One shared Azure database backs local and live. `migrate dev` offers to RESET on drift, so it is not wired to a script. Author SQL with prisma:migrate:new, review it, then apply with prisma:migrate.",
     "prisma:migrate": "prisma migrate deploy",

@@ -86,13 +86,25 @@ export function guardedField(
 /**
  * Title Case a value: capital first letter of every word, the rest lower —
  * independent of Caps Lock. Word breaks are spaces and the separators addresses
- * use (/ - . '). Digits and symbols pass through, so "12/3a george st" becomes
+ * use (/ - . ). Digits and symbols pass through, so "12/3a george st" becomes
  * "12/3A George St".
+ *
+ * Apostrophes are handled by name convention rather than as a blanket break:
+ * a single-letter prefix keeps the Irish/Scottish capital ("o'brien" →
+ * "O'Brien", "d'angelo" → "D'Angelo"), but a possessive/contraction stays lower
+ * after the apostrophe ("ruby's" → "Ruby's", not "Ruby'S").
  */
+const cap = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
 export function toTitleCase(v: string): string {
-  return v
-    .toLowerCase()
-    .replace(/(^|[\s'/.\-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toUpperCase());
+  return v.toLowerCase().replace(/\p{L}+(?:'\p{L}+)?/gu, (word) => {
+    const apos = word.indexOf("'");
+    if (apos === -1) return cap(word);
+    const before = word.slice(0, apos);
+    const after = word.slice(apos + 1);
+    // O'Brien / D'Souza capitalise both sides; Ruby's / John's keep the suffix.
+    return before.length === 1 ? `${cap(before)}'${cap(after)}` : `${cap(before)}'${after}`;
+  });
 }
 
 /**

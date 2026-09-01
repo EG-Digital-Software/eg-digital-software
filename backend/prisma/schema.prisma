@@ -307,6 +307,7 @@ model Customer {
   invoices         Invoice[]
   users            ClientUser[]
   directors        Director[]
+  itContacts       CustomerITContact[]
 
   @@index([status])
   @@index([businessType])
@@ -330,6 +331,23 @@ model Director {
   contactNumberCountry String?  @default("AU")
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+/// An IT / technical contact for the customer. A customer can list several —
+/// each is just a name, email and phone number, added from the customer form.
+model CustomerITContact {
+  id           String   @id @default(uuid())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId   String
+  name         String?
+  email        String?
+  phone        String?
+  /// ISO-3166 alpha-2 of the dial code chosen for phone.
+  phoneCountry String?  @default("AU")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([customerId])
 }

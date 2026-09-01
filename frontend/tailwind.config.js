@@ -57,8 +57,7 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['ElomaSans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        heading: ['ElomaSansHeading', 'ElomaSans', 'Inter', 'ui-sans-serif', 'sans-serif'],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         card: '0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.03)',

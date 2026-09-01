@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
-import { numericField } from '@/lib/input';
+import { numericField, titleCaseField } from '@/lib/input';
 import { cn } from '@/lib/utils';
 
 const schema = z.object({
@@ -172,16 +172,16 @@ export function ProductFormDialog({
                 <Input className={FILLED_CONTROL} {...register('productCode')} placeholder="EGD-P-016" />
               </Field>
               <Field label="Product Name" error={errors.name?.message}>
-                <Input className={FILLED_CONTROL} {...register('name')} placeholder="Product name" />
+                <Input className={FILLED_CONTROL} {...titleCaseField(register('name'))} placeholder="Product name" />
               </Field>
               <Field label="Product Type">
-                <Input className={FILLED_CONTROL} {...register('type')} placeholder="Software Licence" />
+                <Input className={FILLED_CONTROL} {...titleCaseField(register('type'))} placeholder="Software Licence" />
               </Field>
               <Field label="SKU">
                 <Input className={FILLED_CONTROL} {...register('sku')} placeholder="SKU-016" />
               </Field>
               <Field label="Category">
-                <Input className={FILLED_CONTROL} {...register('category')} placeholder="Category" />
+                <Input className={FILLED_CONTROL} {...titleCaseField(register('category'))} placeholder="Category" />
               </Field>
               <Field label="Status">
                 <Select className={FILLED_CONTROL} {...register('status')}>

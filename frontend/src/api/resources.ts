@@ -2,6 +2,7 @@ import { api } from './client';
 import type {
   ApiEnvelope,
   Customer,
+  CustomerCredential,
   DashboardSummary,
   Invoice,
   LicenceRow,
@@ -60,6 +61,32 @@ export const customerApi = {
         `/customers/${clientId}/credential`
       )
     ).data.data,
+  /** All portal logins linked to this customer. */
+  listCredentials: async (clientId: string) =>
+    (await api.get<ApiEnvelope<CustomerCredential[]>>(`/customers/${clientId}/credentials`)).data
+      .data,
+  /** Grant portal access to another person by adding a login. */
+  addCredential: async (clientId: string, body: { email: string; password: string }) =>
+    (await api.post<ApiEnvelope<CustomerCredential>>(`/customers/${clientId}/credentials`, body))
+      .data.data,
+  /** Reveal a specific login's password (admin only). */
+  revealCredentialById: async (clientId: string, userId: string) =>
+    (
+      await api.get<ApiEnvelope<{ email: string; password: string | null; available: boolean }>>(
+        `/customers/${clientId}/credentials/${userId}/reveal`
+      )
+    ).data.data,
+  /** Change a specific login's password (admin only). */
+  changeCredentialPassword: async (clientId: string, userId: string, password: string) =>
+    (
+      await api.patch<ApiEnvelope<{ id: string }>>(
+        `/customers/${clientId}/credentials/${userId}/password`,
+        { password }
+      )
+    ).data.data,
+  /** Remove a portal login, revoking that person's access. */
+  removeCredential: async (clientId: string, userId: string) =>
+    (await api.delete(`/customers/${clientId}/credentials/${userId}`)).data,
 };
 
 // ── Products ─────────────────────────────────────────────

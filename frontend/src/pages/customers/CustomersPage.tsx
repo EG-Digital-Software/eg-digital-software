@@ -212,7 +212,8 @@ export default function CustomersPage() {
                 <TableRow>
                   <TableHead>Client ID</TableHead>
                   <TableHead>Business</TableHead>
-                  <TableHead>Location</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Country</TableHead>
                   <TableHead>Invoices</TableHead>
                   <TableHead>Account Status</TableHead>
                   <TableHead className="w-10" />
@@ -238,7 +239,7 @@ export default function CustomersPage() {
                             <p className="truncate font-medium">{c.companyName}</p>
                             {c.tradingAs && c.tradingAs !== c.companyName && (
                               <p className="truncate text-xs text-muted-foreground">
-                                t/a {c.tradingAs}
+                                T/A {c.tradingAs}
                               </p>
                             )}
                             {c.businessType && (
@@ -254,11 +255,17 @@ export default function CustomersPage() {
                       <TableCell className="text-sm">
                         {(() => {
                           const loc = location(c);
-                          if (!loc) return '—';
+                          return loc?.city ? <span className="truncate">{loc.city}</span> : '—';
+                        })()}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {(() => {
+                          const loc = location(c);
+                          if (!loc?.country) return '—';
                           return (
                             <span className="flex items-center gap-1.5">
                               <Flag code={loc.code} />
-                              <span className="truncate">{loc.city || loc.country}</span>
+                              <span className="truncate">{loc.country}</span>
                             </span>
                           );
                         })()}

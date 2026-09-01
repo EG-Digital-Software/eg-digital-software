@@ -10,7 +10,7 @@ import { apiErrorMessage } from '@/api/client';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { numericField } from '@/lib/input';
+import { numericField, titleCaseField } from '@/lib/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
@@ -181,10 +181,10 @@ export default function SettingsPage() {
 
       <Section icon={Building2} title="Organisation">
         <Field label="Company Name" error={errors.companyName?.message}>
-          <Input {...register('companyName')} />
+          <Input {...titleCaseField(register('companyName'))} />
         </Field>
         <Field label="Legal / Registered Name" hint="Shown as the issuing entity on invoices">
-          <Input placeholder="EG Digital Australia Pty Ltd" {...register('legalName')} />
+          <Input placeholder="EG Digital Australia Pty Ltd" {...titleCaseField(register('legalName'))} />
         </Field>
         <Field label="ABN" error={errors.abn?.message} hint="11 digits">
           <Input maxLength={14} placeholder="76 593 175 012" {...register('abn')} />
@@ -197,11 +197,11 @@ export default function SettingsPage() {
       <Section icon={MapPin} title="Trading Address">
         <div className="sm:col-span-2">
           <Field label="Street Address">
-            <Input placeholder="Address line 1" {...register('addressLine1')} />
+            <Input placeholder="Address line 1" {...titleCaseField(register('addressLine1'))} />
           </Field>
         </div>
         <div className="sm:col-span-2">
-          <Input placeholder="Address line 2 (optional)" {...register('addressLine2')} />
+          <Input placeholder="Address line 2 (optional)" {...titleCaseField(register('addressLine2'))} />
         </div>
         <div className="sm:col-span-2">
           <Field label="Country">
@@ -215,7 +215,7 @@ export default function SettingsPage() {
           </Field>
         </div>
         <Field label="City">
-          <Input {...register('city')} />
+          <Input {...titleCaseField(register('city'))} />
         </Field>
         <Field label="State">
           <Input placeholder="VIC" {...register('state')} />

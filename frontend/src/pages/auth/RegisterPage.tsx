@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 import { Spinner } from '@/components/shared/states';
 import { registerRequest, type RegisterPayload } from '@/api/auth';
 import { apiErrorMessage } from '@/api/client';
+import { titleCaseField } from '@/lib/input';
 import {
   AuthShell,
   AuthField,
@@ -227,14 +228,14 @@ export default function RegisterPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="firstName">First name</Label>
-              <AuthField id="firstName" icon={User} {...register('firstName')} />
+              <AuthField id="firstName" icon={User} {...titleCaseField(register('firstName'))} />
               {errors.firstName && (
                 <p className="text-xs text-destructive">{errors.firstName.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="lastName">Last name</Label>
-              <AuthField id="lastName" icon={User} {...register('lastName')} />
+              <AuthField id="lastName" icon={User} {...titleCaseField(register('lastName'))} />
               {errors.lastName && (
                 <p className="text-xs text-destructive">{errors.lastName.message}</p>
               )}

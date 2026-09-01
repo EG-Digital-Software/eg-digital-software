@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -17,10 +17,14 @@ import {
   Eye,
   EyeOff,
   Copy,
+  Server,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { customerApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
-import type { Address, Customer } from '@/types';
+import type { Address, Customer, CustomerCredential } from '@/types';
+import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,7 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, EmptyState, Spinner } from '@/components/shared/states';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
-import { formatCurrency, formatDate, initials } from '@/lib/utils';
+import { formatCurrency, formatDate, initials, cn } from '@/lib/utils';
 import { businessTypeLabel, customerName, formatAbn, invoiceTermLabel } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
@@ -109,27 +113,31 @@ function Section({
   );
 }
 
-/**
- * The customer's portal login — admin-only. The password is never bundled with
- * the customer record; it is fetched (decrypted) on demand via revealCredential.
- */
-function CredentialCard({
+/** One login row — reveal its password inline, or remove it to revoke access. */
+function CredentialRow({
   clientId,
-  email,
-  hasCredential,
+  cred,
+  onRemove,
+  removing,
 }: {
   clientId: string;
-  email?: string | null;
-  hasCredential?: boolean;
+  cred: CustomerCredential;
+  onRemove: () => void;
+  removing: boolean;
 }) {
   const [revealing, setRevealing] = useState(false);
   const [password, setPassword] = useState<string | null>(null);
   const [show, setShow] = useState(false);
+  // Change-password form (admin can reset any customer login's password).
+  const [changing, setChanging] = useState(false);
+  const [newPass, setNewPass] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const reveal = async () => {
     setRevealing(true);
     try {
-      const res = await customerApi.revealCredential(clientId);
+      const res = await customerApi.revealCredentialById(clientId, cred.id);
       if (res.available && res.password) {
         setPassword(res.password);
         setShow(true);
@@ -143,70 +151,252 @@ function CredentialCard({
     }
   };
 
+  const saveNewPassword = async () => {
+    if (newPass.trim().length < 8) return;
+    setSaving(true);
+    try {
+      await customerApi.changeCredentialPassword(clientId, cred.id, newPass.trim());
+      toast.success('Password changed');
+      // Drop any previously revealed value so it can't show the old password.
+      setPassword(null);
+      setShow(false);
+      setNewPass('');
+      setChanging(false);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not change the password'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-secondary/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          <Mail className="h-3.5 w-3.5 text-muted-foreground" /> {cred.email}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setChanging((v) => !v)}
+          >
+            <KeyRound className="h-3.5 w-3.5" /> Change password
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={onRemove}
+            disabled={removing}
+          >
+            {removing ? <Spinner /> : <Trash2 className="h-3.5 w-3.5" />} Remove
+          </Button>
+        </div>
+      </div>
+
+      {changing && (
+        <div className="mt-3 rounded-lg border border-dashed border-border bg-card p-3">
+          <label className="text-xs font-medium text-muted-foreground">New password</label>
+          <div className="relative mt-1.5">
+            <Input
+              type={showNew ? 'text' : 'password'}
+              autoComplete="new-password"
+              className="pr-10"
+              placeholder="At least 8 characters"
+              value={newPass}
+              onChange={(e) => setNewPass(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew((s) => !s)}
+              aria-label={showNew ? 'Hide password' : 'Show password'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <div className="mt-2.5 flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={saveNewPassword}
+              disabled={saving || newPass.trim().length < 8}
+            >
+              {saving ? <Spinner /> : null} Save password
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setChanging(false);
+                setNewPass('');
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-2">
+        {password ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm">
+              {show ? password : '•'.repeat(Math.max(password.length, 8))}
+            </code>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShow((s) => !s)}>
+              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard?.writeText(password);
+                toast.success('Password copied');
+              }}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" variant="outline" size="sm" onClick={reveal} disabled={revealing}>
+            {revealing ? <Spinner /> : <Eye className="h-3.5 w-3.5" />} Reveal password
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * All portal logins for a customer, with an add form so an admin can grant
+ * access to more than one person.
+ */
+function CredentialsPanel({ clientId }: { clientId: string }) {
+  const qc = useQueryClient();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showNew, setShowNew] = useState(false);
+
+  const { data: creds, isLoading } = useQuery({
+    queryKey: ['customer-credentials', clientId],
+    queryFn: () => customerApi.listCredentials(clientId),
+  });
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['customer-credentials', clientId] });
+    qc.invalidateQueries({ queryKey: ['customer', clientId] });
+  };
+
+  const addMutation = useMutation({
+    mutationFn: () => customerApi.addCredential(clientId, { email: email.trim(), password }),
+    onSuccess: () => {
+      toast.success('Access granted — new login added');
+      setEmail('');
+      setPassword('');
+      invalidate();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not add the login')),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => customerApi.removeCredential(clientId, userId),
+    onSuccess: () => {
+      toast.success('Login removed — access revoked');
+      invalidate();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not remove the login')),
+  });
+
+  const canAdd = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && password.trim().length >= 8;
+
   return (
     <Card>
       <CardHeader className="flex-row items-center gap-3 space-y-0">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <KeyRound className="h-[18px] w-[18px]" />
         </div>
-        <CardTitle className="text-base">Customer Credential</CardTitle>
+        <div>
+          <CardTitle className="text-base">Customer Credentials</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Portal logins for this customer — grant access to more than one person.
+          </p>
+        </div>
         <Badge variant="secondary" className="ml-auto">
           Admin only
         </Badge>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {hasCredential ? (
-          <>
-            <Detail label="Customer Email (User ID)" value={email} />
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Password</p>
-              {password ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <code className="rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-sm">
-                    {show ? password : '•'.repeat(Math.max(password.length, 8))}
-                  </code>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShow((s) => !s)}
-                    aria-label={show ? 'Hide password' : 'Show password'}
-                  >
-                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(password);
-                      toast.success('Password copied');
-                    }}
-                    aria-label="Copy password"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={reveal}
-                  disabled={revealing}
-                >
-                  {revealing ? <Spinner /> : <Eye className="h-3.5 w-3.5" />}
-                  Reveal password
-                </Button>
-              )}
-            </div>
-          </>
+      <CardContent className="space-y-5">
+        {isLoading ? (
+          <LoadingBlock />
+        ) : creds?.length ? (
+          <div className="space-y-3">
+            {creds.map((cred) => (
+              <CredentialRow
+                key={cred.id}
+                clientId={clientId}
+                cred={cred}
+                onRemove={() => removeMutation.mutate(cred.id)}
+                removing={removeMutation.isPending && removeMutation.variables === cred.id}
+              />
+            ))}
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No portal login has been set for this customer. Use{' '}
-            <span className="font-medium text-foreground">Edit</span> to create one.
+            No portal logins yet. Add one below to give this customer access.
           </p>
         )}
+
+        {/* Add another login */}
+        <div className="rounded-lg border border-dashed border-border p-4">
+          <p className="mb-3 text-sm font-medium">Add a login</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Email (User ID)</label>
+              <Input
+                type="email"
+                autoComplete="off"
+                placeholder="person@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Password</label>
+              <div className="relative">
+                <Input
+                  type={showNew ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  className="pr-10"
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew((s) => !s)}
+                  aria-label={showNew ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <Button
+            type="button"
+            className="mt-3"
+            onClick={() => addMutation.mutate()}
+            disabled={!canAdd || addMutation.isPending}
+          >
+            {addMutation.isPending ? <Spinner /> : <Plus className="h-4 w-4" />} Add login
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -325,9 +515,24 @@ export default function CustomerDetailPage() {
             </div>
           </div>
           {c.creditScore != null && (
-            <div className="shrink-0 rounded-lg border border-border bg-secondary/40 px-4 py-2 text-center">
+            <div
+              className={cn(
+                'shrink-0 rounded-lg border px-4 py-2 text-center',
+                // 500+ is healthy (green); anything below is a risk flag (red).
+                c.creditScore >= 500
+                  ? 'border-success/30 bg-success/10'
+                  : 'border-destructive/30 bg-destructive/10'
+              )}
+            >
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Credit Score</p>
-              <p className="text-xl font-semibold tabular-nums">{c.creditScore}</p>
+              <p
+                className={cn(
+                  'text-xl font-semibold tabular-nums',
+                  c.creditScore >= 500 ? 'text-success' : 'text-destructive'
+                )}
+              >
+                {c.creditScore}
+              </p>
             </div>
           )}
         </CardContent>
@@ -338,11 +543,15 @@ export default function CustomerDetailPage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="products">Products & Licences</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          <TabsTrigger value="credential">Credential</TabsTrigger>
+          <TabsTrigger value="task">Task</TabsTrigger>
         </TabsList>
 
         {/* Mirrors the Add/Edit form section-for-section so the two read the same. */}
         <TabsContent value="overview">
-          <div className="grid items-start gap-6 lg:grid-cols-2">
+          {/* Masonry-style columns so cards pack tightly — a fixed grid left big
+              empty gaps under the shorter cards (each row grew to its tallest). */}
+          <div className="columns-1 gap-6 lg:columns-2 [&>*]:mb-6 [&>*]:break-inside-avoid">
             <Section icon={Building2} title="Company Information">
               <Detail
                 label="Registration Country"
@@ -457,6 +666,34 @@ export default function CustomerDetailPage() {
               </Section>
             )}
 
+            {!!c.itContacts?.length && (
+              <Section icon={Server} title="IT Details">
+                <div className="sm:col-span-2 space-y-3">
+                  {c.itContacts.map((it, i) => (
+                    <div
+                      key={it.id}
+                      className="rounded-lg border border-border bg-secondary/30 p-3 text-sm"
+                    >
+                      <p className="mb-1 font-medium">{it.name || `IT Contact ${i + 1}`}</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                        {it.email && (
+                          <span className="flex items-center gap-1.5">
+                            <Mail className="h-3.5 w-3.5" /> {it.email}
+                          </span>
+                        )}
+                        {it.phone && (
+                          <span className="flex items-center gap-1.5">
+                            <Phone className="h-3.5 w-3.5" />
+                            {formatPhone(it.phone, it.phoneCountry)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
+
             <Section icon={Receipt} title="Invoicing Details">
               <Detail label="Accounts Person Name" value={c.billingContactPerson} />
               <Detail
@@ -483,12 +720,6 @@ export default function CustomerDetailPage() {
                 })()}
               />
             </Section>
-
-            <CredentialCard
-              clientId={c.clientId}
-              email={c.credentialEmail}
-              hasCredential={c.hasCredential}
-            />
           </div>
         </TabsContent>
 
@@ -579,6 +810,21 @@ export default function CustomerDetailPage() {
                   </TableBody>
                 </Table>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="credential">
+          <CredentialsPanel clientId={c.clientId} />
+        </TabsContent>
+
+        <TabsContent value="task">
+          <Card>
+            <CardContent className="p-6">
+              <EmptyState
+                title="No tasks yet"
+                description="Tasks for this customer will appear here."
+              />
             </CardContent>
           </Card>
         </TabsContent>

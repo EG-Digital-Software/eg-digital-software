@@ -9,7 +9,7 @@ import { settingsApi, type PaymentSettingsInput } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Textarea, Select } from '@/components/ui/input';
-import { numericField } from '@/lib/input';
+import { numericField, titleCaseField } from '@/lib/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
@@ -224,10 +224,10 @@ export default function PaymentSettingsForm() {
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Account name" error={errors.accountName?.message}>
-              <Input disabled={!bankOn} placeholder="EG Digital Australia Pty Ltd" {...register('accountName')} />
+              <Input disabled={!bankOn} placeholder="EG Digital Australia Pty Ltd" {...titleCaseField(register('accountName'))} />
             </Field>
             <Field label="Bank name" error={errors.bankName?.message}>
-              <Input disabled={!bankOn} placeholder="e.g. Commonwealth Bank" {...register('bankName')} />
+              <Input disabled={!bankOn} placeholder="e.g. Commonwealth Bank" {...titleCaseField(register('bankName'))} />
             </Field>
             <Field label="BSB" error={errors.bsb?.message}>
               <Input disabled={!bankOn} maxLength={6} placeholder="000000" {...numericField(register('bsb'))} />

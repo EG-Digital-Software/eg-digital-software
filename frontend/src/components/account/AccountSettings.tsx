@@ -12,6 +12,7 @@ import {
   removeAvatarRequest,
 } from '@/api/auth';
 import { apiErrorMessage } from '@/api/client';
+import { titleCaseField } from '@/lib/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -253,7 +254,7 @@ export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'prof
               >
                 <div className="space-y-1.5">
                   <Label>First name</Label>
-                  <Input {...profileForm.register('firstName')} />
+                  <Input {...titleCaseField(profileForm.register('firstName'))} />
                   {profileForm.formState.errors.firstName && (
                     <p className="text-xs text-destructive">
                       {profileForm.formState.errors.firstName.message}
@@ -262,7 +263,7 @@ export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'prof
                 </div>
                 <div className="space-y-1.5">
                   <Label>Last name</Label>
-                  <Input {...profileForm.register('lastName')} />
+                  <Input {...titleCaseField(profileForm.register('lastName'))} />
                   {profileForm.formState.errors.lastName && (
                     <p className="text-xs text-destructive">
                       {profileForm.formState.errors.lastName.message}

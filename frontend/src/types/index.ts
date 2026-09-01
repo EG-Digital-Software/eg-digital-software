@@ -165,6 +165,7 @@ export interface Customer {
   createdAt: string;
   addresses?: Address[];
   directors?: Director[];
+  itContacts?: ItContact[];
   customerProducts?: CustomerProduct[];
   invoices?: Invoice[];
   _count?: { customerProducts: number };
@@ -178,6 +179,23 @@ export interface Director {
   email: string;
   contactNumber?: string | null;
   contactNumberCountry?: string | null;
+}
+
+export interface ItContact {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  phoneCountry?: string | null;
+}
+
+/** A portal login linked to a customer (admin can provision several). */
+export interface CustomerCredential {
+  id: string;
+  email: string;
+  isActive: boolean;
+  approvalStatus: string;
+  createdAt: string;
 }
 
 export interface InvoiceItem {

@@ -131,6 +131,7 @@ export async function getCustomerByClientId(clientId: string) {
     include: {
       addresses: true,
       directors: true,
+      itContacts: true,
       customerProducts: { include: { product: true, licence: true } },
       invoices: { include: { payments: true }, orderBy: { createdAt: 'desc' } },
     },
@@ -264,6 +265,103 @@ export async function revealCredential(clientId: string) {
   return { email: login.email, password, available: password !== null };
 }
 
+const CREDENTIAL_SELECT = {
+  id: true,
+  email: true,
+  isActive: true,
+  approvalStatus: true,
+  createdAt: true,
+} as const;
+
+/**
+ * Every portal login linked to this customer. An admin can grant access to more
+ * than one person, so this returns the full list (no secrets — reveal is a
+ * separate, explicit call).
+ */
+export async function listCredentials(clientId: string) {
+  const customer = await prisma.customer.findUnique({
+    where: { clientId },
+    select: { users: { select: CREDENTIAL_SELECT, orderBy: { createdAt: 'asc' } } },
+  });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  return customer.users;
+}
+
+/**
+ * Add an additional portal login for this customer so the admin can give access
+ * to someone else. Auto-approved, exactly like the first login.
+ */
+export async function addCredential(clientId: string, input: { email?: string; password?: string }) {
+  const customer = await prisma.customer.findUnique({
+    where: { clientId },
+    select: { id: true, contactPerson: true, companyName: true },
+  });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const email = input.email?.trim().toLowerCase() || '';
+  const password = input.password?.trim() || '';
+  if (!email) throw ApiError.badRequest('A login email is required');
+  if (!password) throw ApiError.badRequest('A password is required');
+  await ensureEmailFree(prisma, email);
+  const { firstName, lastName } = credentialName(customer);
+  return prisma.clientUser.create({
+    data: {
+      firstName,
+      lastName,
+      email,
+      passwordHash: await argon2.hash(password),
+      passwordEnc: encryptSecret(password),
+      approvalStatus: 'APPROVED',
+      customerId: customer.id,
+    },
+    select: CREDENTIAL_SELECT,
+  });
+}
+
+/** Reveal a specific login's password (admin only). */
+export async function revealCredentialById(clientId: string, userId: string) {
+  const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const login = await prisma.clientUser.findFirst({
+    where: { id: userId, customerId: customer.id },
+    select: { email: true, passwordEnc: true },
+  });
+  if (!login) throw ApiError.notFound('Login not found for this customer');
+  const password = decryptSecret(login.passwordEnc);
+  return { email: login.email, password, available: password !== null };
+}
+
+/** Reset a specific login's password (admin only). Updates both the argon2 hash
+ *  used to authenticate and the reversible copy the admin can later reveal. */
+export async function changeCredentialPassword(clientId: string, userId: string, password?: string) {
+  const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const login = await prisma.clientUser.findFirst({
+    where: { id: userId, customerId: customer.id },
+    select: { id: true },
+  });
+  if (!login) throw ApiError.notFound('Login not found for this customer');
+  const pw = password?.trim() || '';
+  if (pw.length < 8) throw ApiError.badRequest('Password must be at least 8 characters');
+  await prisma.clientUser.update({
+    where: { id: login.id },
+    data: { passwordHash: await argon2.hash(pw), passwordEnc: encryptSecret(pw) },
+  });
+  return { id: login.id };
+}
+
+/** Remove a portal login from this customer, revoking that person's access. */
+export async function removeCredential(clientId: string, userId: string) {
+  const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const login = await prisma.clientUser.findFirst({
+    where: { id: userId, customerId: customer.id },
+    select: { id: true },
+  });
+  if (!login) throw ApiError.notFound('Login not found for this customer');
+  await prisma.clientUser.delete({ where: { id: login.id } });
+  return { id: login.id };
+}
+
 type AddressInput = Record<string, string | undefined>;
 
 type CreateInput = {
@@ -299,6 +397,14 @@ type CreateInput = {
     email?: string;
     contactNumber?: string;
     contactNumberCountry?: string;
+  }>;
+
+  // IT Details — technical contacts (name / email / phone), repeatable.
+  itContacts?: Array<{
+    name?: string;
+    email?: string;
+    phone?: string;
+    phoneCountry?: string;
   }>;
 
   // Invoicing Details
@@ -483,6 +589,13 @@ export async function createCustomer(input: CreateInput) {
       });
     }
 
+    const itContacts = cleanItContacts(input.itContacts);
+    if (itContacts.length) {
+      await tx.customerITContact.createMany({
+        data: itContacts.map((c) => ({ ...c, customerId: customer.id })),
+      });
+    }
+
     await upsertCredential(tx, customer, input.credential);
 
     return tx.customer.findUniqueOrThrow({
@@ -490,6 +603,7 @@ export async function createCustomer(input: CreateInput) {
       include: {
         addresses: true,
         directors: true,
+        itContacts: true,
         customerProducts: { include: { product: true, licence: true } },
       },
     });
@@ -510,6 +624,18 @@ function cleanDirectors(list?: CreateInput['directors']) {
       email: d.email!.trim(),
       contactNumber: (d.contactNumber ?? '').replace(/\D/g, '') || null,
       contactNumberCountry: d.contactNumberCountry?.trim() || 'AU',
+    }));
+}
+
+/** Drop blank IT-contact rows; a row counts once any of its fields is filled. */
+function cleanItContacts(list?: CreateInput['itContacts']) {
+  return (list ?? [])
+    .filter((c) => c.name?.trim() || c.email?.trim() || c.phone?.trim())
+    .map((c) => ({
+      name: c.name?.trim() || null,
+      email: c.email?.trim() || null,
+      phone: (c.phone ?? '').replace(/\D/g, '') || null,
+      phoneCountry: c.phoneCountry?.trim() || 'AU',
     }));
 }
 
@@ -551,11 +677,23 @@ export async function updateCustomer(clientId: string, input: Partial<CreateInpu
       }
     }
 
+    // IT contacts are a full list from the form — replace the set outright so a
+    // removed row actually disappears rather than lingering.
+    if (input.itContacts !== undefined) {
+      await tx.customerITContact.deleteMany({ where: { customerId: existing.id } });
+      const itContacts = cleanItContacts(input.itContacts);
+      if (itContacts.length) {
+        await tx.customerITContact.createMany({
+          data: itContacts.map((c) => ({ ...c, customerId: existing.id })),
+        });
+      }
+    }
+
     await upsertCredential(tx, existing, input.credential);
 
     return tx.customer.findUniqueOrThrow({
       where: { id: existing.id },
-      include: { addresses: true, directors: true },
+      include: { addresses: true, directors: true, itContacts: true },
     });
     // The shared Azure DB adds round-trip latency; this transaction touches
     // addresses, directors and the portal login, so give it more than the 5s

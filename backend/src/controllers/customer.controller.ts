@@ -32,6 +32,38 @@ export const revealCredential = asyncHandler(async (req: Request, res: Response)
   return ok(res, credential);
 });
 
+export const listCredentials = asyncHandler(async (req: Request, res: Response) => {
+  const credentials = await customerService.listCredentials(req.params.clientId);
+  return ok(res, credentials);
+});
+
+export const addCredential = asyncHandler(async (req: Request, res: Response) => {
+  const credential = await customerService.addCredential(req.params.clientId, req.body);
+  return ok(res, credential, 'Credential added', 201);
+});
+
+export const revealCredentialById = asyncHandler(async (req: Request, res: Response) => {
+  const credential = await customerService.revealCredentialById(
+    req.params.clientId,
+    req.params.userId
+  );
+  return ok(res, credential);
+});
+
+export const changeCredentialPassword = asyncHandler(async (req: Request, res: Response) => {
+  const result = await customerService.changeCredentialPassword(
+    req.params.clientId,
+    req.params.userId,
+    req.body.password
+  );
+  return ok(res, result, 'Password changed');
+});
+
+export const removeCredential = asyncHandler(async (req: Request, res: Response) => {
+  const deleted = await customerService.removeCredential(req.params.clientId, req.params.userId);
+  return ok(res, deleted, 'Credential removed');
+});
+
 export const create = asyncHandler(async (req: Request, res: Response) => {
   const customer = await customerService.createCustomer(req.body);
   logActivity({

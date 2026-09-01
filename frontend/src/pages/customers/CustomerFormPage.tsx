@@ -137,6 +137,18 @@ const schema = z
       )
       .optional(),
 
+    // IT Details — technical contacts (name / email / phone), repeatable.
+    itContacts: z
+      .array(
+        z.object({
+          name: z.string().optional(),
+          email: optionalEmail,
+          phone: z.string().optional(),
+          phoneCountry: z.string().optional(),
+        })
+      )
+      .optional(),
+
     assignedProducts: z
       .array(
         z.object({
@@ -216,6 +228,20 @@ const schema = z
       }
     });
   })
+  // Each IT contact row, once started, is validated for a well-formed email and
+  // a full 10-digit phone number. Name-only rows are allowed.
+  .superRefine((v, ctx) => {
+    (v.itContacts ?? []).forEach((c, i) => {
+      const started = !!(c.name?.trim() || c.email?.trim() || c.phone?.trim());
+      if (!started) return;
+      if (c.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter a valid email', path: ['itContacts', i, 'email'] });
+      }
+      if (c.phone?.trim() && !phoneComplete(c.phone)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Phone number must be 10 digits', path: ['itContacts', i, 'phone'] });
+      }
+    });
+  })
   // Required identifiers for the selected registration country, plus the ABN
   // checksum for Australia.
   .superRefine((v, ctx) => {
@@ -275,8 +301,11 @@ const DEFAULTS: FormValues = {
   directors: [
     { firstName: '', middleName: '', lastName: '', email: '', contactNumber: '', contactNumberCountry: DEFAULT_COUNTRY },
   ],
+  itContacts: [{ name: '', email: '', phone: '', phoneCountry: DEFAULT_COUNTRY }],
   assignedProducts: [],
 };
+
+const EMPTY_IT_CONTACT = { name: '', email: '', phone: '', phoneCountry: DEFAULT_COUNTRY };
 
 const EMPTY_DIRECTOR = {
   firstName: '',
@@ -351,77 +380,6 @@ function Field({
 }
 
 /**
- * IT Details — placeholder section requested to sit after Invoicing Details.
- *
- * NOTE: these fields are UI-only for now and are held in local state, so nothing
- * here is sent to the API or persisted. Once the final field list is agreed,
- * wire them into the form schema, the backend validator/service and a migration.
- */
-const EMPTY_IT_DETAILS = {
-  domainName: '',
-  websiteUrl: '',
-  hostingProvider: '',
-  serverIp: '',
-  emailPlatform: '',
-  userSeats: '',
-  antivirus: '',
-  backupSolution: '',
-  notes: '',
-};
-
-function ITDetailsSection({ disabled }: { disabled?: boolean }) {
-  const [it, setIt] = useState(EMPTY_IT_DETAILS);
-  const set = (key: keyof typeof EMPTY_IT_DETAILS) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setIt((prev) => ({ ...prev, [key]: e.target.value }));
-
-  return (
-    <Section
-      icon={Server}
-      title="IT Details"
-      description="Technical account details — placeholder fields for now, not yet saved"
-    >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Domain Name" hint="e.g. acme.com.au">
-          <Input disabled={disabled} value={it.domainName} onChange={set('domainName')} />
-        </Field>
-        <Field label="Website URL">
-          <Input disabled={disabled} placeholder="https://" value={it.websiteUrl} onChange={set('websiteUrl')} />
-        </Field>
-        <Field label="Hosting Provider" hint="e.g. Azure, AWS, cPanel host">
-          <Input disabled={disabled} value={it.hostingProvider} onChange={set('hostingProvider')} />
-        </Field>
-        <Field label="Server / IP Address">
-          <Input disabled={disabled} value={it.serverIp} onChange={set('serverIp')} />
-        </Field>
-        <Field label="Email Platform" hint="e.g. Microsoft 365, Google Workspace">
-          <Input disabled={disabled} value={it.emailPlatform} onChange={set('emailPlatform')} />
-        </Field>
-        <Field label="Number of Users / Seats">
-          <Input disabled={disabled} inputMode="numeric" value={it.userSeats} onChange={set('userSeats')} />
-        </Field>
-        <Field label="Antivirus / Endpoint Protection">
-          <Input disabled={disabled} value={it.antivirus} onChange={set('antivirus')} />
-        </Field>
-        <Field label="Backup Solution">
-          <Input disabled={disabled} value={it.backupSolution} onChange={set('backupSolution')} />
-        </Field>
-        <div className="sm:col-span-2 lg:col-span-3">
-          <Field label="IT Notes" hint="Anything else worth recording about this customer's IT setup">
-            <textarea
-              disabled={disabled}
-              value={it.notes}
-              onChange={set('notes')}
-              rows={3}
-              className="flex min-h-20 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </Field>
-        </div>
-      </div>
-    </Section>
-  );
-}
-
-/**
  * Customer Credential — the portal login the admin provisions for the customer.
  *
  * On create, both fields set up the login. On edit, the email prefills and the
@@ -430,12 +388,14 @@ function ITDetailsSection({ disabled }: { disabled?: boolean }) {
  */
 function CredentialSection({
   register,
+  emailError,
   passwordError,
   isEdit,
   clientId,
   hasCredential,
 }: {
   register: ReturnType<typeof useForm<FormValues>>['register'];
+  emailError?: string;
   passwordError?: string;
   isEdit: boolean;
   clientId?: string;
@@ -468,15 +428,16 @@ function CredentialSection({
       title="Customer Credential"
       description="The email and password the customer uses to sign in to their portal"
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         <Field
-          label="Customer Email (User ID)"
+          label={isEdit ? 'Customer Email (User ID)' : 'Customer Email (User ID) *'}
+          error={emailError}
           hint="The email the customer logs in with"
         >
           <Input type="email" autoComplete="off" {...register('credential.email')} />
         </Field>
         <Field
-          label={isEdit ? 'New Password' : 'Password'}
+          label={isEdit ? 'New Password' : 'Password *'}
           error={passwordError}
           hint={isEdit ? 'Leave blank to keep the current password' : 'At least 8 characters'}
         >
@@ -934,6 +895,32 @@ export default function CustomerFormPage() {
     enabled: !isEdit,
   });
 
+  // On create, the portal login is mandatory — a customer can't be created
+  // without an email + password. On edit the credential already exists (email
+  // prefilled, blank password keeps the current one), so it stays optional.
+  const resolverSchema = useMemo(
+    () =>
+      isEdit
+        ? schema
+        : schema.superRefine((v, ctx) => {
+            if (!v.credential?.email?.trim()) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'Customer email is required',
+                path: ['credential', 'email'],
+              });
+            }
+            if (!v.credential?.password?.trim()) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'Password is required',
+                path: ['credential', 'password'],
+              });
+            }
+          }),
+    [isEdit]
+  );
+
   const {
     register,
     handleSubmit,
@@ -943,7 +930,7 @@ export default function CustomerFormPage() {
     reset,
     getValues,
     formState: { errors, dirtyFields },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
+  } = useForm<FormValues>({ resolver: zodResolver(resolverSchema), defaultValues: DEFAULTS });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'assignedProducts' });
   const {
@@ -957,6 +944,11 @@ export default function CustomerFormPage() {
     append: appendDirector,
     remove: removeDirector,
   } = useFieldArray({ control, name: 'directors' });
+  const {
+    fields: itContactFields,
+    append: appendItContact,
+    remove: removeItContact,
+  } = useFieldArray({ control, name: 'itContacts' });
   const sameAsPrincipal = watch('sameAsPrincipal');
   const authorized = watch('authorized');
   const assigned = watch('assignedProducts');
@@ -1220,6 +1212,14 @@ export default function CustomerFormPage() {
             contactNumberCountry: d.contactNumberCountry ?? DEFAULT_COUNTRY,
           }))
         : [{ ...EMPTY_DIRECTOR }],
+      itContacts: existing.itContacts?.length
+        ? existing.itContacts.map((c) => ({
+            name: c.name ?? '',
+            email: c.email ?? '',
+            phone: c.phone ?? '',
+            phoneCountry: c.phoneCountry ?? DEFAULT_COUNTRY,
+          }))
+        : [{ ...EMPTY_IT_CONTACT }],
       assignedProducts: [],
     });
   }, [existing, reset]);
@@ -1270,6 +1270,15 @@ export default function CustomerFormPage() {
             email: d.email!.trim(),
             contactNumber: d.contactNumber?.trim() || undefined,
             contactNumberCountry: d.contactNumberCountry,
+          })),
+        // Drop blank IT-contact rows; a row counts once any field is filled.
+        itContacts: (values.itContacts ?? [])
+          .filter((c) => c.name?.trim() || c.email?.trim() || c.phone?.trim())
+          .map((c) => ({
+            name: c.name?.trim() || undefined,
+            email: c.email?.trim() || undefined,
+            phone: c.phone?.trim() || undefined,
+            phoneCountry: c.phoneCountry,
           })),
         assignedProducts: isEdit ? undefined : values.assignedProducts,
         // Send the login only when the admin actually set/changed something.
@@ -1347,6 +1356,9 @@ export default function CustomerFormPage() {
       </div>
 
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="ff-form space-y-6">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_480px] lg:items-start">
+          {/* Main form sections — left / primary column */}
+          <div className="min-w-0 space-y-6">
         {/* ── 1. Company Information ── */}
         <Section icon={Building2} title="Company Information">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1406,7 +1418,7 @@ export default function CustomerFormPage() {
               </Field>
             ))}
             <Field label="Business Name">
-              <Input {...register('companyName')} />
+              <Input {...titleCaseField(register('companyName'))} />
             </Field>
             {/*
               One row per trading name. An ABN lookup replaces the whole list
@@ -1561,7 +1573,7 @@ export default function CustomerFormPage() {
         <Section icon={Contact} title="Contact Information">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Contact Name">
-              <Input {...guardedField(register('contactPerson'), 'letters')} />
+              <Input {...titleCaseField(guardedField(register('contactPerson'), 'letters'))} />
             </Field>
             <Field label="Contact Email" error={errors.contactEmail?.message}>
               <Input type="email" {...guardedField(register('contactEmail'), 'email')} />
@@ -1574,7 +1586,7 @@ export default function CustomerFormPage() {
               />
             </Field>
             <Field label="Contact Position">
-              <Input placeholder="e.g. Operations Manager" {...register('contactPosition')} />
+              <Input placeholder="e.g. Operations Manager" {...titleCaseField(register('contactPosition'))} />
             </Field>
             <Field label="Authorised">
               <Select {...register('authorized')}>
@@ -1589,7 +1601,7 @@ export default function CustomerFormPage() {
               <p className="text-sm font-medium">Authorised Representative</p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Authorised Person" error={errors.authorizedPerson?.message}>
-                  <Input {...guardedField(register('authorizedPerson'), 'letters')} />
+                  <Input {...titleCaseField(guardedField(register('authorizedPerson'), 'letters'))} />
                 </Field>
                 <Field label="Authorised Email" error={errors.authorizedEmail?.message}>
                   <Input type="email" {...guardedField(register('authorizedEmail'), 'email')} />
@@ -1734,10 +1746,10 @@ export default function CustomerFormPage() {
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Invoice Customer" hint="Name that appears on invoices">
-              <Input {...register('invoiceCustomer')} />
+              <Input {...titleCaseField(register('invoiceCustomer'))} />
             </Field>
             <Field label="Accounts Person Name">
-              <Input {...guardedField(register('billingContactPerson'), 'letters')} />
+              <Input {...titleCaseField(guardedField(register('billingContactPerson'), 'letters'))} />
             </Field>
             <Field label="Accounts Person Mobile" plain>
               <PhoneField
@@ -1799,8 +1811,81 @@ export default function CustomerFormPage() {
           </div>
         </Section>
 
-        {/* ── 4b. IT Details (UI-only placeholder — not yet persisted) ── */}
-        <ITDetailsSection disabled={mutation.isPending} />
+        {/* ── 4b. IT Details ── */}
+        <Section
+          icon={Server}
+          title="IT Details"
+          description="Technical contacts for this customer — add as many as you need."
+        >
+          <div className="space-y-4">
+            {itContactFields.map((field, index) => (
+              <div key={field.id} className="rounded-lg border border-border bg-secondary/30 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-medium">IT Contact {index + 1}</span>
+                  {itContactFields.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => removeItContact(index)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Remove
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <Field label="Name">
+                    <Input
+                      placeholder="Full name"
+                      {...titleCaseField(register(`itContacts.${index}.name` as const))}
+                    />
+                  </Field>
+                  <Field label="Email" error={errors.itContacts?.[index]?.email?.message}>
+                    <Input
+                      type="email"
+                      placeholder="name@example.com"
+                      {...guardedField(register(`itContacts.${index}.email` as const), 'email')}
+                    />
+                  </Field>
+                  <Field
+                    label="Phone Number"
+                    plain
+                    error={errors.itContacts?.[index]?.phone?.message}
+                  >
+                    <Controller
+                      control={control}
+                      name={`itContacts.${index}.phone` as const}
+                      render={({ field: numField }) => (
+                        <Controller
+                          control={control}
+                          name={`itContacts.${index}.phoneCountry` as const}
+                          render={({ field: cField }) => (
+                            <PhoneInput
+                              className={FILLED_CONTROL}
+                              country={cField.value ?? DEFAULT_COUNTRY}
+                              onCountryChange={cField.onChange}
+                              value={numField.value ?? ''}
+                              onValueChange={numField.onChange}
+                              onBlur={numField.onBlur}
+                            />
+                          )}
+                        />
+                      )}
+                    />
+                  </Field>
+                </div>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => appendItContact({ ...EMPTY_IT_CONTACT })}
+            >
+              <Plus className="h-4 w-4" /> Add
+            </Button>
+          </div>
+        </Section>
 
         {/* ── 5. Products ── */}
         {!isEdit && (
@@ -1887,14 +1972,19 @@ export default function CustomerFormPage() {
           </Section>
         )}
 
-        {/* ── 6. Customer Credential ── */}
-        <CredentialSection
-          register={register}
-          passwordError={errors.credential?.password?.message}
-          isEdit={isEdit}
-          clientId={clientId}
-          hasCredential={existing?.hasCredential}
-        />
+          </div>
+          {/* ── Customer Credential — pinned top-right ── */}
+          <aside className="lg:sticky lg:top-6">
+            <CredentialSection
+              register={register}
+              emailError={errors.credential?.email?.message}
+              passwordError={errors.credential?.password?.message}
+              isEdit={isEdit}
+              clientId={clientId}
+              hasCredential={existing?.hasCredential}
+            />
+          </aside>
+        </div>
 
         <div className="flex items-center justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => navigate('/admin/customers')}>
