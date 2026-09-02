@@ -22,6 +22,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { customerApi } from '@/api/resources';
+import { adminTaskApi } from '@/api/tasks';
+import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
 import type { Address, Customer, CustomerCredential } from '@/types';
 import { Input } from '@/components/ui/input';
@@ -819,14 +821,7 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="task">
-          <Card>
-            <CardContent className="p-6">
-              <EmptyState
-                title="No tasks yet"
-                description="Tasks for this customer will appear here."
-              />
-            </CardContent>
-          </Card>
+          <TaskBoard api={adminTaskApi(c.clientId)} scopeKey={c.clientId} />
         </TabsContent>
       </Tabs>
     </div>

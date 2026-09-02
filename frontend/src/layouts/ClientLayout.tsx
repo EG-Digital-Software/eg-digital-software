@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Receipt, KeyRound, LogOut, User, IdCard } from 'lucide-react';
+import { LayoutDashboard, Receipt, KeyRound, LogOut, User, IdCard, ListChecks } from 'lucide-react';
 import { useAuth } from '@/store/auth';
 import { useLogout } from '@/hooks/useSession';
 import { initials, cn, mediaUrl } from '@/lib/utils';
@@ -18,6 +18,7 @@ import {
 const NAV = [
   { to: '/client/dashboard', label: 'Overview', icon: LayoutDashboard },
   { to: '/client/invoices', label: 'Invoices', icon: Receipt },
+  { to: '/client/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/client/licences', label: 'Licences', icon: KeyRound },
   { to: '/client/details', label: 'My Details', icon: IdCard },
 ];

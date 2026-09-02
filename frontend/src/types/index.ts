@@ -277,3 +277,91 @@ export interface SeriesPoint {
   date: string;
   value: number;
 }
+
+// ── Tasks (Microsoft Planner-style board) ────────────────
+export type TaskProgress = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+export type TaskPriority = 'URGENT' | 'IMPORTANT' | 'MEDIUM' | 'LOW';
+
+export interface TaskLabel {
+  id: string;
+  customerId: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+export interface TaskAssignee {
+  id?: string;
+  userId: string;
+  userType: Role;
+  name: string;
+  email?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface ChecklistItem {
+  id: string;
+  taskId: string;
+  text: string;
+  done: boolean;
+  order: number;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  authorId: string;
+  authorType: Role;
+  authorName: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface TaskAttachment {
+  id: string;
+  taskId: string;
+  fileName: string;
+  url: string;
+  size: number;
+  contentType?: string | null;
+  uploadedById?: string | null;
+  createdAt: string;
+}
+
+export interface Task {
+  id: string;
+  customerId: string;
+  bucketId: string;
+  title: string;
+  description?: string | null;
+  progress: TaskProgress;
+  priority: TaskPriority;
+  startDate?: string | null;
+  dueDate?: string | null;
+  order: number;
+  completedAt?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  assignees: TaskAssignee[];
+  labels: TaskLabel[];
+  checklist: ChecklistItem[];
+  comments: TaskComment[];
+  attachments: TaskAttachment[];
+}
+
+export interface TaskBucket {
+  id: string;
+  customerId: string;
+  name: string;
+  order: number;
+  tasks: Task[];
+}
+
+export interface TaskBoard {
+  buckets: TaskBucket[];
+  labels: TaskLabel[];
+}
+
+/** A staff member a task can be assigned to. */
+export type AssignableUser = Omit<TaskAssignee, 'id'>;

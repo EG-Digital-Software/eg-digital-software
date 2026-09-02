@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Search,
@@ -14,8 +14,11 @@ import {
   Package,
   ShieldCheck,
   Wallet,
+  ListChecks,
+  ChevronDown,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { useAuth } from '@/store/auth';
 import { adminApi } from '@/api/resources';
@@ -39,46 +42,112 @@ const ROLE_LABEL: Record<string, string> = {
   EMPLOYEE: 'Employee',
 };
 
-const NAV = [
+interface NavChild {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+}
+interface NavEntry {
+  to?: string;
+  label: string;
+  icon: LucideIcon;
+  children?: NavChild[];
+}
+
+const NAV: NavEntry[] = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/customers', label: 'Customers', icon: Users },
+  {
+    label: 'Customers',
+    icon: Users,
+    children: [
+      { to: '/admin/customers', label: 'Manage Customer', icon: Users },
+      { to: '/admin/tasks', label: 'Task', icon: ListChecks },
+    ],
+  },
   { to: '/admin/billing', label: 'Billing', icon: Receipt },
   { to: '/admin/products', label: 'Products', icon: Package },
   { to: '/admin/payments', label: 'Payments', icon: Wallet },
   { to: '/admin/approvals', label: 'Approvals', icon: ShieldCheck },
 ];
 
-function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+const navItemClass = (active: boolean) =>
+  cn(
+    'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+    active
+      ? 'bg-primary text-primary-foreground shadow-sm'
+      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+  );
+
+function NavItems({ onNavigate, mobile }: { onNavigate?: () => void; mobile?: boolean }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { data: pending } = useQuery({
     queryKey: ['admin', 'pendingCount'],
     queryFn: adminApi.pendingCount,
     refetchInterval: 60_000,
   });
+
   return (
     <>
-      {NAV.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-            )
+      {NAV.map((item) => {
+        // ── Dropdown group (e.g. Customers → Manage Customer / Task) ──
+        if (item.children) {
+          const groupActive = item.children.some((c) => location.pathname.startsWith(c.to));
+
+          // Mobile: show the children as an inline, indented section.
+          if (mobile) {
+            return (
+              <div key={item.label} className="flex flex-col gap-1">
+                <span className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {item.label}
+                </span>
+                {item.children.map((c) => (
+                  <NavLink key={c.to} to={c.to} onClick={onNavigate} className={({ isActive }) => cn(navItemClass(isActive), 'ml-2')}>
+                    <c.icon className="h-[18px] w-[18px] shrink-0" />
+                    <span>{c.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            );
           }
-        >
-          <item.icon className="h-[18px] w-[18px] shrink-0" />
-          <span>{item.label}</span>
-          {item.to === '/admin/approvals' && !!pending && pending > 0 && (
-            <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold text-destructive-foreground">
-              {pending}
-            </span>
-          )}
-        </NavLink>
-      ))}
+
+          // Desktop: dropdown menu.
+          return (
+            <DropdownMenu key={item.label}>
+              <DropdownMenuTrigger className={cn(navItemClass(groupActive), 'focus:outline-none')}>
+                <item.icon className="h-[18px] w-[18px] shrink-0" />
+                <span>{item.label}</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {item.children.map((c) => (
+                  <DropdownMenuItem key={c.to} onSelect={() => { navigate(c.to); onNavigate?.(); }}>
+                    <c.icon /> {c.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        }
+
+        // ── Plain link ──
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to!}
+            onClick={onNavigate}
+            className={({ isActive }) => navItemClass(isActive)}
+          >
+            <item.icon className="h-[18px] w-[18px] shrink-0" />
+            <span>{item.label}</span>
+            {item.to === '/admin/approvals' && !!pending && pending > 0 && (
+              <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold text-destructive-foreground">
+                {pending}
+              </span>
+            )}
+          </NavLink>
+        );
+      })}
     </>
   );
 }
@@ -180,7 +249,7 @@ export function Topbar() {
             />
           </div>
           <nav className="flex flex-col gap-1">
-            <NavItems onNavigate={() => setMobileNav(false)} />
+            <NavItems mobile onNavigate={() => setMobileNav(false)} />
           </nav>
         </div>
       )}

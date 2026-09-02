@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/customer.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { buildTaskRouter } from './task.routes.js';
 import {
   createCustomerSchema,
   updateCustomerSchema,
@@ -13,6 +14,9 @@ import {
 
 const router = Router();
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
+
+// Microsoft Planner-style task board for a customer (full CRUD for admins).
+router.use('/:clientId/tasks', buildTaskRouter());
 
 router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
 // Must precede `/:clientId` or "next-client-id" would be read as a Client ID.

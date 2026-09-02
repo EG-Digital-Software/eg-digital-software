@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/client.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { buildTaskRouter } from './task.routes.js';
 import {
   listClientInvoiceQuerySchema,
   listClientProductQuerySchema,
@@ -10,6 +11,9 @@ import {
 
 const router = Router();
 router.use(authenticate, authorize(Role.CLIENT));
+
+// Read-only view of this customer's task board, plus comments/attachments.
+router.use('/tasks', buildTaskRouter(true));
 
 router.get('/profile', ctrl.profile);
 router.get('/dashboard', ctrl.dashboard);

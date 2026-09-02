@@ -18,6 +18,7 @@ const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const CustomersPage = lazy(() => import('@/pages/customers/CustomersPage'));
 const CustomerFormPage = lazy(() => import('@/pages/customers/CustomerFormPage'));
 const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPage'));
+const AdminTasksPage = lazy(() => import('@/pages/admin/AdminTasksPage'));
 const ProductsPage = lazy(() => import('@/pages/products/ProductsPage'));
 const BulkUploadPage = lazy(() => import('@/pages/products/BulkUploadPage'));
 const BillingPage = lazy(() => import('@/pages/billing/BillingPage'));
@@ -33,6 +34,7 @@ const ClientInvoicesPage = lazy(() => import('@/pages/client/ClientInvoicesPage'
 const ClientInvoiceDetail = lazy(() => import('@/pages/client/ClientInvoiceDetail'));
 const ClientLicencesPage = lazy(() => import('@/pages/client/ClientLicencesPage'));
 const ClientDetailsPage = lazy(() => import('@/pages/client/ClientDetailsPage'));
+const ClientTasksPage = lazy(() => import('@/pages/client/ClientTasksPage'));
 const AccountPage = lazy(() => import('@/pages/account/AccountPage'));
 const SupplierDashboard = lazy(() => import('@/pages/supplier/SupplierDashboard'));
 const SupplierProductsPage = lazy(() => import('@/pages/supplier/SupplierProductsPage'));
@@ -80,6 +82,7 @@ export default function App() {
                 <Route path="dashboard" element={<ClientDashboard />} />
                 <Route path="invoices" element={<ClientInvoicesPage />} />
                 <Route path="invoices/:id" element={<ClientInvoiceDetail />} />
+                <Route path="tasks" element={<ClientTasksPage />} />
                 <Route path="licences" element={<ClientLicencesPage />} />
                 <Route path="details" element={<ClientDetailsPage />} />
                 <Route path="account" element={<AccountPage />} />
@@ -113,6 +116,7 @@ export default function App() {
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="customers" element={<CustomersPage />} />
+                <Route path="tasks" element={<AdminTasksPage />} />
                 <Route path="customers/new" element={<CustomerFormPage />} />
                 <Route path="customers/:clientId" element={<CustomerDetailPage />} />
                 <Route path="customers/:clientId/edit" element={<CustomerFormPage />} />

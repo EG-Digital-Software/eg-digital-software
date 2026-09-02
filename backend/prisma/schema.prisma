@@ -247,24 +247,24 @@ model Customer {
   // ── Company Information ────────────────────────────────
   /// ISO-3166 alpha-2 country the business is registered in. Drives which
   /// company identifiers the form collects (ABN/ACN for AU, CRN/VAT for GB, …).
-  registrationCountry String? @default("AU")
+  registrationCountry String?       @default("AU")
   /// Country-specific registration/tax identifiers, keyed by field (e.g.
   /// { abn, acn } for AU, { companyNumber, vat } for GB). See lib/company.ts.
   companyIdentifiers  Json?
   /// Australian Business Number — 11 digits, stored unformatted. Mirrored from
   /// companyIdentifiers.abn for AU so the ABN lookup and search keep working.
-  abn          String?
+  abn                 String?
   /// Australian Company Number — 9 digits, stored unformatted.
-  acn          String?
+  acn                 String?
   /// Registered business name.
-  companyName  String?
+  companyName         String?
   /// Primary trading name — mirrors tradingNames[0]. Kept as its own column
   /// so search and list views stay simple.
-  tradingAs    String?
+  tradingAs           String?
   /// Every trading name the business operates under. A company can hold
   /// dozens on the ABR, so they are stored in full rather than truncated.
-  tradingNames String[]
-  businessType BusinessType?
+  tradingNames        String[]
+  businessType        BusinessType?
 
   // ── Contact Information ────────────────────────────────
   contactPerson           String?
@@ -294,13 +294,13 @@ model Customer {
   /// Preferred payment method, e.g. "Bank Transfer (EFT)" or "Credit/Debit Card".
   paymentMethod               String?
 
-  reference String?
-  status    CustomerStatus @default(ACTIVE)
+  reference     String?
+  status        CustomerStatus        @default(ACTIVE)
   /// Manual account-standing override. Left at ACTIVE, the effective standing is
   /// auto-derived from invoice activity (see CustomerAccountStatus).
   accountStatus CustomerAccountStatus @default(ACTIVE)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   addresses        Address[]
   customerProducts CustomerProduct[]
@@ -308,6 +308,9 @@ model Customer {
   users            ClientUser[]
   directors        Director[]
   itContacts       CustomerITContact[]
+  taskBuckets      TaskBucket[]
+  tasks            Task[]
+  taskLabels       TaskLabel[]
 
   @@index([status])
   @@index([businessType])
@@ -545,4 +548,149 @@ model Setting {
   key       String   @id
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+// ─── Tasks (Microsoft Planner-style board, scoped per customer) ─
+// A customer owns buckets (columns), tasks (cards) and labels. Assignees,
+// comments and attachments reference staff via (userId, userType) the same
+// polymorphic way Notification does — no FK, because the target table varies
+// across the four account tables.
+
+enum TaskProgress {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum TaskPriority {
+  URGENT
+  IMPORTANT
+  MEDIUM
+  LOW
+}
+
+/// A column on the board (e.g. "To do", "In progress"). Ordered left-to-right.
+model TaskBucket {
+  id         String   @id @default(uuid())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  name       String
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  tasks      Task[]
+
+  @@index([customerId])
+}
+
+/// A colour-coded category a task can carry (Planner "labels"/categories).
+model TaskLabel {
+  id         String          @id @default(uuid())
+  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  name       String
+  /// Tailwind/token colour name (e.g. "rose", "amber") — resolved on the client.
+  color      String          @default("slate")
+  createdAt  DateTime        @default(now())
+  links      TaskLabelLink[]
+
+  @@index([customerId])
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId  String
+  bucket      TaskBucket   @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+  bucketId    String
+  title       String
+  description String?
+  progress    TaskProgress @default(NOT_STARTED)
+  priority    TaskPriority @default(MEDIUM)
+  startDate   DateTime?
+  dueDate     DateTime?
+  /// Position within the bucket (0-based, ascending).
+  order       Int          @default(0)
+  completedAt DateTime?
+  /// AdminUser id that created the task (for the activity trail).
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  assignees   TaskAssignee[]
+  labels      TaskLabelLink[]
+  checklist   ChecklistItem[]
+  comments    TaskComment[]
+  attachments TaskAttachment[]
+
+  @@index([customerId])
+  @@index([bucketId])
+  @@index([dueDate])
+}
+
+/// A staff member assigned to a task. Snapshot of name/avatar so the card
+/// renders without a cross-table join; (userId, userType) keeps the link.
+model TaskAssignee {
+  id        String  @id @default(uuid())
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String
+  userId    String
+  userType  Role
+  name      String
+  email     String?
+  avatarUrl String?
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+}
+
+/// Join row between a task and a label.
+model TaskLabelLink {
+  id      String    @id @default(uuid())
+  task    Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId  String
+  label   TaskLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  labelId String
+
+  @@unique([taskId, labelId])
+  @@index([taskId])
+  @@index([labelId])
+}
+
+model ChecklistItem {
+  id     String  @id @default(uuid())
+  task   Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId String
+  text   String
+  done   Boolean @default(false)
+  order  Int     @default(0)
+
+  @@index([taskId])
+}
+
+model TaskComment {
+  id         String   @id @default(uuid())
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId     String
+  authorId   String
+  authorType Role
+  authorName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model TaskAttachment {
+  id           String   @id @default(uuid())
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId       String
+  fileName     String
+  url          String
+  size         Int
+  contentType  String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([taskId])
 }
