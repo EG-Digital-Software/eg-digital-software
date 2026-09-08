@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Check,
@@ -21,6 +21,7 @@ import type {
   AssignableUser,
   Task,
   TaskBucket,
+  TaskComment,
   TaskPriority,
   TaskProgress,
 } from '@/types';
@@ -128,8 +129,15 @@ export function TaskDialog({
 }: Props) {
   const qc = useQueryClient();
   const isEdit = mode === 'edit';
-  const disabled = readOnly;
-  const meId = useAuth((s) => s.user?.id);
+  // In the client portal (readOnly) the customer may still edit the task —
+  // title, status, notes, checklist, assignees — but the schedule and priority
+  // are locked (only start date, due date, priority and the task number are
+  // read-only). Admin is never readOnly, so everything stays editable there.
+  const disabled = false;
+  const locked = readOnly;
+  const me = useAuth((s) => s.user);
+  const meId = me?.id;
+  const meName = [me?.firstName, me?.lastName].filter(Boolean).join(' ') || me?.email || 'You';
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
   const [tab, setTab] = useState<'details' | 'attachments'>('details');
@@ -152,6 +160,20 @@ export function TaskDialog({
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['tasks', scopeKey] });
 
+  // Light, live view of just this task (comments + attachments) — polled every
+  // few seconds so the chat updates without a full-board refetch or page reload.
+  const taskKey = ['task', scopeKey, task?.id] as const;
+  const taskQ = useQuery({
+    queryKey: taskKey,
+    queryFn: () => api.getTask(task!.id),
+    enabled: open && isEdit && !!task?.id,
+    initialData: task ?? undefined,
+    staleTime: 0,
+    refetchInterval: open && isEdit ? 2500 : false,
+  });
+  const liveTask = taskQ.data ?? task;
+  const invalidateTask = () => qc.invalidateQueries({ queryKey: taskKey });
+
   const patch = useMutation({
     mutationFn: (body: TaskInput) => api.updateTask(task!.id, body),
     onSuccess: () => invalidate(),
@@ -164,16 +186,44 @@ export function TaskDialog({
   });
   const addComment = useMutation({
     mutationFn: (v: { body: string; file?: File }) => api.addComment(task!.id, v.body, v.file),
-    onSuccess: () => { setComment(''); setChatFile(null); invalidate(); },
-    onError: (e) => toast.error(apiErrorMessage(e)),
+    // Show the message instantly (and clear the composer) instead of waiting for
+    // the round-trip.
+    onMutate: async (v) => {
+      setComment('');
+      setChatFile(null);
+      if (!task) return { prev: undefined };
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      const now = new Date().toISOString();
+      const optimistic: TaskComment = {
+        id: `temp-${Date.now()}`,
+        taskId: task.id,
+        authorId: meId ?? '',
+        authorType: me?.role ?? 'SUPER_ADMIN',
+        authorName: meName,
+        body: v.body,
+        createdAt: now,
+        attachments: v.file
+          ? [{ id: `tmp-${Date.now()}`, taskId: task.id, fileName: v.file.name, url: '', size: v.file.size, createdAt: now }]
+          : [],
+      };
+      const base = prev ?? task;
+      qc.setQueryData<Task>(taskKey, { ...base, comments: [...base.comments, optimistic] });
+      return { prev };
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev);
+      toast.error(apiErrorMessage(e));
+    },
+    onSettled: () => { invalidateTask(); invalidate(); },
   });
-  const removeComment = useMutation({ mutationFn: (id: string) => api.deleteComment(task!.id, id), onSuccess: () => invalidate() });
+  const removeComment = useMutation({ mutationFn: (id: string) => api.deleteComment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
   const uploadFile = useMutation({
     mutationFn: (file: File) => api.addAttachment(task!.id, file),
-    onSuccess: () => { invalidate(); toast.success('Attachment added'); },
+    onSuccess: () => { invalidateTask(); invalidate(); toast.success('Attachment added'); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
-  const removeFile = useMutation({ mutationFn: (id: string) => api.deleteAttachment(task!.id, id), onSuccess: () => invalidate() });
+  const removeFile = useMutation({ mutationFn: (id: string) => api.deleteAttachment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
 
   function update(partial: Partial<Draft>, persist?: TaskInput) {
     setDraft((d) => ({ ...d, ...partial }));
@@ -292,7 +342,7 @@ export function TaskDialog({
                         {a.avatarUrl && <AvatarImage src={a.avatarUrl} alt={a.name} />}
                         <AvatarFallback className="text-[10px]">{initials(a.name)}</AvatarFallback>
                       </Avatar>
-                      {!disabled && (
+                      {!locked && (
                         <button type="button" onClick={() => toggleAssignee(a)} className="absolute -right-1 -top-1 hidden rounded-full bg-card shadow group-hover:block">
                           <X className="h-3 w-3 text-muted-foreground hover:text-rose-500" />
                         </button>
@@ -300,7 +350,7 @@ export function TaskDialog({
                     </span>
                   ))}
                 </div>
-                {!disabled && (
+                {!locked && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary">
@@ -335,7 +385,7 @@ export function TaskDialog({
               <TabPill active={tab === 'details'} onClick={() => setTab('details')} icon={<Circle className="h-4 w-4" />}>Task details</TabPill>
               {isEdit && (
                 <TabPill active={tab === 'attachments'} onClick={() => setTab('attachments')} icon={<Paperclip className="h-4 w-4" />}>
-                  Attachments{task && task.attachments.length > 0 ? ` (${task.attachments.length})` : ''}
+                  Attachments{liveTask && liveTask.attachments.length > 0 ? ` (${liveTask.attachments.length})` : ''}
                 </TabPill>
               )}
             </div>
@@ -366,7 +416,7 @@ export function TaskDialog({
                         <IconSelect
                           leading={<PriorityIcon className={cn('h-4 w-4', PRIORITY_META[draft.priority].text)} />}
                           value={draft.priority}
-                          disabled={disabled}
+                          disabled={locked}
                           onChange={(v) => update({ priority: v as TaskPriority }, { priority: v as TaskPriority })}
                         >
                           {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
@@ -376,11 +426,11 @@ export function TaskDialog({
                   </Field>
 
                   <Field label="Start date">
-                    <DateField value={draft.startDate} placeholder="Set start date" disabled={disabled}
+                    <DateField value={draft.startDate} placeholder="Set start date" disabled={locked}
                       onChange={(v) => update({ startDate: v }, { startDate: toIso(v) || null })} />
                   </Field>
                   <Field label="Due date">
-                    <DateField value={draft.dueDate} placeholder="Set due date" disabled={disabled}
+                    <DateField value={draft.dueDate} placeholder="Set due date" disabled={locked}
                       onChange={(v) => update({ dueDate: v }, { dueDate: toIso(v) || null })} />
                   </Field>
 
@@ -458,7 +508,7 @@ export function TaskDialog({
             ) : (
               /* Attachments tab */
               <div className="mt-5 space-y-2">
-                {task?.attachments.map((f) => (
+                {liveTask?.attachments.map((f) => (
                   <div key={f.id} className="group flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm">
                     <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="flex-1 truncate">{f.fileName}</span>
@@ -467,7 +517,7 @@ export function TaskDialog({
                     <button type="button" onClick={() => removeFile.mutate(f.id)} className="opacity-0 transition group-hover:opacity-100"><X className="h-4 w-4 text-muted-foreground hover:text-rose-500" /></button>
                   </div>
                 ))}
-                {task && task.attachments.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No attachments yet.</p>}
+                {liveTask && liveTask.attachments.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No attachments yet.</p>}
                 <input ref={fileRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile.mutate(f); e.target.value = ''; }} />
                 <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploadFile.isPending}>
                   <Paperclip className="mr-1.5 h-4 w-4" /> {uploadFile.isPending ? 'Uploading…' : 'Add attachment'}
@@ -492,8 +542,8 @@ export function TaskDialog({
               </div>
               <div className="flex-1 space-y-4 overflow-y-auto p-4">
                 {!task && <p className="pt-8 text-center text-xs text-muted-foreground">Create the task first to start the conversation.</p>}
-                {task && task.comments.length === 0 && <p className="pt-8 text-center text-xs text-muted-foreground">No messages yet. Start the conversation.</p>}
-                {task?.comments.map((c) => {
+                {task && liveTask && liveTask.comments.length === 0 && <p className="pt-8 text-center text-xs text-muted-foreground">No messages yet. Start the conversation.</p>}
+                {liveTask?.comments.map((c) => {
                   const mine = !!meId && c.authorId === meId;
                   return (
                     <div key={c.id} className={cn('group flex gap-2', mine && 'flex-row-reverse')}>

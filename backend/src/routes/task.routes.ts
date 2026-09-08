@@ -35,6 +35,9 @@ export function buildTaskRouter(readOnly = false): Router {
 
   // Collaboration — available to clients too.
   router.patch('/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.setProgress);
+  // Clients may edit a task's content (title, notes, checklist, assignees); the
+  // controller strips the fields locked in the portal (start/due/priority).
+  router.patch('/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.updateTask);
   router.post('/tasks/:taskId/comments', upload.single('file'), ctrl.addComment);
   router.delete('/tasks/:taskId/comments/:commentId', ctrl.deleteComment);
   router.post('/tasks/:taskId/attachments', upload.single('file'), ctrl.addAttachment);
@@ -48,7 +51,6 @@ export function buildTaskRouter(readOnly = false): Router {
 
     router.post('/tasks', validate({ body: createTaskSchema }), ctrl.createTask);
     router.patch('/tasks/:taskId/move', validate({ body: moveTaskSchema }), ctrl.moveTask);
-    router.patch('/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.updateTask);
     router.delete('/tasks/:taskId', ctrl.deleteTask);
 
     router.post('/labels', validate({ body: createLabelSchema }), ctrl.createLabel);

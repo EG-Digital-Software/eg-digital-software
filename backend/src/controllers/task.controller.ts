@@ -64,7 +64,17 @@ export const getTask = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateTask = asyncHandler(async (req: Request, res: Response) => {
-  return ok(res, await taskService.updateTask(await resolve(req), req.params.taskId, req.body));
+  const body = { ...req.body };
+  // Clients may edit a task but never its schedule/priority or which column it
+  // sits in — those stay locked in the portal (enforced here, not just the UI).
+  if (req.user?.role === 'CLIENT') {
+    delete body.startDate;
+    delete body.dueDate;
+    delete body.priority;
+    delete body.bucketId;
+    delete body.assignees;
+  }
+  return ok(res, await taskService.updateTask(await resolve(req), req.params.taskId, body));
 });
 
 export const moveTask = asyncHandler(async (req: Request, res: Response) => {

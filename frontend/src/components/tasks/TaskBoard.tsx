@@ -65,12 +65,12 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
   const qc = useQueryClient();
   const queryKey = ['tasks', scopeKey];
 
-  const boardQ = useQuery({ queryKey, queryFn: () => api.board() });
-  const usersQ = useQuery({ queryKey: ['tasks', scopeKey, 'users'], queryFn: () => api.assignableUsers() });
-
   const [view, setView] = useState<ViewKey>('grid');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string } | null>(null);
+
+  const boardQ = useQuery({ queryKey, queryFn: () => api.board() });
+  const usersQ = useQuery({ queryKey: ['tasks', scopeKey, 'users'], queryFn: () => api.assignableUsers() });
 
   const invalidate = () => qc.invalidateQueries({ queryKey });
   const onErr = (e: unknown) => toast.error(apiErrorMessage(e));

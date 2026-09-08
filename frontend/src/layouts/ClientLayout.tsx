@@ -66,11 +66,14 @@ export function ClientLayout() {
             <NotificationBell />
 
             <DropdownMenu>
-              <DropdownMenuTrigger className="ml-1 rounded-full focus:outline-none">
+              <DropdownMenuTrigger className="ml-1 flex items-center gap-2.5 rounded-lg p-1 pr-2.5 hover:bg-secondary focus:outline-none">
                 <Avatar>
                   {user?.avatarUrl && <AvatarImage src={mediaUrl(user.avatarUrl)} alt="" />}
                   <AvatarFallback>{initials(user?.firstName, user?.lastName)}</AvatarFallback>
                 </Avatar>
+                <span className="hidden text-sm font-medium leading-tight sm:block">
+                  {user?.firstName} {user?.lastName}
+                </span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
@@ -98,6 +101,10 @@ export function ClientLayout() {
           <Outlet />
         </div>
       </main>
+
+      <footer className="py-6 text-center text-sm font-medium text-muted-foreground">
+        This portal is under construction — some features may still be on the way.
+      </footer>
     </div>
   );
 }

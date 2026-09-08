@@ -15,8 +15,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
+import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/states';
 import { formatCurrency, formatDate } from '@/lib/utils';
+
+const ACCOUNT_STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' }> = {
+  ACTIVE: { label: 'Active', variant: 'success' },
+  DORMANT: { label: 'Dormant', variant: 'warning' },
+  SUSPENDED: { label: 'Suspended', variant: 'destructive' },
+};
 
 function Kpi({
   title,
@@ -65,14 +72,19 @@ export default function ClientDashboard() {
     queryFn: () => clientApi.invoices({ pageSize: 5 }),
   });
   const prodQ = useQuery({ queryKey: ['client', 'products'], queryFn: clientApi.products });
+  const profileQ = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
 
   const d = dashQ.data;
+  const acct = profileQ.data
+    ? ACCOUNT_STATUS[profileQ.data.accountStatusEffective ?? profileQ.data.accountStatus]
+    : undefined;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Welcome back, ${user?.firstName ?? ''}`}
+        title={`Welcome Back, ${[user?.firstName, user?.lastName].filter(Boolean).join(' ')} 👋`}
         description="Your invoices, licences and account overview"
+        actions={acct ? <Badge variant={acct.variant}>{acct.label}</Badge> : undefined}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
