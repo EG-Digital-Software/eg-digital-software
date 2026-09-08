@@ -22,7 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BUSINESS_TYPES, businessTypeLabel, customerName } from '@/lib/customer';
+import { BUSINESS_TYPES, businessTypesLabel, customerName } from '@/lib/customer';
 import { Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName } from '@/lib/countries';
 
@@ -246,7 +246,7 @@ export default function CustomersPage() {
                             )}
                             {c.businessType && (
                               <Badge variant="muted" className="mt-1">
-                                {businessTypeLabel(c.businessType)}
+                                {businessTypesLabel(c.businessType)}
                               </Badge>
                             )}
                           </div>

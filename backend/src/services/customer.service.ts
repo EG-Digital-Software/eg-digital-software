@@ -4,7 +4,6 @@ import {
   CustomerAccountStatus,
   AddressType,
   LicenceStatus,
-  BusinessType,
 } from '@prisma/client';
 import argon2 from 'argon2';
 import { prisma } from '../config/prisma.js';
@@ -26,7 +25,7 @@ export type CustomerListStatus = 'ACTIVE' | 'ARCHIVED' | 'DORMANT' | 'SUSPENDED'
 interface ListParams extends PageQuery {
   search?: string;
   status?: CustomerListStatus;
-  businessType?: BusinessType;
+  businessType?: string;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
 }
@@ -61,7 +60,8 @@ export async function listCustomers(params: ListParams) {
     // status === 'ACTIVE' keeps the whole non-archived set (unchanged default).
   }
 
-  if (params.businessType) where.businessType = params.businessType;
+  // businessType is a comma-separated list, so match by substring.
+  if (params.businessType) where.businessType = { contains: params.businessType };
 
   if (params.search) {
     const q = params.search.trim();
@@ -372,7 +372,7 @@ type CreateInput = {
   companyName?: string;
   tradingAs?: string;
   tradingNames?: string[];
-  businessType?: BusinessType | '';
+  businessType?: string;
   principalAddress?: AddressInput;
   billingAddress?: AddressInput;
   sameAsPrincipal?: boolean;
@@ -502,7 +502,7 @@ function customerFields(input: Partial<CreateInput>) {
     acn: isAu ? digitsOrNull(identifiers?.acn) : null,
     companyName: orNull(input.companyName),
     ...tradingNameFields(input),
-    businessType: (input.businessType || null) as BusinessType | null,
+    businessType: input.businessType || null,
 
     contactPerson: orNull(input.contactPerson),
     contactEmail: orNull(input.contactEmail),
@@ -533,6 +533,52 @@ function customerFields(input: Partial<CreateInput>) {
     // update, undefined leaves the admin's pinned standing untouched.
     accountStatus: input.accountStatus,
   };
+}
+
+/**
+ * Fields for an UPDATE: only what the caller actually sent. customerFields()
+ * turns every absent field into `null` (right for create), which would wipe
+ * data on a partial update — so keep only the keys whose source input was
+ * provided, leaving the rest untouched.
+ */
+function customerUpdateFields(input: Partial<CreateInput>): Prisma.CustomerUpdateInput {
+  const full = customerFields(input);
+  const has = (k: keyof typeof input) => input[k] !== undefined;
+  const provided: Record<string, boolean> = {
+    registrationCountry: has('registrationCountry') || has('companyIdentifiers'),
+    companyIdentifiers: has('companyIdentifiers'),
+    abn: has('companyIdentifiers'),
+    acn: has('companyIdentifiers'),
+    companyName: has('companyName'),
+    tradingAs: has('tradingNames') || has('companyName'),
+    tradingNames: has('tradingNames') || has('companyName'),
+    businessType: has('businessType'),
+    contactPerson: has('contactPerson'),
+    contactEmail: has('contactEmail'),
+    contactMobile: has('contactMobile'),
+    contactMobileCountry: has('contactMobileCountry'),
+    contactPosition: has('contactPosition'),
+    authorized: has('authorized'),
+    authorizedPerson: has('authorized'),
+    authorizedEmail: has('authorized'),
+    authorizedMobile: has('authorized'),
+    authorizedMobileCountry: has('authorized'),
+    invoiceCustomer: has('invoiceCustomer'),
+    billingEmail: has('billingEmail'),
+    billingContactPerson: has('billingContactPerson'),
+    billingContactNumber: has('billingContactNumber'),
+    billingContactNumberCountry: has('billingContactNumberCountry'),
+    creditScore: has('creditScore'),
+    invoiceTerm: has('invoiceTerm'),
+    paymentMethod: has('paymentMethod'),
+    reference: has('reference'),
+    accountStatus: has('accountStatus'),
+  };
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(full)) {
+    if (provided[k]) out[k] = v;
+  }
+  return out as Prisma.CustomerUpdateInput;
 }
 
 export async function createCustomer(input: CreateInput) {
@@ -636,7 +682,7 @@ export async function updateCustomer(clientId: string, input: Partial<CreateInpu
   return prisma.$transaction(async (tx) => {
     await tx.customer.update({
       where: { clientId },
-      data: customerFields(input),
+      data: customerUpdateFields(input),
     });
 
     const billing = input.sameAsPrincipal ? input.principalAddress : input.billingAddress;

@@ -264,7 +264,9 @@ model Customer {
   /// Every trading name the business operates under. A company can hold
   /// dozens on the ABR, so they are stored in full rather than truncated.
   tradingNames        String[]
-  businessType        BusinessType?
+  /// Free text so admins can add their own industry types beyond the presets.
+  /// Preset values are stored as their BusinessType code; custom ones as typed.
+  businessType        String?
 
   // ── Contact Information ────────────────────────────────
   contactPerson           String?

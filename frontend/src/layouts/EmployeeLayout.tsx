@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, KeyRound } from 'lucide-react';
+import { ListChecks } from 'lucide-react';
 import { PortalShell } from '@/components/layout/PortalShell';
 
 export function EmployeeLayout() {
@@ -6,14 +6,10 @@ export function EmployeeLayout() {
     <PortalShell
       badge="Employee Portal"
       badgeClass="bg-sky-500/10 text-sky-600"
-      home="/employee/dashboard"
+      home="/employee/tasks"
       accountPath="/employee/account"
       loginPath="/employee/login"
-      nav={[
-        { to: '/employee/dashboard', label: 'Overview', icon: LayoutDashboard },
-        { to: '/employee/customers', label: 'Customers', icon: Users },
-        { to: '/employee/licences', label: 'Licences', icon: KeyRound },
-      ]}
+      nav={[{ to: '/employee/tasks', label: 'Task', icon: ListChecks }]}
     />
   );
 }

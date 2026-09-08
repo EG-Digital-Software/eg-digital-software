@@ -74,13 +74,13 @@ export default function PortalPage() {
       SUPER_ADMIN: '/admin/dashboard',
       CLIENT: '/client/dashboard',
       SUPPLIER: '/supplier/dashboard',
-      EMPLOYEE: '/employee/dashboard',
+      EMPLOYEE: '/employee/tasks',
     };
     if (HOME[user.role]) return <Navigate to={HOME[user.role]} replace />;
   }
 
   return (
-    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-black font-sans selection:bg-emerald-500/30 selection:text-white">
+    <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-black font-sans selection:bg-emerald-500/30 selection:text-white">
       {/* Background Image from Internet */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <img 

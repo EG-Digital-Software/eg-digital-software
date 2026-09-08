@@ -19,8 +19,19 @@ export const BUSINESS_TYPES: { value: BusinessType; label: string }[] = [
   { value: 'FINANCE_AND_MEDIA', label: 'Finance and Media' },
 ];
 
-export function businessTypeLabel(value?: BusinessType | null): string {
-  return BUSINESS_TYPES.find((t) => t.value === value)?.label ?? '';
+export function businessTypeLabel(value?: string | null): string {
+  // Custom (non-preset) values are stored and shown as typed.
+  return BUSINESS_TYPES.find((t) => t.value === value)?.label ?? value ?? '';
+}
+
+/** A customer's business types are stored comma-separated; show friendly labels. */
+export function businessTypesLabel(value?: string | null): string {
+  return (value ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((v) => businessTypeLabel(v))
+    .join(', ');
 }
 
 /**

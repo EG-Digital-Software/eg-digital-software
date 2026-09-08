@@ -81,7 +81,7 @@ export const createCustomerSchema = z
     tradingAs: z.string().optional(),
     /// Every trading name; the first is mirrored into tradingAs.
     tradingNames: z.array(z.string()).optional(),
-    businessType: z.enum(BUSINESS_TYPES).optional().or(z.literal('')),
+    businessType: z.string().max(60).optional().or(z.literal('')),
     principalAddress: addressSchema.optional(),
     billingAddress: addressSchema.optional(),
     sameAsPrincipal: z.boolean().optional(),
@@ -145,20 +145,9 @@ export const createCustomerSchema = z
     itContacts: z.array(itContactSchema).optional(),
 
     assignedProducts: z.array(assignedProductSchema).optional(),
-  })
-  // An authorised representative is only meaningful with a name attached.
-  .refine((v) => v.authorized || !!v.authorizedPerson?.trim(), {
-    message: 'Authorised person is required when Authorised is set to No',
-    path: ['authorizedPerson'],
   });
 
-export const updateCustomerSchema = createCustomerSchema
-  .innerType()
-  .partial()
-  .refine((v) => v.authorized || !!v.authorizedPerson?.trim(), {
-    message: 'Authorised person is required when Authorised is set to No',
-    path: ['authorizedPerson'],
-  });
+export const updateCustomerSchema = createCustomerSchema.partial();
 
 export const addCredentialSchema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -174,7 +163,7 @@ export const listCustomerQuerySchema = z.object({
   pageSize: z.coerce.number().optional(),
   search: z.string().optional(),
   status: z.enum(['ACTIVE', 'ARCHIVED', 'DORMANT', 'SUSPENDED']).optional(),
-  businessType: z.enum(BUSINESS_TYPES).optional(),
+  businessType: z.string().optional(),
   sortBy: z
     .enum(['createdAt', 'companyName', 'firstName', 'clientId', 'creditScore'])
     .optional(),

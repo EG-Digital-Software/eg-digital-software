@@ -1,4 +1,4 @@
-import { Prisma, CustomerStatus, ProductStatus, BusinessType } from '@prisma/client';
+import { Prisma, CustomerStatus, ProductStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import type { PageQuery } from '../utils/http.js';
 import { getLicences } from './dashboard.service.js';
@@ -36,10 +36,10 @@ export async function getDashboard() {
 
 export async function listCustomers(
   page: PageQuery,
-  params: { search?: string; businessType?: BusinessType } = {}
+  params: { search?: string; businessType?: string } = {}
 ) {
   const where: Prisma.CustomerWhereInput = { status: CustomerStatus.ACTIVE };
-  if (params.businessType) where.businessType = params.businessType;
+  if (params.businessType) where.businessType = { contains: params.businessType };
 
   if (params.search) {
     const q = params.search.trim();

@@ -464,6 +464,47 @@ export async function deleteLabel(customerId: string, labelId: string) {
   return { id: labelId };
 }
 
+// ─── Tasks assigned to a staff member (employee portal) ───
+
+/**
+ * The employee's task board: every task they're assigned to, grouped into one
+ * column per customer. Same shape as getBoard() so the employee portal can
+ * reuse the customer TaskBoard component.
+ */
+export async function getEmployeeBoard(userId: string) {
+  const tasks = await prisma.task.findMany({
+    where: { assignees: { some: { userId } } },
+    orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+    include: {
+      ...taskInclude,
+      customer: { select: { companyName: true, contactPerson: true, clientId: true } },
+    },
+  });
+  const byCustomer = new Map<string, { id: string; name: string; order: number; tasks: unknown[] }>();
+  for (const t of tasks) {
+    if (!byCustomer.has(t.customerId)) {
+      byCustomer.set(t.customerId, {
+        id: t.customerId,
+        name: t.customer.companyName || t.customer.contactPerson || t.customer.clientId,
+        order: byCustomer.size,
+        tasks: [],
+      });
+    }
+    byCustomer.get(t.customerId)!.tasks.push(shapeTask(t));
+  }
+  return { buckets: [...byCustomer.values()], labels: [] };
+}
+
+/** Confirm the employee is assigned to the task, returning its customer id. */
+export async function resolveEmployeeTaskCustomer(userId: string, taskId: string): Promise<string> {
+  const t = await prisma.task.findFirst({
+    where: { id: taskId, assignees: { some: { userId } } },
+    select: { customerId: true },
+  });
+  if (!t) throw ApiError.notFound('Task not found');
+  return t.customerId;
+}
+
 // ─── Assignable staff ─────────────────────────────────────
 
 /** Active, approved admins and employees — the people a task can be given to. */

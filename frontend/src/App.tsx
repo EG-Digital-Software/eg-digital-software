@@ -38,7 +38,7 @@ const ClientTasksPage = lazy(() => import('@/pages/client/ClientTasksPage'));
 const AccountPage = lazy(() => import('@/pages/account/AccountPage'));
 const SupplierDashboard = lazy(() => import('@/pages/supplier/SupplierDashboard'));
 const SupplierProductsPage = lazy(() => import('@/pages/supplier/SupplierProductsPage'));
-const EmployeeDashboard = lazy(() => import('@/pages/employee/EmployeeDashboard'));
+const EmployeeTasksPage = lazy(() => import('@/pages/employee/EmployeeTasksPage'));
 const EmployeeCustomersPage = lazy(() => import('@/pages/employee/EmployeeCustomersPage'));
 const EmployeeLicencesPage = lazy(() => import('@/pages/employee/EmployeeLicencesPage'));
 
@@ -102,8 +102,8 @@ export default function App() {
             {/* Protected employee portal */}
             <Route element={<ProtectedRoute roles={['EMPLOYEE']} />}>
               <Route path="/employee" element={<EmployeeLayout />}>
-                <Route index element={<Navigate to="/employee/dashboard" replace />} />
-                <Route path="dashboard" element={<EmployeeDashboard />} />
+                <Route index element={<Navigate to="/employee/tasks" replace />} />
+                <Route path="tasks" element={<EmployeeTasksPage />} />
                 <Route path="customers" element={<EmployeeCustomersPage />} />
                 <Route path="licences" element={<EmployeeLicencesPage />} />
                 <Route path="account" element={<AccountPage />} />

@@ -39,7 +39,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials, cn } from '@/lib/utils';
-import { businessTypeLabel, customerName, formatAbn, invoiceTermLabel } from '@/lib/customer';
+import { businessTypesLabel, customerName, formatAbn, invoiceTermLabel } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName, countryName } from '@/lib/countries';
@@ -478,7 +478,7 @@ export default function CustomerDetailPage() {
                 {c.clientId}
               </span>
               {c.businessType && (
-                <Badge variant="secondary">{businessTypeLabel(c.businessType)}</Badge>
+                <Badge variant="secondary">{businessTypesLabel(c.businessType)}</Badge>
               )}
               {c.status === 'ARCHIVED' && (
                 <Badge variant="muted">{c.status}</Badge>
@@ -606,7 +606,7 @@ export default function CustomerDetailPage() {
                 label="Business Type"
                 value={
                   c.businessType ? (
-                    <Badge variant="secondary">{businessTypeLabel(c.businessType)}</Badge>
+                    <Badge variant="secondary">{businessTypesLabel(c.businessType)}</Badge>
                   ) : null
                 }
               />

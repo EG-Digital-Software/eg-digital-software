@@ -100,3 +100,4 @@ export type TaskApi = ReturnType<typeof taskApi>;
 
 export const adminTaskApi = (clientId: string) => taskApi(`/customers/${clientId}/tasks`);
 export const clientTaskApi = () => taskApi('/client/tasks');
+export const employeeTaskApi = () => taskApi('/employee/tasks');

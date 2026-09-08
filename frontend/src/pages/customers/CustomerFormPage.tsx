@@ -40,7 +40,7 @@ import {
   countryCodeByName,
   countryName,
 } from '@/lib/countries';
-import { BUSINESS_TYPES, INVOICE_TERMS, PAYMENT_METHODS, formatAbn, isValidAbn } from '@/lib/customer';
+import { BUSINESS_TYPES, INVOICE_TERMS, PAYMENT_METHODS, businessTypeLabel, formatAbn, isValidAbn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { numericField, guardedField, titleCaseField, toTitleCase } from '@/lib/input';
 import { formatCurrency, cn } from '@/lib/utils';
@@ -165,10 +165,6 @@ const schema = z
       )
       .optional(),
   })
-  .refine((v) => v.authorized !== 'no' || !!v.authorizedPerson?.trim(), {
-    message: 'Required when Authorised is No',
-    path: ['authorizedPerson'],
-  })
   // A manually entered invoice term must actually be typed in.
   .refine((v) => v.invoiceTerm !== 'MANUAL' || !!v.invoiceTermCustom?.trim(), {
     message: 'Enter the invoice term',
@@ -192,40 +188,23 @@ const schema = z
     message: 'Password must be at least 8 characters',
     path: ['credential', 'password'],
   })
-  // Each director row, once started, must be complete: a designation, a valid
-  // email and a full 10-digit contact number.
+  // Director fields are optional; only validate the format of whatever is filled.
   .superRefine((v, ctx) => {
     const isName = (s?: string) => /^[\p{L}][\p{L} '-]*$/u.test((s ?? '').trim());
     (v.directors ?? []).forEach((d, i) => {
-      const started = !!(
-        d.firstName?.trim() ||
-        d.middleName?.trim() ||
-        d.lastName?.trim() ||
-        d.email?.trim() ||
-        d.contactNumber?.trim()
-      );
-      if (!started) return;
-      if (!d.firstName?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'First name is required', path: ['directors', i, 'firstName'] });
-      } else if (!isName(d.firstName)) {
+      if (d.firstName?.trim() && !isName(d.firstName)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use letters only', path: ['directors', i, 'firstName'] });
       }
       if (d.middleName?.trim() && !isName(d.middleName)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use letters only', path: ['directors', i, 'middleName'] });
       }
-      if (!d.lastName?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Last name is required', path: ['directors', i, 'lastName'] });
-      } else if (!isName(d.lastName)) {
+      if (d.lastName?.trim() && !isName(d.lastName)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use letters only', path: ['directors', i, 'lastName'] });
       }
-      if (!d.email?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Email is required', path: ['directors', i, 'email'] });
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())) {
+      if (d.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter a valid email', path: ['directors', i, 'email'] });
       }
-      if (!d.contactNumber?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Contact number is required', path: ['directors', i, 'contactNumber'] });
-      } else if (!phoneComplete(d.contactNumber)) {
+      if (d.contactNumber?.trim() && !phoneComplete(d.contactNumber)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Phone number must be 10 digits', path: ['directors', i, 'contactNumber'] });
       }
     });
@@ -246,16 +225,12 @@ const schema = z
   })
   // Required identifiers for the selected registration country, plus the ABN
   // checksum for Australia.
+  // Company identifiers are optional; only the ABN's check digits are validated
+  // when one is actually entered.
   .superRefine((v, ctx) => {
     for (const field of companyFieldsFor(v.registrationCountry)) {
       const value = v.companyIdentifiers?.[field.key]?.trim() ?? '';
-      if (field.required && !value) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${field.label} is required`,
-          path: ['companyIdentifiers', field.key],
-        });
-      } else if (field.key === 'abn' && value && !isValidAbn(value)) {
+      if (field.key === 'abn' && value && !isValidAbn(value)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'That ABN fails its check digits',
@@ -432,14 +407,14 @@ function CredentialSection({
     >
       <div className="grid grid-cols-1 gap-4">
         <Field
-          label={isEdit ? 'Customer Email (User ID)' : 'Customer Email (User ID) *'}
+          label="Customer Email (User ID)"
           error={emailError}
           hint="The email the customer logs in with"
         >
           <Input type="email" autoComplete="off" {...register('credential.email')} />
         </Field>
         <Field
-          label={isEdit ? 'New Password' : 'Password *'}
+          label={isEdit ? 'New Password' : 'Password'}
           error={passwordError}
           hint={isEdit ? 'Leave blank to keep the current password' : 'At least 8 characters'}
         >
@@ -608,8 +583,9 @@ function AddressAutocomplete({
   }, []);
 
   const choose = (s: AddressSuggestion) => {
+    // Fill the street address only — the Flat/Apartment/Building Name (line2) is
+    // entered by hand and must not be overwritten by the picked suggestion.
     setValue(`${prefix}.line1`, toTitleCase(s.line1 || s.label), { shouldDirty: true });
-    setValue(`${prefix}.line2`, toTitleCase(s.line2), { shouldDirty: true });
     if (s.city) setValue(`${prefix}.city`, toTitleCase(s.city), { shouldDirty: true });
     if (s.postcode) setValue(`${prefix}.postcode`, s.postcode, { shouldDirty: true });
     if (countryByCode(s.countryCode)) {
@@ -629,6 +605,7 @@ function AddressAutocomplete({
         className={FILLED_CONTROL}
         {...line1}
         onChange={(e) => {
+          e.target.value = toTitleCase(e.target.value);
           line1.onChange(e);
           setTerm(e.target.value);
         }}
@@ -765,8 +742,17 @@ function AddressFields({
         </Button>
       </div>
       <div className="sm:col-span-2">
+        <Field label="Flat/Apartment/Building Name">
+          <Input
+            placeholder="Optional"
+            disabled={disabled}
+            {...titleCaseField(register(`${prefix}.line2` as const))}
+          />
+        </Field>
+      </div>
+      <div className="sm:col-span-2">
         <Field
-          label="Street Address"
+          label="Address"
           plain
           hint="Type a few letters and pick your address to fill the fields below"
         >
@@ -776,15 +762,6 @@ function AddressFields({
             control={control}
             setValue={setValue}
             disabled={disabled}
-          />
-        </Field>
-      </div>
-      <div className="sm:col-span-2">
-        <Field label="Address Line 2">
-          <Input
-            placeholder="Optional"
-            disabled={disabled}
-            {...titleCaseField(register(`${prefix}.line2` as const))}
           />
         </Field>
       </div>
@@ -956,6 +933,17 @@ export default function CustomerFormPage() {
   const assigned = watch('assignedProducts');
   const invoiceTerm = watch('invoiceTerm');
 
+  // Business type supports multiple values (presets and/or custom), stored as a
+  // comma-separated string in the single free-text column.
+  const businessTypeVal = watch('businessType');
+  const businessTypes = (businessTypeVal ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const setBusinessTypes = (arr: string[]) =>
+    setValue('businessType', Array.from(new Set(arr)).join(', '), { shouldDirty: true });
+  const [btCustom, setBtCustom] = useState('');
+
   const registrationCountry = watch('registrationCountry');
   const companyFields = companyFieldsFor(registrationCountry);
   const abn = watch('companyIdentifiers.abn');
@@ -1050,11 +1038,13 @@ export default function CustomerFormPage() {
       // Normalise to the register's own record of the ABN.
       if (found.abn) set('companyIdentifiers.abn', formatAbn(found.abn));
       if (found.acn) set('companyIdentifiers.acn', found.acn);
-      if (found.entityName) set('companyName', found.entityName);
+      // The ABR returns names in ALL CAPS — normalise to Title Case like the
+      // rest of the form.
+      if (found.entityName) set('companyName', toTitleCase(found.entityName));
       // A company can hold dozens of registered names on the ABR. Take them all —
       // each gets its own row so the operator can see and prune the list.
       if (found.businessNames.length) {
-        replaceTradingNames(found.businessNames.map((value) => ({ value })));
+        replaceTradingNames(found.businessNames.map((value) => ({ value: toTitleCase(value) })));
       }
       if (found.postcode) set('principalAddress.postcode', found.postcode);
       // The ABR only covers Australian entities, so the country is a given.
@@ -1439,7 +1429,7 @@ export default function CustomerFormPage() {
                     <Input
                       className={cn('flex-1', FILLED_CONTROL)}
                       placeholder={i === 0 ? 'Primary trading name' : `Trading name ${i + 1}`}
-                      {...register(`tradingNames.${i}.value` as const)}
+                      {...titleCaseField(register(`tradingNames.${i}.value` as const))}
                     />
                     {tradingNameFields.length > 1 && (
                       <Button
@@ -1467,15 +1457,65 @@ export default function CustomerFormPage() {
                 </Button>
               </div>
             </Field>
-            <Field label="Business Type">
-              <Select {...register('businessType')}>
-                <option value="">Select business type…</option>
-                {BUSINESS_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </Select>
+            <Field label="Business Type" hint="Select one or more; add a custom type if needed">
+              <div className="space-y-2">
+                {businessTypes.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {businessTypes.map((v) => (
+                      <span
+                        key={v}
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                      >
+                        {businessTypeLabel(v)}
+                        <button
+                          type="button"
+                          className="text-primary/70 hover:text-primary"
+                          onClick={() => setBusinessTypes(businessTypes.filter((x) => x !== v))}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Select
+                    className="flex-1"
+                    value=""
+                    onChange={(e) => { if (e.target.value) setBusinessTypes([...businessTypes, e.target.value]); }}
+                  >
+                    <option value="">Add business type…</option>
+                    {BUSINESS_TYPES.filter((t) => !businessTypes.includes(t.value)).map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    className="flex-1"
+                    placeholder="Or add a custom business type"
+                    value={btCustom}
+                    onChange={(e) => setBtCustom(toTitleCase(e.target.value))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (btCustom.trim()) { setBusinessTypes([...businessTypes, btCustom.trim()]); setBtCustom(''); }
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={!btCustom.trim()}
+                    onClick={() => { setBusinessTypes([...businessTypes, btCustom.trim()]); setBtCustom(''); }}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </Button>
+                </div>
+              </div>
             </Field>
             <Field label="Client ID" hint="Generated automatically — unique per client">
               <Input
@@ -1666,7 +1706,7 @@ export default function CustomerFormPage() {
                   >
                     <Input
                       placeholder="First name"
-                      {...guardedField(register(`directors.${index}.firstName` as const), 'letters')}
+                      {...titleCaseField(guardedField(register(`directors.${index}.firstName` as const), 'letters'))}
                     />
                   </Field>
                   <Field
@@ -1675,7 +1715,7 @@ export default function CustomerFormPage() {
                   >
                     <Input
                       placeholder="Middle name (optional)"
-                      {...guardedField(register(`directors.${index}.middleName` as const), 'letters')}
+                      {...titleCaseField(guardedField(register(`directors.${index}.middleName` as const), 'letters'))}
                     />
                   </Field>
                   <Field
@@ -1684,7 +1724,7 @@ export default function CustomerFormPage() {
                   >
                     <Input
                       placeholder="Last name"
-                      {...guardedField(register(`directors.${index}.lastName` as const), 'letters')}
+                      {...titleCaseField(guardedField(register(`directors.${index}.lastName` as const), 'letters'))}
                     />
                   </Field>
                   <Field

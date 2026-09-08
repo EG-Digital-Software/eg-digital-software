@@ -19,7 +19,7 @@ const NAV = [
   { to: '/client/dashboard', label: 'Overview', icon: LayoutDashboard },
   { to: '/client/invoices', label: 'Invoices', icon: Receipt },
   { to: '/client/tasks', label: 'Tasks', icon: ListChecks },
-  { to: '/client/licences', label: 'Licences', icon: KeyRound },
+  { to: '/client/licences', label: 'Products', icon: KeyRound },
   { to: '/client/details', label: 'My Details', icon: IdCard },
 ];
 

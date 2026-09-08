@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import {
   FileWarning,
   CheckCircle2,
-  KeyRound,
   Package,
   ArrowRight,
   AlertTriangle,
+  ListChecks,
 } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
+import { clientTaskApi } from '@/api/tasks';
+import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { useAuth } from '@/store/auth';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,6 +69,10 @@ function Kpi({
 export default function ClientDashboard() {
   const user = useAuth((s) => s.user);
   const dashQ = useQuery({ queryKey: ['client', 'dashboard'], queryFn: clientApi.dashboard });
+  const tasksQ = useQuery({ queryKey: ['client', 'tasks', 'summary'], queryFn: () => clientTaskApi().board() });
+  const activeTasks = (tasksQ.data?.buckets ?? [])
+    .flatMap((b) => b.tasks)
+    .filter((t) => t.progress !== 'COMPLETED').length;
   const invQ = useQuery({
     queryKey: ['client', 'invoices', 'recent'],
     queryFn: () => clientApi.invoices({ pageSize: 5 }),
@@ -136,12 +142,11 @@ export default function ClientDashboard() {
               tone="bg-success/10 text-success"
             />
             <Kpi
-              title="Active Licences"
-              icon={KeyRound}
-              to="/client/licences"
-
-              value={String(d.licences.active)}
-              sub={`${d.licences.expiringSoon} expiring · ${d.licences.expired} expired`}
+              title="Active Task"
+              icon={ListChecks}
+              to="/client/tasks"
+              value={String(activeTasks)}
+              sub="tasks in progress"
             />
             <Kpi
               title="Products"
@@ -208,7 +213,7 @@ export default function ClientDashboard() {
         {/* Licences */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="text-base">Your Licences</CardTitle>
+            <CardTitle className="text-base">Your Product & License</CardTitle>
             <Link to="/client/licences" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
               View all <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -249,6 +254,18 @@ export default function ClientDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Tasks — full width, opens on the grid view */}
+      <Card>
+        <CardContent className="pt-6">
+          <TaskBoard
+            api={clientTaskApi()}
+            scopeKey="client"
+            customerName={profileQ.data?.companyName ?? undefined}
+            readOnly
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

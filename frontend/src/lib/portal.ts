@@ -46,7 +46,7 @@ export const ROLE_HOME: Record<PortalRole, string> = {
   SUPER_ADMIN: '/admin/dashboard',
   CLIENT: '/client/dashboard',
   SUPPLIER: '/supplier/dashboard',
-  EMPLOYEE: '/employee/dashboard',
+  EMPLOYEE: '/employee/tasks',
 };
 
 export const authPaths = {
