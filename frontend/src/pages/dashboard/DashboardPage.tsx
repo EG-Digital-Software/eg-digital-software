@@ -11,13 +11,12 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { dashboardApi } from '@/api/resources';
-import type { DashboardSummary, LicenceRow, LowStockRow } from '@/types';
+import type { DashboardSummary, LicenceRow } from '@/types';
 import { useAuth } from '@/store/auth';
 import { PageHeader, StatDelta } from '@/components/shared/misc';
 import { SalesChart } from './SalesChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LicenceBadge } from '@/components/shared/status';
 import { EmptyState } from '@/components/shared/states';
@@ -119,10 +118,6 @@ export default function DashboardPage() {
     queryKey: ['dashboard', 'licences'],
     queryFn: dashboardApi.licences,
   });
-  const lowStockQ = useQuery<LowStockRow[]>({
-    queryKey: ['dashboard', 'lowStock'],
-    queryFn: dashboardApi.lowStock,
-  });
 
   const s = summaryQ.data;
 
@@ -171,15 +166,7 @@ export default function DashboardPage() {
               to="/admin/products"
               hint="Active products in the catalogue"
               value={formatNumber(s.products.active)}
-              footer={
-                s.products.lowStock > 0 ? (
-                  <span className="font-medium text-[hsl(30_90%_38%)]">
-                    {s.products.lowStock} low stock
-                  </span>
-                ) : (
-                  <span>Stock levels healthy</span>
-                )
-              }
+              footer={<span>In the catalogue</span>}
             />
             <KpiCard
               title="Outstanding"
@@ -243,9 +230,9 @@ export default function DashboardPage() {
 
       <SalesChart />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6">
         {/* Licence monitoring */}
-        <Card className="xl:col-span-2">
+        <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Licence Monitoring</CardTitle>
             <Link
@@ -296,42 +283,6 @@ export default function DashboardPage() {
                   ))}
                 </TableBody>
               </Table>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Low stock */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Low Stock Alerts</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {lowStockQ.isLoading ? (
-              <div className="space-y-2 p-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : !lowStockQ.data?.length ? (
-              <div className="p-6">
-                <EmptyState title="Stock looks good" description="No products below threshold." />
-              </div>
-            ) : (
-              <ul className="divide-y divide-border">
-                {lowStockQ.data.slice(0, 8).map((p) => (
-                  <li key={p.id} className="flex items-center justify-between px-5 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">{p.sku}</p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={p.status === 'OUT_OF_STOCK' ? 'destructive' : 'warning'}>
-                        {p.available} / {p.threshold}
-                      </Badge>
-                    </div>
-                  </li>
-                ))}
-              </ul>
             )}
           </CardContent>
         </Card>

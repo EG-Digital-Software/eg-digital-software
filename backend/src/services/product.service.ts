@@ -2,6 +2,13 @@ import { Prisma, ProductStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
+import { nextSequence, formatSku } from '../utils/sequence.js';
+
+/** The SKU the next created product will get, without consuming it (preview). */
+export async function previewNextSku(): Promise<string> {
+  const counter = await prisma.counter.findUnique({ where: { key: 'sku' } });
+  return formatSku((counter?.value ?? 0) + 1);
+}
 
 interface ListParams extends PageQuery {
   search?: string;
@@ -78,10 +85,12 @@ export async function createProduct(data: {
   lowStockThreshold: number;
   status: ProductStatus;
 }) {
+  // Auto-generate the SKU when the admin didn't supply one.
+  const sku = data.sku?.trim() || formatSku(await nextSequence(prisma, 'sku'));
   return prisma.product.create({
     data: {
       productCode: data.productCode,
-      sku: data.sku || null,
+      sku,
       type: data.type,
       name: data.name,
       description: data.description,
@@ -136,20 +145,10 @@ export async function deleteProduct(id: string) {
 export async function reserveStock(
   tx: Prisma.TransactionClient,
   productId: string,
-  quantity: number
+  _quantity: number
 ) {
-  const product = await tx.product.findUnique({ where: { id: productId } });
+  // Inventory is unlimited — no product ever goes out of stock — so this only
+  // confirms the product exists; it no longer checks or decrements stock.
+  const product = await tx.product.findUnique({ where: { id: productId }, select: { id: true } });
   if (!product) throw ApiError.notFound('Product not found');
-  if (quantity > product.availableStock) {
-    throw ApiError.badRequest(
-      `Insufficient stock for ${product.name}: requested ${quantity}, available ${product.availableStock}`
-    );
-  }
-  await tx.product.update({
-    where: { id: productId },
-    data: {
-      availableStock: { decrement: quantity },
-      reservedStock: { increment: quantity },
-    },
-  });
 }

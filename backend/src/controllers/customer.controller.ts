@@ -27,6 +27,19 @@ export const getOne = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, customer);
 });
 
+export const assignProduct = asyncHandler(async (req: Request, res: Response) => {
+  const customer = await customerService.assignProductToCustomer(req.params.clientId, req.body);
+  return ok(res, customer, 'Product assigned', 201);
+});
+
+export const removeProduct = asyncHandler(async (req: Request, res: Response) => {
+  const customer = await customerService.removeCustomerProduct(
+    req.params.clientId,
+    req.params.customerProductId
+  );
+  return ok(res, customer, 'Product removed');
+});
+
 export const revealCredential = asyncHandler(async (req: Request, res: Response) => {
   const credential = await customerService.revealCredential(req.params.clientId);
   return ok(res, credential);

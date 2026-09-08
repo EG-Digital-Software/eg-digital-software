@@ -29,6 +29,12 @@ export function formatTaskNumber(n: number): string {
   return `TSK-EGD-${4999 + n}`;
 }
 
+// Product SKUs are SKU-<n>, starting at SKU-5000 (nextSequence returns 1 for
+// the first, so offset by 4999).
+export function formatSku(n: number): string {
+  return `SKU-${4999 + n}`;
+}
+
 export function formatInvoiceNumber(n: number, date = new Date()): string {
   const year = date.getFullYear();
   return `EGD-INV-${year}-${String(n).padStart(5, '0')}`;

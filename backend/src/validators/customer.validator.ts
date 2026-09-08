@@ -56,10 +56,12 @@ const itContactSchema = z.object({
   phoneCountry: countryCode,
 });
 
-const assignedProductSchema = z.object({
+export const assignedProductSchema = z.object({
   productId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
   price: z.coerce.number().min(0).optional(),
+  unit: z.string().max(30).optional(),
+  taxRate: z.coerce.number().min(0).max(100).optional(),
   licence: z.string().optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
   issueDate: z.coerce.date().optional(),
@@ -153,7 +155,6 @@ export const createCustomerSchema = z
 export const updateCustomerSchema = createCustomerSchema
   .innerType()
   .partial()
-  .omit({ assignedProducts: true })
   .refine((v) => v.authorized || !!v.authorizedPerson?.trim(), {
     message: 'Authorised person is required when Authorised is set to No',
     path: ['authorizedPerson'],

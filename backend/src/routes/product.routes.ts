@@ -16,8 +16,9 @@ const router = Router();
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
 
 router.get('/', validate({ query: listProductQuerySchema }), ctrl.list);
-// Must precede /:id so "categories" is not read as a product id.
+// Must precede /:id so "categories"/"next-sku" are not read as a product id.
 router.get('/categories', ctrl.categories);
+router.get('/next-sku', ctrl.nextSku);
 router.get('/:id', ctrl.getOne);
 router.post('/', validate({ body: createProductSchema }), ctrl.create);
 router.post('/bulk-import', upload.single('file'), ctrl.bulkImport);

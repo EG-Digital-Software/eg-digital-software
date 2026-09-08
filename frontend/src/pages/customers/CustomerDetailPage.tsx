@@ -21,12 +21,12 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { customerApi } from '@/api/resources';
+import { customerApi, productApi } from '@/api/resources';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
 import type { Address, Customer, CustomerCredential } from '@/types';
-import { Input } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, EmptyState, Spinner } from '@/components/shared/states';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials, cn } from '@/lib/utils';
 import { businessTypeLabel, customerName, formatAbn, invoiceTermLabel } from '@/lib/customer';
@@ -726,45 +728,7 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="products">
-          <Card>
-            <CardContent className="p-0">
-              {!c.customerProducts?.length ? (
-                <div className="p-6">
-                  <EmptyState title="No products assigned" description="Assign products when editing this customer." />
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Licence</TableHead>
-                      <TableHead className="text-center">Qty</TableHead>
-                      <TableHead>Issued</TableHead>
-                      <TableHead>Expiry</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {c.customerProducts.map((cp) => (
-                      <TableRow key={cp.id}>
-                        <TableCell>
-                          <p className="font-medium">{cp.product.name}</p>
-                          <p className="text-xs text-muted-foreground">{cp.product.sku ?? cp.product.productCode}</p>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{cp.licence?.licenceKey ?? '—'}</TableCell>
-                        <TableCell className="text-center tabular-nums">{cp.quantity}</TableCell>
-                        <TableCell className="text-sm">{formatDate(cp.issueDate)}</TableCell>
-                        <TableCell className="text-sm">{formatDate(cp.expiryDate)}</TableCell>
-                        <TableCell>
-                          <LicenceBadge status={cp.status} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <ProductsTab customer={c} />
         </TabsContent>
 
         <TabsContent value="invoices">
@@ -825,5 +789,189 @@ export default function CustomerDetailPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+const EMPTY_ASSIGN = {
+  productId: '',
+  quantity: '1',
+  price: '',
+  unit: '',
+  taxRate: '',
+  licence: '',
+  issueDate: '',
+  expiryDate: '',
+};
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+/** Products & Licences tab — admin assigns and removes products here. */
+function ProductsTab({ customer }: { customer: Customer }) {
+  const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ ...EMPTY_ASSIGN });
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  const { data: products } = useQuery({
+    queryKey: ['products', 'all'],
+    queryFn: () => productApi.list({ pageSize: 100, status: 'ACTIVE' }),
+  });
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ['customer', customer.clientId] });
+  const set = (k: keyof typeof EMPTY_ASSIGN, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const net = (Number(form.price) || 0) * (Number(form.quantity) || 0);
+  const total = net + net * ((Number(form.taxRate) || 0) / 100);
+
+  const assign = useMutation({
+    mutationFn: () => {
+      const payload: Record<string, unknown> = {
+        productId: form.productId,
+        quantity: Number(form.quantity) || 1,
+      };
+      if (form.price !== '') payload.price = Number(form.price);
+      if (form.unit.trim()) payload.unit = form.unit.trim();
+      if (form.taxRate !== '') payload.taxRate = Number(form.taxRate);
+      if (form.licence.trim()) payload.licence = form.licence.trim();
+      if (form.issueDate) payload.issueDate = form.issueDate;
+      if (form.expiryDate) payload.expiryDate = form.expiryDate;
+      return customerApi.assignProduct(customer.clientId, payload);
+    },
+    onSuccess: () => { refresh(); toast.success('Product assigned'); setForm({ ...EMPTY_ASSIGN }); setAdding(false); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => customerApi.removeProduct(customer.clientId, id),
+    onSuccess: () => { refresh(); toast.success('Product removed'); setRemoving(null); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle className="text-base">Products & Licences</CardTitle>
+        {!adding && (
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <Plus className="h-4 w-4" /> Assign Product
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {adding && (
+          <div className="rounded-lg border border-border bg-secondary/30 p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="Product">
+                <Select value={form.productId} onChange={(e) => set('productId', e.target.value)}>
+                  <option value="">Select product…</option>
+                  {products?.items.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Quantity">
+                <Input type="number" min={1} value={form.quantity} onChange={(e) => set('quantity', e.target.value)} />
+              </Field>
+              <Field label="Price Per Qty">
+                <Input type="number" min={0} step="0.01" value={form.price} onChange={(e) => set('price', e.target.value)} />
+              </Field>
+              <Field label="Unit">
+                <Input placeholder="unit / seat / licence" value={form.unit} onChange={(e) => set('unit', e.target.value)} />
+              </Field>
+              <Field label="Tax Rate (%)">
+                <Input type="number" min={0} max={100} step="0.01" value={form.taxRate} onChange={(e) => set('taxRate', e.target.value)} />
+              </Field>
+              <Field label="Total Amount">
+                <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium">
+                  {formatCurrency(total)}
+                </div>
+              </Field>
+              <Field label="Licence Key">
+                <Input placeholder="Auto-generated" value={form.licence} onChange={(e) => set('licence', e.target.value)} />
+              </Field>
+              <Field label="Issue Date">
+                <Input type="date" value={form.issueDate} onChange={(e) => set('issueDate', e.target.value)} />
+              </Field>
+              <Field label="Expiry Date">
+                <Input type="date" value={form.expiryDate} onChange={(e) => set('expiryDate', e.target.value)} />
+              </Field>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setAdding(false); setForm({ ...EMPTY_ASSIGN }); }}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={!form.productId || assign.isPending} onClick={() => assign.mutate()}>
+                {assign.isPending && <Spinner />} Assign
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!customer.customerProducts?.length ? (
+          <EmptyState title="No products assigned" description="Use “Assign Product” to add one." />
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Licence</TableHead>
+                  <TableHead className="text-center">Qty</TableHead>
+                  <TableHead>Issued</TableHead>
+                  <TableHead>Expiry</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {customer.customerProducts.map((cp) => (
+                  <TableRow key={cp.id}>
+                    <TableCell>
+                      <p className="font-medium">{cp.product.name}</p>
+                      <p className="text-xs text-muted-foreground">{cp.product.sku ?? cp.product.productCode}</p>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{cp.licence?.licenceKey ?? '—'}</TableCell>
+                    <TableCell className="text-center tabular-nums">{cp.quantity}</TableCell>
+                    <TableCell className="text-sm">{formatDate(cp.issueDate)}</TableCell>
+                    <TableCell className="text-sm">{formatDate(cp.expiryDate)}</TableCell>
+                    <TableCell>
+                      <LicenceBadge status={cp.status} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => setRemoving(cp.id)}
+                        title="Remove product"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+
+      <ConfirmDialog
+        open={!!removing}
+        onOpenChange={(v) => !v && setRemoving(null)}
+        title="Remove Product?"
+        description="This removes the assigned product and its licence from the customer, and returns the stock."
+        confirmLabel="Remove"
+        destructive
+        loading={remove.isPending}
+        onConfirm={() => removing && remove.mutate(removing)}
+      />
+    </Card>
   );
 }

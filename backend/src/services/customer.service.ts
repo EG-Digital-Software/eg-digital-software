@@ -431,6 +431,8 @@ type CreateInput = {
     productId: string;
     quantity: number;
     price?: number;
+    unit?: string;
+    taxRate?: number;
     licence?: string;
     status?: 'ACTIVE' | 'SUSPENDED';
     issueDate?: Date;
@@ -556,31 +558,7 @@ export async function createCustomer(input: CreateInput) {
       },
     });
 
-    for (const ap of input.assignedProducts ?? []) {
-      await reserveStock(tx, ap.productId, ap.quantity);
-      const status = (ap.status as LicenceStatus) ?? computeLicenceStatus(ap.expiryDate);
-      const cp = await tx.customerProduct.create({
-        data: {
-          customerId: customer.id,
-          productId: ap.productId,
-          quantity: ap.quantity,
-          price: new Prisma.Decimal(ap.price ?? 0),
-          issueDate: ap.issueDate ?? new Date(),
-          expiryDate: ap.expiryDate ?? null,
-          status,
-          notes: ap.notes,
-        },
-      });
-      await tx.licence.create({
-        data: {
-          customerProductId: cp.id,
-          licenceKey: ap.licence?.trim() || formatLicenceKey(),
-          issueDate: ap.issueDate ?? new Date(),
-          expiryDate: ap.expiryDate ?? null,
-          status,
-        },
-      });
-    }
+    await assignProducts(tx, customer.id, input.assignedProducts);
 
     const directors = cleanDirectors(input.directors);
     if (directors.length) {
@@ -691,6 +669,9 @@ export async function updateCustomer(clientId: string, input: Partial<CreateInpu
 
     await upsertCredential(tx, existing, input.credential);
 
+    // Append any newly-assigned products (existing assignments are untouched).
+    await assignProducts(tx, existing.id, input.assignedProducts);
+
     return tx.customer.findUniqueOrThrow({
       where: { id: existing.id },
       include: { addresses: true, directors: true, itContacts: true },
@@ -699,6 +680,45 @@ export async function updateCustomer(clientId: string, input: Partial<CreateInpu
     // addresses, directors and the portal login, so give it more than the 5s
     // interactive default.
   }, { timeout: 20000, maxWait: 15000 });
+}
+
+/**
+ * Create the customer-product assignments (with their licences) for a list of
+ * assignments. Used on create and when adding products while editing a
+ * customer — it appends, never touching existing assignments.
+ */
+async function assignProducts(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  assignedProducts?: CreateInput['assignedProducts']
+) {
+  for (const ap of assignedProducts ?? []) {
+    await reserveStock(tx, ap.productId, ap.quantity);
+    const status = (ap.status as LicenceStatus) ?? computeLicenceStatus(ap.expiryDate);
+    const cp = await tx.customerProduct.create({
+      data: {
+        customerId,
+        productId: ap.productId,
+        quantity: ap.quantity,
+        price: new Prisma.Decimal(ap.price ?? 0),
+        unit: ap.unit ?? null,
+        taxRate: new Prisma.Decimal(ap.taxRate ?? 0),
+        issueDate: ap.issueDate ?? new Date(),
+        expiryDate: ap.expiryDate ?? null,
+        status,
+        notes: ap.notes,
+      },
+    });
+    await tx.licence.create({
+      data: {
+        customerProductId: cp.id,
+        licenceKey: ap.licence?.trim() || formatLicenceKey(),
+        issueDate: ap.issueDate ?? new Date(),
+        expiryDate: ap.expiryDate ?? null,
+        status,
+      },
+    });
+  }
 }
 
 /** Create the address row on first save, update it on every save after that. */
@@ -715,6 +735,31 @@ async function upsertAddress(
   } else {
     await tx.address.create({ data: { customerId, type, ...cleanAddress(address) } });
   }
+}
+
+/** Assign a single product (with its licence) to an existing customer. */
+export async function assignProductToCustomer(
+  clientId: string,
+  ap: NonNullable<CreateInput['assignedProducts']>[number]
+) {
+  const existing = await prisma.customer.findUnique({ where: { clientId } });
+  if (!existing) throw ApiError.notFound('Customer not found');
+  await prisma.$transaction((tx) => assignProducts(tx, existing.id, [ap]));
+  return getCustomerByClientId(clientId);
+}
+
+/** Remove one assigned product (its licence cascades) and hand the stock back. */
+export async function removeCustomerProduct(clientId: string, customerProductId: string) {
+  const existing = await prisma.customer.findUnique({ where: { clientId } });
+  if (!existing) throw ApiError.notFound('Customer not found');
+  const cp = await prisma.customerProduct.findFirst({
+    where: { id: customerProductId, customerId: existing.id },
+  });
+  if (!cp) throw ApiError.notFound('Assigned product not found');
+  // Inventory is unlimited, so nothing to hand back — just remove the row
+  // (its licence cascades).
+  await prisma.customerProduct.delete({ where: { id: cp.id } });
+  return getCustomerByClientId(clientId);
 }
 
 export async function archiveCustomer(clientId: string) {

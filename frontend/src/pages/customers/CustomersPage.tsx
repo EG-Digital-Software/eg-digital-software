@@ -74,6 +74,8 @@ export default function CustomersPage() {
         pageSize: 10,
         search: debounced,
         status,
+        sortBy: 'clientId',
+        sortDir: 'asc',
         ...(businessType ? { businessType } : {}),
       }),
   });

@@ -415,6 +415,10 @@ model CustomerProduct {
   productId  String
   quantity   Int           @default(1)
   price      Decimal       @default(0) @db.Decimal(12, 2)
+  /// Per-customer pricing entered when the product is assigned (products no
+  /// longer carry their own price). `price` is the price per quantity.
+  unit       String?
+  taxRate    Decimal       @default(0) @db.Decimal(5, 2)
   issueDate  DateTime      @default(now())
   expiryDate DateTime?
   status     LicenceStatus @default(ACTIVE)

@@ -155,6 +155,8 @@ const schema = z
           productId: z.string().min(1, 'Select a product'),
           quantity: z.coerce.number().int().positive(),
           price: z.coerce.number().min(0).optional(),
+          unit: z.string().optional(),
+          taxRate: z.coerce.number().min(0).max(100).optional(),
           licence: z.string().optional(),
           issueDate: z.string().optional(),
           expiryDate: z.string().optional(),
@@ -1224,10 +1226,6 @@ export default function CustomerFormPage() {
     });
   }, [existing, reset]);
 
-  const productMap = useMemo(
-    () => new Map((products?.items ?? []).map((p) => [p.id, p])),
-    [products]
-  );
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) => {
@@ -1280,7 +1278,7 @@ export default function CustomerFormPage() {
             phone: c.phone?.trim() || undefined,
             phoneCountry: c.phoneCountry,
           })),
-        assignedProducts: isEdit ? undefined : values.assignedProducts,
+        assignedProducts: values.assignedProducts,
         // Send the login only when the admin actually set/changed something.
         credential:
           values.credential?.email?.trim() || values.credential?.password?.trim()
@@ -1887,7 +1885,7 @@ export default function CustomerFormPage() {
           </div>
         </Section>
 
-        {/* ── 5. Products ── */}
+        {/* ── 5. Products (assign at creation; managed later from the detail page) ── */}
         {!isEdit && (
           <Section
             icon={Package}
@@ -1896,7 +1894,9 @@ export default function CustomerFormPage() {
           >
             <div className="space-y-4">
               {fields.map((field, index) => {
-                const selected = productMap.get(assigned?.[index]?.productId ?? '');
+                const row = assigned?.[index];
+                const rowNet = (Number(row?.price) || 0) * (Number(row?.quantity) || 0);
+                const rowTotal = rowNet + rowNet * ((Number(row?.taxRate) || 0) / 100);
                 return (
                   <div key={field.id} className="rounded-lg border border-border bg-secondary/30 p-4">
                     <div className="mb-3 flex items-center justify-between">
@@ -1911,18 +1911,11 @@ export default function CustomerFormPage() {
                           control={control}
                           name={`assignedProducts.${index}.productId`}
                           render={({ field: f }) => (
-                            <Select
-                              {...f}
-                              onChange={(e) => {
-                                f.onChange(e);
-                                const p = productMap.get(e.target.value);
-                                if (p) setValue(`assignedProducts.${index}.price`, Number(p.pricePerQty));
-                              }}
-                            >
+                            <Select {...f}>
                               <option value="">Select product…</option>
                               {products?.items.map((p) => (
                                 <option key={p.id} value={p.id}>
-                                  {p.name} — {p.availableStock} available
+                                  {p.name}
                                 </option>
                               ))}
                             </Select>
@@ -1935,8 +1928,22 @@ export default function CustomerFormPage() {
                       >
                         <Input {...numericField(register(`assignedProducts.${index}.quantity`))} />
                       </Field>
-                      <Field label="Price">
+                      <Field label="Price Per Qty">
                         <Input {...numericField(register(`assignedProducts.${index}.price`), 'decimal')} />
+                      </Field>
+                      <Field label="Unit">
+                        <Input placeholder="unit / seat / licence" {...register(`assignedProducts.${index}.unit`)} />
+                      </Field>
+                      <Field label="Tax Rate (%)">
+                        <Input {...numericField(register(`assignedProducts.${index}.taxRate`), 'decimal')} />
+                      </Field>
+                      <Field label="Total Amount">
+                        <Input
+                          readOnly
+                          value={formatCurrency(rowTotal)}
+                          className="bg-secondary/40 font-medium"
+                          tabIndex={-1}
+                        />
                       </Field>
                       <Field label="Licence Key">
                         <Input
@@ -1951,11 +1958,6 @@ export default function CustomerFormPage() {
                         <Input type="date" {...register(`assignedProducts.${index}.expiryDate`)} />
                       </Field>
                     </div>
-                    {selected && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {selected.availableStock} in stock · {formatCurrency(selected.pricePerQty)} each
-                      </p>
-                    )}
                   </div>
                 );
               })}
@@ -1963,7 +1965,7 @@ export default function CustomerFormPage() {
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  append({ productId: '', quantity: 1, price: 0, licence: '', issueDate: '', expiryDate: '' })
+                  append({ productId: '', quantity: 1, price: 0, unit: '', taxRate: 0, licence: '', issueDate: '', expiryDate: '' })
                 }
               >
                 <Plus className="h-4 w-4" /> Add Product

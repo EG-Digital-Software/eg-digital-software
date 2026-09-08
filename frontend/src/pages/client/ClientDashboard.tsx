@@ -78,11 +78,14 @@ export default function ClientDashboard() {
   const acct = profileQ.data
     ? ACCOUNT_STATUS[profileQ.data.accountStatusEffective ?? profileQ.data.accountStatus]
     : undefined;
+  const displayName =
+    profileQ.data?.companyName?.trim() ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ');
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Welcome Back, ${[user?.firstName, user?.lastName].filter(Boolean).join(' ')} 👋`}
+        title={`Welcome Back, ${displayName} 👋`}
         description="Your invoices, licences and account overview"
         actions={acct ? <Badge variant={acct.variant}>{acct.label}</Badge> : undefined}
       />

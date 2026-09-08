@@ -10,6 +10,7 @@ import {
   listCustomerQuerySchema,
   addCredentialSchema,
   changePasswordSchema,
+  assignedProductSchema,
 } from '../validators/customer.validator.js';
 
 const router = Router();
@@ -23,6 +24,9 @@ router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
 router.get('/next-client-id', ctrl.nextClientId);
 router.get('/:clientId', ctrl.getOne);
 // Reveal the customer's portal password (admin-only, like every route here).
+router.post('/:clientId/products', validate({ body: assignedProductSchema }), ctrl.assignProduct);
+router.delete('/:clientId/products/:customerProductId', ctrl.removeProduct);
+
 router.get('/:clientId/credential', ctrl.revealCredential);
 // Multiple portal logins per customer — the admin can grant access to others.
 router.get('/:clientId/credentials', ctrl.listCredentials);

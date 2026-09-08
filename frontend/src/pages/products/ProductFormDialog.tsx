@@ -2,8 +2,8 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DollarSign, Archive, LayoutGrid } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 import { productApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
@@ -14,14 +14,13 @@ import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
-import { numericField, titleCaseField } from '@/lib/input';
+import { titleCaseField } from '@/lib/input';
 import { cn } from '@/lib/utils';
 
 const schema = z.object({
   productCode: z.string().min(1, 'Required'),
   name: z.string().min(1, 'Required'),
   type: z.string().optional(),
-  sku: z.string().optional(),
   category: z.string().optional(),
   description: z.string().optional(),
   unit: z.string().optional(),
@@ -119,7 +118,6 @@ export function ProductFormDialog({
               productCode: product.productCode,
               name: product.name,
               type: product.type ?? '',
-              sku: product.sku ?? '',
               category: product.category ?? '',
               description: product.description ?? '',
               unit: product.unit ?? 'unit',
@@ -133,7 +131,6 @@ export function ProductFormDialog({
               productCode: '',
               name: '',
               type: '',
-              sku: '',
               category: '',
               description: '',
               unit: 'unit',
@@ -147,9 +144,28 @@ export function ProductFormDialog({
     }
   }, [open, product, reset]);
 
+  // SKU is system-managed (auto-generated on create), so it's display-only.
+  const { data: nextSku } = useQuery({
+    queryKey: ['products', 'next-sku'],
+    queryFn: productApi.nextSku,
+    enabled: open && !isEdit,
+  });
+  const skuDisplay = isEdit ? product?.sku ?? '—' : nextSku ?? 'Generating…';
+
   const mutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      isEdit ? productApi.update(product!.id, values) : productApi.create(values),
+    mutationFn: (values: FormValues) => {
+      // Pricing now lives on each customer assignment; inventory is unlimited so
+      // products never go out of stock. Force those on every save.
+      const payload = {
+        ...values,
+        pricePerQty: 0,
+        taxRate: 0,
+        unit: values.unit?.trim() || 'unit',
+        totalStock: 1_000_000,
+        lowStockThreshold: 0,
+      };
+      return isEdit ? productApi.update(product!.id, payload) : productApi.create(payload);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
@@ -166,7 +182,7 @@ export function ProductFormDialog({
           <DialogTitle>{isEdit ? 'Edit Product' : 'Add Product'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="mt-2 space-y-6">
-          <Section icon={LayoutGrid} title="Basic Information">
+          <Section icon={LayoutGrid} title="Product Information">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Product Code" error={errors.productCode?.message}>
                 <Input className={FILLED_CONTROL} {...register('productCode')} placeholder="EGD-P-016" />
@@ -177,8 +193,10 @@ export function ProductFormDialog({
               <Field label="Product Type">
                 <Input className={FILLED_CONTROL} {...titleCaseField(register('type'))} placeholder="Software Licence" />
               </Field>
-              <Field label="SKU">
-                <Input className={FILLED_CONTROL} {...register('sku')} placeholder="SKU-016" />
+              <Field label="SKU" hint="Auto-generated">
+                <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-foreground">
+                  {skuDisplay}
+                </div>
               </Field>
               <Field label="Category">
                 <Input className={FILLED_CONTROL} {...titleCaseField(register('category'))} placeholder="Category" />
@@ -197,42 +215,9 @@ export function ProductFormDialog({
             </div>
           </Section>
 
-          <Section icon={DollarSign} title="Pricing">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Price Per Quantity" error={errors.pricePerQty?.message}>
-                <Input className={FILLED_CONTROL} {...numericField(register('pricePerQty'), 'decimal')} />
-              </Field>
-              <Field label="Unit" hint="Shown as “per unit” on the catalogue">
-                <Input className={FILLED_CONTROL} {...register('unit')} placeholder="unit / seat / licence" />
-              </Field>
-              <Field label="Tax Rate (%)" error={errors.taxRate?.message} hint="0 – 100">
-                <Input className={FILLED_CONTROL} {...numericField(register('taxRate'), 'decimal')} />
-              </Field>
-            </div>
-          </Section>
-
-          <Section icon={Archive} title="Inventory">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field
-                label="Number of Stock"
-                error={errors.totalStock?.message}
-                hint={
-                  isEdit
-                    ? `${product!.availableStock} available · ${product!.reservedStock} reserved`
-                    : undefined
-                }
-              >
-                <Input className={FILLED_CONTROL} {...numericField(register('totalStock'))} />
-              </Field>
-              <Field
-                label="Low Stock Threshold"
-                error={errors.lowStockThreshold?.message}
-                hint="Flagged as low once availability drops to this"
-              >
-                <Input className={FILLED_CONTROL} {...numericField(register('lowStockThreshold'))} />
-              </Field>
-            </div>
-          </Section>
+          <p className="text-xs text-muted-foreground">
+            Pricing is set per customer when the product is assigned. Inventory is unlimited — products never go out of stock.
+          </p>
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

@@ -24,6 +24,10 @@ export const categories = asyncHandler(async (_req: Request, res: Response) => {
   return ok(res, await productService.listCategories());
 });
 
+export const nextSku = asyncHandler(async (_req: Request, res: Response) => {
+  return ok(res, { sku: await productService.previewNextSku() });
+});
+
 export const getOne = asyncHandler(async (req: Request, res: Response) => {
   const product = await productService.getProduct(req.params.id);
   return ok(res, product);
