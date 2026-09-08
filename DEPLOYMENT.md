@@ -195,9 +195,9 @@ git push origin main
 ```
 Dono workflows chalenge. GitHub → Actions tab par status dekhein.
 
-Verify:
+Verify (real hostname — regional suffix ke saath):
 ```bash
-curl https://<api>.azurewebsites.net/api/health
+curl https://eg-digital-api-fcgbfcajbqehgpd5.australiaeast-01.azurewebsites.net/api/health
 # {"success":true,"message":"ok","data":{"up":true}}
 ```
 Phir SWA URL kholein aur `/login` par super-admin credentials se login karein.
@@ -365,9 +365,17 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 |---|---|
 | `AZURE_WEBAPP_PUBLISH_PROFILE` | P3(c) wali file ka pura XML |
 | `AZURE_STATIC_WEB_APPS_API_TOKEN` | P4 wala deployment token |
-| `VITE_API_URL` | `https://eg-digital-api.azurewebsites.net/api` |
+| `VITE_API_URL` | App Service ka **real default hostname** + `/api` (niche note dekhein) |
 
-Aur `.github/workflows/backend.yml` mein `AZURE_WEBAPP_NAME` apne App Service ke naam se badal dein.
+> ⚠️ **Hostname note:** Naye Azure App Services ka default hostname ab
+> `<name>-<hash>.<region>-01.azurewebsites.net` hota hai — sirf
+> `<name>.azurewebsites.net` **nahi**. Live API abhi yahan hai:
+> `https://eg-digital-api-fcgbfcajbqehgpd5.australiaeast-01.azurewebsites.net/api`
+> Exact URL App Service → **Overview → Default domain** se copy karein aur wahi
+> `VITE_API_URL` mein daalein.
+
+Aur `.github/workflows/backend.yml` mein `AZURE_WEBAPP_NAME` App Service ka
+**resource name** hai (`eg-digital-api`) — hostname nahi. Ise waise hi rehne dein.
 
 ## P6. Migrate + seed (local se, ek baar)
 
@@ -385,7 +393,8 @@ npm run seed
 GitHub repo → **Actions** tab → "Deploy Backend" → **Run workflow** → `main`
 Phir "Deploy Frontend" → **Run workflow**
 
-Verify: `https://eg-digital-api.azurewebsites.net/api/health` → `{"success":true,...}`
+Verify: `https://eg-digital-api-fcgbfcajbqehgpd5.australiaeast-01.azurewebsites.net/api/health` → `{"success":true,...}`
+(Exact URL App Service → **Overview → Default domain** se lein.)
 Phir SWA URL → `/login` → super-admin credentials.
 
 Logs chahiye to: App Service → **Monitoring → Log stream**
