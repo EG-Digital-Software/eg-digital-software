@@ -9,6 +9,7 @@ import {
   createTaskSchema,
   updateTaskSchema,
   moveTaskSchema,
+  taskProgressSchema,
   createLabelSchema,
   updateLabelSchema,
 } from '../validators/task.validator.js';
@@ -33,6 +34,7 @@ export function buildTaskRouter(readOnly = false): Router {
   router.get('/tasks/:taskId', ctrl.getTask);
 
   // Collaboration — available to clients too.
+  router.patch('/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.setProgress);
   router.post('/tasks/:taskId/comments', upload.single('file'), ctrl.addComment);
   router.delete('/tasks/:taskId/comments/:commentId', ctrl.deleteComment);
   router.post('/tasks/:taskId/attachments', upload.single('file'), ctrl.addAttachment);

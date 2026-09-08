@@ -68,6 +68,12 @@ export const commentSchema = z.object({
   body: z.string().min(1).max(5000),
 });
 
+// Progress-only update — allowed for clients too (mark complete from the grid),
+// unlike the full updateTask which is admin-only.
+export const taskProgressSchema = z.object({
+  progress,
+});
+
 export const createLabelSchema = z.object({
   name: z.string().min(1).max(60),
   color: z.string().min(1).max(30).optional(),

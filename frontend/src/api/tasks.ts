@@ -53,6 +53,9 @@ export function taskApi(base: string) {
     moveTask: (taskId: string, bucketId: string, order: number) =>
       unwrap<Task>(api.patch(`${base}/tasks/${taskId}/move`, { bucketId, order })),
     deleteTask: (taskId: string) => unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}`)),
+    // Progress-only update — allowed for clients too (tick complete from the grid).
+    setProgress: (taskId: string, progress: TaskProgress) =>
+      unwrap<Task>(api.patch(`${base}/tasks/${taskId}/progress`, { progress })),
 
     // Comments — an optional file rides along and is shown inside the chat bubble.
     addComment: (taskId: string, body: string, file?: File) => {

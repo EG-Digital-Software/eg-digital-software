@@ -32,7 +32,7 @@ import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER } from '@/
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input, Textarea, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
+import { Avatar, AvatarFallback, AvatarImage, Tooltip } from '@/components/ui/misc';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -384,15 +384,14 @@ export function TaskDialog({
                       onChange={(v) => update({ dueDate: v }, { dueDate: toIso(v) || null })} />
                   </Field>
 
-                  <Field label="Repeat" hint>
+                  <Field label="Repeat" hint="Set how often this task recurs. Choose a cadence (daily, weekly, monthly…) and a new copy is created automatically each cycle; 'Does not repeat' keeps it one-off.">
                     <IconSelect leading={<Repeat2 className="h-3.5 w-3.5 text-muted-foreground" />} value={repeat} disabled={disabled} onChange={setRepeat}>
                       {REPEAT_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
                     </IconSelect>
                   </Field>
-                  <Field label="Task number" hint>
+                  <Field label="Task number" hint="Unique ID assigned automatically to every task (TSK-EGD-5000, 5001, …). It can't be edited. For a new task this shows the number it will get on creation.">
                     <div className="flex h-10 items-center gap-2 rounded-md border border-input bg-secondary/40 px-3 text-sm font-semibold tabular-nums text-foreground">
                       {task?.taskNumber ?? nextTaskNumber ?? 'Auto-generated'}
-                      {!task && <span className="text-xs font-normal text-muted-foreground">(next)</span>}
                     </div>
                   </Field>
                 </div>
@@ -615,12 +614,18 @@ function TabPill({ active, onClick, icon, children }: { active: boolean; onClick
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: boolean; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="mb-1.5 flex items-center gap-1 text-sm font-medium">
         {label}
-        {hint && <Info className="h-3.5 w-3.5 text-muted-foreground" />}
+        {hint && (
+          <Tooltip content={<span className="block max-w-[240px] leading-relaxed">{hint}</span>}>
+            <button type="button" tabIndex={-1} className="text-muted-foreground hover:text-foreground" aria-label={hint}>
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
+        )}
       </div>
       {children}
     </div>

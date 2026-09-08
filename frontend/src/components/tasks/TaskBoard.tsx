@@ -78,6 +78,31 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
   const addBucket = useMutation({ mutationFn: (name: string) => api.createBucket(name), onSuccess: invalidate, onError: onErr });
   const renameBucket = useMutation({ mutationFn: (v: { id: string; name: string }) => api.updateBucket(v.id, { name: v.name }), onSuccess: invalidate, onError: onErr });
   const delBucket = useMutation({ mutationFn: (id: string) => api.deleteBucket(id), onSuccess: invalidate, onError: onErr });
+  const delTask = useMutation({ mutationFn: (id: string) => api.deleteTask(id), onSuccess: () => { invalidate(); toast.success('Task deleted'); }, onError: onErr });
+  const setProgress = useMutation({
+    mutationFn: (v: { id: string; progress: TaskProgress }) => api.setProgress(v.id, v.progress),
+    // Optimistic: flip the checkbox instantly instead of waiting for the round-trip.
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey });
+      const prev = qc.getQueryData<Board>(queryKey);
+      if (prev) {
+        const completedAt = v.progress === 'COMPLETED' ? new Date().toISOString() : null;
+        qc.setQueryData<Board>(queryKey, {
+          ...prev,
+          buckets: prev.buckets.map((b) => ({
+            ...b,
+            tasks: b.tasks.map((t) => (t.id === v.id ? { ...t, progress: v.progress, completedAt } : t)),
+          })),
+        });
+      }
+      return { prev };
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(queryKey, ctx.prev);
+      onErr(e);
+    },
+    onSettled: invalidate,
+  });
   const createLabel = useMutation({ mutationFn: (v: { name: string; color: string }) => api.createLabel(v.name, v.color), onSuccess: invalidate, onError: onErr });
   const delLabel = useMutation({ mutationFn: (id: string) => api.deleteLabel(id), onSuccess: invalidate, onError: onErr });
 
@@ -142,7 +167,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
             <div>
               <h2 className="text-lg font-semibold leading-tight">Task board</h2>
               <p className="text-sm text-muted-foreground">
-                {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} · {doneTasks} completed · {board.buckets.length} buckets
+                {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} · {doneTasks} completed · {board.buckets.length} {board.buckets.length === 1 ? 'column' : 'columns'}
               </p>
             </div>
           </div>
@@ -267,7 +292,16 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
           onDeleteBucket={(id) => delBucket.mutate(id)}
         />
       )}
-      {view === 'grid' && <GridView buckets={filtered.buckets} onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })} />}
+      {view === 'grid' && (
+        <GridView
+          buckets={filtered.buckets}
+          customerName={customerName}
+          readOnly={readOnly}
+          onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
+          onDeleteTask={(id) => delTask.mutate(id)}
+          onToggleComplete={(t) => setProgress.mutate({ id: t.id, progress: t.progress === 'COMPLETED' ? 'NOT_STARTED' : 'COMPLETED' })}
+        />
+      )}
       {view === 'schedule' && <ScheduleView buckets={filtered.buckets} onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })} />}
       {view === 'charts' && <ChartsView buckets={filtered.buckets} />}
 

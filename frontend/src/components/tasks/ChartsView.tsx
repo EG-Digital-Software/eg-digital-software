@@ -108,7 +108,7 @@ export function ChartsView({ buckets }: { buckets: TaskBucket[] }) {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">By bucket</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">By column</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={byBucket}>

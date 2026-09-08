@@ -76,6 +76,16 @@ export const deleteTask = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, await taskService.deleteTask(await resolve(req), req.params.taskId), 'Task deleted');
 });
 
+/**
+ * Progress-only update. Exposed to clients too (they can tick a task complete
+ * from the grid) — the full updateTask stays admin-only.
+ */
+export const setProgress = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await resolve(req);
+  const task = await taskService.updateTask(customerId, req.params.taskId, { progress: req.body.progress });
+  return ok(res, task);
+});
+
 // ─── Comments ─────────────────────────────────────────────
 
 export const addComment = asyncHandler(async (req: Request, res: Response) => {

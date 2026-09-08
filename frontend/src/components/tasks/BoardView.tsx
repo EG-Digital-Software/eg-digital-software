@@ -110,7 +110,7 @@ export function BoardView({
                   <DropdownMenuItem
                     className="text-rose-600"
                     onSelect={() => {
-                      if (confirm(`Delete bucket "${bucket.name}" and all its tasks?`)) onDeleteBucket(bucket.id);
+                      if (confirm(`Delete column "${bucket.name}" and all its tasks?`)) onDeleteBucket(bucket.id);
                     }}
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -164,7 +164,7 @@ export function BoardView({
         </div>
       ))}
 
-      {/* Add bucket */}
+      {/* Add column */}
       {!readOnly && (
         <div className="w-72 shrink-0">
           {addingBucket ? (
@@ -172,7 +172,7 @@ export function BoardView({
               <Input
                 autoFocus
                 value={bucketName}
-                placeholder="Bucket name"
+                placeholder="Column name"
                 className="h-8"
                 onChange={(e) => setBucketName(e.target.value)}
                 onKeyDown={(e) => {
@@ -204,7 +204,7 @@ export function BoardView({
               onClick={() => setAddingBucket(true)}
               className="flex w-full items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
             >
-              <Plus className="h-4 w-4" /> Add bucket
+              <Plus className="h-4 w-4" /> Add column
             </button>
           )}
         </div>
