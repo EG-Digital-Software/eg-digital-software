@@ -599,6 +599,10 @@ model TaskLabel {
 
 model Task {
   id          String       @id @default(uuid())
+  /// Human-readable unique identifier (TSK-EGD-5000, TSK-EGD-5001, …). Auto
+  /// generated from the `taskNumber` counter; the uuid above stays the PK so
+  /// child rows (assignees/labels/checklist/comments/attachments) keep working.
+  taskNumber  String       @unique
   customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   customerId  String
   bucket      TaskBucket   @relation(fields: [bucketId], references: [id], onDelete: Cascade)

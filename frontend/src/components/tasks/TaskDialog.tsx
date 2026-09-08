@@ -54,6 +54,8 @@ interface Props {
   scopeKey: string;
   /** Customer this board belongs to; shown in the popup header. */
   customerName?: string;
+  /** Previewed number the next created task will receive. */
+  nextTaskNumber?: string;
   readOnly?: boolean;
 }
 
@@ -121,6 +123,7 @@ export function TaskDialog({
   api,
   scopeKey,
   customerName,
+  nextTaskNumber,
   readOnly = false,
 }: Props) {
   const qc = useQueryClient();
@@ -386,10 +389,11 @@ export function TaskDialog({
                       {REPEAT_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
                     </IconSelect>
                   </Field>
-                  <Field label="Bucket" hint>
-                    <Select value={draft.bucketId} disabled={disabled} className="h-10" onChange={(e) => update({ bucketId: e.target.value }, { bucketId: e.target.value })}>
-                      {buckets.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </Select>
+                  <Field label="Task number" hint>
+                    <div className="flex h-10 items-center gap-2 rounded-md border border-input bg-secondary/40 px-3 text-sm font-semibold tabular-nums text-foreground">
+                      {task?.taskNumber ?? nextTaskNumber ?? 'Auto-generated'}
+                      {!task && <span className="text-xs font-normal text-muted-foreground">(next)</span>}
+                    </div>
                   </Field>
                 </div>
 

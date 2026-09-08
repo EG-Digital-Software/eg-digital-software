@@ -2,6 +2,7 @@ import { Prisma, Role, TaskPriority, TaskProgress } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import { storage } from './storage/index.js';
+import { nextSequence, formatTaskNumber } from '../utils/sequence.js';
 
 /**
  * Microsoft Planner-style task board, scoped to one customer. Buckets are the
@@ -68,9 +69,15 @@ export async function getBoard(customerId: string) {
     orderBy: { createdAt: 'asc' },
   });
 
+  // Preview the number the next created task will get. Peeked (not incremented),
+  // so it can shift if another task is created first — good enough for the form.
+  const counter = await prisma.counter.findUnique({ where: { key: 'taskNumber' } });
+  const nextTaskNumber = formatTaskNumber((counter?.value ?? 0) + 1);
+
   return {
     buckets: buckets.map((b) => ({ ...b, tasks: b.tasks.map(shapeTask) })),
     labels,
+    nextTaskNumber,
   };
 }
 
@@ -170,46 +177,52 @@ async function validLabelIds(customerId: string, labelIds: string[]): Promise<st
 
 export async function createTask(customerId: string, input: TaskInput, createdById?: string) {
   await ensureBucket(customerId, input.bucketId);
-  const count = await prisma.task.count({ where: { bucketId: input.bucketId } });
   const labelIds = await validLabelIds(customerId, input.labelIds ?? []);
   const completed = input.progress === TaskProgress.COMPLETED;
 
-  const task = await prisma.task.create({
-    data: {
-      customerId,
-      bucketId: input.bucketId,
-      title: input.title,
-      description: input.description ?? null,
-      progress: input.progress ?? TaskProgress.NOT_STARTED,
-      priority: input.priority ?? TaskPriority.MEDIUM,
-      startDate: input.startDate ? new Date(input.startDate) : null,
-      dueDate: input.dueDate ? new Date(input.dueDate) : null,
-      order: count,
-      completedAt: completed ? new Date() : null,
-      createdById,
-      assignees: input.assignees?.length
-        ? {
-            create: input.assignees.map((a) => ({
-              userId: a.userId,
-              userType: a.userType,
-              name: a.name,
-              email: a.email ?? null,
-              avatarUrl: a.avatarUrl ?? null,
-            })),
-          }
-        : undefined,
-      labels: labelIds.length ? { create: labelIds.map((labelId) => ({ labelId })) } : undefined,
-      checklist: input.checklist?.length
-        ? {
-            create: input.checklist.map((c, order) => ({
-              text: c.text,
-              done: c.done ?? false,
-              order,
-            })),
-          }
-        : undefined,
-    },
-    include: taskInclude,
+  // Number generation + insert share one transaction so the counter and the
+  // row can never drift, even under concurrent creates.
+  const task = await prisma.$transaction(async (tx) => {
+    const count = await tx.task.count({ where: { bucketId: input.bucketId } });
+    const taskNumber = formatTaskNumber(await nextSequence(tx, 'taskNumber'));
+    return tx.task.create({
+      data: {
+        taskNumber,
+        customerId,
+        bucketId: input.bucketId,
+        title: input.title,
+        description: input.description ?? null,
+        progress: input.progress ?? TaskProgress.NOT_STARTED,
+        priority: input.priority ?? TaskPriority.MEDIUM,
+        startDate: input.startDate ? new Date(input.startDate) : null,
+        dueDate: input.dueDate ? new Date(input.dueDate) : null,
+        order: count,
+        completedAt: completed ? new Date() : null,
+        createdById,
+        assignees: input.assignees?.length
+          ? {
+              create: input.assignees.map((a) => ({
+                userId: a.userId,
+                userType: a.userType,
+                name: a.name,
+                email: a.email ?? null,
+                avatarUrl: a.avatarUrl ?? null,
+              })),
+            }
+          : undefined,
+        labels: labelIds.length ? { create: labelIds.map((labelId) => ({ labelId })) } : undefined,
+        checklist: input.checklist?.length
+          ? {
+              create: input.checklist.map((c, order) => ({
+                text: c.text,
+                done: c.done ?? false,
+                order,
+              })),
+            }
+          : undefined,
+      },
+      include: taskInclude,
+    });
   });
   return shapeTask(task);
 }

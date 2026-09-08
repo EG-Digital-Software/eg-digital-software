@@ -332,6 +332,8 @@ export interface TaskAttachment {
 
 export interface Task {
   id: string;
+  /** Human-readable unique identifier, e.g. TSK-EGD-5000. */
+  taskNumber: string;
   customerId: string;
   bucketId: string;
   title: string;
@@ -363,6 +365,8 @@ export interface TaskBucket {
 export interface TaskBoard {
   buckets: TaskBucket[];
   labels: TaskLabel[];
+  /** Number the next created task will receive (preview, may shift). */
+  nextTaskNumber?: string;
 }
 
 /** A staff member a task can be assigned to. */

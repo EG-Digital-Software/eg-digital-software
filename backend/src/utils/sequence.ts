@@ -23,6 +23,12 @@ export function formatClientId(n: number): string {
   return `EGD-2627-${4999 + n}`;
 }
 
+// Task numbers are TSK-EGD-<n>, starting at TSK-EGD-5000 and incrementing by 1
+// (nextSequence returns 1 for the first task, so offset by 4999).
+export function formatTaskNumber(n: number): string {
+  return `TSK-EGD-${4999 + n}`;
+}
+
 export function formatInvoiceNumber(n: number, date = new Date()): string {
   const year = date.getFullYear();
   return `EGD-INV-${year}-${String(n).padStart(5, '0')}`;

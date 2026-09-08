@@ -45,8 +45,8 @@ import { TaskDialog } from './TaskDialog';
 type ViewKey = 'board' | 'grid' | 'schedule' | 'charts';
 
 const VIEWS: { key: ViewKey; label: string; icon: React.ReactNode }[] = [
-  { key: 'board', label: 'Board', icon: <LayoutGrid className="h-4 w-4" /> },
   { key: 'grid', label: 'Grid', icon: <Rows3 className="h-4 w-4" /> },
+  { key: 'board', label: 'Board', icon: <LayoutGrid className="h-4 w-4" /> },
   { key: 'schedule', label: 'Schedule', icon: <CalendarDays className="h-4 w-4" /> },
   { key: 'charts', label: 'Charts', icon: <PieChart className="h-4 w-4" /> },
 ];
@@ -68,7 +68,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
   const boardQ = useQuery({ queryKey, queryFn: () => api.board() });
   const usersQ = useQuery({ queryKey: ['tasks', scopeKey, 'users'], queryFn: () => api.assignableUsers() });
 
-  const [view, setView] = useState<ViewKey>('board');
+  const [view, setView] = useState<ViewKey>('grid');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string } | null>(null);
 
@@ -283,6 +283,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
           api={api}
           scopeKey={scopeKey}
           customerName={customerName}
+          nextTaskNumber={board.nextTaskNumber}
           readOnly={readOnly}
         />
       )}
