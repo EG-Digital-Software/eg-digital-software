@@ -57,7 +57,10 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['Manrope', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['DIN_Regular', 'Roboto', 'Arial', 'Verdana', 'geneva', 'sans-serif'],
+      },
+      letterSpacing: {
+        tight: '0.05em',
       },
       boxShadow: {
         card: '0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.03)',

@@ -79,8 +79,16 @@ export const deleteTask = asyncHandler(async (req: Request, res: Response) => {
 // ─── Comments ─────────────────────────────────────────────
 
 export const addComment = asyncHandler(async (req: Request, res: Response) => {
+  const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
+  if (!body && !req.file) throw ApiError.badRequest('A message or a file is required');
   const customerId = await resolve(req);
-  const comment = await taskService.addComment(customerId, req.params.taskId, await author(req), req.body.body);
+  const comment = await taskService.addComment(
+    customerId,
+    req.params.taskId,
+    await author(req),
+    body,
+    req.file
+  );
   return ok(res, comment, 'Comment added', 201);
 });
 

@@ -111,8 +111,8 @@ export default function PortalPage() {
         <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-1000">
           <div className="mx-auto max-w-3xl text-center">
 
-            <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl drop-shadow-sm">
-              One plat<span className="ml-[3px]">f</span>orm for your{' '}
+            <h1 className="mt-6 text-4xl font-extrabold capitalize tracking-[0.01em] text-white sm:text-5xl lg:text-6xl drop-shadow-sm">
+              One platform for your{' '}
               <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
                 entire business.
               </span>

@@ -14,7 +14,10 @@ const taskInclude = {
   assignees: true,
   labels: { include: { label: true } },
   checklist: { orderBy: { order: 'asc' } },
-  comments: { orderBy: { createdAt: 'asc' } },
+  comments: {
+    orderBy: { createdAt: 'asc' },
+    include: { attachments: { orderBy: { createdAt: 'asc' } } },
+  },
   attachments: { orderBy: { createdAt: 'asc' } },
 } satisfies Prisma.TaskInclude;
 
@@ -347,11 +350,37 @@ export async function addComment(
   customerId: string,
   taskId: string,
   author: { id: string; type: Role; name: string },
-  body: string
+  body: string,
+  file?: { originalname: string; buffer: Buffer; mimetype: string; size: number }
 ) {
   await ensureTask(customerId, taskId);
-  return prisma.taskComment.create({
+
+  const comment = await prisma.taskComment.create({
     data: { taskId, authorId: author.id, authorType: author.type, authorName: author.name, body },
+  });
+
+  // A file sent with the message is stored as a task attachment linked back to
+  // this comment, so it shows both in the chat bubble and the Attachments tab.
+  if (file) {
+    const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');
+    const key = `tasks/${taskId}/${Date.now()}-${safeName}`;
+    const url = await storage.save(key, file.buffer, file.mimetype);
+    await prisma.taskAttachment.create({
+      data: {
+        taskId,
+        commentId: comment.id,
+        fileName: file.originalname,
+        url,
+        size: file.size,
+        contentType: file.mimetype,
+        uploadedById: author.id,
+      },
+    });
+  }
+
+  return prisma.taskComment.findUnique({
+    where: { id: comment.id },
+    include: { attachments: { orderBy: { createdAt: 'asc' } } },
   });
 }
 

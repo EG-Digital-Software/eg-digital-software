@@ -5,7 +5,8 @@ import {
   Check,
   Plus,
   Paperclip,
-  Tag,
+  Maximize2,
+  FileText,
   UserPlus,
   X,
   Send,
@@ -20,7 +21,6 @@ import type {
   AssignableUser,
   Task,
   TaskBucket,
-  TaskLabel,
   TaskPriority,
   TaskProgress,
 } from '@/types';
@@ -28,7 +28,7 @@ import type { TaskApi, TaskInput } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
 import { cn, formatDate, initials, mediaUrl } from '@/lib/utils';
-import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER, labelColor } from '@/lib/tasks';
+import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER } from '@/lib/tasks';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input, Textarea, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,10 +49,11 @@ interface Props {
   task?: Task | null;
   createBucketId?: string;
   buckets: TaskBucket[];
-  labels: TaskLabel[];
   assignableUsers: AssignableUser[];
   api: TaskApi;
   scopeKey: string;
+  /** Customer this board belongs to; shown in the popup header. */
+  customerName?: string;
   readOnly?: boolean;
 }
 
@@ -116,10 +117,10 @@ export function TaskDialog({
   task,
   createBucketId,
   buckets,
-  labels,
   assignableUsers,
   api,
   scopeKey,
+  customerName,
   readOnly = false,
 }: Props) {
   const qc = useQueryClient();
@@ -133,7 +134,10 @@ export function TaskDialog({
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [comment, setComment] = useState('');
   const [showChat, setShowChat] = useState(true);
+  const [showNotes, setShowNotes] = useState(false);
+  const [chatFile, setChatFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const chatFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -156,8 +160,8 @@ export function TaskDialog({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const addComment = useMutation({
-    mutationFn: (body: string) => api.addComment(task!.id, body),
-    onSuccess: () => { setComment(''); invalidate(); },
+    mutationFn: (v: { body: string; file?: File }) => api.addComment(task!.id, v.body, v.file),
+    onSuccess: () => { setComment(''); setChatFile(null); invalidate(); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const removeComment = useMutation({ mutationFn: (id: string) => api.deleteComment(task!.id, id), onSuccess: () => invalidate() });
@@ -177,10 +181,6 @@ export function TaskDialog({
     const assignees = has ? draft.assignees.filter((a) => a.userId !== u.userId) : [...draft.assignees, u];
     update({ assignees }, { assignees });
   }
-  function toggleLabel(id: string) {
-    const labelIds = draft.labelIds.includes(id) ? draft.labelIds.filter((x) => x !== id) : [...draft.labelIds, id];
-    update({ labelIds }, { labelIds });
-  }
   function setChecklist(checklist: { text: string; done: boolean }[]) {
     update({ checklist }, { checklist });
   }
@@ -193,6 +193,11 @@ export function TaskDialog({
   function toggleComplete() {
     const next: TaskProgress = draft.progress === 'COMPLETED' ? 'NOT_STARTED' : 'COMPLETED';
     update({ progress: next }, { progress: next });
+  }
+  function sendChat() {
+    const body = comment.trim();
+    if (!task || addComment.isPending || (!body && !chatFile)) return;
+    addComment.mutate({ body, file: chatFile ?? undefined });
   }
   function submitCreate() {
     if (!draft.title.trim()) return toast.error('Title is required');
@@ -212,34 +217,35 @@ export function TaskDialog({
 
   const done = draft.progress === 'COMPLETED';
   const checklistDone = draft.checklist.filter((c) => c.done).length;
-  const chatVisible = isEdit && showChat;
+  const chatVisible = showChat;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className={cn('!max-w-none gap-0 overflow-hidden p-0', chatVisible ? '!w-[min(1040px,96vw)]' : '!w-[min(640px,96vw)]')}>
+      <DialogContent className={cn('flex !max-w-none flex-col gap-0 overflow-hidden p-0', chatVisible ? '!w-[min(1140px,96vw)]' : '!w-[min(640px,96vw)]')}>
         <DialogTitle className="sr-only">Task</DialogTitle>
 
         {/* Top bar */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <span className="text-sm font-semibold text-primary">Tasks</span>
-          {isEdit && (
-            <button
-              type="button"
-              onClick={() => setShowChat((s) => !s)}
-              className={cn(
-                'mr-8 inline-flex h-8 w-8 items-center justify-center rounded-md transition',
-                showChat ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary'
-              )}
-              title="Toggle task chat"
-            >
-              <MessageSquareText className="h-4 w-4" />
-            </button>
-          )}
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
+          <span className="text-sm font-semibold text-primary">
+            {customerName ? `Tasks - ${customerName}` : 'Tasks'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowChat((s) => !s)}
+            className={cn(
+              'mr-8 inline-flex h-8 w-8 items-center justify-center rounded-md transition',
+              showChat ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary'
+            )}
+            title="Toggle task chat"
+          >
+            <MessageSquareText className="h-4 w-4" />
+          </button>
         </div>
 
-        <div className="flex h-[80vh] min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           {/* ── Left: details ─────────────────────────── */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-6">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
             {/* Title */}
             <div className="flex items-start gap-3">
               <button
@@ -271,47 +277,6 @@ export function TaskDialog({
                 <Info className="h-3.5 w-3.5" />
               </p>
             )}
-
-            {/* Add label */}
-            <div className="mt-4 flex items-center gap-2">
-              <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="flex flex-wrap items-center gap-1.5">
-                {draft.labelIds.map((id) => {
-                  const l = labels.find((x) => x.id === id);
-                  if (!l) return null;
-                  return (
-                    <span key={id} className={cn('inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium', labelColor(l.color).chip)}>
-                      {l.name}
-                      {!disabled && <button type="button" onClick={() => toggleLabel(id)}><X className="h-3 w-3 opacity-70 hover:opacity-100" /></button>}
-                    </span>
-                  );
-                })}
-                {!disabled && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button type="button" className="text-sm text-muted-foreground hover:text-primary">
-                        {draft.labelIds.length ? '+ Label' : 'Add label'}
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="max-h-64 w-56 overflow-y-auto">
-                      <DropdownMenuLabel>Labels</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {labels.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">Create labels from the board toolbar</div>}
-                      {labels.map((l) => {
-                        const checked = draft.labelIds.includes(l.id);
-                        return (
-                          <DropdownMenuItem key={l.id} onSelect={(e) => { e.preventDefault(); toggleLabel(l.id); }}>
-                            <span className={cn('h-3 w-3 rounded-full', labelColor(l.color).solid)} />
-                            <span className="flex-1 truncate">{l.name}</span>
-                            {checked && <Check className="h-3.5 w-3.5 text-primary" />}
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-            </div>
 
             {/* Assignees */}
             <div className="mt-3 flex items-center gap-2">
@@ -377,24 +342,34 @@ export function TaskDialog({
                 {/* Field grid */}
                 <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                   <Field label="Status">
-                    <IconSelect
-                      leading={<span className={cn('h-2.5 w-2.5 rounded-full', PROGRESS_META[draft.progress].dot)} />}
-                      value={draft.progress}
-                      disabled={disabled}
-                      onChange={(v) => update({ progress: v as TaskProgress }, { progress: v as TaskProgress })}
-                    >
-                      {PROGRESS_ORDER.map((p) => <option key={p} value={p}>{PROGRESS_META[p].label}</option>)}
-                    </IconSelect>
+                    {(() => {
+                      const StatusIcon = PROGRESS_META[draft.progress].icon;
+                      return (
+                        <IconSelect
+                          leading={<StatusIcon className={cn('h-4 w-4', PROGRESS_META[draft.progress].text)} />}
+                          value={draft.progress}
+                          disabled={disabled}
+                          onChange={(v) => update({ progress: v as TaskProgress }, { progress: v as TaskProgress })}
+                        >
+                          {PROGRESS_ORDER.map((p) => <option key={p} value={p}>{PROGRESS_META[p].label}</option>)}
+                        </IconSelect>
+                      );
+                    })()}
                   </Field>
                   <Field label="Priority">
-                    <IconSelect
-                      leading={<span className={cn('h-2.5 w-2.5 rounded-full', PRIORITY_META[draft.priority].bar)} />}
-                      value={draft.priority}
-                      disabled={disabled}
-                      onChange={(v) => update({ priority: v as TaskPriority }, { priority: v as TaskPriority })}
-                    >
-                      {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
-                    </IconSelect>
+                    {(() => {
+                      const PriorityIcon = PRIORITY_META[draft.priority].icon;
+                      return (
+                        <IconSelect
+                          leading={<PriorityIcon className={cn('h-4 w-4', PRIORITY_META[draft.priority].text)} />}
+                          value={draft.priority}
+                          disabled={disabled}
+                          onChange={(v) => update({ priority: v as TaskPriority }, { priority: v as TaskPriority })}
+                        >
+                          {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
+                        </IconSelect>
+                      );
+                    })()}
                   </Field>
 
                   <Field label="Start date">
@@ -466,6 +441,15 @@ export function TaskDialog({
                     onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
                     onBlur={() => isEdit && task && draft.description !== (task.description ?? '') && patch.mutate({ description: draft.description || null })}
                   />
+                  {draft.description.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setShowNotes(true)}
+                      className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" /> View Full Notes
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -498,14 +482,15 @@ export function TaskDialog({
           </div>
 
           {/* ── Right: task chat ──────────────────────── */}
-          {chatVisible && task && (
-            <div className="flex w-[320px] shrink-0 flex-col border-l border-border bg-secondary/20">
+          {chatVisible && (
+            <div className="flex max-h-[45vh] min-h-0 w-full shrink-0 flex-col border-t border-border bg-secondary/20 md:max-h-none md:w-[420px] md:border-l md:border-t-0">
               <div className="border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Task chat</h3>
               </div>
               <div className="flex-1 space-y-4 overflow-y-auto p-4">
-                {task.comments.length === 0 && <p className="pt-8 text-center text-xs text-muted-foreground">No messages yet. Start the conversation.</p>}
-                {task.comments.map((c) => {
+                {!task && <p className="pt-8 text-center text-xs text-muted-foreground">Create the task first to start the conversation.</p>}
+                {task && task.comments.length === 0 && <p className="pt-8 text-center text-xs text-muted-foreground">No messages yet. Start the conversation.</p>}
+                {task?.comments.map((c) => {
                   const mine = !!meId && c.authorId === meId;
                   return (
                     <div key={c.id} className={cn('group flex gap-2', mine && 'flex-row-reverse')}>
@@ -517,9 +502,27 @@ export function TaskDialog({
                           {!mine && <span className="font-semibold text-primary">{c.authorName}</span>}
                           <span className="text-muted-foreground">{formatDate(c.createdAt)}</span>
                         </div>
-                        <div className={cn('inline-block rounded-2xl px-3 py-2 text-left text-sm', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
-                          <p className="whitespace-pre-wrap break-words">{c.body}</p>
-                        </div>
+                        {c.body && (
+                          <div className={cn('inline-block rounded-2xl px-3 py-2 text-left text-sm', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
+                            <p className="whitespace-pre-wrap break-words">{c.body}</p>
+                          </div>
+                        )}
+                        {c.attachments?.map((f) => (
+                          <a
+                            key={f.id}
+                            href={mediaUrl(f.url)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={cn(
+                              'mt-1 flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-left text-xs shadow-sm transition hover:border-primary/40',
+                              mine && 'flex-row-reverse text-right'
+                            )}
+                          >
+                            <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 flex-1 truncate font-medium">{f.fileName}</span>
+                            <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          </a>
+                        ))}
                         <button type="button" onClick={() => removeComment.mutate(c.id)} className="ml-2 text-[11px] text-muted-foreground opacity-0 transition hover:text-rose-500 group-hover:opacity-100">Delete</button>
                       </div>
                     </div>
@@ -527,16 +530,41 @@ export function TaskDialog({
                 })}
               </div>
               <div className="border-t border-border p-3">
+                {chatFile && (
+                  <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
+                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate font-medium">{chatFile.name}</span>
+                    <button type="button" onClick={() => setChatFile(null)} className="shrink-0 text-muted-foreground hover:text-rose-500">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-end gap-2 rounded-xl border border-border bg-card px-3 py-2">
+                  <input
+                    ref={chatFileRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) setChatFile(f); e.target.value = ''; }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => chatFileRef.current?.click()}
+                    disabled={!task || addComment.isPending}
+                    title="Attach a file"
+                    className="mb-0.5 text-muted-foreground transition hover:text-primary disabled:text-muted-foreground/40"
+                  >
+                    <Paperclip className="h-5 w-5" />
+                  </button>
                   <Textarea
                     value={comment}
-                    placeholder="Type a message"
+                    placeholder={task ? 'Type a message' : 'Available after the task is created'}
                     rows={1}
-                    className="min-h-[24px] resize-none border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                    disabled={!task}
+                    className="min-h-[24px] resize-none border-0 p-0 text-sm shadow-none focus-visible:ring-0 disabled:cursor-not-allowed"
                     onChange={(e) => setComment(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (comment.trim()) addComment.mutate(comment.trim()); } }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                   />
-                  <button type="button" onClick={() => comment.trim() && addComment.mutate(comment.trim())} disabled={addComment.isPending || !comment.trim()} className="mb-0.5 text-primary disabled:text-muted-foreground/40">
+                  <button type="button" onClick={sendChat} disabled={!task || addComment.isPending || (!comment.trim() && !chatFile)} className="mb-0.5 text-primary disabled:text-muted-foreground/40">
                     <Send className="h-5 w-5" />
                   </button>
                 </div>
@@ -546,6 +574,24 @@ export function TaskDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Full notes reader */}
+    <Dialog open={showNotes} onOpenChange={setShowNotes}>
+      <DialogContent className="flex max-h-[85vh] flex-col !w-[min(720px,94vw)] !max-w-none gap-0 overflow-hidden p-0">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border px-5 py-3">
+          <FileText className="h-4 w-4 text-primary" />
+          <DialogTitle className="text-sm font-semibold">
+            {draft.title.trim() ? `Notes — ${draft.title.trim()}` : 'Notes'}
+          </DialogTitle>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+            {draft.description.trim() || 'No notes yet.'}
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 

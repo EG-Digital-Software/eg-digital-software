@@ -81,6 +81,8 @@ export function GridView({ buckets, onOpenTask }: { buckets: TaskBucket[]; onOpe
         <TableBody>
           {sorted.map((t) => {
             const due = dueState(t);
+            const ProgressIcon = PROGRESS_META[t.progress].icon;
+            const PriorityIcon = PRIORITY_META[t.priority].icon;
             return (
               <TableRow key={t.id} className="cursor-pointer" onClick={() => onOpenTask(t)}>
                 <TableCell className="font-medium">
@@ -103,12 +105,13 @@ export function GridView({ buckets, onOpenTask }: { buckets: TaskBucket[]; onOpe
                 </TableCell>
                 <TableCell>
                   <span className="inline-flex items-center gap-1.5 text-sm">
-                    <span className={cn('h-2 w-2 rounded-full', PROGRESS_META[t.progress].dot)} />
+                    <ProgressIcon className={cn('h-4 w-4', PROGRESS_META[t.progress].text)} />
                     {PROGRESS_META[t.progress].label}
                   </span>
                 </TableCell>
                 <TableCell>
-                  <span className={cn('inline-flex rounded border px-1.5 py-0.5 text-xs font-medium', PRIORITY_META[t.priority].badge)}>
+                  <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-medium', PRIORITY_META[t.priority].badge)}>
+                    <PriorityIcon className="h-3.5 w-3.5" />
                     {PRIORITY_META[t.priority].label}
                   </span>
                 </TableCell>

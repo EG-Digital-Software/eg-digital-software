@@ -50,7 +50,7 @@ export default function AdminTasksPage() {
         description="Plan and track work for each customer."
         actions={<CustomerPicker customers={customers} selected={current.clientId} onSelect={setSelected} />}
       />
-      {current && <TaskBoard key={current.clientId} api={adminTaskApi(current.clientId)} scopeKey={current.clientId} />}
+      {current && <TaskBoard key={current.clientId} api={adminTaskApi(current.clientId)} scopeKey={current.clientId} customerName={customerName(current)} />}
     </div>
   );
 }

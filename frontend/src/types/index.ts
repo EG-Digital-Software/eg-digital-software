@@ -315,6 +315,8 @@ export interface TaskComment {
   authorName: string;
   body: string;
   createdAt: string;
+  /** Files sent with this chat message (task-level uploads are not included). */
+  attachments?: TaskAttachment[];
 }
 
 export interface TaskAttachment {

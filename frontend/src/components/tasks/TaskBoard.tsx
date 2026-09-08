@@ -61,7 +61,7 @@ interface Filters {
 
 const EMPTY_FILTERS: Filters = { search: '', assignee: '', priority: '', progress: '', labelId: '' };
 
-export function TaskBoard({ api, scopeKey, readOnly = false }: { api: TaskApi; scopeKey: string; readOnly?: boolean }) {
+export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { api: TaskApi; scopeKey: string; customerName?: string; readOnly?: boolean }) {
   const qc = useQueryClient();
   const queryKey = ['tasks', scopeKey];
 
@@ -279,10 +279,10 @@ export function TaskBoard({ api, scopeKey, readOnly = false }: { api: TaskApi; s
           task={dialog.mode === 'edit' ? activeTask : null}
           createBucketId={dialog.bucketId}
           buckets={board.buckets}
-          labels={board.labels}
           assignableUsers={users as AssignableUser[]}
           api={api}
           scopeKey={scopeKey}
+          customerName={customerName}
           readOnly={readOnly}
         />
       )}

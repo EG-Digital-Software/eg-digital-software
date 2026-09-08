@@ -54,9 +54,20 @@ export function taskApi(base: string) {
       unwrap<Task>(api.patch(`${base}/tasks/${taskId}/move`, { bucketId, order })),
     deleteTask: (taskId: string) => unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}`)),
 
-    // Comments
-    addComment: (taskId: string, body: string) =>
-      unwrap<TaskComment>(api.post(`${base}/tasks/${taskId}/comments`, { body })),
+    // Comments — an optional file rides along and is shown inside the chat bubble.
+    addComment: (taskId: string, body: string, file?: File) => {
+      if (file) {
+        const form = new FormData();
+        if (body) form.append('body', body);
+        form.append('file', file);
+        return unwrap<TaskComment>(
+          api.post(`${base}/tasks/${taskId}/comments`, form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+        );
+      }
+      return unwrap<TaskComment>(api.post(`${base}/tasks/${taskId}/comments`, { body }));
+    },
     deleteComment: (taskId: string, commentId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/comments/${commentId}`)),
 

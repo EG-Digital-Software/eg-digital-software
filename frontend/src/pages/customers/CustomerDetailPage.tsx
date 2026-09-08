@@ -821,7 +821,7 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="task">
-          <TaskBoard api={adminTaskApi(c.clientId)} scopeKey={c.clientId} />
+          <TaskBoard api={adminTaskApi(c.clientId)} scopeKey={c.clientId} customerName={customerName(c)} />
         </TabsContent>
       </Tabs>
     </div>

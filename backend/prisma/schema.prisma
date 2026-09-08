@@ -678,6 +678,10 @@ model TaskComment {
   body       String
   createdAt  DateTime @default(now())
 
+  /// Files sent with this chat message. Task-level attachments (Attachments
+  /// tab) leave commentId null; chat attachments point back here.
+  attachments TaskAttachment[]
+
   @@index([taskId])
 }
 
@@ -685,6 +689,10 @@ model TaskAttachment {
   id           String   @id @default(uuid())
   task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   taskId       String
+  /// Set when the file was sent inside a chat message; null for task-level
+  /// (Attachments tab) uploads. Deleting the message removes its files.
+  comment      TaskComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId    String?
   fileName     String
   url          String
   size         Int
@@ -693,4 +701,5 @@ model TaskAttachment {
   createdAt    DateTime @default(now())
 
   @@index([taskId])
+  @@index([commentId])
 }

@@ -1,26 +1,33 @@
+import type { LucideIcon } from 'lucide-react';
+import { Circle, CircleDashed, CheckCircle2, CircleAlert, ChevronsUp, Equal, ChevronDown } from 'lucide-react';
 import type { TaskPriority, TaskProgress, Task } from '@/types';
 
-export const PROGRESS_META: Record<TaskProgress, { label: string; dot: string; text: string }> = {
-  NOT_STARTED: { label: 'Not started', dot: 'bg-slate-400', text: 'text-slate-600' },
-  IN_PROGRESS: { label: 'In progress', dot: 'bg-blue-500', text: 'text-blue-600' },
-  COMPLETED: { label: 'Completed', dot: 'bg-emerald-500', text: 'text-emerald-600' },
+export const PROGRESS_META: Record<
+  TaskProgress,
+  { label: string; dot: string; text: string; icon: LucideIcon }
+> = {
+  NOT_STARTED: { label: 'Not started', dot: 'bg-slate-400', text: 'text-slate-500', icon: Circle },
+  IN_PROGRESS: { label: 'In progress', dot: 'bg-blue-500', text: 'text-blue-600', icon: CircleDashed },
+  COMPLETED: { label: 'Completed', dot: 'bg-emerald-500', text: 'text-emerald-600', icon: CheckCircle2 },
 };
 
 export const PROGRESS_ORDER: TaskProgress[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'];
 
 export const PRIORITY_META: Record<
   TaskPriority,
-  { label: string; badge: string; bar: string; rank: number }
+  { label: string; badge: string; bar: string; text: string; rank: number; icon: LucideIcon }
 > = {
-  URGENT: { label: 'Urgent', badge: 'bg-rose-100 text-rose-700 border-rose-200', bar: 'bg-rose-500', rank: 0 },
+  URGENT: { label: 'Urgent', badge: 'bg-rose-100 text-rose-700 border-rose-200', bar: 'bg-rose-500', text: 'text-rose-600', rank: 0, icon: CircleAlert },
   IMPORTANT: {
     label: 'Important',
     badge: 'bg-amber-100 text-amber-700 border-amber-200',
     bar: 'bg-amber-500',
+    text: 'text-amber-600',
     rank: 1,
+    icon: ChevronsUp,
   },
-  MEDIUM: { label: 'Medium', badge: 'bg-sky-100 text-sky-700 border-sky-200', bar: 'bg-sky-500', rank: 2 },
-  LOW: { label: 'Low', badge: 'bg-slate-100 text-slate-600 border-slate-200', bar: 'bg-slate-400', rank: 3 },
+  MEDIUM: { label: 'Medium', badge: 'bg-sky-100 text-sky-700 border-sky-200', bar: 'bg-sky-500', text: 'text-sky-600', rank: 2, icon: Equal },
+  LOW: { label: 'Low', badge: 'bg-slate-100 text-slate-600 border-slate-200', bar: 'bg-slate-400', text: 'text-slate-500', rank: 3, icon: ChevronDown },
 };
 
 export const PRIORITY_ORDER: TaskPriority[] = ['URGENT', 'IMPORTANT', 'MEDIUM', 'LOW'];

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { dashboardApi } from '@/api/resources';
 import type { DashboardSummary, LicenceRow, LowStockRow } from '@/types';
+import { useAuth } from '@/store/auth';
 import { PageHeader, StatDelta } from '@/components/shared/misc';
 import { SalesChart } from './SalesChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -89,7 +90,27 @@ function KpiSkeletons() {
   );
 }
 
+/**
+ * Time-of-day greeting, always based on Australian Eastern time (Sydney) so it
+ * reads correctly regardless of where the admin's device is. Handles AEST/AEDT
+ * automatically via the IANA time zone.
+ */
+function greeting() {
+  const h =
+    Number(
+      new Intl.DateTimeFormat('en-AU', {
+        hour: 'numeric',
+        hour12: false,
+        timeZone: 'Australia/Sydney',
+      }).format(new Date())
+    ) % 24; // some engines report midnight as "24"
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function DashboardPage() {
+  const user = useAuth((s) => s.user);
   const summaryQ = useQuery<DashboardSummary>({
     queryKey: ['dashboard', 'summary'],
     queryFn: dashboardApi.summary,
@@ -107,7 +128,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard" description="Overview of your business performance" />
+      <PageHeader
+        title={user ? `Welcome Back, ${user.firstName} ${user.lastName} 👋` : 'Welcome Back 👋'}
+        description={`${greeting()} — here's an overview of your business performance`}
+      />
 
       <div className="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {summaryQ.isLoading || !s ? (

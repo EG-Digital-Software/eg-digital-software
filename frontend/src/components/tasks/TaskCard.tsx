@@ -1,8 +1,8 @@
-import { CheckSquare, MessageSquare, Paperclip, ListChecks, Flag } from 'lucide-react';
+import { MessageSquare, Paperclip, ListChecks } from 'lucide-react';
 import type { Task } from '@/types';
 import { cn, formatDate, initials } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
-import { PRIORITY_META, labelColor, checklistProgress, dueState, DUE_META } from '@/lib/tasks';
+import { PRIORITY_META, PROGRESS_META, labelColor, checklistProgress, dueState, DUE_META } from '@/lib/tasks';
 
 /** A single Planner card. Used inside the board columns. */
 export function TaskCard({
@@ -22,6 +22,8 @@ export function TaskCard({
   const checklist = checklistProgress(task);
   const due = dueState(task);
   const done = task.progress === 'COMPLETED';
+  const StatusIcon = PROGRESS_META[task.progress].icon;
+  const PriorityIcon = priority.icon;
 
   return (
     <button
@@ -49,7 +51,7 @@ export function TaskCard({
       )}
 
       <div className="flex items-start gap-2 pl-2">
-        {done && <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />}
+        <StatusIcon className={cn('mt-0.5 h-4 w-4 shrink-0', PROGRESS_META[task.progress].text)} />
         <p className={cn('text-sm font-medium leading-snug', done && 'line-through text-muted-foreground')}>
           {task.title}
         </p>
@@ -58,7 +60,7 @@ export function TaskCard({
       <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-2 text-xs text-muted-foreground">
         {task.priority !== 'MEDIUM' && task.priority !== 'LOW' && (
           <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-medium', priority.badge)}>
-            <Flag className="h-3 w-3" />
+            <PriorityIcon className="h-3 w-3" />
             {priority.label}
           </span>
         )}

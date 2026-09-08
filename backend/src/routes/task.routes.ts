@@ -9,7 +9,6 @@ import {
   createTaskSchema,
   updateTaskSchema,
   moveTaskSchema,
-  commentSchema,
   createLabelSchema,
   updateLabelSchema,
 } from '../validators/task.validator.js';
@@ -34,7 +33,7 @@ export function buildTaskRouter(readOnly = false): Router {
   router.get('/tasks/:taskId', ctrl.getTask);
 
   // Collaboration — available to clients too.
-  router.post('/tasks/:taskId/comments', validate({ body: commentSchema }), ctrl.addComment);
+  router.post('/tasks/:taskId/comments', upload.single('file'), ctrl.addComment);
   router.delete('/tasks/:taskId/comments/:commentId', ctrl.deleteComment);
   router.post('/tasks/:taskId/attachments', upload.single('file'), ctrl.addAttachment);
   router.delete('/tasks/:taskId/attachments/:attachmentId', ctrl.deleteAttachment);
