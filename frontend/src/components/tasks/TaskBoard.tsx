@@ -295,7 +295,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
       {view === 'grid' && (
         <GridView
           buckets={filtered.buckets}
-          customerName={customerName}
           readOnly={readOnly}
           onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
           onDeleteTask={(id) => delTask.mutate(id)}

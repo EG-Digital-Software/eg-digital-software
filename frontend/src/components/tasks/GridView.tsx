@@ -1,22 +1,21 @@
 import { useMemo, useState } from 'react';
 import { ArrowUpDown, Pencil, Trash2, Eye, Check } from 'lucide-react';
 import type { Task, TaskBucket } from '@/types';
-import { cn, formatDate } from '@/lib/utils';
+import { cn, formatDate, initials } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 import { PRIORITY_META, PROGRESS_META, dueState, DUE_META } from '@/lib/tasks';
 
 type SortKey = 'taskNumber' | 'title' | 'progress' | 'priority' | 'startDate' | 'dueDate';
 
 export function GridView({
   buckets,
-  customerName,
   readOnly = false,
   onOpenTask,
   onDeleteTask,
   onToggleComplete,
 }: {
   buckets: TaskBucket[];
-  customerName?: string;
   readOnly?: boolean;
   onOpenTask: (task: Task) => void;
   onDeleteTask?: (taskId: string) => void;
@@ -115,7 +114,23 @@ export function GridView({
                 <TableCell className="font-medium">
                   <span className={cn(done && 'text-muted-foreground line-through')}>{t.title}</span>
                 </TableCell>
-                <TableCell className="text-sm">{customerName ?? '—'}</TableCell>
+                <TableCell className="text-sm">
+                  {t.assignees.length === 0 ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-2">
+                        {t.assignees.slice(0, 3).map((a) => (
+                          <Avatar key={a.userId} className="h-6 w-6 border-2 border-card">
+                            {a.avatarUrl && <AvatarImage src={a.avatarUrl} alt={a.name} />}
+                            <AvatarFallback className="text-[9px]">{initials(a.name)}</AvatarFallback>
+                          </Avatar>
+                        ))}
+                      </div>
+                      <span className="min-w-0 truncate">{t.assignees.map((a) => a.name).join(', ')}</span>
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell>
                   <span className="inline-flex items-center gap-1.5 text-sm">
                     <ProgressIcon className={cn('h-4 w-4', PROGRESS_META[t.progress].text)} />
