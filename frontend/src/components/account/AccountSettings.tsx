@@ -245,7 +245,7 @@ export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'prof
           {/* Editing your own name and email was not possible before. */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Your details</CardTitle>
+              <CardTitle className="text-base">Your Details</CardTitle>
             </CardHeader>
             <CardContent>
               <form
@@ -321,7 +321,7 @@ export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'prof
       <TabsContent value="password">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Change password</CardTitle>
+            <CardTitle className="text-base">Change Password</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onChangePassword)} className="max-w-md space-y-4">

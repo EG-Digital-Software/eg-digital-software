@@ -16,6 +16,7 @@ import { apiErrorMessage } from '@/api/client';
 import { PageHeader } from '@/components/shared/misc';
 import { Button } from '@/components/ui/button';
 import { InvoicePreview } from '@/components/invoice/InvoicePreview';
+import { invoiceTermLabel } from '@/lib/customer';
 import { LoadingBlock, ErrorState } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Card, CardContent } from '@/components/ui/card';
@@ -173,7 +174,7 @@ export default function InvoiceDetailPage() {
           <div className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
             <Detail label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
             <Detail label="Due Date" value={formatDate(invoice.dueDate)} />
-            <Detail label="Term" value={invoice.term} />
+            <Detail label="Term" value={invoiceTermLabel(invoice.term)} />
             <Detail label="Reference" value={invoice.reference} />
           </div>
 
@@ -218,7 +219,7 @@ export default function InvoiceDetailPage() {
       <ConfirmDialog
         open={confirmPaid}
         onOpenChange={setConfirmPaid}
-        title="Mark invoice as paid?"
+        title="Mark Invoice as Paid?"
         description={`This records a payment of the outstanding balance and updates the invoice status.`}
         confirmLabel="Record payment"
         loading={markPaid.isPending}
@@ -228,7 +229,7 @@ export default function InvoiceDetailPage() {
       <ConfirmDialog
         open={confirmSend}
         onOpenChange={setConfirmSend}
-        title="Send invoice to client?"
+        title="Send Invoice to Client?"
         description={
           invoice.customer?.billingEmail || invoice.customer?.contactEmail
             ? `Emails the invoice with a secure pay link to ${

@@ -242,7 +242,7 @@ export default function PaymentSettingsForm() {
       {/* Instructions */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Payment instructions / note</CardTitle>
+          <CardTitle className="text-base">Payment Instructions / Note</CardTitle>
         </CardHeader>
         <CardContent>
           <Field label="Note shown on invoice & pay page" error={errors.payInstructions?.message}>

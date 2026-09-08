@@ -16,31 +16,84 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
 import { formatCurrency, cn } from '@/lib/utils';
 import { numericField } from '@/lib/input';
+import { INVOICE_TERMS } from '@/lib/customer';
 
-const schema = z.object({
-  clientId: z.string().min(1, 'Select a customer'),
-  invoiceDate: z.string().optional(),
-  term: z.string().optional(),
-  customDays: z.coerce.number().optional(),
-  reference: z.string().optional(),
-  discount: z.coerce.number().min(0).default(0),
-  notes: z.string().optional(),
-  items: z
-    .array(
-      z.object({
-        productId: z.string().optional(),
-        sku: z.string().optional(),
-        description: z.string().min(1, 'Required'),
-        quantity: z.coerce.number().int().positive(),
-        unitPrice: z.coerce.number().min(0),
-        taxRate: z.coerce.number().min(0).max(100),
-      })
-    )
-    .min(1),
-});
+const schema = z
+  .object({
+    clientId: z.string().min(1, 'Select a customer'),
+    invoiceDate: z.string().optional(),
+    // A preset code (INVOICE_TERMS), a customer's saved term, or the sentinel
+    // 'MANUAL' — in which case the typed term lives in termManual until submit.
+    term: z.string().optional(),
+    termManual: z.string().optional(),
+    discount: z.coerce.number().min(0).default(0),
+    notes: z.string().optional(),
+    items: z
+      .array(
+        z.object({
+          productId: z.string().optional(),
+          sku: z.string().optional(),
+          description: z.string().min(1, 'Required'),
+          quantity: z.coerce.number().int().positive(),
+          unitPrice: z.coerce.number().min(0),
+          taxRate: z.coerce.number().min(0).max(100),
+        })
+      )
+      .min(1),
+  })
+  .refine((v) => v.term !== 'MANUAL' || !!v.termManual?.trim(), {
+    message: 'Enter the payment term',
+    path: ['termManual'],
+  });
 type FormValues = z.infer<typeof schema>;
 
-const TERMS = ['Due on Receipt', '7 Days', '15 Days', '30 Days', 'Custom'];
+/** Days a term adds to the invoice date (mirrors backend resolveDueDate). */
+function termToDays(term?: string, termManual?: string): number {
+  const parse = (s?: string) => {
+    const m = /(\d+)/.exec(s ?? '');
+    return m ? parseInt(m[1], 10) : 30;
+  };
+  switch (term) {
+    case 'DUE_ON_RECEIPT':
+    case 'Due on Receipt':
+      return 0;
+    case 'NET_7':
+    case '7 Days':
+      return 7;
+    case 'NET_14':
+      return 14;
+    case '15 Days':
+      return 15;
+    case 'NET_30':
+    case '30 Days':
+      return 30;
+    case 'NET_45':
+      return 45;
+    case 'NET_60':
+      return 60;
+    case 'NET_90':
+      return 90;
+    case 'MANUAL':
+      return parse(termManual);
+    default:
+      return parse(term);
+  }
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 08-Sep-2026 */
+function fmtDay(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
+}
+
+/** Billing period "08-Sep-2026 to 22-Sep-2026" from the invoice date + term. */
+function billingPeriod(invoiceDate?: string, term?: string, termManual?: string): string {
+  const start = invoiceDate ? new Date(invoiceDate) : new Date();
+  if (isNaN(start.getTime())) return '';
+  const end = new Date(start.getTime() + termToDays(term, termManual) * 86_400_000);
+  return `${fmtDay(start)} to ${fmtDay(end)}`;
+}
+
 
 // ── Layout helpers ──
 
@@ -142,6 +195,10 @@ export default function CreateInvoicePage() {
     queryKey: ['products', 'all'],
     queryFn: () => productApi.list({ pageSize: 100, status: 'ACTIVE' }),
   });
+  const { data: nextReference } = useQuery({
+    queryKey: ['invoices', 'next-reference'],
+    queryFn: () => invoiceApi.nextReference(),
+  });
 
   const {
     register,
@@ -154,7 +211,7 @@ export default function CreateInvoicePage() {
     resolver: zodResolver(schema),
     defaultValues: {
       clientId: preClient,
-      term: '30 Days',
+      term: 'NET_30',
       discount: 0,
       items: [{ description: '', quantity: 1, unitPrice: 0, taxRate: 10 }],
     },
@@ -164,11 +221,32 @@ export default function CreateInvoicePage() {
   const items = watch('items');
   const discount = watch('discount');
   const term = watch('term');
+  const termManual = watch('termManual');
+  const invoiceDate = watch('invoiceDate');
   const productMap = useMemo(() => new Map((products?.items ?? []).map((p) => [p.id, p])), [products]);
+
+  // Each line's description is the billing period (invoice date → due date).
+  const period = useMemo(() => billingPeriod(invoiceDate, term, termManual), [invoiceDate, term, termManual]);
+  useEffect(() => {
+    if (!period) return;
+    (items ?? []).forEach((_, i) => setValue(`items.${i}.description`, period));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, fields.length]);
 
   useEffect(() => {
     if (preClient) setValue('clientId', preClient);
   }, [preClient, setValue]);
+
+  // Auto-fill the payment term from the selected customer's saved invoice term
+  // (same values as the customer form's Invoice Term dropdown).
+  const clientId = watch('clientId');
+  const selectedCustomer = useMemo(
+    () => customers?.items.find((c) => c.clientId === clientId),
+    [customers, clientId]
+  );
+  useEffect(() => {
+    if (selectedCustomer?.invoiceTerm) setValue('term', selectedCustomer.invoiceTerm);
+  }, [selectedCustomer, setValue]);
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -236,8 +314,13 @@ export default function CreateInvoicePage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-6">
-        <Section icon={Receipt} title="Invoice details">
+      <form
+        onSubmit={handleSubmit(({ termManual, ...v }) =>
+          mutation.mutate({ ...v, term: v.term === 'MANUAL' ? termManual?.trim() || undefined : v.term })
+        )}
+        className="space-y-6"
+      >
+        <Section icon={Receipt} title="Invoice Details">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Customer" error={errors.clientId?.message}>
               <Select className={FILLED_CONTROL} {...register('clientId')}>
@@ -252,36 +335,42 @@ export default function CreateInvoicePage() {
             <Field label="Invoice Date">
               <Input className={FILLED_CONTROL} type="date" {...register('invoiceDate')} />
             </Field>
-            <Field label="Term">
+            <Field label="Term" hint="Auto-filled from the customer's saved invoice term">
               <Select className={FILLED_CONTROL} {...register('term')}>
-                {TERMS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {INVOICE_TERMS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
                   </option>
                 ))}
+                {/* Customer's manually-entered term isn't a preset — show it so it stays selected. */}
+                {term && term !== 'MANUAL' && !INVOICE_TERMS.some((t) => t.value === term) && (
+                  <option value={term}>{term}</option>
+                )}
+                <option value="MANUAL">Enter manually…</option>
               </Select>
             </Field>
-            {term === 'Custom' ? (
-              <Field label="Custom Days">
-                <Input className={FILLED_CONTROL} placeholder="45" maxLength={4} {...numericField(register('customDays'))} />
-              </Field>
-            ) : (
-              <Field label="Reference" hint="Auto-generated if left blank">
-                <Input className={FILLED_CONTROL} placeholder="Auto-generated if left blank" {...register('reference')} />
+            {term === 'MANUAL' && (
+              <Field label="Term (manual)" error={errors.termManual?.message} hint="e.g. Net 21 days or 50% upfront">
+                <Input className={FILLED_CONTROL} placeholder="e.g. Net 21 days" maxLength={60} {...register('termManual')} />
               </Field>
             )}
+            <Field label="Reference" hint="Auto-generated — assigned when the invoice is created">
+              <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-muted-foreground">
+                {nextReference ?? 'Auto-generated'}
+              </div>
+            </Field>
           </div>
         </Section>
 
         <Section 
           icon={Package} 
-          title="Line items" 
+          title="Line Items"
           action={
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ description: '', quantity: 1, unitPrice: 0, taxRate: 10 })}
+              onClick={() => append({ description: period, quantity: 1, unitPrice: 0, taxRate: 10 })}
             >
               <Plus className="h-4 w-4" /> Add line
             </Button>
@@ -297,7 +386,7 @@ export default function CreateInvoicePage() {
                   className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-slate-50/50 p-4 sm:grid-cols-12"
                 >
                   <div className="sm:col-span-4">
-                    <Field label="Product / Description" error={errors.items?.[index]?.description?.message}>
+                    <Field label="Product" error={errors.items?.[index]?.description?.message}>
                       <Controller
                         control={control}
                         name={`items.${index}.productId`}
@@ -309,7 +398,6 @@ export default function CreateInvoicePage() {
                               f.onChange(e);
                               const p = productMap.get(e.target.value);
                               if (p) {
-                                setValue(`items.${index}.description`, p.name);
                                 setValue(`items.${index}.sku`, p.sku ?? p.productCode);
                                 setValue(`items.${index}.unitPrice`, Number(p.pricePerQty));
                                 setValue(`items.${index}.taxRate`, Number(p.taxRate));
@@ -325,11 +413,17 @@ export default function CreateInvoicePage() {
                           </Select>
                         )}
                       />
-                      <Input className={FILLED_CONTROL} placeholder="Description" {...register(`items.${index}.description`)} />
+                      {/* Billing period — auto-filled from invoice date + term. */}
+                      <Input
+                        className={FILLED_CONTROL}
+                        placeholder="Billing period"
+                        title="Auto-filled from the invoice date and term"
+                        {...register(`items.${index}.description`)}
+                      />
                     </Field>
                   </div>
                   <div className="sm:col-span-2">
-                    <Field label="Qty">
+                    <Field label="QTY/Days">
                       <Input className={FILLED_CONTROL} {...numericField(register(`items.${index}.quantity`))} />
                     </Field>
                   </div>

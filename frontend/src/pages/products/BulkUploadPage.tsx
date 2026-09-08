@@ -160,7 +160,7 @@ export default function BulkUploadPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Upload file</CardTitle>
+            <CardTitle>Upload File</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div
@@ -239,7 +239,7 @@ export default function BulkUploadPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Expected columns</CardTitle>
+            <CardTitle className="text-base">Expected Columns</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>

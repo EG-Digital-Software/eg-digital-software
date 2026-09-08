@@ -13,6 +13,8 @@ const router = Router();
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
 
 router.get('/', validate({ query: listInvoiceQuerySchema }), ctrl.list);
+// Must precede `/:id` or "next-reference" would be read as an invoice id.
+router.get('/next-reference', ctrl.nextReference);
 router.get('/:id', ctrl.getOne);
 router.post('/', validate({ body: createInvoiceSchema }), ctrl.create);
 router.post('/:id/send', ctrl.send);

@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
       variant={role.variant}
     >
       <div className="stagger">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-800">Set a new password</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-800">Set a New Password</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           Almost done — enter and confirm your new password.
         </p>

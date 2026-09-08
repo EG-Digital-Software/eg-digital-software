@@ -144,11 +144,37 @@ export async function ensurePayable(
   return { paymentUrl: payment.paymentUrl, paymentQrUrl };
 }
 
+/**
+ * The reference the next created invoice will get, without consuming it. Peeked
+ * (not incremented), so it can shift if another invoice is created first — good
+ * enough to preview in the create form.
+ */
+export async function previewNextInvoiceReference(): Promise<string> {
+  const counter = await prisma.counter.findUnique({ where: { key: 'invoiceReference' } });
+  return formatInvoiceReference((counter?.value ?? 0) + 1);
+}
+
 function resolveDueDate(invoiceDate: Date, term?: string, customDays?: number, dueDate?: Date): Date {
   if (dueDate) return dueDate;
   const base = new Date(invoiceDate);
   const add = (days: number) => new Date(base.getTime() + days * 86_400_000);
   switch (term) {
+    // Customer invoice-term codes (mirrors INVOICE_TERMS on the frontend).
+    case 'DUE_ON_RECEIPT':
+      return base;
+    case 'NET_7':
+      return add(7);
+    case 'NET_14':
+      return add(14);
+    case 'NET_30':
+      return add(30);
+    case 'NET_45':
+      return add(45);
+    case 'NET_60':
+      return add(60);
+    case 'NET_90':
+      return add(90);
+    // Legacy strings from older invoices.
     case 'Due on Receipt':
       return base;
     case '7 Days':
@@ -159,8 +185,11 @@ function resolveDueDate(invoiceDate: Date, term?: string, customDays?: number, d
       return add(30);
     case 'Custom':
       return add(customDays ?? 30);
-    default:
-      return add(30);
+    default: {
+      // Manually-entered terms (e.g. "Net 21 days") — use the first number found.
+      const m = /(\d+)/.exec(term ?? '');
+      return add(m ? parseInt(m[1], 10) : 30);
+    }
   }
 }
 
@@ -203,7 +232,7 @@ export async function createInvoice(input: CreateInput) {
     // unique, so two invoices can never share a reference.
     const reference =
       input.reference?.trim() ||
-      formatInvoiceReference(await nextSequence(tx, 'invoiceReference'), invoiceDate);
+      formatInvoiceReference(await nextSequence(tx, 'invoiceReference'));
 
     const created = await tx.invoice.create({
       data: {

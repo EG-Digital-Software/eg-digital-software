@@ -16,6 +16,10 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   return paginated(res, items, total, page);
 });
 
+export const nextReference = asyncHandler(async (_req: Request, res: Response) => {
+  return ok(res, { reference: await invoiceService.previewNextInvoiceReference() });
+});
+
 export const getOne = asyncHandler(async (req: Request, res: Response) => {
   const invoice = await invoiceService.getInvoice(req.params.id);
   return ok(res, invoice);

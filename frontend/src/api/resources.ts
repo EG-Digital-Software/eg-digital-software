@@ -132,6 +132,8 @@ export const invoiceApi = {
     return { items: data.data, meta: data.meta };
   },
   get: async (id: string) => (await api.get<ApiEnvelope<Invoice>>(`/invoices/${id}`)).data.data,
+  nextReference: async () =>
+    (await api.get<ApiEnvelope<{ reference: string }>>('/invoices/next-reference')).data.data.reference,
   create: async (body: unknown) =>
     (await api.post<ApiEnvelope<Invoice>>('/invoices', body)).data.data,
   updateStatus: async (id: string, status: string) =>

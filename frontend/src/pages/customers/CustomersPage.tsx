@@ -315,7 +315,7 @@ export default function CustomersPage() {
       <ConfirmDialog
         open={!!archiving}
         onOpenChange={(v) => !v && setArchiving(null)}
-        title="Archive customer?"
+        title="Archive Customer?"
         description={`${archiving ? customerName(archiving) : ''} will be archived. Their invoices and records are preserved.`}
         confirmLabel="Archive"
         destructive
@@ -326,7 +326,7 @@ export default function CustomersPage() {
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(v) => !v && setDeleting(null)}
-        title="Delete customer permanently?"
+        title="Delete Customer Permanently?"
         description={`${deleting ? customerName(deleting) : ''} and all its data — addresses, directors and assigned products — will be permanently deleted. This cannot be undone. A customer with invoices can't be deleted; archive it instead.`}
         confirmLabel="Delete permanently"
         destructive

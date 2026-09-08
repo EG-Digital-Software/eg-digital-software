@@ -165,7 +165,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
               <ListChecks className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold leading-tight">Task board</h2>
+              <h2 className="text-lg font-semibold leading-tight">Task Board</h2>
               <p className="text-sm text-muted-foreground">
                 {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} · {doneTasks} completed · {board.buckets.length} {board.buckets.length === 1 ? 'column' : 'columns'}
               </p>

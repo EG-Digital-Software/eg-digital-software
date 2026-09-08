@@ -109,7 +109,7 @@ export default function ForgotPasswordPage() {
           >
             <MailCheck className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Check your email</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Check Your Email</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             If a {role.label} account exists for that address, we&apos;ve sent a password reset link.
           </p>
@@ -121,7 +121,7 @@ export default function ForgotPasswordPage() {
         <div className="stagger">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-800">Reset your password</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-800">Reset Your Password</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Enter your email and we&apos;ll send you a reset link.
               </p>

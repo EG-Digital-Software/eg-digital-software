@@ -488,7 +488,7 @@ export function TaskDialog({
           {chatVisible && (
             <div className="flex max-h-[45vh] min-h-0 w-full shrink-0 flex-col border-t border-border bg-secondary/20 md:max-h-none md:w-[420px] md:border-l md:border-t-0">
               <div className="border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold">Task chat</h3>
+                <h3 className="text-sm font-semibold">Task Chat</h3>
               </div>
               <div className="flex-1 space-y-4 overflow-y-auto p-4">
                 {!task && <p className="pt-8 text-center text-xs text-muted-foreground">Create the task first to start the conversation.</p>}

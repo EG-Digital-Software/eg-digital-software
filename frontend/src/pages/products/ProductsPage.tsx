@@ -290,7 +290,7 @@ export default function ProductsPage() {
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(v) => !v && setDeleting(null)}
-        title="Remove product?"
+        title="Remove Product?"
         description={`"${deleting?.name}" will be removed. Products assigned to customers are deactivated instead of deleted.`}
         confirmLabel="Remove"
         destructive

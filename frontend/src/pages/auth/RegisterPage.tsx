@@ -146,7 +146,7 @@ export default function RegisterPage() {
           >
             <MailCheck className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Request submitted</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Request Submitted</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Your {cfg.label} account is{' '}
             <span className="font-medium text-foreground">awaiting Admin approval</span>. You&apos;ll
