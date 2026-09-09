@@ -188,8 +188,8 @@ export function TaskDialog({
     enabled: open && isEdit && !!task?.id,
     initialData: task ?? undefined,
     staleTime: 0,
-    refetchInterval: open && isEdit ? 1000 : false,
-    refetchIntervalInBackground: true,
+    refetchInterval: open && isEdit ? 2000 : false,
+    refetchIntervalInBackground: false,
   });
   const liveTask = taskQ.data ?? task;
   const invalidateTask = () => qc.invalidateQueries({ queryKey: taskKey });

@@ -17,6 +17,9 @@ import {
 } from '../validators/task.validator.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+// Approval attachments: no size or count cap — admins may upload files of any
+// size, as many as they like.
+const uploadApproval = multer({ storage: multer.memoryStorage() });
 
 /**
  * Full task board — used by the admin (mounted under /customers/:clientId/tasks)
@@ -47,7 +50,7 @@ export function buildTaskRouter(readOnly = false): Router {
 
   // Approvals — admins and the customer submit requests and decide them; the
   // decision itself is role-gated inside the controller (team members view only).
-  router.post('/tasks/:taskId/approvals', upload.array('files', 10), validate({ body: submitApprovalSchema }), ctrl.submitApproval);
+  router.post('/tasks/:taskId/approvals', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.submitApproval);
   router.patch('/tasks/:taskId/approvals/:approvalId', validate({ body: decideApprovalSchema }), ctrl.decideApproval);
   router.delete('/tasks/:taskId/approvals/:approvalId', ctrl.deleteApproval);
 
