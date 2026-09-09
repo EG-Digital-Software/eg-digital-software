@@ -106,6 +106,8 @@ export default function CustomersPage() {
       <PageHeader
         title="Customers"
         description="Manage your clients, products and licences"
+        icon={Users}
+        iconTone="primary"
         actions={
           <Button asChild>
             <Link to="/admin/customers/new">
@@ -125,7 +127,7 @@ export default function CustomersPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search by name, business, email, ABN, contact or Client ID…"
+              placeholder="Search by name, business, email, ABN, contact or Customer ID…"
               className="pl-9"
             />
           </div>
@@ -212,7 +214,7 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Client ID</TableHead>
+                  <TableHead>Customer ID</TableHead>
                   <TableHead>Business</TableHead>
                   <TableHead>City</TableHead>
                   <TableHead>Country</TableHead>

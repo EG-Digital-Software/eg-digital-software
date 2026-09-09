@@ -34,7 +34,7 @@ type RoleCfg = {
 
 const ROLE_MAP: Record<string, RoleCfg> = {
   client: {
-    label: 'Client',
+    label: 'Customer',
     role: 'CLIENT',
     client: true,
     welcome: 'Manage your invoices & licences online',
@@ -42,17 +42,8 @@ const ROLE_MAP: Record<string, RoleCfg> = {
     accent: { from: '#0d9488', to: '#10b981' }, // teal → emerald
     variant: 'client',
   },
-  supplier: {
-    label: 'Supplier',
-    role: 'SUPPLIER',
-    client: false,
-    welcome: 'Partner with EG Digital as a supplier',
-    subline: 'Track orders, stock and fulfilment with tools built for supply partners.',
-    accent: { from: '#ea580c', to: '#f59e0b' }, // orange → amber
-    variant: 'supplier',
-  },
   employee: {
-    label: 'Employee',
+    label: 'Team',
     role: 'EMPLOYEE',
     client: false,
     welcome: 'Set up your EG Digital workspace',
@@ -63,7 +54,7 @@ const ROLE_MAP: Record<string, RoleCfg> = {
 };
 
 /**
- * Client sign-ups bind to an existing customer via Client ID; staff sign-ups
+ * Client sign-ups bind to an existing customer via Customer ID; staff sign-ups
  * need a name instead. These used to be checked in the submit handler and
  * reported as toasts, so the offending field was never highlighted.
  */
@@ -149,7 +140,7 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Request Submitted</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Your {cfg.label} account is{' '}
-            <span className="font-medium text-foreground">awaiting Admin approval</span>. You&apos;ll
+            <span className="font-medium text-foreground">awaiting EG approval</span>. You&apos;ll
             be able to sign in once it&apos;s approved.
           </p>
           <div className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-border bg-secondary/40 px-4 py-2.5 text-sm text-muted-foreground">
@@ -166,19 +157,8 @@ export default function RegisterPage() {
   return (
     <AuthShell tabs={tabs} welcome={cfg.welcome} subline={cfg.subline} accent={cfg.accent} variant={cfg.variant}>
       <div className="stagger">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-800">Sign Up</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Accounts require Admin approval before first sign-in.
-            </p>
-          </div>
-          <span
-            className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-            style={{ background: `${cfg.accent.from}14`, color: cfg.accent.from }}
-          >
-            {cfg.label}
-          </span>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Sign Up</h1>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-5">
@@ -244,7 +224,7 @@ export default function RegisterPage() {
 
           {cfg.client && (
             <div className="space-y-1.5">
-              <Label htmlFor="clientId">Client ID (Optional)</Label>
+              <Label htmlFor="clientId">Customer ID (Optional)</Label>
               <AuthField id="clientId" icon={Hash} placeholder="EGD-2627-5000" {...register('clientId')} />
               {errors.clientId ? (
                 <p className="text-xs text-destructive">{errors.clientId.message}</p>

@@ -7,6 +7,7 @@ import {
   ArrowRight,
   AlertTriangle,
   ListChecks,
+  LayoutDashboard,
 } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
 import { clientTaskApi } from '@/api/tasks';
@@ -32,27 +33,28 @@ function Kpi({
   icon: Icon,
   value,
   sub,
-  tone,
   to,
 }: {
   title: string;
   icon: typeof FileWarning;
   value: string;
   sub?: React.ReactNode;
-  tone?: string;
   /** Where the tile drills through to. */
   to?: string;
 }) {
   const card = (
-    <Card className="h-full transition-shadow hover:shadow-card-hover">
+    <Card className="group h-full transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-card-hover">
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${tone ?? 'bg-primary/10 text-primary'}`}>
+          <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">
+            {title}
+          </p>
+          {/* Monochrome icon tile — calm by default; meaning lives in the numbers. */}
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
             <Icon className="h-[18px] w-[18px]" />
           </div>
         </div>
-        <p className="mt-3 text-2xl font-semibold tracking-tight">{value}</p>
+        <p className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
         {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </CardContent>
     </Card>
@@ -93,10 +95,12 @@ export default function ClientDashboard() {
       <PageHeader
         title={`Welcome Back, ${displayName} 👋`}
         description="Your invoices, licences and account overview"
+        icon={LayoutDashboard}
+        iconTone="emerald"
         actions={acct ? <Badge variant={acct.variant}>{acct.label}</Badge> : undefined}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {dashQ.isLoading || !d ? (
           Array.from({ length: 5 }).map((_, i) => (
             <Card key={i}>
@@ -114,7 +118,6 @@ export default function ClientDashboard() {
               to="/client/invoices"
               value={formatCurrency(d.outstanding.amount)}
               sub={`${d.outstanding.count} unpaid invoice${d.outstanding.count === 1 ? '' : 's'}`}
-              tone="bg-warning/10 text-[hsl(30_90%_38%)]"
             />
             <Kpi
               title="Overdue"
@@ -130,16 +133,13 @@ export default function ClientDashboard() {
                   'Nothing past due'
                 )
               }
-              tone="bg-destructive/10 text-destructive"
             />
             <Kpi
               title="Total Paid"
               icon={CheckCircle2}
               to="/client/invoices"
-
               value={formatCurrency(d.totalPaid)}
               sub={`${d.invoices} invoice${d.invoices === 1 ? '' : 's'} total`}
-              tone="bg-success/10 text-success"
             />
             <Kpi
               title="Active Task"

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ListChecks } from 'lucide-react';
 import { PageHeader } from '@/components/shared/misc';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { clientTaskApi } from '@/api/tasks';
@@ -14,7 +15,7 @@ export default function ClientTasksPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Tasks" description="Work we're tracking for your account." />
+      <PageHeader title="Tasks" description="Work we're tracking for your account." icon={ListChecks} iconTone="sky" />
       <TaskBoard
         api={clientTaskApi()}
         scopeKey="client"

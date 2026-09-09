@@ -1,21 +1,31 @@
 import type { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { IconBadge, type IconTone } from '@/components/ui/icon-badge';
 import type { PageMeta } from '@/types';
 
 export function PageHeader({
   title,
   description,
   actions,
+  icon,
+  iconTone = 'primary',
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  /** Optional duotone icon shown to the left of the title. */
+  icon?: LucideIcon;
+  iconTone?: IconTone;
 }) {
   return (
     <div className="animate-slide-up flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
-        <span className="mt-1 hidden h-8 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-primary to-[#34B98C] sm:block" />
+        {icon ? (
+          <IconBadge icon={icon} tone={iconTone} size="lg" gradient className="mt-0.5" />
+        ) : (
+          <span className="mt-1 hidden h-8 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-primary to-[#34B98C] sm:block" />
+        )}
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
           {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}

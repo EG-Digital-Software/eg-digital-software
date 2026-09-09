@@ -28,13 +28,12 @@ const schema = z
   .refine((d) => d.password === d.confirm, { message: 'Passwords do not match', path: ['confirm'] });
 type FormValues = z.infer<typeof schema>;
 
-type RoleKey = 'super-admin' | 'client' | 'supplier' | 'employee';
+type RoleKey = 'super-admin' | 'client' | 'employee';
 
 const ROLES: Record<RoleKey, { label: string; allowSignup: boolean; accent: AuthAccent; variant: AuthVariant }> = {
-  'super-admin': { label: 'Admin', allowSignup: false, accent: { from: '#6366f1', to: '#8b5cf6' }, variant: 'admin' },
-  client: { label: 'Client', allowSignup: true, accent: { from: '#0d9488', to: '#10b981' }, variant: 'client' },
-  supplier: { label: 'Supplier', allowSignup: true, accent: { from: '#ea580c', to: '#f59e0b' }, variant: 'supplier' },
-  employee: { label: 'Employee', allowSignup: true, accent: { from: '#0284c7', to: '#38bdf8' }, variant: 'employee' },
+  'super-admin': { label: 'EG', allowSignup: false, accent: { from: '#6366f1', to: '#8b5cf6' }, variant: 'admin' },
+  client: { label: 'Customer', allowSignup: true, accent: { from: '#0d9488', to: '#10b981' }, variant: 'client' },
+  employee: { label: 'Team', allowSignup: true, accent: { from: '#0284c7', to: '#38bdf8' }, variant: 'employee' },
 };
 
 export default function ResetPasswordPage() {
@@ -82,9 +81,6 @@ export default function ResetPasswordPage() {
     >
       <div className="stagger">
         <h1 className="text-2xl font-bold tracking-tight text-slate-800">Set a New Password</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Almost done — enter and confirm your new password.
-        </p>
 
         {!token && (
           <p className="mt-4 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">

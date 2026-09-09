@@ -6,7 +6,7 @@
  */
 export const brand = {
   companyName: 'EG Digital',
-  logo: '/egdigital-logo.png', // full wordmark (raster)
+  logo: '/egdigital-logo-notm.png', // full wordmark (raster, TM removed)
   icon: '/egdigital-icon.png?v=2', // square kangaroo mark only (transparent bg)
   favicon: '/egdigital-icon.png?v=2',
   wordmark: true,

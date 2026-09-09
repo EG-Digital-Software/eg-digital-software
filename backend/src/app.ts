@@ -34,8 +34,18 @@ export function createApp() {
   app.use(cookieParser());
   app.use(pinoHttp({ logger, autoLogging: env.NODE_ENV !== 'production' }));
 
-  // Serve locally uploaded files in development.
-  app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
+  // Serve locally uploaded files in development. helmet()'s default
+  // Cross-Origin-Resource-Policy: same-origin blocks the frontend (a different
+  // origin in dev) from embedding these images, so relax it to cross-origin for
+  // public media only.
+  app.use(
+    '/uploads',
+    (_req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+    express.static(path.resolve(process.cwd(), 'uploads'))
+  );
 
   app.use('/api', apiLimiter, routes);
 

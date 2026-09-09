@@ -9,6 +9,7 @@ import {
   TrendingUp,
   ArrowRight,
   AlertTriangle,
+  LayoutDashboard,
 } from 'lucide-react';
 import { dashboardApi } from '@/api/resources';
 import type { DashboardSummary, LicenceRow } from '@/types';
@@ -126,6 +127,8 @@ export default function DashboardPage() {
       <PageHeader
         title={user ? `Welcome Back, ${user.firstName} ${user.lastName} 👋` : 'Welcome Back 👋'}
         description={`${greeting()} — here's an overview of your business performance`}
+        icon={LayoutDashboard}
+        iconTone="primary"
       />
 
       <div className="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -257,7 +260,7 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Client</TableHead>
+                    <TableHead>Customer</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Expiry</TableHead>
                     <TableHead className="text-right">Days</TableHead>

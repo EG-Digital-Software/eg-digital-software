@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Wallet } from 'lucide-react';
 import { PageHeader } from '@/components/shared/misc';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PaymentsTransactionsTab } from './PaymentsTransactionsTab';
@@ -14,7 +15,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Payments" description="Money received and how customers can pay you" />
+      <PageHeader title="Payments" description="Money received and how customers can pay you" icon={Wallet} iconTone="emerald" />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

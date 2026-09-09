@@ -27,7 +27,7 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-type RoleKey = 'super-admin' | 'client' | 'supplier' | 'employee';
+type RoleKey = 'super-admin' | 'client' | 'employee';
 
 type RoleConfig = {
   label: string;
@@ -42,7 +42,7 @@ type RoleConfig = {
 
 const ROLES: Record<RoleKey, RoleConfig> = {
   'super-admin': {
-    label: 'Admin',
+    label: 'EG',
     description: 'Administrative access to the EG Digital control panel.',
     placeholder: 'admin@egdigital.com.au',
     allowSignup: false,
@@ -52,7 +52,7 @@ const ROLES: Record<RoleKey, RoleConfig> = {
     variant: 'admin',
   },
   client: {
-    label: 'Client',
+    label: 'Customer',
     description: 'Access your invoices, licences and payments.',
     placeholder: 'you@company.com.au',
     allowSignup: true,
@@ -61,18 +61,8 @@ const ROLES: Record<RoleKey, RoleConfig> = {
     accent: { from: '#0d9488', to: '#10b981' }, // teal → emerald
     variant: 'client',
   },
-  supplier: {
-    label: 'Supplier',
-    description: 'Manage supply, orders and product fulfilment.',
-    placeholder: 'you@supplier.com.au',
-    allowSignup: true,
-    welcome: 'Manage supply, orders & fulfilment',
-    subline: 'Real-time order visibility, stock control and fulfilment — without the spreadsheets.',
-    accent: { from: '#ea580c', to: '#f59e0b' }, // orange → amber
-    variant: 'supplier',
-  },
   employee: {
-    label: 'Employee',
+    label: 'Team',
     description: 'Access your workspace, tasks and internal tools.',
     placeholder: 'you@egdigital.com.au',
     allowSignup: true,
@@ -124,7 +114,6 @@ export default function LoginPage() {
       const base: Record<string, string> = {
         SUPER_ADMIN: '/admin',
         CLIENT: '/client',
-        SUPPLIER: '/supplier',
         EMPLOYEE: '/employee',
       };
       const home = ROLE_HOME[user.role] ?? '/admin/dashboard';
@@ -150,17 +139,8 @@ export default function LoginPage() {
       variant={role.variant}
     >
       <div className="stagger">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-800">Sign In</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">{role.description}</p>
-          </div>
-          <span
-            className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-            style={{ background: `${role.accent.from}14`, color: role.accent.from }}
-          >
-            {role.label}
-          </span>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Sign In</h1>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">

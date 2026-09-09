@@ -23,6 +23,9 @@ const NAV = [
   { to: '/client/details', label: 'My Details', icon: IdCard },
 ];
 
+/** Full-width shell — content spans the whole screen with a small, even gutter. */
+const SHELL = 'w-full px-4 sm:px-6 lg:px-8';
+
 export function ClientLayout() {
   const user = useAuth((s) => s.user);
   const logout = useLogout();
@@ -34,39 +37,42 @@ export function ClientLayout() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur-md">
-        <div className="flex h-16 w-full items-center gap-3 px-4 lg:px-6">
+    <div className="flex min-h-screen flex-col bg-white">
+      <header className="sticky top-0 z-20 border-b border-border/70 bg-card/85 backdrop-blur-xl">
+        <div className={cn(SHELL, 'relative flex h-16 items-center gap-3')}>
           <NavLink to="/client/dashboard" className="flex shrink-0 items-center">
             <Logo className="text-[24px]" />
           </NavLink>
-          <span className="ml-1 hidden rounded-full bg-[#34B98C]/10 px-2 py-0.5 text-[11px] font-medium text-[#34B98C] sm:inline">
-            Client Portal
+          <span className="ml-1 hidden rounded-full border border-[#34B98C]/20 bg-[#34B98C]/10 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-[#2f9d78] sm:inline">
+            Customer Portal
           </span>
 
-          <nav className="ml-auto flex items-center gap-1">
+          {/* Primary nav — a single pill rail, absolutely centred in the header. */}
+          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 rounded-full border border-border/70 bg-secondary/50 p-1 md:flex">
             {NAV.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                      ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60'
+                      : 'text-muted-foreground hover:text-foreground'
                   )
                 }
               >
                 <item.icon className="h-[18px] w-[18px]" />
-                <span className="hidden sm:inline">{item.label}</span>
+                <span className="hidden lg:inline">{item.label}</span>
               </NavLink>
             ))}
+          </nav>
 
+          <div className="ml-auto flex items-center gap-1">
             <NotificationBell />
 
             <DropdownMenu>
-              <DropdownMenuTrigger className="ml-1 flex items-center gap-2.5 rounded-lg p-1 pr-2.5 hover:bg-secondary focus:outline-none">
+              <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-full p-1 pr-2.5 transition-colors hover:bg-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Avatar>
                   {user?.avatarUrl && <AvatarImage src={mediaUrl(user.avatarUrl)} alt="" />}
                   <AvatarFallback>{initials(user?.firstName, user?.lastName)}</AvatarFallback>
@@ -92,18 +98,43 @@ export function ClientLayout() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </nav>
+          </div>
         </div>
+
+        {/* Compact nav rail for tablet / phone, where the header pill is hidden. */}
+        <nav className="border-t border-border/70 bg-card/60 md:hidden">
+          <div className={cn(SHELL, 'flex items-center gap-1 overflow-x-auto py-2')}>
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  cn(
+                    'flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                  )
+                }
+              >
+                <item.icon className="h-[18px] w-[18px]" />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </nav>
       </header>
 
       <main className="flex-1">
-        <div className="w-full space-y-6 p-4 lg:p-6 xl:p-8">
+        <div className={cn(SHELL, 'space-y-6 py-6 lg:py-8')}>
           <Outlet />
         </div>
       </main>
 
-      <footer className="py-6 text-center text-sm font-medium text-muted-foreground">
-        This portal is under construction — some features may still be on the way.
+      <footer className="border-t border-border/60">
+        <div className={cn(SHELL, 'py-6 text-center text-sm font-medium text-muted-foreground')}>
+          This portal is under construction — some features may still be on the way.
+        </div>
       </footer>
     </div>
   );

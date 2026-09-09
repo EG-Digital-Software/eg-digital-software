@@ -1,11 +1,11 @@
 import * as React from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, ArrowLeft, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, type LucideIcon } from 'lucide-react';
 import { Logo } from '@/components/layout/Logo';
-import { brand } from '@/config/brand';
 import { cn } from '@/lib/utils';
-import { PlatformScene, type AuthVariant } from './PlatformScene';
+import { NetworkBackground } from './NetworkBackground';
+import type { AuthVariant } from './PlatformScene';
 
 export type { AuthVariant };
 
@@ -38,25 +38,32 @@ export type AuthShellProps = {
   children: ReactNode;
 };
 
-export function AuthShell({ tabs, welcome, subline, accent, variant, children }: AuthShellProps) {
+export function AuthShell({ tabs, accent, children }: AuthShellProps) {
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      {/* ---------- Left: form (full height) ---------- */}
-      <div className="relative flex items-center justify-center overflow-hidden bg-white px-6 py-10 sm:px-10">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#f7f8fa] px-4 py-10 sm:px-6">
+      {/* ---------- Animated constellation backdrop ---------- */}
+      <NetworkBackground
+        color={accent.to}
+        className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+      />
 
-        <div className="animate-slide-up-lg relative z-10 w-full max-w-md">
-          <Link
-            to="/"
-            className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to main page
-          </Link>
-          <div className="mb-8">
+      {/* ---------- Login card ---------- */}
+      <div className="animate-slide-up-lg relative z-10 w-full max-w-lg">
+        <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white/90 p-8 shadow-2xl shadow-slate-900/[0.09] backdrop-blur-xl sm:p-11">
+          {/* accent hairline across the very top */}
+          <span
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-1"
+            style={{ background: `linear-gradient(90deg, ${accent.from}, ${accent.to})` }}
+          />
+
+          {/* logo */}
+          <div className="mb-7 flex justify-center">
             <Logo className="text-2xl" />
           </div>
 
           {/* tabs */}
-          <div className="mb-7 flex items-center gap-1 border-b border-border">
+          <div className="mb-7 flex items-center justify-center gap-1 border-b border-border">
             {tabs.map((t) =>
               t.disabled ? (
                 <span
@@ -89,35 +96,14 @@ export function AuthShell({ tabs, welcome, subline, accent, variant, children }:
 
           {children}
         </div>
-      </div>
 
-      {/* ---------- Right: brand + animated illustration (white, full height) ---------- */}
-      <aside className="relative hidden flex-col items-center justify-center overflow-hidden bg-white p-12 lg:flex">
-
-        <div className="relative z-10 flex w-full max-w-lg flex-col items-center text-center">
-          <img
-            src={brand.icon}
-            alt={brand.companyName}
-            className="animate-float mb-5 h-14 w-auto object-contain"
-          />
-          <h2
-            className="text-3xl font-bold leading-tight tracking-tight"
-            style={{ color: brand.colors.navy }}
-          >
-            {welcome}
-          </h2>
-          {subline && <p className="mt-3 max-w-md text-muted-foreground">{subline}</p>}
-
-          <div className="mt-8 w-full">
-            <PlatformScene accent={accent} variant={variant} />
-          </div>
-
-          <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-            <ShieldCheck className="h-4 w-4" style={{ color: accent.from }} /> Secure, role-based
-            access · en-AU · AUD
-          </div>
+        {/* below-card footer */}
+        <div className="mt-6 flex items-center justify-center gap-3 text-xs text-muted-foreground">
+          <Link to="/" className="inline-flex items-center gap-1 transition-colors hover:text-foreground">
+            <ArrowLeft className="h-3 w-3" /> Back to main
+          </Link>
         </div>
-      </aside>
+      </div>
     </div>
   );
 }
@@ -172,9 +158,6 @@ export function AuthButton({ accent, className, children, ...props }: AuthButton
       style={{ background: `linear-gradient(120deg, ${accent.from}, ${accent.to})` }}
       {...props}
     >
-      <span className="pointer-events-none absolute inset-0 -z-0">
-        <span className="animate-shine absolute inset-y-0 left-0 w-1/3 bg-white/25 blur-md" />
-      </span>
       <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
     </button>
   );

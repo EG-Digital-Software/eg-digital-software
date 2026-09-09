@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, ChevronDown, Building2, Check } from 'lucide-react';
+import { Search, ChevronDown, Building2, Check, ListChecks } from 'lucide-react';
 import { customerApi } from '@/api/resources';
 import { adminTaskApi } from '@/api/tasks';
 import { customerName } from '@/lib/customer';
@@ -35,7 +35,7 @@ export default function AdminTasksPage() {
   if (customers.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Tasks" description="Plan and track work for each customer." />
+        <PageHeader title="Tasks" description="Plan and track work for each customer." icon={ListChecks} iconTone="sky" />
         <EmptyState title="No customers yet" description="Add a customer first, then plan their tasks here." />
       </div>
     );
@@ -48,6 +48,8 @@ export default function AdminTasksPage() {
       <PageHeader
         title="Tasks"
         description="Plan and track work for each customer."
+        icon={ListChecks}
+        iconTone="sky"
         actions={<CustomerPicker customers={customers} selected={current.clientId} onSelect={setSelected} />}
       />
       {current && <TaskBoard key={current.clientId} api={adminTaskApi(current.clientId)} scopeKey={current.clientId} customerName={customerName(current)} />}

@@ -4,7 +4,7 @@ import { PortalShell } from '@/components/layout/PortalShell';
 export function EmployeeLayout() {
   return (
     <PortalShell
-      badge="Employee Portal"
+      badge="Team Portal"
       badgeClass="bg-sky-500/10 text-sky-600"
       home="/employee/tasks"
       accountPath="/employee/account"

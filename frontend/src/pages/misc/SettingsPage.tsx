@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Building2, MapPin, Mail, Save, ShieldCheck } from 'lucide-react';
+import { Building2, MapPin, Mail, Save, ShieldCheck, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { settingsApi, type OrganisationSettings } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
@@ -176,6 +176,8 @@ export default function SettingsPage() {
       <PageHeader
         title="Settings"
         description="Your organisation's details — these print on every tax invoice and the pay page"
+        icon={Settings}
+        iconTone="slate"
         actions={SaveButton}
       />
 

@@ -4,7 +4,7 @@ import { Topbar } from '@/components/layout/Topbar';
 export function AdminLayout() {
   const location = useLocation();
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-white">
       <Topbar />
       <main className="flex-1 overflow-x-hidden">
         {/* keyed by pathname → content fades in on every navigation */}

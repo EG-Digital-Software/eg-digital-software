@@ -16,7 +16,7 @@ export function ProtectedRoute({ roles }: { roles?: Role[] }) {
   }
 
   // Not signed in → always land on the portal chooser (the "main page" with the
-  // Admin / Client / Supplier / Employee options), never a stale protected page.
+  // Admin / Client / Employee options), never a stale protected page.
   // This also means pressing Back after logout keeps returning to the portal.
   if (!user) {
     return <Navigate to="/" replace state={{ from: location.pathname }} />;

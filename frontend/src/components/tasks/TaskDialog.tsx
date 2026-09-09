@@ -13,13 +13,19 @@ import {
   Download,
   Info,
   Calendar,
-  Repeat2,
   MessageSquareText,
   Circle,
+  ShieldCheck,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Trash2,
 } from 'lucide-react';
 import type {
   AssignableUser,
   Task,
+  TaskApproval,
+  TaskApprovalStatus,
   TaskBucket,
   TaskComment,
   TaskPriority,
@@ -73,7 +79,6 @@ interface Draft {
   checklist: { text: string; done: boolean }[];
 }
 
-const REPEAT_OPTIONS = ['Does not repeat', 'Daily', 'Weekly', 'Monthly', 'Yearly'];
 
 const toDateInput = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : '');
 const toIso = (d: string) => (d ? new Date(d + 'T00:00:00').toISOString() : '');
@@ -138,10 +143,18 @@ export function TaskDialog({
   const me = useAuth((s) => s.user);
   const meId = me?.id;
   const meName = [me?.firstName, me?.lastName].filter(Boolean).join(' ') || me?.email || 'You';
+  // Only admins and the customer submit/decide approvals; team members (and
+  // suppliers) see the tab read-only — just the outcome. Mirrors the backend gate.
+  const canApprove = me?.role === 'SUPER_ADMIN' || me?.role === 'CLIENT';
+  // Deleting an approval request (at any status) is admin-only.
+  const isAdmin = me?.role === 'SUPER_ADMIN';
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
-  const [tab, setTab] = useState<'details' | 'attachments'>('details');
-  const [repeat, setRepeat] = useState('Does not repeat');
+  const [tab, setTab] = useState<'details' | 'attachments' | 'approval'>('details');
+  const [approvalSubject, setApprovalSubject] = useState('');
+  const [approvalMessage, setApprovalMessage] = useState('');
+  const [approvalFiles, setApprovalFiles] = useState<File[]>([]);
+  const [feedbackDraft, setFeedbackDraft] = useState<Record<string, string>>({});
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [comment, setComment] = useState('');
   const [showChat, setShowChat] = useState(true);
@@ -154,14 +167,20 @@ export function TaskDialog({
     if (open) {
       setDraft(draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
       setTab('details');
+      setApprovalSubject('');
+      setApprovalMessage('');
+      setApprovalFiles([]);
+      setFeedbackDraft({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task?.id, mode, createBucketId]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['tasks', scopeKey] });
 
-  // Light, live view of just this task (comments + attachments) — polled every
-  // few seconds so the chat updates without a full-board refetch or page reload.
+  // Light, live view of just this task (chat + approvals + attachments) — polled
+  // once a second so messages and approval activity land almost instantly for
+  // both admin and client, without a full-board refetch or page reload. Keeps
+  // polling in the background too, so a reply arrives even on an unfocused tab.
   const taskKey = ['task', scopeKey, task?.id] as const;
   const taskQ = useQuery({
     queryKey: taskKey,
@@ -169,10 +188,20 @@ export function TaskDialog({
     enabled: open && isEdit && !!task?.id,
     initialData: task ?? undefined,
     staleTime: 0,
-    refetchInterval: open && isEdit ? 2500 : false,
+    refetchInterval: open && isEdit ? 1000 : false,
+    refetchIntervalInBackground: true,
   });
   const liveTask = taskQ.data ?? task;
   const invalidateTask = () => qc.invalidateQueries({ queryKey: taskKey });
+
+  // Keep the chat pinned to the newest message — on open, on send, and when a
+  // poll pulls in a reply from the other party.
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const commentCount = liveTask?.comments.length ?? 0;
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el && showChat) el.scrollTop = el.scrollHeight;
+  }, [commentCount, showChat, open]);
 
   const patch = useMutation({
     mutationFn: (body: TaskInput) => api.updateTask(task!.id, body),
@@ -224,6 +253,53 @@ export function TaskDialog({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const removeFile = useMutation({ mutationFn: (id: string) => api.deleteAttachment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
+  const submitApproval = useMutation({
+    mutationFn: (v: { subject: string; message: string; files?: File[] }) => api.submitApproval(task!.id, v),
+    onSuccess: () => { invalidateTask(); invalidate(); setApprovalSubject(''); setApprovalMessage(''); setApprovalFiles([]); toast.success('Approval requested'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const decideApproval = useMutation({
+    mutationFn: (v: { id: string; status: 'APPROVED' | 'REJECTED'; feedback?: string | null }) =>
+      api.decideApproval(task!.id, v.id, { status: v.status, feedback: v.feedback }),
+    // Reflect the decision instantly; reconcile with the server afterwards.
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      if (prev) {
+        const now = new Date().toISOString();
+        qc.setQueryData<Task>(taskKey, {
+          ...prev,
+          approvals: prev.approvals.map((a) =>
+            a.id === v.id
+              ? { ...a, status: v.status, feedback: v.feedback ?? a.feedback ?? null, decidedByName: meName, decidedAt: now }
+              : a
+          ),
+        });
+      }
+      setFeedbackDraft((f) => { const n = { ...f }; delete n[v.id]; return n; });
+      return { prev };
+    },
+    onError: (e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
+    onSuccess: (_d, v) => toast.success(v.status === 'APPROVED' ? 'Approved' : 'Rejected'),
+    onSettled: () => { invalidateTask(); invalidate(); },
+  });
+  const removeApproval = useMutation({
+    mutationFn: (id: string) => api.deleteApproval(task!.id, id),
+    // Drop the row instantly; reconcile with the server in the background.
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      if (prev) {
+        qc.setQueryData<Task>(taskKey, { ...prev, approvals: prev.approvals.filter((a) => a.id !== id) });
+      }
+      return { prev };
+    },
+    onError: (e, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev);
+      toast.error(apiErrorMessage(e));
+    },
+    onSettled: () => { invalidateTask(); invalidate(); },
+  });
 
   function update(partial: Partial<Draft>, persist?: TaskInput) {
     setDraft((d) => ({ ...d, ...partial }));
@@ -275,7 +351,7 @@ export function TaskDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className={cn('flex !max-w-none flex-col gap-0 overflow-hidden p-0', chatVisible ? '!w-[min(1140px,96vw)]' : '!w-[min(640px,96vw)]')}>
+      <DialogContent className={cn('flex !max-w-none !max-h-[95vh] !h-[92vh] flex-col gap-0 overflow-hidden p-0', chatVisible ? '!w-[min(1680px,96vw)]' : '!w-[min(1200px,94vw)]')}>
         <DialogTitle className="sr-only">Task</DialogTitle>
 
         {/* Top bar */}
@@ -388,6 +464,11 @@ export function TaskDialog({
                   Attachments{liveTask && liveTask.attachments.length > 0 ? ` (${liveTask.attachments.length})` : ''}
                 </TabPill>
               )}
+              {isEdit && (
+                <TabPill active={tab === 'approval'} onClick={() => setTab('approval')} icon={<ShieldCheck className="h-4 w-4" />}>
+                  Approval{liveTask && liveTask.approvals.length > 0 ? ` (${liveTask.approvals.length})` : ''}
+                </TabPill>
+              )}
             </div>
 
             {tab === 'details' ? (
@@ -434,11 +515,6 @@ export function TaskDialog({
                       onChange={(v) => update({ dueDate: v }, { dueDate: toIso(v) || null })} />
                   </Field>
 
-                  <Field label="Repeat" hint="Set how often this task recurs. Choose a cadence (daily, weekly, monthly…) and a new copy is created automatically each cycle; 'Does not repeat' keeps it one-off.">
-                    <IconSelect leading={<Repeat2 className="h-3.5 w-3.5 text-muted-foreground" />} value={repeat} disabled={disabled} onChange={setRepeat}>
-                      {REPEAT_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </IconSelect>
-                  </Field>
                   <Field label="Task number" hint="Unique ID assigned automatically to every task (TSK-EGD-5000, 5001, …). It can't be edited. For a new task this shows the number it will get on creation.">
                     <div className="flex h-10 items-center gap-2 rounded-md border border-input bg-secondary/40 px-3 text-sm font-semibold tabular-nums text-foreground">
                       {task?.taskNumber ?? nextTaskNumber ?? 'Auto-generated'}
@@ -448,7 +524,7 @@ export function TaskDialog({
 
                 {/* Checklist */}
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold">Checklist</h4>
+                  <h4 className="mb-2 text-sm font-semibold">Scope of Work</h4>
                   {draft.checklist.length > 0 && (
                     <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-secondary">
                       <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(checklistDone / draft.checklist.length) * 100}%` }} />
@@ -475,7 +551,7 @@ export function TaskDialog({
                     <div className="mt-2 flex items-center gap-2.5">
                       <Circle className="h-4 w-4 shrink-0 text-muted-foreground/50" />
                       <Input value={newChecklistItem} placeholder="Add steps to complete this task. Mark them done as you go."
-                        className="h-8 border-0 px-0 text-sm shadow-none focus-visible:ring-0"
+                        className="h-8 border-0 px-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                         onChange={(e) => setNewChecklistItem(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addChecklistItem())} />
                       {newChecklistItem.trim() && <Button type="button" size="sm" variant="secondary" onClick={addChecklistItem}><Plus className="h-4 w-4" /></Button>}
@@ -505,7 +581,7 @@ export function TaskDialog({
                   )}
                 </div>
               </div>
-            ) : (
+            ) : tab === 'attachments' ? (
               /* Attachments tab */
               <div className="mt-5 space-y-2">
                 {liveTask?.attachments.map((f) => (
@@ -523,6 +599,33 @@ export function TaskDialog({
                   <Paperclip className="mr-1.5 h-4 w-4" /> {uploadFile.isPending ? 'Uploading…' : 'Add attachment'}
                 </Button>
               </div>
+            ) : (
+              /* Approval tab */
+              <ApprovalPanel
+                approvals={liveTask?.approvals ?? []}
+                canApprove={canApprove}
+                isAdmin={isAdmin}
+                subject={approvalSubject}
+                message={approvalMessage}
+                files={approvalFiles}
+                onSubjectChange={setApprovalSubject}
+                onMessageChange={setApprovalMessage}
+                onFilesAdd={(fs) => setApprovalFiles((prev) => [...prev, ...fs])}
+                onFileRemove={(i) => setApprovalFiles((prev) => prev.filter((_, j) => j !== i))}
+                onSubmit={() => {
+                  const s = approvalSubject.trim();
+                  const m = approvalMessage.trim();
+                  // A subject, a message, or at least one file is enough to send.
+                  if ((!s && !m && approvalFiles.length === 0) || submitApproval.isPending) return;
+                  submitApproval.mutate({ subject: s, message: m, files: approvalFiles });
+                }}
+                submitting={submitApproval.isPending}
+                feedbackDraft={feedbackDraft}
+                onFeedbackChange={(id, v) => setFeedbackDraft((f) => ({ ...f, [id]: v }))}
+                onDecide={(id, status) => decideApproval.mutate({ id, status, feedback: feedbackDraft[id]?.trim() || null })}
+                deciding={decideApproval.isPending ? decideApproval.variables?.id : undefined}
+                onRemove={(id) => removeApproval.mutate(id)}
+              />
             )}
 
             {/* Create footer */}
@@ -540,7 +643,7 @@ export function TaskDialog({
               <div className="border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Task Chat</h3>
               </div>
-              <div className="flex-1 space-y-4 overflow-y-auto p-4">
+              <div ref={chatScrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
                 {!task && <p className="pt-8 text-center text-xs text-muted-foreground">Create the task first to start the conversation.</p>}
                 {task && liveTask && liveTask.comments.length === 0 && <p className="pt-8 text-center text-xs text-muted-foreground">No messages yet. Start the conversation.</p>}
                 {liveTask?.comments.map((c) => {
@@ -553,7 +656,7 @@ export function TaskDialog({
                       <div className={cn('min-w-0 max-w-[85%]', mine && 'text-right')}>
                         <div className={cn('mb-1 flex items-center gap-2 text-[11px]', mine ? 'justify-end' : '')}>
                           {!mine && <span className="font-semibold text-primary">{c.authorName}</span>}
-                          <span className="text-muted-foreground">{formatDate(c.createdAt)}</span>
+                          <span className="text-muted-foreground">{formatDate(c.createdAt, 'dd MMM, h:mm a')}</span>
                         </div>
                         {c.body && (
                           <div className={cn('inline-block rounded-2xl px-3 py-2 text-left text-sm', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
@@ -592,7 +695,7 @@ export function TaskDialog({
                     </button>
                   </div>
                 )}
-                <div className="flex items-end gap-2 rounded-xl border border-border bg-card px-3 py-2">
+                <div className="flex items-end gap-2 rounded-xl border border-border bg-card px-3.5 py-2.5">
                   <input
                     ref={chatFileRef}
                     type="file"
@@ -613,7 +716,7 @@ export function TaskDialog({
                     placeholder={task ? 'Type a message' : 'Available after the task is created'}
                     rows={1}
                     disabled={!task}
-                    className="min-h-[24px] resize-none border-0 p-0 text-sm shadow-none focus-visible:ring-0 disabled:cursor-not-allowed"
+                    className="min-h-[28px] w-full flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm leading-6 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed"
                     onChange={(e) => setComment(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                   />
@@ -661,6 +764,284 @@ function TabPill({ active, onClick, icon, children }: { active: boolean; onClick
       {icon}
       {children}
     </button>
+  );
+}
+
+const APPROVAL_META: Record<TaskApprovalStatus, { label: string; icon: typeof Clock; badge: string; dot: string }> = {
+  PENDING: { label: 'Pending', icon: Clock, badge: 'bg-amber-100 text-amber-700', dot: 'text-amber-500' },
+  APPROVED: { label: 'Approved', icon: CheckCircle2, badge: 'bg-emerald-100 text-emerald-700', dot: 'text-emerald-500' },
+  REJECTED: { label: 'Rejected', icon: XCircle, badge: 'bg-rose-100 text-rose-700', dot: 'text-rose-500' },
+};
+
+function ApprovalStatusBadge({ status }: { status: TaskApprovalStatus }) {
+  const m = APPROVAL_META[status];
+  const Icon = m.icon;
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold', m.badge)}>
+      <Icon className="h-3.5 w-3.5" /> {m.label}
+    </span>
+  );
+}
+
+/**
+ * Approval tab — a request register. Admins and the customer submit requests and
+ * approve/reject them (with optional feedback); team members see the tab
+ * read-only. Columns: Submitted date · Subject · Message · Action · Feedback.
+ */
+function ApprovalPanel({
+  approvals,
+  canApprove,
+  isAdmin,
+  subject,
+  message,
+  files,
+  onSubjectChange,
+  onMessageChange,
+  onFilesAdd,
+  onFileRemove,
+  onSubmit,
+  submitting,
+  feedbackDraft,
+  onFeedbackChange,
+  onDecide,
+  deciding,
+  onRemove,
+}: {
+  approvals: TaskApproval[];
+  canApprove: boolean;
+  isAdmin: boolean;
+  subject: string;
+  message: string;
+  files: File[];
+  onSubjectChange: (v: string) => void;
+  onMessageChange: (v: string) => void;
+  onFilesAdd: (files: File[]) => void;
+  onFileRemove: (index: number) => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  feedbackDraft: Record<string, string>;
+  onFeedbackChange: (id: string, v: string) => void;
+  onDecide: (id: string, status: 'APPROVED' | 'REJECTED') => void;
+  deciding?: string;
+  onRemove: (id: string) => void;
+}) {
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
+  return (
+    <div className="mt-5 space-y-5">
+      {/* Submit a request — admins only. The customer just reviews & decides. */}
+      {isAdmin && (
+        <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
+          <h4 className="text-sm font-semibold">Request approval</h4>
+          <Input value={subject} placeholder="Subject" maxLength={200} onChange={(e) => onSubjectChange(e.target.value)} />
+          <Textarea
+            value={message}
+            placeholder="Please Upload Image/URL/File for Approval..."
+            className="min-h-[72px]"
+            onChange={(e) => onMessageChange(e.target.value)}
+          />
+
+          {/* Selected files (not yet uploaded) */}
+          {files.length > 0 && (
+            <div className="space-y-1.5">
+              {files.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate font-medium">{f.name}</span>
+                  <span className="shrink-0 text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                  <button type="button" onClick={() => onFileRemove(i)} className="shrink-0 text-muted-foreground hover:text-rose-500">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary hover:text-primary">
+              <Paperclip className="h-4 w-4" /> Attach image / file
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) onFilesAdd(fs); e.target.value = ''; }}
+              />
+            </label>
+            <Button type="button" size="sm" onClick={onSubmit} disabled={submitting || (!subject.trim() && !message.trim() && files.length === 0)}>
+              <Send className="mr-1.5 h-4 w-4" /> {submitting ? 'Sending…' : 'Submit for approval'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Register */}
+      {approvals.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">No approval requests yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <th className="whitespace-nowrap px-2 py-2">Submitted</th>
+                <th className="px-2 py-2">Subject</th>
+                <th className="px-2 py-2">Message</th>
+                <th className="px-2 py-2">Action</th>
+                <th className="px-2 py-2">Feedback</th>
+              </tr>
+            </thead>
+            <tbody>
+              {approvals.map((a) => {
+                const pending = a.status === 'PENDING';
+                const busy = deciding === a.id;
+                return (
+                  <tr key={a.id} className="border-b border-border/60 align-top">
+                    <td className="whitespace-nowrap px-2 py-3 text-xs text-muted-foreground">
+                      {formatDate(a.createdAt, 'dd MMM yyyy, h:mm a')}
+                      <div className="mt-0.5 text-[11px]">by {a.requestedByName}</div>
+                    </td>
+                    <td className="px-2 py-3 font-medium">{a.subject}</td>
+                    <td className="px-2 py-3 text-muted-foreground">
+                      <p className="max-w-[360px] whitespace-pre-wrap break-words">{a.message}</p>
+                      {a.attachments && a.attachments.length > 0 && (
+                        <div className="mt-2 flex max-w-[360px] flex-wrap gap-2">
+                          {a.attachments.map((f) => {
+                            const url = mediaUrl(f.url) ?? '';
+                            const isImage = (f.contentType ?? '').startsWith('image/');
+                            if (isImage) {
+                              return (
+                                <div key={f.id} className="group relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => setLightbox({ url, name: f.fileName })}
+                                    title={`Preview ${f.fileName}`}
+                                    className="block overflow-hidden rounded-lg border border-border transition hover:border-primary/40"
+                                  >
+                                    <img src={url} alt={f.fileName} className="h-16 w-16 object-cover" />
+                                  </button>
+                                  <a
+                                    href={url}
+                                    download={f.fileName}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
+                                    className="absolute right-1 top-1 rounded-md bg-card/90 p-1 text-muted-foreground opacity-0 shadow-sm transition hover:text-primary group-hover:opacity-100"
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                  </a>
+                                </div>
+                              );
+                            }
+                            return (
+                              <a
+                                key={f.id}
+                                href={url}
+                                download={f.fileName}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
+                                className="group flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs transition hover:border-primary/40"
+                              >
+                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                <span className="max-w-[120px] truncate font-medium text-foreground">{f.fileName}</span>
+                                <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-2 py-3">
+                      {pending ? (
+                        canApprove ? (
+                          <div className="space-y-1.5">
+                            <div className="flex gap-1.5">
+                              <Button type="button" size="sm" disabled={busy} onClick={() => onDecide(a.id, 'APPROVED')}>
+                                <Check className="h-4 w-4" /> Approve
+                              </Button>
+                              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onDecide(a.id, 'REJECTED')}>
+                                <X className="h-4 w-4" /> Reject
+                              </Button>
+                            </div>
+                            <Input
+                              value={feedbackDraft[a.id] ?? ''}
+                              placeholder="Feedback (optional)"
+                              className="h-8 text-xs"
+                              onChange={(e) => onFeedbackChange(a.id, e.target.value)}
+                            />
+                          </div>
+                        ) : (
+                          <ApprovalStatusBadge status={a.status} />
+                        )
+                      ) : (
+                        <div className="space-y-1">
+                          <ApprovalStatusBadge status={a.status} />
+                          {a.decidedByName && (
+                            <div className="text-[11px] text-muted-foreground">
+                              by {a.decidedByName}
+                              {a.decidedAt ? ` · ${formatDate(a.decidedAt, 'dd MMM')}` : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-2 py-3 text-muted-foreground">
+                      <div className="flex items-start gap-1.5">
+                        <p className="max-w-[300px] flex-1 whitespace-pre-wrap break-words">{a.feedback || '—'}</p>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            title="Delete approval request"
+                            onClick={() => onRemove(a.id)}
+                            className="shrink-0 text-muted-foreground transition hover:text-rose-500"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Image lightbox — full-screen preview; download gives the original file. */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 animate-fade-in"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="absolute right-4 top-4 flex gap-2">
+            <a
+              href={lightbox.url}
+              download={lightbox.name}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title="Download original"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            >
+              <Download className="h-4 w-4" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setLightbox(null)}
+              title="Close"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <img
+            src={lightbox.url}
+            alt={lightbox.name}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

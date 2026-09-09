@@ -4,7 +4,6 @@ import { useSessionInit } from '@/hooks/useSession';
 import { ProtectedRoute } from '@/routes/ProtectedRoute';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ClientLayout } from '@/layouts/ClientLayout';
-import { SupplierLayout } from '@/layouts/SupplierLayout';
 import { EmployeeLayout } from '@/layouts/EmployeeLayout';
 import { TooltipProvider } from '@/components/ui/misc';
 import { LoadingBlock } from '@/components/shared/states';
@@ -36,8 +35,6 @@ const ClientLicencesPage = lazy(() => import('@/pages/client/ClientLicencesPage'
 const ClientDetailsPage = lazy(() => import('@/pages/client/ClientDetailsPage'));
 const ClientTasksPage = lazy(() => import('@/pages/client/ClientTasksPage'));
 const AccountPage = lazy(() => import('@/pages/account/AccountPage'));
-const SupplierDashboard = lazy(() => import('@/pages/supplier/SupplierDashboard'));
-const SupplierProductsPage = lazy(() => import('@/pages/supplier/SupplierProductsPage'));
 const EmployeeTasksPage = lazy(() => import('@/pages/employee/EmployeeTasksPage'));
 const EmployeeCustomersPage = lazy(() => import('@/pages/employee/EmployeeCustomersPage'));
 const EmployeeLicencesPage = lazy(() => import('@/pages/employee/EmployeeLicencesPage'));
@@ -85,16 +82,6 @@ export default function App() {
                 <Route path="tasks" element={<ClientTasksPage />} />
                 <Route path="licences" element={<ClientLicencesPage />} />
                 <Route path="details" element={<ClientDetailsPage />} />
-                <Route path="account" element={<AccountPage />} />
-              </Route>
-            </Route>
-
-            {/* Protected supplier portal */}
-            <Route element={<ProtectedRoute roles={['SUPPLIER']} />}>
-              <Route path="/supplier" element={<SupplierLayout />}>
-                <Route index element={<Navigate to="/supplier/dashboard" replace />} />
-                <Route path="dashboard" element={<SupplierDashboard />} />
-                <Route path="products" element={<SupplierProductsPage />} />
                 <Route path="account" element={<AccountPage />} />
               </Route>
             </Route>

@@ -4,12 +4,9 @@ import {
   BadgeCheck,
   CreditCard,
   Receipt,
-  Truck,
-  PackageCheck,
   ListChecks,
   Ticket,
   CheckCircle2,
-  BarChart3,
   Mail,
   ShieldCheck,
   KeyRound,
@@ -18,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { AuthAccent } from './AuthShell';
 
-export type AuthVariant = 'admin' | 'client' | 'supplier' | 'employee' | 'recovery';
+export type AuthVariant = 'admin' | 'client' | 'employee' | 'recovery';
 
 /* ================================================================== */
 /* Live data helpers — real, JS-driven movement (not CSS fakes).       */
@@ -70,20 +67,6 @@ function useLiveLine(points = 7) {
   }, [points]);
 
   return vals;
-}
-
-/** Randomised bar heights that step to new targets on an interval (CSS eases the transition). */
-function useLiveBars(count = 7) {
-  const [heights, setHeights] = useState<number[]>(() =>
-    Array.from({ length: count }, () => 35 + Math.random() * 55)
-  );
-  useEffect(() => {
-    const id = setInterval(() => {
-      setHeights((prev) => prev.map(() => 30 + Math.random() * 65));
-    }, 1400);
-    return () => clearInterval(id);
-  }, []);
-  return heights;
 }
 
 /** A smooth 0→100 progress that loops (for a live "sending / verifying" bar). */
@@ -151,24 +134,6 @@ function LiveLineChart({ accent, uid }: { accent: AuthAccent; uid: string }) {
       <circle cx={lx} cy={ly} r="4" fill="#fff" stroke={accent.from} strokeWidth="2.5" />
       <circle cx={lx} cy={ly} r="7" fill={accent.from} opacity="0.18" className="animate-ping" />
     </svg>
-  );
-}
-
-function LiveBarChart({ accent }: { accent: AuthAccent }) {
-  const heights = useLiveBars(7);
-  return (
-    <div className="flex h-[92px] items-end gap-2">
-      {heights.map((h, i) => (
-        <div
-          key={i}
-          className="flex-1 rounded-t-md transition-[height] duration-[1200ms] ease-out"
-          style={{
-            height: `${h}%`,
-            background: `linear-gradient(180deg, ${accent.from}, ${accent.to})`,
-          }}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -372,62 +337,11 @@ function ClientScene({ accent }: { accent: AuthAccent }) {
   );
 }
 
-function SupplierScene({ accent }: { accent: AuthAccent }) {
-  const orders = useLiveValue(128, 156, 1500);
-  const stock = useLiveValue(78, 96, 1600);
-  return (
-    <>
-      <Card delay="0s">
-        <div className="mb-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <IconBadge accent={accent}>
-              <BarChart3 className="h-4 w-4" />
-            </IconBadge>
-            <div>
-              <p className="text-[10px] leading-none text-slate-400">Orders this week</p>
-              <p className="text-base font-bold leading-tight text-slate-800">{orders} orders</p>
-            </div>
-          </div>
-          <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">
-            live
-          </span>
-        </div>
-        <LiveBarChart accent={accent} />
-      </Card>
-
-      <div className="grid grid-cols-2 gap-4">
-        <Card delay="0.2s">
-          <p className="text-[10px] text-slate-400">Dispatched</p>
-          <p className="text-lg font-bold text-slate-800">128</p>
-        </Card>
-        <Card delay="0.35s" className="flex items-center gap-3">
-          <AnimatedRing accent={accent} pct={stock} size={48} />
-          <div>
-            <p className="text-[10px] text-slate-400">Stock</p>
-            <p className="text-sm font-bold text-slate-800">level</p>
-          </div>
-        </Card>
-      </div>
-
-      <Card delay="0.5s" className="flex items-center gap-3">
-        <IconBadge accent={accent}>
-          <PackageCheck className="h-4 w-4" />
-        </IconBadge>
-        <div className="flex-1">
-          <p className="text-[10px] leading-none text-slate-400">Order #SO-3391</p>
-          <p className="text-sm font-bold text-slate-800">Dispatched</p>
-        </div>
-        <Truck className="h-5 w-5" style={{ color: accent.from }} />
-      </Card>
-    </>
-  );
-}
-
 function EmployeeScene({ accent }: { accent: AuthAccent }) {
   const done = useLiveValue(14, 22, 1800);
   const pct = Math.round((done / 22) * 100);
   const tasks = [
-    { t: 'Approve supplier onboarding', done: true },
+    { t: 'Approve customer onboarding', done: true },
     { t: 'Reconcile 3 invoices', done: true },
     { t: 'Follow up licence renewal', done: false },
   ];
@@ -609,7 +523,6 @@ export function PlatformScene({
     <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
       {variant === 'admin' && <AdminScene accent={accent} uid={uid} />}
       {variant === 'client' && <ClientScene accent={accent} />}
-      {variant === 'supplier' && <SupplierScene accent={accent} />}
       {variant === 'employee' && <EmployeeScene accent={accent} />}
       {variant === 'recovery' && <RecoveryScene accent={accent} />}
     </div>

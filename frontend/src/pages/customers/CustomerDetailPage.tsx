@@ -332,7 +332,7 @@ function CredentialsPanel({ clientId }: { clientId: string }) {
           </p>
         </div>
         <Badge variant="secondary" className="ml-auto">
-          Admin only
+          EG only
         </Badge>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -448,6 +448,8 @@ export default function CustomerDetailPage() {
         <PageHeader
           title={customerName(c)}
           description={c.clientId}
+          icon={Building2}
+          iconTone="primary"
           actions={
             <>
               <Button variant="outline" asChild>
@@ -611,7 +613,7 @@ export default function CustomerDetailPage() {
                 }
               />
               <Detail
-                label="Client ID"
+                label="Customer ID"
                 value={<span className="font-mono text-primary">{c.clientId}</span>}
               />
               <Detail label="Principal Address" value={<AddressBlock address={principal} />} />

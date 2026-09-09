@@ -37,7 +37,7 @@ export default function ClientInvoicesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Invoices" description="View and pay your invoices" />
+      <PageHeader title="Invoices" description="View and pay your invoices" icon={Receipt} iconTone="primary" />
 
       <Tabs
         value={tab}

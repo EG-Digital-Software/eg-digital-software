@@ -36,10 +36,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: 'Admin',
-  CLIENT: 'Client',
-  SUPPLIER: 'Supplier',
-  EMPLOYEE: 'Employee',
+  SUPER_ADMIN: 'EG',
+  CLIENT: 'Customer',
+  EMPLOYEE: 'Team',
 };
 
 interface NavChild {

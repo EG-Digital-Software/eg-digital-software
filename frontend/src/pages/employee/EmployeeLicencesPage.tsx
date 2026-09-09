@@ -49,7 +49,7 @@ export default function EmployeeLicencesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Licence Monitoring" description="Licences expiring, critical or expired" />
+      <PageHeader title="Licence Monitoring" description="Licences expiring, critical or expired" icon={KeyRound} iconTone="amber" />
 
       <Card>
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
@@ -58,7 +58,7 @@ export default function EmployeeLicencesPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search client, Client ID, product or licence key…"
+              placeholder="Search customer, Customer ID, product or licence key…"
               className="pl-9"
             />
           </div>

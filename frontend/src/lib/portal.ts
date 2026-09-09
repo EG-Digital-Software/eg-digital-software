@@ -5,26 +5,23 @@
  *   URL slug   →  internal role key (used by the auth page config + API portal)
  *   admin      →  super-admin  (SUPER_ADMIN)
  *   client     →  client       (CLIENT)
- *   supplier   →  supplier     (SUPPLIER)
  *   employee   →  employee     (EMPLOYEE)
  */
-export type PortalSlug = 'admin' | 'client' | 'supplier' | 'employee';
-export type RoleKey = 'super-admin' | 'client' | 'supplier' | 'employee';
-export type PortalRole = 'SUPER_ADMIN' | 'CLIENT' | 'SUPPLIER' | 'EMPLOYEE';
+export type PortalSlug = 'admin' | 'client' | 'employee';
+export type RoleKey = 'super-admin' | 'client' | 'employee';
+export type PortalRole = 'SUPER_ADMIN' | 'CLIENT' | 'EMPLOYEE';
 
-export const PORTALS: PortalSlug[] = ['admin', 'client', 'supplier', 'employee'];
+export const PORTALS: PortalSlug[] = ['admin', 'client', 'employee'];
 
 export const PORTAL_ROLEKEY: Record<PortalSlug, RoleKey> = {
   admin: 'super-admin',
   client: 'client',
-  supplier: 'supplier',
   employee: 'employee',
 };
 
 export const PORTAL_ROLE: Record<PortalSlug, PortalRole> = {
   admin: 'SUPER_ADMIN',
   client: 'CLIENT',
-  supplier: 'SUPPLIER',
   employee: 'EMPLOYEE',
 };
 
@@ -32,7 +29,6 @@ export const PORTAL_ROLE: Record<PortalSlug, PortalRole> = {
 export const ROLEKEY_PORTAL: Record<RoleKey, PortalSlug> = {
   'super-admin': 'admin',
   client: 'client',
-  supplier: 'supplier',
   employee: 'employee',
 };
 
@@ -41,11 +37,11 @@ export function toPortal(param?: string): PortalSlug {
   return param && param in PORTAL_ROLEKEY ? (param as PortalSlug) : 'admin';
 }
 
-/** Dashboard home per role (used after login). */
-export const ROLE_HOME: Record<PortalRole, string> = {
+/** Dashboard home per role (used after login). Keyed loosely so a legacy role
+ *  the backend may still return simply falls through to the default. */
+export const ROLE_HOME: Record<string, string> = {
   SUPER_ADMIN: '/admin/dashboard',
   CLIENT: '/client/dashboard',
-  SUPPLIER: '/supplier/dashboard',
   EMPLOYEE: '/employee/tasks',
 };
 

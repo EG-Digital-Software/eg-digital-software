@@ -47,6 +47,8 @@ export default function ClientLicencesPage() {
       <PageHeader
         title="Products & Licences"
         description="Your assigned products and licence status"
+        icon={KeyRound}
+        iconTone="emerald"
       />
 
       <Card>

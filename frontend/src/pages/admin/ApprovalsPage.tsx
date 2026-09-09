@@ -18,9 +18,9 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { formatDate, initials } from '@/lib/utils';
 
 const ROLE_BADGE: Record<string, { label: string; variant: 'default' | 'warning' | 'secondary' }> = {
-  CLIENT: { label: 'Client', variant: 'default' },
+  CLIENT: { label: 'Customer', variant: 'default' },
   SUPPLIER: { label: 'Supplier', variant: 'warning' },
-  EMPLOYEE: { label: 'Employee', variant: 'secondary' },
+  EMPLOYEE: { label: 'Team', variant: 'secondary' },
 };
 
 // Per-role avatar gradient — matches the portal accent colours.
@@ -96,7 +96,9 @@ export default function ApprovalsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Registration Approvals"
-        description="Review Client, Supplier and Employee sign-up requests, and manage access after the fact"
+        description="Review Customer and Team sign-up requests, and manage access after the fact"
+        icon={ShieldCheck}
+        iconTone="amber"
       />
 
       <Tabs
@@ -143,9 +145,8 @@ export default function ApprovalsPage() {
             className="sm:w-44"
           >
             <option value="">All portals</option>
-            <option value="CLIENT">Client</option>
-            <option value="SUPPLIER">Supplier</option>
-            <option value="EMPLOYEE">Employee</option>
+            <option value="CLIENT">Customer</option>
+            <option value="EMPLOYEE">Team</option>
           </Select>
         </div>
 
@@ -199,7 +200,7 @@ export default function ApprovalsPage() {
                 <TableRow>
                   <TableHead>Applicant</TableHead>
                   <TableHead>Portal</TableHead>
-                  <TableHead>Client ID</TableHead>
+                  <TableHead>Customer ID</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Requested</TableHead>
                   <TableHead className="text-right">Actions</TableHead>

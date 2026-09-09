@@ -74,6 +74,18 @@ export const taskProgressSchema = z.object({
   progress,
 });
 
+// Subject and message are both optional — a file-only request is allowed. The
+// controller enforces that at least one of subject/message/file is present.
+export const submitApprovalSchema = z.object({
+  subject: z.string().max(200).optional(),
+  message: z.string().max(5000).optional(),
+});
+
+export const decideApprovalSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED']),
+  feedback: z.string().max(5000).nullish(),
+});
+
 export const createLabelSchema = z.object({
   name: z.string().min(1).max(60),
   color: z.string().min(1).max(30).optional(),

@@ -157,8 +157,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
   return (
     <div className="space-y-4">
       {/* Header band */}
-      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
-        <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-white p-5 shadow-sm">
         <div className="relative flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-inner">
@@ -167,7 +166,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
             <div>
               <h2 className="text-lg font-semibold leading-tight">Task Board</h2>
               <p className="text-sm text-muted-foreground">
-                {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} · {doneTasks} completed · {board.buckets.length} {board.buckets.length === 1 ? 'column' : 'columns'}
+                {totalTasks} {totalTasks === 1 ? 'task' : 'tasks'} · {doneTasks} completed
               </p>
             </div>
           </div>

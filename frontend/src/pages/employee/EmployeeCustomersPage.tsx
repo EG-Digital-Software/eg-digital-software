@@ -35,7 +35,7 @@ export default function EmployeeCustomersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Customers" description="Customer directory (read-only)" />
+      <PageHeader title="Customers" description="Customer directory (read-only)" icon={Users} iconTone="primary" />
 
       <Card>
         <div className="border-b border-border p-4">
@@ -47,7 +47,7 @@ export default function EmployeeCustomersPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search name, business, email, ABN, city or Client ID…"
+              placeholder="Search name, business, email, ABN, city or Customer ID…"
               className="pl-9"
             />
           </div>
@@ -102,7 +102,7 @@ export default function EmployeeCustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Client ID</TableHead>
+                  <TableHead>Customer ID</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Business</TableHead>
                   <TableHead>Contact</TableHead>

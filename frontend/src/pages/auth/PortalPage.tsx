@@ -1,39 +1,38 @@
 import { Link, Navigate } from 'react-router-dom';
-import { ShieldCheck, UserRound, Truck, Briefcase, ArrowRight, Lock } from 'lucide-react';
+import {
+  UserCircle,
+  Briefcase,
+  type Icon,
+} from '@phosphor-icons/react';
 import { brand } from '@/config/brand';
+import { Logo } from '@/components/layout/Logo';
 import { useAuth } from '@/store/auth';
 
 type Portal = {
   to: string;
   label: string;
   description: string;
-  icon: typeof ShieldCheck;
+  icon: Icon;
+  accent: string; // chip colour classes (bg + icon + ring)
+  img?: string; // optional custom image icon (used instead of the phosphor icon)
 };
 
 const PORTALS: Portal[] = [
   {
-    to: '/admin/login',
-    label: 'Admin',
-    description: 'Full control over customers, billing, products and analytics.',
-    icon: ShieldCheck,
-  },
-  {
     to: '/client/login',
-    label: 'Client',
+    label: 'Customer',
     description: 'View invoices and licences, and make secure payments.',
-    icon: UserRound,
-  },
-  {
-    to: '/supplier/login',
-    label: 'Supplier',
-    description: 'Manage supply, orders and fulfilment in one place.',
-    icon: Truck,
+    icon: UserCircle,
+    accent: 'bg-emerald-50 text-emerald-600 ring-emerald-500/15',
+    img: '/customer-icon.png',
   },
   {
     to: '/employee/login',
-    label: 'Employee',
+    label: 'Team',
     description: 'Reach your workspace, tasks and internal tools.',
     icon: Briefcase,
+    accent: 'bg-sky-50 text-sky-600 ring-sky-500/15',
+    img: '/team-icon.png',
   },
 ];
 
@@ -43,24 +42,20 @@ function PortalCard({ portal }: { portal: Portal }) {
     <Link
       to={portal.to}
       aria-label={`Continue to ${portal.label} login`}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:border-white/20 hover:bg-white/15 sm:p-8"
+      className="group flex flex-col items-center gap-4 text-center"
     >
-      <div>
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white transition-colors duration-500 group-hover:bg-white group-hover:text-slate-900">
-          <Icon className="h-6 w-6 transition-transform duration-500 group-hover:scale-110" strokeWidth={1.5} />
-        </div>
-        <h3 className="mt-6 text-xl font-bold tracking-tight text-white transition-colors">
-          {portal.label}
-        </h3>
-        <p className="mt-2 text-sm leading-relaxed text-slate-200">
-          {portal.description}
-        </p>
-      </div>
-
-      <div className="mt-8 flex items-center gap-2 text-sm font-semibold text-slate-300 transition-colors duration-300 group-hover:text-white">
-        <span>Continue to portal</span>
-        <ArrowRight className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />
-      </div>
+      {portal.img ? (
+        <img
+          src={portal.img}
+          alt=""
+          className="h-44 w-44 object-contain transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-105 sm:h-52 sm:w-52"
+        />
+      ) : (
+        <span className={`inline-flex rounded-full p-7 ${portal.accent} transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-105`}>
+          <Icon size={48} weight="duotone" />
+        </span>
+      )}
+      <span className="text-lg font-semibold tracking-tight text-slate-900">{portal.label} Login</span>
     </Link>
   );
 }
@@ -73,72 +68,54 @@ export default function PortalPage() {
     const HOME: Record<string, string> = {
       SUPER_ADMIN: '/admin/dashboard',
       CLIENT: '/client/dashboard',
-      SUPPLIER: '/supplier/dashboard',
       EMPLOYEE: '/employee/tasks',
     };
     if (HOME[user.role]) return <Navigate to={HOME[user.role]} replace />;
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-black font-sans selection:bg-emerald-500/30 selection:text-white">
-      {/* Background Image from Internet */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <img 
-          src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=1920" 
-          alt="Modern workspace" 
-          className="absolute inset-0 h-full w-full object-cover object-top opacity-80"
+    <div className="relative grid min-h-screen w-full bg-white font-sans selection:bg-emerald-500/20 selection:text-emerald-900 lg:grid-cols-2">
+      {/* Logo pinned to the top-left of the whole page */}
+      <Logo light className="absolute left-3 top-3 z-20 text-2xl sm:left-4 sm:top-4 sm:text-[26px]" />
+
+      {/* ---------- Left: content-related image, washed to white ---------- */}
+      <aside className="relative hidden overflow-hidden lg:block">
+        <img
+          src="/portal-office.webp"
+          alt="EG Digital office"
+          className="absolute inset-0 h-full w-full object-cover"
         />
-        {/* Dark glass overlay for text readability */}
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      </div>
+      </aside>
 
-      <header className="relative z-10 flex w-full shrink-0 items-center justify-between px-6 py-4 sm:px-12 lg:px-24">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center bg-transparent">
-            <img src={brand.icon} alt="" className="h-9 w-9 object-contain brightness-0 invert" />
-          </div>
-          <span className="text-lg font-semibold lowercase tracking-tight text-white">
-            eg <span style={{ color: brand.colors.green }}>digital</span>
-          </span>
-        </div>
-        <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-slate-200 shadow-sm backdrop-blur-md sm:flex">
-          <Lock className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Secure AES-256 Encryption</span>
-        </div>
-      </header>
-
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 py-6 sm:px-12 lg:px-24">
-        <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-1000">
-          <div className="mx-auto max-w-3xl text-center">
-
-            <h1 className="mt-6 text-4xl font-extrabold capitalize tracking-[0.01em] text-white sm:text-5xl lg:text-6xl drop-shadow-sm">
-              One platform for your{' '}
-              <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
-                entire business.
-              </span>
+      {/* ---------- Right: all content ---------- */}
+      <div className="flex min-h-screen flex-col px-6 py-8 sm:px-12 lg:px-16">
+        <main className="flex flex-1 flex-col items-center justify-center py-10 pt-20 lg:pt-10">
+          <div className="w-full animate-in fade-in slide-in-from-bottom-6 duration-700">
+            <h1 className="text-center text-5xl !font-extrabold uppercase leading-[1.08] tracking-normal text-[#0B223B] sm:text-6xl lg:text-7xl">
+              One platform
+              <br />
+              for your
+              <br />
+              entire <span className="text-[#0052F0]">business</span>
             </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-300 drop-shadow-sm">
-              Access your personalized portal to manage billing, track products, oversee operations, and collaborate seamlessly in a secure environment.
-            </p>
+            <div className="mt-12 flex flex-wrap justify-center gap-10 sm:gap-16">
+              {PORTALS.map((p) => (
+                <PortalCard key={p.to} portal={p} />
+              ))}
+            </div>
           </div>
+        </main>
 
-          <div className="mt-10 grid w-full grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {PORTALS.map((p) => (
-              <PortalCard key={p.to} portal={p} />
-            ))}
-          </div>
-        </div>
-      </main>
-
-      <footer className="relative z-10 flex w-full shrink-0 flex-col items-center justify-between gap-4 border-t border-white/10 bg-black/20 px-6 py-4 backdrop-blur-lg sm:flex-row sm:px-12 lg:px-24">
-        <div className="flex items-center gap-2 text-sm text-slate-400">
-          <ShieldCheck className="h-4 w-4 text-emerald-400" />
-          Protected area · Unauthorised access is prohibited
-        </div>
-        <div className="text-sm text-slate-400">
-          © {new Date().getFullYear()} {brand.companyName} · {brand.legal.country}
-        </div>
-      </footer>
+        <footer className="shrink-0 border-t border-slate-200 pt-5 text-center text-sm text-slate-500">
+          <Link
+            to="/admin/login"
+            className="transition-colors hover:text-slate-700"
+            aria-label="EG staff login"
+          >
+            © {new Date().getFullYear()} {brand.companyName} · {brand.legal.country}
+          </Link>
+        </footer>
+      </div>
     </div>
   );
 }

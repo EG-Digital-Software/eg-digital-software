@@ -33,6 +33,8 @@ export default function BillingPage() {
       <PageHeader
         title="Billing"
         description="Invoices, payments and outstanding balances"
+        icon={Receipt}
+        iconTone="primary"
         actions={
           <Button asChild>
             <Link to="/admin/billing/new">
@@ -61,7 +63,7 @@ export default function BillingPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search invoice number, reference, customer, email or Client ID…"
+              placeholder="Search invoice number, reference, customer, email or Customer ID…"
               className="pl-9"
             />
           </div>

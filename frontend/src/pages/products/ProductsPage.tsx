@@ -64,6 +64,8 @@ export default function ProductsPage() {
       <PageHeader
         title="Products"
         description="Manage your product catalogue and inventory"
+        icon={Package}
+        iconTone="primary"
         actions={
           <>
             <Button variant="outline" asChild>

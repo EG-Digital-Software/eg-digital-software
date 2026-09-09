@@ -1,5 +1,6 @@
 import { Prisma, Role, TaskPriority, TaskProgress } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
+import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 import { storage } from './storage/index.js';
 import { nextSequence, formatTaskNumber } from '../utils/sequence.js';
@@ -19,7 +20,12 @@ const taskInclude = {
     orderBy: { createdAt: 'asc' },
     include: { attachments: { orderBy: { createdAt: 'asc' } } },
   },
-  attachments: { orderBy: { createdAt: 'asc' } },
+  // Task-level attachments only — approval files are scoped to their request.
+  attachments: { where: { approvalId: null }, orderBy: { createdAt: 'asc' } },
+  approvals: {
+    orderBy: { createdAt: 'desc' },
+    include: { attachments: { orderBy: { createdAt: 'asc' } } },
+  },
 } satisfies Prisma.TaskInclude;
 
 /** Flatten the label join rows into plain labels for the client. */
@@ -435,6 +441,107 @@ export async function deleteAttachment(customerId: string, taskId: string, attac
   if (!attachment) throw ApiError.notFound('Attachment not found');
   await prisma.taskAttachment.delete({ where: { id: attachmentId } });
   return { id: attachmentId };
+}
+
+// ─── Approvals ────────────────────────────────────────────
+
+export interface ApprovalRequester {
+  id: string;
+  type: Role;
+  name: string;
+}
+
+/**
+ * Raise a new approval request on a task. The submitter supplies the subject
+ * and message; it starts PENDING until an admin or the customer decides. Any
+ * uploaded images/files are stored raw (no compression) and scoped to the
+ * request so the customer can download them at their original size.
+ */
+export async function createApproval(
+  customerId: string,
+  taskId: string,
+  requester: ApprovalRequester,
+  input: { subject: string; message: string },
+  files?: { originalname: string; buffer: Buffer; mimetype: string; size: number }[]
+) {
+  await ensureTask(customerId, taskId);
+  const approval = await prisma.taskApproval.create({
+    data: {
+      taskId,
+      subject: input.subject,
+      message: input.message,
+      requestedById: requester.id,
+      requestedByType: requester.type,
+      requestedByName: requester.name,
+    },
+  });
+
+  for (const file of files ?? []) {
+    const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');
+    const key = `tasks/${taskId}/approvals/${approval.id}/${Date.now()}-${safeName}`;
+    const url = await storage.save(key, file.buffer, file.mimetype);
+    await prisma.taskAttachment.create({
+      data: {
+        taskId,
+        approvalId: approval.id,
+        fileName: file.originalname,
+        url,
+        size: file.size,
+        contentType: file.mimetype,
+        uploadedById: requester.id,
+      },
+    });
+  }
+
+  return prisma.taskApproval.findUnique({
+    where: { id: approval.id },
+    include: { attachments: { orderBy: { createdAt: 'asc' } } },
+  });
+}
+
+/**
+ * Approve or reject a pending request. Only admins and the customer reach this
+ * (enforced in the controller); the decider is stamped on the row for the trail.
+ */
+export async function decideApproval(
+  customerId: string,
+  taskId: string,
+  approvalId: string,
+  decider: ApprovalRequester,
+  input: { status: 'APPROVED' | 'REJECTED'; feedback?: string | null }
+) {
+  await ensureTask(customerId, taskId);
+  const approval = await prisma.taskApproval.findFirst({ where: { id: approvalId, taskId } });
+  if (!approval) throw ApiError.notFound('Approval request not found');
+  return prisma.taskApproval.update({
+    where: { id: approvalId },
+    data: {
+      status: input.status,
+      feedback: input.feedback ?? null,
+      decidedById: decider.id,
+      decidedByType: decider.type,
+      decidedByName: decider.name,
+      decidedAt: new Date(),
+    },
+  });
+}
+
+export async function deleteApproval(customerId: string, taskId: string, approvalId: string) {
+  await ensureTask(customerId, taskId);
+  const approval = await prisma.taskApproval.findFirst({
+    where: { id: approvalId, taskId },
+    include: { attachments: true },
+  });
+  if (!approval) throw ApiError.notFound('Approval request not found');
+  await prisma.taskApproval.delete({ where: { id: approvalId } });
+  // Purge the uploaded files from storage too — best-effort, so a storage
+  // hiccup never leaves the request half-deleted.
+  await Promise.all(
+    approval.attachments.map((f) =>
+      storage.remove(f.url).catch((err) => logger.warn({ err, url: f.url }, 'Failed to remove approval attachment from storage'))
+    )
+  );
+  return { id: approvalId };
 }
 
 // ─── Labels ───────────────────────────────────────────────

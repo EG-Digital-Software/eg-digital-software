@@ -21,7 +21,7 @@ import {
 const schema = z.object({ email: z.string().email('Enter a valid email') });
 type FormValues = z.infer<typeof schema>;
 
-type RoleKey = 'super-admin' | 'client' | 'supplier' | 'employee';
+type RoleKey = 'super-admin' | 'client' | 'employee';
 
 type RecoveryConfig = {
   label: string;
@@ -34,7 +34,7 @@ type RecoveryConfig = {
 
 const ROLES: Record<RoleKey, RecoveryConfig> = {
   'super-admin': {
-    label: 'Admin',
+    label: 'EG',
     portal: 'SUPER_ADMIN',
     placeholder: 'admin@egdigital.com.au',
     allowSignup: false,
@@ -42,23 +42,15 @@ const ROLES: Record<RoleKey, RecoveryConfig> = {
     variant: 'admin',
   },
   client: {
-    label: 'Client',
+    label: 'Customer',
     portal: 'CLIENT',
     placeholder: 'you@company.com.au',
     allowSignup: true,
     accent: { from: '#0d9488', to: '#10b981' },
     variant: 'client',
   },
-  supplier: {
-    label: 'Supplier',
-    portal: 'SUPPLIER',
-    placeholder: 'you@supplier.com.au',
-    allowSignup: true,
-    accent: { from: '#ea580c', to: '#f59e0b' },
-    variant: 'supplier',
-  },
   employee: {
-    label: 'Employee',
+    label: 'Team',
     portal: 'EMPLOYEE',
     placeholder: 'you@egdigital.com.au',
     allowSignup: true,
@@ -119,19 +111,8 @@ export default function ForgotPasswordPage() {
         </div>
       ) : (
         <div className="stagger">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-800">Reset Your Password</h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Enter your email and we&apos;ll send you a reset link.
-              </p>
-            </div>
-            <span
-              className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-              style={{ background: `${role.accent.from}14`, color: role.accent.from }}
-            >
-              {role.label}
-            </span>
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-800">Reset Your Password</h1>
           </div>
           <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-5">
             <div className="space-y-1.5">

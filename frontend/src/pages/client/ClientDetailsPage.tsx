@@ -82,6 +82,8 @@ export default function ClientDetailsPage() {
       <PageHeader
         title="My Details"
         description="Your account details on record. These are managed by EG Digital — to update anything, please get in touch."
+        icon={Contact}
+        iconTone="violet"
       />
 
       <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2.5 text-sm text-muted-foreground">
@@ -91,7 +93,7 @@ export default function ClientDetailsPage() {
       </div>
 
       <DetailCard icon={Building2} title="Company Information">
-        <Row label="Client ID" value={c.clientId} />
+        <Row label="Customer ID" value={c.clientId} />
         <Row label="Company Name" value={c.companyName} />
         <Row label="Trading As" value={c.tradingAs} />
         <Row label="Business Type" value={prettify(c.businessType)} />

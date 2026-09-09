@@ -330,6 +330,28 @@ export interface TaskAttachment {
   createdAt: string;
 }
 
+export type TaskApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface TaskApproval {
+  id: string;
+  taskId: string;
+  subject: string;
+  message: string;
+  status: TaskApprovalStatus;
+  feedback?: string | null;
+  requestedById: string;
+  requestedByType: Role;
+  requestedByName: string;
+  decidedById?: string | null;
+  decidedByType?: Role | null;
+  decidedByName?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Images/files uploaded with the request; downloadable at original size. */
+  attachments?: TaskAttachment[];
+}
+
 export interface Task {
   id: string;
   /** Human-readable unique identifier, e.g. TSK-EGD-5000. */
@@ -352,6 +374,7 @@ export interface Task {
   checklist: ChecklistItem[];
   comments: TaskComment[];
   attachments: TaskAttachment[];
+  approvals: TaskApproval[];
 }
 
 export interface TaskBucket {

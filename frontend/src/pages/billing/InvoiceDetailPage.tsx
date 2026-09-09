@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Building2,
   Send,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { invoiceApi, paymentApi } from '@/api/resources';
@@ -111,6 +112,8 @@ export default function InvoiceDetailPage() {
         </Button>
         <PageHeader
           title={invoice.invoiceNumber}
+          icon={FileText}
+          iconTone="indigo"
           actions={
             <>
               {invoice.paymentUrl && (
@@ -128,7 +131,7 @@ export default function InvoiceDetailPage() {
                 onClick={() => setConfirmSend(true)}
                 disabled={sendInvoice.isPending}
               >
-                <Send className="h-4 w-4" /> Send to Client
+                <Send className="h-4 w-4" /> Send to Customer
               </Button>
               {!isPaid && (
                 <Button onClick={() => setConfirmPaid(true)}>
@@ -229,12 +232,12 @@ export default function InvoiceDetailPage() {
       <ConfirmDialog
         open={confirmSend}
         onOpenChange={setConfirmSend}
-        title="Send Invoice to Client?"
+        title="Send Invoice to Customer?"
         description={
           invoice.customer?.billingEmail || invoice.customer?.contactEmail
             ? `Emails the invoice with a secure pay link to ${
                 invoice.customer.billingEmail || invoice.customer.contactEmail
-              } and any linked client-account addresses.`
+              } and any linked customer-account addresses.`
             : 'This customer has no billing or contact email — add one on the customer record first.'
         }
         confirmLabel="Send invoice"

@@ -575,6 +575,13 @@ enum TaskPriority {
   LOW
 }
 
+/// Lifecycle of a single approval request raised against a task.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 /// A column on the board (e.g. "To do", "In progress"). Ordered left-to-right.
 model TaskBucket {
   id         String   @id @default(uuid())
@@ -632,6 +639,7 @@ model Task {
   checklist   ChecklistItem[]
   comments    TaskComment[]
   attachments TaskAttachment[]
+  approvals   TaskApproval[]
 
   @@index([customerId])
   @@index([bucketId])
@@ -703,6 +711,10 @@ model TaskAttachment {
   /// (Attachments tab) uploads. Deleting the message removes its files.
   comment      TaskComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   commentId    String?
+  /// Set when the file was uploaded with an approval request; null otherwise.
+  /// Kept out of the task-level Attachments tab so it stays scoped to the request.
+  approval     TaskApproval? @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  approvalId   String?
   fileName     String
   url          String
   size         Int
@@ -712,4 +724,36 @@ model TaskAttachment {
 
   @@index([taskId])
   @@index([commentId])
+  @@index([approvalId])
+}
+
+/// An approval request raised on a task. The submitter fills the subject and
+/// message; an admin or the customer (client) approves or rejects it and may
+/// leave feedback. Team members (employees) only see the outcome. Requester and
+/// decider are stored as (id, type, name) snapshots the same polymorphic way
+/// assignees and comments reference users.
+model TaskApproval {
+  id              String         @id @default(uuid())
+  task            Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId          String
+  subject         String
+  message         String
+  status          ApprovalStatus @default(PENDING)
+  /// Note left by the approver/rejecter when they make the decision.
+  feedback        String?
+  requestedById   String
+  requestedByType Role
+  requestedByName String
+  decidedById     String?
+  decidedByType   Role?
+  decidedByName   String?
+  decidedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  /// Images/files uploaded with the request. Stored raw (no compression) so the
+  /// customer can download them at their original size and pixels.
+  attachments     TaskAttachment[]
+
+  @@index([taskId])
 }

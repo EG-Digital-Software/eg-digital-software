@@ -3,6 +3,7 @@ import type {
   ApiEnvelope,
   AssignableUser,
   Task,
+  TaskApproval,
   TaskAttachment,
   TaskBoard,
   TaskBucket,
@@ -86,6 +87,33 @@ export function taskApi(base: string) {
     },
     deleteAttachment: (taskId: string, attachmentId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/attachments/${attachmentId}`)),
+
+    // Approvals — submit a request; admins/customers decide it (approve/reject
+    // with optional feedback). The decision endpoint 403s for team members.
+    submitApproval: (taskId: string, body: { subject: string; message: string; files?: File[] }) => {
+      if (body.files && body.files.length) {
+        const form = new FormData();
+        form.append('subject', body.subject);
+        form.append('message', body.message);
+        body.files.forEach((f) => form.append('files', f));
+        return unwrap<TaskApproval>(
+          api.post(`${base}/tasks/${taskId}/approvals`, form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+        );
+      }
+      return unwrap<TaskApproval>(api.post(`${base}/tasks/${taskId}/approvals`, {
+        subject: body.subject,
+        message: body.message,
+      }));
+    },
+    decideApproval: (
+      taskId: string,
+      approvalId: string,
+      body: { status: 'APPROVED' | 'REJECTED'; feedback?: string | null }
+    ) => unwrap<TaskApproval>(api.patch(`${base}/tasks/${taskId}/approvals/${approvalId}`, body)),
+    deleteApproval: (taskId: string, approvalId: string) =>
+      unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/approvals/${approvalId}`)),
 
     // Labels
     createLabel: (name: string, color: string) =>

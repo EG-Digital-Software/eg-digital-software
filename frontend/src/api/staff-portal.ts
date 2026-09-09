@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { ApiEnvelope, LicenceRow, PageMeta, Product } from '@/types';
+import type { ApiEnvelope, LicenceRow, PageMeta } from '@/types';
 
 function qs(params: Record<string, unknown>): string {
   const sp = new URLSearchParams();
@@ -13,23 +13,6 @@ function qs(params: Record<string, unknown>): string {
 interface ListEnvelope<T> extends ApiEnvelope<T[]> {
   meta: PageMeta;
 }
-
-export interface SupplierDashboard {
-  products: number;
-  active: number;
-  totalStock: number;
-  lowStock: number;
-  outOfStock: number;
-}
-
-export const supplierApi = {
-  dashboard: async () =>
-    (await api.get<ApiEnvelope<SupplierDashboard>>('/supplier/dashboard')).data.data,
-  products: async (params: Record<string, unknown>) => {
-    const { data } = await api.get<ListEnvelope<Product>>(`/supplier/products${qs(params)}`);
-    return { items: data.data, meta: data.meta };
-  },
-};
 
 export interface EmployeeDashboard {
   customers: number;

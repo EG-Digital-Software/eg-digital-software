@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Printer, CreditCard } from 'lucide-react';
+import { ArrowLeft, Printer, CreditCard, FileText } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
 import { PageHeader } from '@/components/shared/misc';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,8 @@ export default function ClientInvoiceDetail() {
         </Button>
         <PageHeader
           title={invoice.invoiceNumber}
+          icon={FileText}
+          iconTone="indigo"
           actions={
             <>
               <Button variant="outline" onClick={() => window.print()}>

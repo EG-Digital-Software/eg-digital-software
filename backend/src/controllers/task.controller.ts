@@ -135,6 +135,68 @@ export const deleteAttachment = asyncHandler(async (req: Request, res: Response)
   );
 });
 
+// ─── Approvals ────────────────────────────────────────────
+
+/** Roles allowed to approve/reject: admins and the customer. Team members view only. */
+const CAN_DECIDE: Role[] = ['SUPER_ADMIN', 'CLIENT'];
+
+export const submitApproval = asyncHandler(async (req: Request, res: Response) => {
+  // Only an admin raises approval requests; the customer merely reviews them.
+  if (req.user!.role !== 'SUPER_ADMIN') {
+    throw ApiError.forbidden('Only an admin can request approval');
+  }
+  const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
+  const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+  const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : undefined;
+  // A file-only request is fine; only reject a wholly empty submission.
+  if (!subject && !message && !(files && files.length)) {
+    throw ApiError.badRequest('Add a subject, a message, or a file');
+  }
+  const customerId = await resolve(req);
+  const approval = await taskService.createApproval(
+    customerId,
+    req.params.taskId,
+    await author(req),
+    { subject, message },
+    files
+  );
+  return ok(res, approval, 'Approval requested', 201);
+});
+
+export const decideApproval = asyncHandler(async (req: Request, res: Response) => {
+  if (!CAN_DECIDE.includes(req.user!.role)) {
+    throw ApiError.forbidden('You are not allowed to approve or reject requests');
+  }
+  const status = req.body.status;
+  if (status !== 'APPROVED' && status !== 'REJECTED') {
+    throw ApiError.badRequest('Status must be APPROVED or REJECTED');
+  }
+  const feedback = typeof req.body.feedback === 'string' ? req.body.feedback.trim() || null : null;
+  const customerId = await resolve(req);
+  const approval = await taskService.decideApproval(
+    customerId,
+    req.params.taskId,
+    req.params.approvalId,
+    await author(req),
+    { status, feedback }
+  );
+  return ok(res, approval, status === 'APPROVED' ? 'Approved' : 'Rejected');
+});
+
+export const deleteApproval = asyncHandler(async (req: Request, res: Response) => {
+  // Only admins may delete an approval request — at any status (pending,
+  // approved or rejected). Clients and team members cannot.
+  if (req.user!.role !== 'SUPER_ADMIN') {
+    throw ApiError.forbidden('Only an admin can delete an approval request');
+  }
+  const customerId = await resolve(req);
+  return ok(
+    res,
+    await taskService.deleteApproval(customerId, req.params.taskId, req.params.approvalId),
+    'Approval request removed'
+  );
+});
+
 // ─── Labels ───────────────────────────────────────────────
 
 export const listLabels = asyncHandler(async (req: Request, res: Response) => {

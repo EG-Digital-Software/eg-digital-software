@@ -866,7 +866,7 @@ export default function CustomerFormPage() {
     queryFn: () => customerApi.get(clientId!),
     enabled: isEdit,
   });
-  // On the Add form, preview the Client ID this customer will be assigned so the
+  // On the Add form, preview the Customer ID this customer will be assigned so the
   // field shows the real value instead of a generic "Auto-generated" placeholder.
   const { data: nextClientId } = useQuery({
     queryKey: ['customers', 'next-client-id'],
@@ -1226,7 +1226,7 @@ export default function CustomerFormPage() {
 
       const payload = {
         ...values,
-        // Client ID is generated server-side and never sent from here.
+        // Customer ID is generated server-side and never sent from here.
         authorized: values.authorized === 'yes',
         creditScore: values.creditScore?.trim() ? Number(values.creditScore) : undefined,
         // Resolve the manual term to its typed text; drop the helper field.
@@ -1517,7 +1517,7 @@ export default function CustomerFormPage() {
                 </div>
               </div>
             </Field>
-            <Field label="Client ID" hint="Generated automatically — unique per client">
+            <Field label="Customer ID" hint="Generated automatically — unique per customer">
               <Input
                 readOnly
                 disabled

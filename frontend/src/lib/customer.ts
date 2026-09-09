@@ -71,7 +71,7 @@ export const PAYMENT_METHODS = [
 
 /**
  * Label for a customer. The personal name fields are gone, so fall back
- * company → contact person → Client ID; there is always something to show.
+ * company → contact person → Customer ID; there is always something to show.
  */
 export function customerName(c?: {
   companyName?: string | null;

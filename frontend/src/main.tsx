@@ -5,6 +5,8 @@ import { Toaster } from 'sonner';
 import App from './App';
 import { queryClient } from './lib/queryClient';
 import 'flag-icons/css/flag-icons.min.css';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/inter/wght-italic.css';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(

@@ -149,6 +149,8 @@ export default function BulkUploadPage() {
         <PageHeader
           title="Bulk Upload Products"
           description="Import products from CSV, XLS or XLSX"
+          icon={FileSpreadsheet}
+          iconTone="indigo"
           actions={
             <Button variant="outline" onClick={downloadTemplate}>
               <Download className="h-4 w-4" /> Download template

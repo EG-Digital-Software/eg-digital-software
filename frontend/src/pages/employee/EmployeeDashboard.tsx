@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Users, UserCheck, KeyRound, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Users, UserCheck, KeyRound, AlertTriangle, ArrowRight, LayoutDashboard } from 'lucide-react';
 import { employeeApi } from '@/api/staff-portal';
 import { useAuth } from '@/store/auth';
 import { PageHeader } from '@/components/shared/misc';
@@ -35,7 +35,7 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`Welcome, ${user?.firstName ?? ''}`} description="Operational overview — customers and licence monitoring" />
+      <PageHeader title={`Welcome, ${user?.firstName ?? ''}`} description="Operational overview — customers and licence monitoring" icon={LayoutDashboard} iconTone="sky" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {dashQ.isLoading || !d ? (

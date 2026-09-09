@@ -55,7 +55,7 @@ export function BoardView({
         <div
           key={bucket.id}
           className={cn(
-            'flex w-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-secondary/60 to-secondary/20 shadow-sm transition',
+            'flex w-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-white shadow-sm transition',
             overBucket === bucket.id && 'ring-2 ring-primary/60 ring-offset-1'
           )}
           onDragOver={(e) => {

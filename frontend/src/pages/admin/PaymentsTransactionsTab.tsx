@@ -65,7 +65,7 @@ export function PaymentsTransactionsTab() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search invoice, customer, Client ID or transaction ID…"
+            placeholder="Search invoice, customer, Customer ID or transaction ID…"
             className="pl-9"
           />
         </div>

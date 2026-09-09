@@ -23,7 +23,7 @@ export interface PortalNavItem {
 }
 
 /**
- * Shared shell for the role portals (Supplier, Employee). A compact top-nav
+ * Shared shell for the role portals (Employee). A compact top-nav
  * with a coloured portal badge, role navigation, and an account menu.
  */
 export function PortalShell({
@@ -52,7 +52,7 @@ export function PortalShell({
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-white">
       <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur-md">
         <div className="flex h-16 w-full items-center gap-3 px-4 lg:px-6">
           <NavLink to={home} className="flex shrink-0 items-center">

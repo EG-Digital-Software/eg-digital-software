@@ -12,6 +12,9 @@ import { logger } from '../../config/logger.js';
 export interface StorageProvider {
   save(key: string, data: Buffer, contentType?: string): Promise<string>;
   getUrl(key: string): string;
+  /** Delete a stored file. Accepts the value persisted on the record (the URL
+   *  returned by save) or a raw key. Best-effort: a missing file is not an error. */
+  remove(urlOrKey: string): Promise<void>;
 }
 
 class LocalStorage implements StorageProvider {
@@ -26,6 +29,11 @@ class LocalStorage implements StorageProvider {
 
   getUrl(key: string): string {
     return `/uploads/${key}`;
+  }
+
+  async remove(urlOrKey: string): Promise<void> {
+    const key = urlOrKey.startsWith('/uploads/') ? urlOrKey.slice('/uploads/'.length) : urlOrKey;
+    await fs.rm(path.join(this.root, key), { force: true });
   }
 }
 
@@ -73,6 +81,18 @@ class AzureBlobStorage implements StorageProvider {
 
   getUrl(key: string): string {
     return this.container.getBlockBlobClient(key).url;
+  }
+
+  async remove(urlOrKey: string): Promise<void> {
+    await this.ensureContainer();
+    // Records store the absolute blob URL; strip the container prefix (and any
+    // query string) back to the blob name before deleting.
+    const base = this.container.url;
+    let blobName = urlOrKey;
+    if (urlOrKey.startsWith(base)) {
+      blobName = decodeURIComponent(urlOrKey.slice(base.length).replace(/^\/+/, '').split('?')[0]);
+    }
+    await this.container.getBlockBlobClient(blobName).deleteIfExists();
   }
 }
 
