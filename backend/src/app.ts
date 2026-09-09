@@ -6,7 +6,6 @@ import path from 'node:path';
 import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
-import { apiLimiter } from './middleware/rateLimit.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import routes from './routes/index.js';
 
@@ -47,7 +46,7 @@ export function createApp() {
     express.static(path.resolve(process.cwd(), 'uploads'))
   );
 
-  app.use('/api', apiLimiter, routes);
+  app.use('/api', routes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
