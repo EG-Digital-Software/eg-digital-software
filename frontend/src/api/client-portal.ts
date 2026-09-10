@@ -17,10 +17,20 @@ export interface ClientProduct {
   sku: string;
   quantity: number;
   licence: string;
+  price: string;
   issueDate: string;
   expiryDate?: string | null;
   daysRemaining: number | null;
+  /** Client-added product awaiting admin approval. */
+  pending: boolean;
   status: LicenceStatus;
+}
+
+export interface AvailableProduct {
+  id: string;
+  name: string;
+  productCode: string;
+  sku?: string | null;
 }
 
 interface ListEnvelope<T> extends ApiEnvelope<T[]> {
@@ -52,4 +62,8 @@ export const clientApi = {
     return (await api.get<ApiEnvelope<ClientProduct[]>>(`/client/products${q ? `?${q}` : ''}`)).data
       .data;
   },
+  availableProducts: async () =>
+    (await api.get<ApiEnvelope<AvailableProduct[]>>('/client/available-products')).data.data,
+  addProduct: async (productId: string) =>
+    (await api.post<ApiEnvelope<{ id: string }>>('/client/products', { productId })).data.data,
 };

@@ -10,6 +10,24 @@ export async function previewNextSku(): Promise<string> {
   return formatSku((counter?.value ?? 0) + 1);
 }
 
+/**
+ * The next auto product code in the EG-101, EG-102, … series. Derived from the
+ * highest existing EG-<n> code (starts at EG-101, so with EG-101…EG-105 present
+ * the next is EG-106). Read-only — nothing is consumed or written here.
+ */
+export async function nextProductCode(): Promise<string> {
+  const rows = await prisma.product.findMany({ select: { productCode: true } });
+  let max = 100; // so the first ever code is EG-101
+  for (const r of rows) {
+    const m = /^EG-0*(\d+)$/i.exec((r.productCode ?? '').trim());
+    if (m) {
+      const n = Number(m[1]);
+      if (n > max) max = n;
+    }
+  }
+  return `EG-${max + 1}`;
+}
+
 interface ListParams extends PageQuery {
   search?: string;
   status?: ProductStatus;
@@ -72,7 +90,7 @@ export function getProduct(id: string) {
 }
 
 export async function createProduct(data: {
-  productCode: string;
+  productCode?: string;
   sku?: string;
   type?: string;
   name: string;
@@ -87,23 +105,37 @@ export async function createProduct(data: {
 }) {
   // Auto-generate the SKU when the admin didn't supply one.
   const sku = data.sku?.trim() || formatSku(await nextSequence(prisma, 'sku'));
-  return prisma.product.create({
-    data: {
-      productCode: data.productCode,
-      sku,
-      type: data.type,
-      name: data.name,
-      description: data.description,
-      unit: data.unit,
-      category: data.category,
-      pricePerQty: new Prisma.Decimal(data.pricePerQty),
-      taxRate: new Prisma.Decimal(data.taxRate),
-      totalStock: data.totalStock,
-      availableStock: data.totalStock,
-      lowStockThreshold: data.lowStockThreshold,
-      status: data.status,
-    },
-  });
+  // The product code is auto-generated (EG-101, EG-102, …) unless one is passed.
+  const supplied = data.productCode?.trim();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const productCode = supplied || (await nextProductCode());
+    try {
+      return await prisma.product.create({
+        data: {
+          productCode,
+          sku,
+          type: data.type,
+          name: data.name,
+          description: data.description,
+          unit: data.unit,
+          category: data.category,
+          pricePerQty: new Prisma.Decimal(data.pricePerQty),
+          taxRate: new Prisma.Decimal(data.taxRate),
+          totalStock: data.totalStock,
+          availableStock: data.totalStock,
+          lowStockThreshold: data.lowStockThreshold,
+          status: data.status,
+        },
+      });
+    } catch (e) {
+      // A caller-supplied code that clashes is a real error — surface it.
+      if (supplied) throw e;
+      // An auto code raced with another create — recompute and retry.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') continue;
+      throw e;
+    }
+  }
+  throw ApiError.badRequest('Could not allocate a product code — please try again');
 }
 
 export async function updateProduct(id: string, data: Record<string, unknown>) {

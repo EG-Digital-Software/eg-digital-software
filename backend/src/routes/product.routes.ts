@@ -19,6 +19,7 @@ router.get('/', validate({ query: listProductQuerySchema }), ctrl.list);
 // Must precede /:id so "categories"/"next-sku" are not read as a product id.
 router.get('/categories', ctrl.categories);
 router.get('/next-sku', ctrl.nextSku);
+router.get('/next-product-code', ctrl.nextProductCode);
 router.get('/:id', ctrl.getOne);
 router.post('/', validate({ body: createProductSchema }), ctrl.create);
 router.post('/bulk-import', upload.single('file'), ctrl.bulkImport);

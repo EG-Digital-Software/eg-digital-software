@@ -25,7 +25,7 @@ import { customerApi, productApi } from '@/api/resources';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
-import type { Address, Customer, CustomerCredential } from '@/types';
+import type { Address, Customer, CustomerCredential, CustomerProduct } from '@/types';
 import { Input, Select } from '@/components/ui/input';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +33,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
+import { InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, EmptyState, Spinner } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Label } from '@/components/ui/label';
@@ -799,7 +799,7 @@ const EMPTY_ASSIGN = {
   quantity: '1',
   price: '',
   unit: '',
-  taxRate: '',
+  taxRate: '10', // GST — fixed at 10%
   licence: '',
   issueDate: '',
   expiryDate: '',
@@ -814,10 +814,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+/** Days left until expiry from today (expiry − today). 'Expired' when past, '—' if no expiry. */
+function daysLeftFromToday(expiryDate?: string | null): string {
+  if (!expiryDate) return '—';
+  const ms = new Date(expiryDate).getTime() - Date.now();
+  if (Number.isNaN(ms)) return '—';
+  const days = Math.ceil(ms / 86_400_000);
+  return days > 0 ? String(days) : 'Expired';
+}
+
 /** Products & Licences tab — admin assigns and removes products here. */
 function ProductsTab({ customer }: { customer: Customer }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_ASSIGN });
   const [removing, setRemoving] = useState<string | null>(null);
 
@@ -850,6 +860,55 @@ function ProductsTab({ customer }: { customer: Customer }) {
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
+  const update = useMutation({
+    mutationFn: () => {
+      const payload: Record<string, unknown> = { quantity: Number(form.quantity) || 1 };
+      payload.price = form.price !== '' ? Number(form.price) : 0;
+      payload.unit = form.unit.trim();
+      payload.taxRate = form.taxRate !== '' ? Number(form.taxRate) : 0;
+      if (form.licence.trim()) payload.licence = form.licence.trim();
+      if (form.issueDate) payload.issueDate = form.issueDate;
+      if (form.expiryDate) payload.expiryDate = form.expiryDate;
+      return customerApi.updateProduct(customer.clientId, editingId!, payload);
+    },
+    onSuccess: () => { refresh(); toast.success('Product updated'); setForm({ ...EMPTY_ASSIGN }); setEditingId(null); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  function startEdit(cp: CustomerProduct) {
+    setAdding(false);
+    setEditingId(cp.id);
+    setForm({
+      productId: cp.product.id,
+      quantity: String(cp.quantity),
+      price: cp.price != null ? String(cp.price) : '',
+      unit: cp.unit ?? '',
+      taxRate: '10', // GST — fixed at 10%
+
+      licence: cp.licence?.licenceKey ?? '',
+      issueDate: cp.issueDate ? cp.issueDate.slice(0, 10) : '',
+      expiryDate: cp.expiryDate ? cp.expiryDate.slice(0, 10) : '',
+    });
+  }
+  function cancelForm() {
+    setAdding(false);
+    setEditingId(null);
+    setForm({ ...EMPTY_ASSIGN });
+  }
+
+  const setStatus = useMutation({
+    mutationFn: (v: { id: string; status: 'ACTIVE' | 'SUSPENDED' }) =>
+      customerApi.updateProduct(customer.clientId, v.id, { status: v.status }),
+    onSuccess: () => { refresh(); toast.success('Status updated'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  const approve = useMutation({
+    mutationFn: (id: string) => customerApi.updateProduct(customer.clientId, id, { approvalStatus: 'APPROVED', status: 'ACTIVE' }),
+    onSuccess: () => { refresh(); toast.success('Product approved'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => customerApi.removeProduct(customer.clientId, id),
     onSuccess: () => { refresh(); toast.success('Product removed'); setRemoving(null); },
@@ -860,35 +919,34 @@ function ProductsTab({ customer }: { customer: Customer }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="text-base">Products & Licences</CardTitle>
-        {!adding && (
+        {!adding && !editingId && (
           <Button size="sm" onClick={() => setAdding(true)}>
             <Plus className="h-4 w-4" /> Assign Product
           </Button>
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {adding && (
+        {(adding || editingId) && (
           <div className="rounded-lg border border-border bg-secondary/30 p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Field label="Product">
-                <Select value={form.productId} onChange={(e) => set('productId', e.target.value)}>
+                <Select value={form.productId} disabled={!!editingId} onChange={(e) => set('productId', e.target.value)}>
                   <option value="">Select product…</option>
                   {products?.items.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Quantity">
-                <Input type="number" min={1} value={form.quantity} onChange={(e) => set('quantity', e.target.value)} />
-              </Field>
-              <Field label="Price Per Qty">
+              <Field label="Agreed Price">
                 <Input type="number" min={0} step="0.01" value={form.price} onChange={(e) => set('price', e.target.value)} />
               </Field>
               <Field label="Unit">
                 <Input placeholder="unit / seat / licence" value={form.unit} onChange={(e) => set('unit', e.target.value)} />
               </Field>
               <Field label="Tax Rate (%)">
-                <Input type="number" min={0} max={100} step="0.01" value={form.taxRate} onChange={(e) => set('taxRate', e.target.value)} />
+                <div title="GST is fixed at 10%" className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium text-foreground">
+                  {form.taxRate}%
+                </div>
               </Field>
               <Field label="Total Amount">
                 <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium">
@@ -906,12 +964,18 @@ function ProductsTab({ customer }: { customer: Customer }) {
               </Field>
             </div>
             <div className="mt-3 flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setAdding(false); setForm({ ...EMPTY_ASSIGN }); }}>
+              <Button variant="outline" size="sm" onClick={cancelForm}>
                 Cancel
               </Button>
-              <Button size="sm" disabled={!form.productId || assign.isPending} onClick={() => assign.mutate()}>
-                {assign.isPending && <Spinner />} Assign
-              </Button>
+              {editingId ? (
+                <Button size="sm" disabled={update.isPending} onClick={() => update.mutate()}>
+                  {update.isPending && <Spinner />} Save changes
+                </Button>
+              ) : (
+                <Button size="sm" disabled={!form.productId || assign.isPending} onClick={() => assign.mutate()}>
+                  {assign.isPending && <Spinner />} Assign
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -919,42 +983,73 @@ function ProductsTab({ customer }: { customer: Customer }) {
         {!customer.customerProducts?.length ? (
           <EmptyState title="No products assigned" description="Use “Assign Product” to add one." />
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border">
-            <Table>
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <Table className="min-w-[820px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Licence</TableHead>
-                  <TableHead className="text-center">Qty</TableHead>
-                  <TableHead>Issued</TableHead>
-                  <TableHead>Expiry</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Product</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Licence</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Issued</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Expiry</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Days Left</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Agreed Price</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Status</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {customer.customerProducts.map((cp) => (
                   <TableRow key={cp.id}>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <p className="font-medium">{cp.product.name}</p>
                       <p className="text-xs text-muted-foreground">{cp.product.sku ?? cp.product.productCode}</p>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{cp.licence?.licenceKey ?? '—'}</TableCell>
-                    <TableCell className="text-center tabular-nums">{cp.quantity}</TableCell>
-                    <TableCell className="text-sm">{formatDate(cp.issueDate)}</TableCell>
-                    <TableCell className="text-sm">{formatDate(cp.expiryDate)}</TableCell>
-                    <TableCell>
-                      <LicenceBadge status={cp.status} />
+                    <TableCell className="whitespace-nowrap text-center text-sm tracking-wide">{cp.licence?.licenceKey ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-center text-sm">{formatDate(cp.issueDate)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-center text-sm">{formatDate(cp.expiryDate)}</TableCell>
+                    <TableCell className="text-center text-sm tabular-nums">{daysLeftFromToday(cp.expiryDate)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(cp.price)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-center">
+                      {cp.approvalStatus === 'PENDING' ? (
+                        /* Client added this product — approve it, then the status
+                           dropdown (below) controls what the client sees. */
+                        <div className="flex flex-col items-center gap-1.5">
+                          <Badge variant="warning">Pending approval</Badge>
+                          <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(cp.id)}>
+                            {approve.isPending && <Spinner />} Approve
+                          </Button>
+                        </div>
+                      ) : (
+                        /* Admin sets the status here; the client sees exactly this. */
+                        <Select
+                          value={cp.status === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE'}
+                          onChange={(e) => setStatus.mutate({ id: cp.id, status: e.target.value as 'ACTIVE' | 'SUSPENDED' })}
+                          className="mx-auto h-9 w-40"
+                        >
+                          <option value="ACTIVE">Active</option>
+                          <option value="SUSPENDED">Suspended - Overdue</option>
+                        </Select>
+                      )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <button
-                        type="button"
-                        onClick={() => setRemoving(cp.id)}
-                        title="Remove product"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                    <TableCell className="whitespace-nowrap text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(cp)}
+                          title="Edit assigned product"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRemoving(cp.id)}
+                          title="Remove product"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

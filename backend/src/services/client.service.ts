@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
 import { computeLicenceStatus, daysRemaining } from '../utils/licence.js';
+import { formatLicenceKey } from '../utils/sequence.js';
 import { ensurePayable } from './invoice.service.js';
 
 /** Resolve the Customer a signed-in client user is linked to. */
@@ -170,12 +171,59 @@ export async function listProducts(
     sku: r.product.sku ?? r.product.productCode,
     quantity: r.quantity,
     licence: r.licence?.licenceKey ?? '—',
+    price: r.price,
     issueDate: r.issueDate,
     expiryDate: r.expiryDate,
     daysRemaining: daysRemaining(r.expiryDate),
-    status: computeLicenceStatus(r.expiryDate, r.status),
+    // Products the client added themselves stay "Pending" until an admin
+    // approves them; approved products show the admin-set status verbatim.
+    pending: r.approvalStatus === 'PENDING',
+    // Show the admin-set status as-is, so the client sees exactly what the
+    // admin chose (Active / Suspended - Overdue).
+    status: r.status,
   }));
 
   // Status is computed from the expiry date, so it can only be filtered here.
   return params.status ? mapped.filter((r) => r.status === params.status) : mapped;
+}
+
+/** Active product catalogue a client can choose from when adding a product. */
+export async function listAvailableProducts() {
+  const products = await prisma.product.findMany({
+    where: { status: 'ACTIVE' },
+    select: { id: true, name: true, productCode: true, sku: true },
+    orderBy: { name: 'asc' },
+  });
+  return products;
+}
+
+/**
+ * A client adds a product to their own account. It is created PENDING and does
+ * not count as active until an admin approves it. The admin then sets pricing,
+ * dates and the visible status. A licence key is generated up front.
+ */
+export async function addClientProduct(customerId: string, productId: string) {
+  const product = await prisma.product.findFirst({ where: { id: productId, status: 'ACTIVE' }, select: { id: true } });
+  if (!product) throw ApiError.notFound('Product not found');
+  const cp = await prisma.customerProduct.create({
+    data: {
+      customerId,
+      productId,
+      quantity: 1,
+      price: new Prisma.Decimal(0),
+      taxRate: new Prisma.Decimal(10),
+      issueDate: new Date(),
+      status: LicenceStatus.ACTIVE,
+      approvalStatus: 'PENDING',
+    },
+  });
+  await prisma.licence.create({
+    data: {
+      customerProductId: cp.id,
+      licenceKey: formatLicenceKey(),
+      issueDate: new Date(),
+      status: LicenceStatus.ACTIVE,
+    },
+  });
+  return cp;
 }

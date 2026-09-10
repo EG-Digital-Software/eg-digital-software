@@ -11,6 +11,7 @@ import {
   addCredentialSchema,
   changePasswordSchema,
   assignedProductSchema,
+  updateAssignedProductSchema,
 } from '../validators/customer.validator.js';
 
 const router = Router();
@@ -25,6 +26,7 @@ router.get('/next-client-id', ctrl.nextClientId);
 router.get('/:clientId', ctrl.getOne);
 // Reveal the customer's portal password (admin-only, like every route here).
 router.post('/:clientId/products', validate({ body: assignedProductSchema }), ctrl.assignProduct);
+router.patch('/:clientId/products/:customerProductId', validate({ body: updateAssignedProductSchema }), ctrl.updateProduct);
 router.delete('/:clientId/products/:customerProductId', ctrl.removeProduct);
 
 router.get('/:clientId/credential', ctrl.revealCredential);

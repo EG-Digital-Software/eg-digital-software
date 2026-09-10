@@ -69,6 +69,14 @@ export const assignedProductSchema = z.object({
   notes: z.string().optional(),
 });
 
+// Editing an already-assigned product: same fields, all optional, and the
+// product itself can't be swapped (remove + assign for that). `approvalStatus`
+// lets an admin approve a product a client added themselves.
+export const updateAssignedProductSchema = assignedProductSchema
+  .omit({ productId: true })
+  .partial()
+  .extend({ approvalStatus: z.enum(['PENDING', 'APPROVED']).optional() });
+
 export const createCustomerSchema = z
   .object({
     // ── Company Information ──

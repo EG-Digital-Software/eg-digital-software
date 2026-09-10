@@ -20,5 +20,8 @@ router.get('/dashboard', ctrl.dashboard);
 router.get('/invoices', validate({ query: listClientInvoiceQuerySchema }), ctrl.invoices);
 router.get('/invoices/:id', ctrl.invoice);
 router.get('/products', validate({ query: listClientProductQuerySchema }), ctrl.products);
+router.get('/available-products', ctrl.availableProducts);
+// A client can add a product to their own account; it starts PENDING approval.
+router.post('/products', ctrl.addProduct);
 
 export default router;

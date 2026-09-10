@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import * as clientService from '../services/client.service.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
+import { ApiError } from '../utils/ApiError.js';
 
 async function cid(req: Request) {
   return clientService.resolveCustomerId(req.user!.sub);
@@ -35,5 +36,20 @@ export const products = asyncHandler(async (req: Request, res: Response) => {
       status: (req.query.status as string | undefined) || undefined,
       search: (req.query.search as string | undefined) || undefined,
     })
+  );
+});
+
+export const availableProducts = asyncHandler(async (_req: Request, res: Response) => {
+  return ok(res, await clientService.listAvailableProducts());
+});
+
+export const addProduct = asyncHandler(async (req: Request, res: Response) => {
+  const productId = typeof req.body.productId === 'string' ? req.body.productId.trim() : '';
+  if (!productId) throw ApiError.badRequest('Select a product to add');
+  return ok(
+    res,
+    await clientService.addClientProduct(await cid(req), productId),
+    'Product added — pending admin approval',
+    201
   );
 });

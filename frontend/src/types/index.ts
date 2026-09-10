@@ -101,9 +101,13 @@ export interface CustomerProduct {
   id: string;
   quantity: number;
   price: string;
+  unit?: string | null;
+  taxRate?: string | null;
   issueDate: string;
   expiryDate?: string | null;
   status: LicenceStatus;
+  /** 'PENDING' for client-added products awaiting admin approval, else 'APPROVED'. */
+  approvalStatus?: string;
   notes?: string | null;
   product: Product;
   licence?: { licenceKey: string } | null;

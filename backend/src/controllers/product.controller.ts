@@ -28,6 +28,10 @@ export const nextSku = asyncHandler(async (_req: Request, res: Response) => {
   return ok(res, { sku: await productService.previewNextSku() });
 });
 
+export const nextProductCode = asyncHandler(async (_req: Request, res: Response) => {
+  return ok(res, { productCode: await productService.nextProductCode() });
+});
+
 export const getOne = asyncHandler(async (req: Request, res: Response) => {
   const product = await productService.getProduct(req.params.id);
   return ok(res, product);

@@ -53,6 +53,8 @@ export const customerApi = {
     (await api.put<ApiEnvelope<Customer>>(`/customers/${clientId}`, body)).data.data,
   assignProduct: async (clientId: string, body: unknown) =>
     (await api.post<ApiEnvelope<Customer>>(`/customers/${clientId}/products`, body)).data.data,
+  updateProduct: async (clientId: string, customerProductId: string, body: unknown) =>
+    (await api.patch<ApiEnvelope<Customer>>(`/customers/${clientId}/products/${customerProductId}`, body)).data.data,
   removeProduct: async (clientId: string, customerProductId: string) =>
     (await api.delete<ApiEnvelope<Customer>>(`/customers/${clientId}/products/${customerProductId}`)).data.data,
   archive: async (clientId: string) => (await api.delete(`/customers/${clientId}`)).data,
@@ -104,6 +106,8 @@ export const productApi = {
     (await api.get<ApiEnvelope<string[]>>('/products/categories')).data.data,
   nextSku: async () =>
     (await api.get<ApiEnvelope<{ sku: string }>>('/products/next-sku')).data.data.sku,
+  nextProductCode: async () =>
+    (await api.get<ApiEnvelope<{ productCode: string }>>('/products/next-product-code')).data.data.productCode,
   create: async (body: unknown) =>
     (await api.post<ApiEnvelope<Product>>('/products', body)).data.data,
   update: async (id: string, body: unknown) =>

@@ -18,7 +18,6 @@ import { titleCaseField } from '@/lib/input';
 import { cn } from '@/lib/utils';
 
 const schema = z.object({
-  productCode: z.string().min(1, 'Required'),
   name: z.string().min(1, 'Required'),
   type: z.string().optional(),
   category: z.string().optional(),
@@ -115,7 +114,6 @@ export function ProductFormDialog({
       reset(
         product
           ? {
-              productCode: product.productCode,
               name: product.name,
               type: product.type ?? '',
               category: product.category ?? '',
@@ -128,7 +126,6 @@ export function ProductFormDialog({
               status: product.status,
             }
           : {
-              productCode: '',
               name: '',
               type: '',
               category: '',
@@ -151,6 +148,14 @@ export function ProductFormDialog({
     enabled: open && !isEdit,
   });
   const skuDisplay = isEdit ? product?.sku ?? '—' : nextSku ?? 'Generating…';
+
+  // Product code is system-managed too (auto-generated EG-101, EG-102, …).
+  const { data: nextCode } = useQuery({
+    queryKey: ['products', 'next-product-code'],
+    queryFn: productApi.nextProductCode,
+    enabled: open && !isEdit,
+  });
+  const codeDisplay = isEdit ? product?.productCode ?? '—' : nextCode ?? 'Generating…';
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) => {
@@ -184,8 +189,10 @@ export function ProductFormDialog({
         <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="mt-2 space-y-6">
           <Section icon={LayoutGrid} title="Product Information">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Product Code" error={errors.productCode?.message}>
-                <Input className={FILLED_CONTROL} {...register('productCode')} placeholder="EGD-P-016" />
+              <Field label="Product Code" hint="Auto-generated">
+                <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-foreground">
+                  {codeDisplay}
+                </div>
               </Field>
               <Field label="Product Name" error={errors.name?.message}>
                 <Input className={FILLED_CONTROL} {...titleCaseField(register('name'))} placeholder="Product name" />

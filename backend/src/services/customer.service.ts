@@ -794,6 +794,74 @@ export async function assignProductToCustomer(
   return getCustomerByClientId(clientId);
 }
 
+/**
+ * Edit an already-assigned product's terms (quantity, pricing, dates, licence
+ * key, status). The product itself is not swapped — to change which product,
+ * remove and assign again. Non-destructive: updates the existing rows only, and
+ * keeps the licence row in step with the customer-product.
+ */
+export async function updateCustomerProduct(
+  clientId: string,
+  customerProductId: string,
+  input: {
+    quantity?: number;
+    price?: number;
+    unit?: string;
+    taxRate?: number;
+    licence?: string;
+    status?: 'ACTIVE' | 'SUSPENDED';
+    approvalStatus?: string;
+    issueDate?: Date;
+    expiryDate?: Date;
+    notes?: string;
+  }
+) {
+  const existing = await prisma.customer.findUnique({ where: { clientId } });
+  if (!existing) throw ApiError.notFound('Customer not found');
+  const cp = await prisma.customerProduct.findFirst({
+    where: { id: customerProductId, customerId: existing.id },
+    include: { licence: true },
+  });
+  if (!cp) throw ApiError.notFound('Assigned product not found');
+
+  // Fall back to the current values for anything the caller left out.
+  const issueDate = input.issueDate ?? cp.issueDate;
+  const expiryDate = input.expiryDate !== undefined ? input.expiryDate : cp.expiryDate;
+  // The admin's manual choice (Active / Suspended) is authoritative and sticky:
+  // it is stored as-is and shown to the client verbatim. When no status is sent
+  // (e.g. editing other fields), keep whatever is already set — never clobber it.
+  const status = (input.status as LicenceStatus | undefined) ?? (cp.status as LicenceStatus);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customerProduct.update({
+      where: { id: cp.id },
+      data: {
+        ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
+        ...(input.price !== undefined ? { price: new Prisma.Decimal(input.price) } : {}),
+        ...(input.unit !== undefined ? { unit: input.unit || null } : {}),
+        ...(input.taxRate !== undefined ? { taxRate: new Prisma.Decimal(input.taxRate) } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
+        ...(input.approvalStatus ? { approvalStatus: input.approvalStatus } : {}),
+        issueDate,
+        expiryDate,
+        status,
+      },
+    });
+    if (cp.licence) {
+      await tx.licence.update({
+        where: { id: cp.licence.id },
+        data: {
+          ...(input.licence && input.licence.trim() ? { licenceKey: input.licence.trim() } : {}),
+          issueDate,
+          expiryDate,
+          status,
+        },
+      });
+    }
+  });
+  return getCustomerByClientId(clientId);
+}
+
 /** Remove one assigned product (its licence cascades) and hand the stock back. */
 export async function removeCustomerProduct(clientId: string, customerProductId: string) {
   const existing = await prisma.customer.findUnique({ where: { clientId } });

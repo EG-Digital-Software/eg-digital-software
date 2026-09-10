@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 export const createProductSchema = z.object({
-  productCode: z.string().min(1, 'Product code is required'),
+  // Auto-generated on the server (EG-101, EG-102, …); optional in the payload.
+  productCode: z.string().optional(),
   sku: z.string().optional(),
   type: z.string().optional(),
   name: z.string().min(1, 'Product name is required'),

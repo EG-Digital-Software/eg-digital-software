@@ -424,6 +424,10 @@ model CustomerProduct {
   issueDate  DateTime      @default(now())
   expiryDate DateTime?
   status     LicenceStatus @default(ACTIVE)
+  /// Approval state for the product. Admin-assigned products are APPROVED
+  /// immediately; products a client adds themselves start as PENDING and show
+  /// "Pending" to the client until an admin approves them.
+  approvalStatus String     @default("APPROVED")
   notes      String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt

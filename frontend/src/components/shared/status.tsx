@@ -6,7 +6,7 @@ const LICENCE_MAP: Record<LicenceStatus, { label: string; variant: 'success' | '
   EXPIRING_SOON: { label: 'Expiring Soon', variant: 'warning' },
   CRITICAL: { label: 'Critical', variant: 'destructive' },
   EXPIRED: { label: 'Expired', variant: 'destructive' },
-  SUSPENDED: { label: 'Suspended', variant: 'muted' },
+  SUSPENDED: { label: 'Suspended - Overdue', variant: 'destructive' },
 };
 
 export function LicenceBadge({ status }: { status: LicenceStatus }) {
