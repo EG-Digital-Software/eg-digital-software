@@ -5,7 +5,7 @@ import * as ctrl from '../controllers/portal.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
-import { taskProgressSchema, updateTaskSchema } from '../validators/task.validator.js';
+import { taskProgressSchema, updateTaskSchema, createAppointmentSchema } from '../validators/task.validator.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
@@ -20,6 +20,10 @@ router.get('/licences', ctrl.employeeLicences);
 // same TaskBoard component. Scoped to the tasks the employee is assigned to.
 router.get('/tasks', ctrl.employeeTasks);
 router.get('/tasks/assignable-users', ctrl.employeeAssignableUsers);
+// Appointments (Schedule calendar) for the employee's board.
+router.get('/tasks/appointments', ctrl.employeeListAppointments);
+router.post('/tasks/appointments', validate({ body: createAppointmentSchema }), ctrl.employeeCreateAppointment);
+router.delete('/tasks/appointments/:appointmentId', ctrl.employeeDeleteAppointment);
 router.get('/tasks/tasks/:taskId', ctrl.employeeGetTask);
 router.patch('/tasks/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.employeeSetProgress);
 router.patch('/tasks/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.employeeUpdateTask);

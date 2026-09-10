@@ -418,3 +418,22 @@ export interface TaskBoard {
 
 /** A staff member a task can be assigned to. */
 export type AssignableUser = Omit<TaskAssignee, 'id'>;
+
+export interface AppointmentAttendee {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface Appointment {
+  id: string;
+  customerId?: string | null;
+  title: string;
+  location?: string | null;
+  notes?: string | null;
+  startAt: string;
+  endAt: string;
+  createdById: string;
+  createdByName: string;
+  attendees: AppointmentAttendee[];
+}

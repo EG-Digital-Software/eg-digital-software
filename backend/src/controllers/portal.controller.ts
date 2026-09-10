@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import * as supplierService from '../services/supplier.service.js';
 import * as employeeService from '../services/employee.service.js';
 import * as taskService from '../services/task.service.js';
+import * as appointmentService from '../services/appointment.service.js';
 import { findById } from '../services/accounts.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -103,6 +104,34 @@ export const employeeDeleteNote = asyncHandler(async (req: Request, res: Respons
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
   // Owner-or-admin rule is enforced in the service (an employee is never admin).
   return ok(res, await taskService.deleteNote(customerId, req.params.taskId, req.params.noteId, await employeeAuthor(req)), 'Entry deleted');
+});
+
+// ── Employee appointments (Schedule calendar) ────────────
+export const employeeListAppointments = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await appointmentService.listForEmployee(req.user!.sub, req.user!.email));
+});
+
+export const employeeCreateAppointment = asyncHandler(async (req: Request, res: Response) => {
+  const { title, startAt, endAt, location, notes, attendees } = req.body;
+  const appt = await appointmentService.createAppointment({
+    customerId: null,
+    creator: await employeeAuthor(req),
+    title,
+    startAt: new Date(startAt),
+    endAt: new Date(endAt),
+    location,
+    notes,
+    attendees,
+  });
+  return ok(res, appt, 'Appointment booked — invites sent', 201);
+});
+
+export const employeeDeleteAppointment = asyncHandler(async (req: Request, res: Response) => {
+  return ok(
+    res,
+    await appointmentService.deleteAppointment(req.params.appointmentId, await employeeAuthor(req)),
+    'Appointment cancelled'
+  );
 });
 
 export const employeeAddAttachment = asyncHandler(async (req: Request, res: Response) => {

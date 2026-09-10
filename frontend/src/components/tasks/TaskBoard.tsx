@@ -71,9 +71,23 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
 
   const boardQ = useQuery({ queryKey, queryFn: () => api.board() });
   const usersQ = useQuery({ queryKey: ['tasks', scopeKey, 'users'], queryFn: () => api.assignableUsers() });
+  const apptKey = ['tasks', scopeKey, 'appointments'];
+  const apptQ = useQuery({ queryKey: apptKey, queryFn: () => api.listAppointments() });
 
   const invalidate = () => qc.invalidateQueries({ queryKey });
+  const invalidateAppts = () => qc.invalidateQueries({ queryKey: apptKey });
   const onErr = (e: unknown) => toast.error(apiErrorMessage(e));
+
+  const bookAppt = useMutation({
+    mutationFn: (body: Parameters<TaskApi['createAppointment']>[0]) => api.createAppointment(body),
+    onSuccess: () => { invalidateAppts(); toast.success('Appointment booked — invites sent'); },
+    onError: onErr,
+  });
+  const cancelAppt = useMutation({
+    mutationFn: (id: string) => api.deleteAppointment(id),
+    onSuccess: () => { invalidateAppts(); toast.success('Appointment cancelled'); },
+    onError: onErr,
+  });
 
   const addBucket = useMutation({ mutationFn: (name: string) => api.createBucket(name), onSuccess: invalidate, onError: onErr });
   const renameBucket = useMutation({ mutationFn: (v: { id: string; name: string }) => api.updateBucket(v.id, { name: v.name }), onSuccess: invalidate, onError: onErr });
@@ -289,7 +303,17 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
           onToggleComplete={(t) => setProgress.mutate({ id: t.id, progress: t.progress === 'COMPLETED' ? 'NOT_STARTED' : 'COMPLETED' })}
         />
       )}
-      {view === 'schedule' && <ScheduleView buckets={filtered.buckets} onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })} />}
+      {view === 'schedule' && (
+        <ScheduleView
+          buckets={filtered.buckets}
+          onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
+          appointments={apptQ.data ?? []}
+          users={users as AssignableUser[]}
+          onBook={(input) => bookAppt.mutate(input)}
+          onCancel={(id) => cancelAppt.mutate(id)}
+          booking={bookAppt.isPending}
+        />
+      )}
       {view === 'charts' && <ChartsView buckets={filtered.buckets} />}
 
       {dialog && (

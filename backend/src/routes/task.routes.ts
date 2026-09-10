@@ -14,6 +14,7 @@ import {
   updateLabelSchema,
   submitApprovalSchema,
   decideApprovalSchema,
+  createAppointmentSchema,
 } from '../validators/task.validator.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -36,6 +37,13 @@ export function buildTaskRouter(readOnly = false): Router {
   router.get('/', ctrl.board);
   router.get('/assignable-users', ctrl.assignableUsers);
   router.get('/labels', ctrl.listLabels);
+
+  // Appointments (Schedule calendar) — available to clients too, so anyone
+  // viewing the board can book a meeting with the task assignees.
+  router.get('/appointments', ctrl.listAppointments);
+  router.post('/appointments', validate({ body: createAppointmentSchema }), ctrl.createAppointment);
+  router.delete('/appointments/:appointmentId', ctrl.deleteAppointment);
+
   router.get('/tasks/:taskId', ctrl.getTask);
 
   // Collaboration — available to clients too.

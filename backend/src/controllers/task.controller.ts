@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type { Role } from '@prisma/client';
 import * as taskService from '../services/task.service.js';
 import * as clientService from '../services/client.service.js';
+import * as appointmentService from '../services/appointment.service.js';
 import { findById } from '../services/accounts.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -264,4 +265,33 @@ export const updateLabel = asyncHandler(async (req: Request, res: Response) => {
 
 export const deleteLabel = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, await taskService.deleteLabel(await resolve(req), req.params.labelId), 'Label deleted');
+});
+
+// ─── Appointments (Schedule calendar) ─────────────────────
+
+export const listAppointments = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await appointmentService.listForCustomer(await resolve(req)));
+});
+
+export const createAppointment = asyncHandler(async (req: Request, res: Response) => {
+  const { title, startAt, endAt, location, notes, attendees } = req.body;
+  const appt = await appointmentService.createAppointment({
+    customerId: await resolve(req),
+    creator: await author(req),
+    title,
+    startAt: new Date(startAt),
+    endAt: new Date(endAt),
+    location,
+    notes,
+    attendees,
+  });
+  return ok(res, appt, 'Appointment booked — invites sent', 201);
+});
+
+export const deleteAppointment = asyncHandler(async (req: Request, res: Response) => {
+  return ok(
+    res,
+    await appointmentService.deleteAppointment(req.params.appointmentId, await author(req)),
+    'Appointment cancelled'
+  );
 });

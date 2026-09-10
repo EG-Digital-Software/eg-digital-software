@@ -17,6 +17,8 @@ export interface EmailMessage {
   cc?: string;
   /** Overrides EMAIL_REPLY_TO for this message. */
   replyTo?: string;
+  /** A calendar invite (iCalendar) — Gmail/Outlook add it to the recipient's calendar. */
+  icalEvent?: { method: string; filename?: string; content: string };
 }
 
 export interface EmailProvider {
@@ -71,6 +73,10 @@ class SmtpProvider implements EmailProvider {
       html: msg.html,
       // Fall back to a stripped-down text part so every message is multipart.
       text: msg.text ?? msg.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+      // A calendar invite the recipient's mail client adds to their calendar.
+      icalEvent: msg.icalEvent
+        ? { method: msg.icalEvent.method, filename: msg.icalEvent.filename ?? 'invite.ics', content: msg.icalEvent.content }
+        : undefined,
       // Bounce/return-path aligns with the authenticated sender for SPF.
       envelope: { from: env.SMTP_USER ?? env.EMAIL_FROM, to: msg.to },
     });

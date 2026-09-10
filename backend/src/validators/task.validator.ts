@@ -86,6 +86,17 @@ export const decideApprovalSchema = z.object({
   feedback: z.string().max(5000).nullish(),
 });
 
+export const createAppointmentSchema = z.object({
+  title: z.string().min(1).max(200),
+  startAt: z.coerce.date(),
+  endAt: z.coerce.date(),
+  location: z.string().max(300).optional(),
+  notes: z.string().max(2000).optional(),
+  attendees: z
+    .array(z.object({ name: z.string().max(200).optional(), email: z.string().email() }))
+    .min(1, 'Select at least one attendee'),
+});
+
 export const createLabelSchema = z.object({
   name: z.string().min(1).max(60),
   color: z.string().min(1).max(30).optional(),

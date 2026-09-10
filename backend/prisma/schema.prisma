@@ -313,6 +313,7 @@ model Customer {
   taskBuckets      TaskBucket[]
   tasks            Task[]
   taskLabels       TaskLabel[]
+  appointments     Appointment[]
 
   @@index([status])
   @@index([businessType])
@@ -789,4 +790,43 @@ model TaskApproval {
   attachments     TaskAttachment[]
 
   @@index([taskId])
+}
+
+/// A meeting/appointment booked from the task Schedule calendar. An ICS invite
+/// is emailed to each attendee so it lands in their Google/Microsoft calendar.
+/// customerId ties it to a customer board (admin/client); employee-booked ones
+/// leave it null and are found via the creator/attendee.
+model Appointment {
+  id            String    @id @default(uuid())
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId    String?
+  title         String
+  location      String?
+  notes         String?
+  startAt       DateTime
+  endAt         DateTime
+  createdById   String
+  createdByType Role
+  createdByName String
+  /// Stable UID placed in the ICS so a calendar can match/update the event.
+  icalUid       String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  attendees AppointmentAttendee[]
+
+  @@index([customerId])
+  @@index([startAt])
+}
+
+/// An invitee on an appointment — name + email snapshot (chosen from the task
+/// assignees) so the invite and the calendar list render without a join.
+model AppointmentAttendee {
+  id            String      @id @default(uuid())
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  appointmentId String
+  name          String
+  email         String
+
+  @@index([appointmentId])
 }

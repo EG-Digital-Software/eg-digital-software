@@ -1,6 +1,7 @@
 import { api } from './client';
 import type {
   ApiEnvelope,
+  Appointment,
   AssignableUser,
   Task,
   TaskApproval,
@@ -127,6 +128,19 @@ export function taskApi(base: string) {
       unwrap<TaskApproval>(api.post(`${base}/tasks/${taskId}/approvals/${approvalId}/reopen`, {})),
     deleteApproval: (taskId: string, approvalId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/approvals/${approvalId}`)),
+
+    // Appointments (Schedule calendar) — booking emails an ICS invite to each
+    // attendee so it lands in their Google/Microsoft calendar.
+    listAppointments: () => unwrap<Appointment[]>(api.get(`${base}/appointments`)),
+    createAppointment: (body: {
+      title: string;
+      startAt: string;
+      endAt: string;
+      location?: string;
+      notes?: string;
+      attendees: { name?: string; email: string }[];
+    }) => unwrap<Appointment>(api.post(`${base}/appointments`, body)),
+    deleteAppointment: (id: string) => unwrap<{ id: string }>(api.delete(`${base}/appointments/${id}`)),
 
     // Labels
     createLabel: (name: string, color: string) =>
