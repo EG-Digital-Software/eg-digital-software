@@ -75,6 +75,16 @@ export function taskApi(base: string) {
     deleteComment: (taskId: string, commentId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/comments/${commentId}`)),
 
+    // Notes — a chat-style thread; each note snapshots its author. Editing is
+    // limited to your own notes (403 otherwise).
+    addNote: (taskId: string, body: string, kind: import('@/types').TaskNoteKind = 'NOTE', subject?: string | null) =>
+      unwrap<import('@/types').TaskNote>(api.post(`${base}/tasks/${taskId}/notes`, { body, kind, subject })),
+    editNote: (taskId: string, noteId: string, body: string, subject?: string | null) =>
+      unwrap<import('@/types').TaskNote>(api.patch(`${base}/tasks/${taskId}/notes/${noteId}`, subject === undefined ? { body } : { body, subject })),
+    // Delete a note/access-point entry — own entries for anyone, any entry for admin.
+    deleteNote: (taskId: string, noteId: string) =>
+      unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/notes/${noteId}`)),
+
     // Attachments
     addAttachment: (taskId: string, file: File) => {
       const form = new FormData();
@@ -112,6 +122,9 @@ export function taskApi(base: string) {
       approvalId: string,
       body: { status: 'APPROVED' | 'REJECTED'; feedback?: string | null }
     ) => unwrap<TaskApproval>(api.patch(`${base}/tasks/${taskId}/approvals/${approvalId}`, body)),
+    // Re-open a decided approval back to pending — admin-only (403 otherwise).
+    reopenApproval: (taskId: string, approvalId: string) =>
+      unwrap<TaskApproval>(api.post(`${base}/tasks/${taskId}/approvals/${approvalId}/reopen`, {})),
     deleteApproval: (taskId: string, approvalId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/approvals/${approvalId}`)),
 

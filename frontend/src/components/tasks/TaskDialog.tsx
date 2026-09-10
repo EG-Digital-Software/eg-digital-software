@@ -20,6 +20,9 @@ import {
   CheckCircle2,
   XCircle,
   Trash2,
+  RotateCcw,
+  Pencil,
+  KeyRound,
 } from 'lucide-react';
 import type {
   AssignableUser,
@@ -28,6 +31,8 @@ import type {
   TaskApprovalStatus,
   TaskBucket,
   TaskComment,
+  TaskNote,
+  TaskNoteKind,
   TaskPriority,
   TaskProgress,
 } from '@/types';
@@ -35,6 +40,7 @@ import type { TaskApi, TaskInput } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
 import { cn, formatDate, initials, mediaUrl } from '@/lib/utils';
+import { downloadChatDoc, printChatPdf } from '@/lib/chatExport';
 import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER } from '@/lib/tasks';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input, Textarea, Select } from '@/components/ui/input';
@@ -150,12 +156,15 @@ export function TaskDialog({
   const isAdmin = me?.role === 'SUPER_ADMIN';
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
-  const [tab, setTab] = useState<'details' | 'attachments' | 'approval'>('details');
+  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access'>('details');
   const [approvalSubject, setApprovalSubject] = useState('');
   const [approvalMessage, setApprovalMessage] = useState('');
   const [approvalFiles, setApprovalFiles] = useState<File[]>([]);
   const [feedbackDraft, setFeedbackDraft] = useState<Record<string, string>>({});
   const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [note, setNote] = useState('');
+  const [accessNote, setAccessNote] = useState('');
+  const [accessSubject, setAccessSubject] = useState('');
   const [comment, setComment] = useState('');
   const [showChat, setShowChat] = useState(true);
   const [showNotes, setShowNotes] = useState(false);
@@ -247,6 +256,72 @@ export function TaskDialog({
     onSettled: () => { invalidateTask(); invalidate(); },
   });
   const removeComment = useMutation({ mutationFn: (id: string) => api.deleteComment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
+  const addNoteMut = useMutation({
+    mutationFn: (v: { body: string; kind: TaskNoteKind; subject?: string | null }) => api.addNote(task!.id, v.body, v.kind, v.subject),
+    // Show the note instantly (and clear the right composer) before the round-trip.
+    onMutate: async (v) => {
+      if (v.kind === 'ACCESS_POINT') { setAccessNote(''); setAccessSubject(''); } else setNote('');
+      if (!task) return { prev: undefined };
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      const now = new Date().toISOString();
+      const optimistic: TaskNote = {
+        id: `temp-${Date.now()}`,
+        taskId: task.id,
+        kind: v.kind,
+        authorId: meId ?? '',
+        authorType: me?.role ?? 'SUPER_ADMIN',
+        authorName: meName,
+        subject: v.subject ?? null,
+        body: v.body,
+        createdAt: now,
+      };
+      const base = prev ?? task;
+      qc.setQueryData<Task>(taskKey, { ...base, notes: [...(base.notes ?? []), optimistic] });
+      return { prev };
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev);
+      toast.error(apiErrorMessage(e));
+    },
+    onSettled: () => { invalidateTask(); invalidate(); },
+  });
+  function sendNote(kind: TaskNoteKind) {
+    const body = (kind === 'ACCESS_POINT' ? accessNote : note).trim();
+    if (!task || addNoteMut.isPending || !body) return;
+    addNoteMut.mutate({ body, kind, subject: kind === 'ACCESS_POINT' ? (accessSubject.trim() || null) : undefined });
+  }
+  const editNoteMut = useMutation({
+    mutationFn: (v: { id: string; body: string; subject?: string | null }) => api.editNote(task!.id, v.id, v.body, v.subject),
+    // Reflect the edit instantly; reconcile with the server after.
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      if (prev) {
+        qc.setQueryData<Task>(taskKey, {
+          ...prev,
+          notes: prev.notes.map((n) => (n.id === v.id ? { ...n, body: v.body, ...(v.subject !== undefined ? { subject: v.subject } : {}) } : n)),
+        });
+      }
+      return { prev };
+    },
+    onError: (e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
+    onSettled: () => { invalidateTask(); invalidate(); },
+  });
+  const deleteNoteMut = useMutation({
+    mutationFn: (id: string) => api.deleteNote(task!.id, id),
+    // Drop the row instantly; reconcile with the server after.
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      if (prev) {
+        qc.setQueryData<Task>(taskKey, { ...prev, notes: prev.notes.filter((n) => n.id !== id) });
+      }
+      return { prev };
+    },
+    onError: (e, _id, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
+    onSettled: () => { invalidateTask(); invalidate(); },
+  });
   const uploadFile = useMutation({
     mutationFn: (file: File) => api.addAttachment(task!.id, file),
     onSuccess: () => { invalidateTask(); invalidate(); toast.success('Attachment added'); },
@@ -300,6 +375,28 @@ export function TaskDialog({
     },
     onSettled: () => { invalidateTask(); invalidate(); },
   });
+  const reopenApproval = useMutation({
+    mutationFn: (id: string) => api.reopenApproval(task!.id, id),
+    // Flip the row back to pending instantly; reconcile with the server after.
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      if (prev) {
+        qc.setQueryData<Task>(taskKey, {
+          ...prev,
+          approvals: prev.approvals.map((a) =>
+            a.id === id
+              ? { ...a, status: 'PENDING', decidedByName: null, decidedByType: null, decidedAt: null }
+              : a
+          ),
+        });
+      }
+      return { prev };
+    },
+    onError: (e, _id, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
+    onSuccess: () => toast.success('Re-opened for a new decision'),
+    onSettled: () => { invalidateTask(); invalidate(); },
+  });
 
   function update(partial: Partial<Draft>, persist?: TaskInput) {
     setDraft((d) => ({ ...d, ...partial }));
@@ -347,6 +444,9 @@ export function TaskDialog({
   const done = draft.progress === 'COMPLETED';
   const checklistDone = draft.checklist.filter((c) => c.done).length;
   const chatVisible = showChat;
+  // The same TaskNote thread backs two lists, split by kind.
+  const noteEntries = (liveTask?.notes ?? []).filter((n) => (n.kind ?? 'NOTE') === 'NOTE');
+  const accessEntries = (liveTask?.notes ?? []).filter((n) => n.kind === 'ACCESS_POINT');
 
   return (
     <>
@@ -469,6 +569,11 @@ export function TaskDialog({
                   Approval{liveTask && liveTask.approvals.length > 0 ? ` (${liveTask.approvals.length})` : ''}
                 </TabPill>
               )}
+              {isEdit && (
+                <TabPill active={tab === 'access'} onClick={() => setTab('access')} icon={<KeyRound className="h-4 w-4" />}>
+                  Access Point{accessEntries.length > 0 ? ` (${accessEntries.length})` : ''}
+                </TabPill>
+              )}
             </div>
 
             {tab === 'details' ? (
@@ -511,7 +616,9 @@ export function TaskDialog({
                       onChange={(v) => update({ startDate: v }, { startDate: toIso(v) || null })} />
                   </Field>
                   <Field label="Due date">
-                    <DateField value={draft.dueDate} placeholder="Set due date" disabled={locked}
+                    {/* An ongoing task has no fixed end — the due date is disabled
+                        while the status is Ongoing. */}
+                    <DateField value={draft.dueDate} placeholder={draft.progress === 'ONGOING' ? 'Not applicable (ongoing)' : 'Set due date'} disabled={locked || draft.progress === 'ONGOING'}
                       onChange={(v) => update({ dueDate: v }, { dueDate: toIso(v) || null })} />
                   </Field>
 
@@ -559,25 +666,42 @@ export function TaskDialog({
                   )}
                 </div>
 
-                {/* Notes */}
+                {/* Notes — a chat-style thread; each note shows who wrote it. */}
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold">Notes</h4>
-                  <Textarea
-                    value={draft.description}
-                    disabled={disabled}
-                    placeholder="Type a description or add notes here"
-                    className="min-h-[120px] border-0 bg-secondary/40 px-3 focus-visible:ring-1"
-                    onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                    onBlur={() => isEdit && task && draft.description !== (task.description ?? '') && patch.mutate({ description: draft.description || null })}
-                  />
-                  {draft.description.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => setShowNotes(true)}
-                      className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-                    >
-                      <Maximize2 className="h-3.5 w-3.5" /> View Full Notes
-                    </button>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold">Notes</h4>
+                    {isEdit && (
+                      <button
+                        type="button"
+                        onClick={() => setShowNotes(true)}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                      >
+                        <Maximize2 className="h-3.5 w-3.5" /> View full notes
+                      </button>
+                    )}
+                  </div>
+                  {isEdit ? (
+                    <NotesThread
+                      notes={noteEntries}
+                      originalNote={liveTask?.description ?? task?.description ?? ''}
+                      originalAuthor={liveTask?.descriptionAuthorName ?? undefined}
+                      meId={meId}
+                      value={note}
+                      onChange={setNote}
+                      onSend={() => sendNote('NOTE')}
+                      sending={addNoteMut.isPending}
+                      canAdd={!!task && !addNoteMut.isPending}
+                      onEdit={(id, body) => editNoteMut.mutate({ id, body })}
+                      scrollClass="max-h-56"
+                    />
+                  ) : (
+                    /* Before the task exists, capture initial notes on the task itself. */
+                    <Textarea
+                      value={draft.description}
+                      placeholder="Type a description or add notes here"
+                      className="min-h-[120px] border-0 bg-secondary/40 px-3 focus-visible:ring-1"
+                      onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                    />
                   )}
                 </div>
               </div>
@@ -599,7 +723,7 @@ export function TaskDialog({
                   <Paperclip className="mr-1.5 h-4 w-4" /> {uploadFile.isPending ? 'Uploading…' : 'Add attachment'}
                 </Button>
               </div>
-            ) : (
+            ) : tab === 'approval' ? (
               /* Approval tab */
               <ApprovalPanel
                 approvals={liveTask?.approvals ?? []}
@@ -625,6 +749,24 @@ export function TaskDialog({
                 onDecide={(id, status) => decideApproval.mutate({ id, status, feedback: feedbackDraft[id]?.trim() || null })}
                 deciding={decideApproval.isPending ? decideApproval.variables?.id : undefined}
                 onRemove={(id) => removeApproval.mutate(id)}
+                onReopen={(id) => reopenApproval.mutate(id)}
+              />
+            ) : (
+              /* Access Point tab — a register: Written by (auto) · Subject · Notes.
+                 You can edit your own rows any time. */
+              <AccessPointPanel
+                entries={accessEntries}
+                meId={meId}
+                isAdmin={isAdmin}
+                subject={accessSubject}
+                body={accessNote}
+                onSubjectChange={setAccessSubject}
+                onBodyChange={setAccessNote}
+                onAdd={() => sendNote('ACCESS_POINT')}
+                adding={addNoteMut.isPending}
+                canAdd={!!task && !addNoteMut.isPending}
+                onEdit={(id, body, subject) => editNoteMut.mutate({ id, body, subject })}
+                onDelete={(id) => deleteNoteMut.mutate(id)}
               />
             )}
 
@@ -640,8 +782,37 @@ export function TaskDialog({
           {/* ── Right: task chat ──────────────────────── */}
           {chatVisible && (
             <div className="flex max-h-[45vh] min-h-0 w-full shrink-0 flex-col border-t border-border bg-secondary/20 md:max-h-none md:w-[420px] md:border-l md:border-t-0">
-              <div className="border-b border-border px-4 py-3">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Task Chat</h3>
+                {/* Download the chat — admin-only. Word (.doc) or PDF via print. */}
+                {isAdmin && task && liveTask && liveTask.comments.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        title="Download chat"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuLabel>Download chat</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          printChatPdf(liveTask, customerName) ||
+                            toast.error('Allow pop-ups to download as PDF');
+                        }}
+                      >
+                        <FileText className="h-4 w-4" /> PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => downloadChatDoc(liveTask, customerName)}>
+                        <FileText className="h-4 w-4" /> Word (.doc)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
               <div ref={chatScrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
                 {!task && <p className="pt-8 text-center text-xs text-muted-foreground">Create the task first to start the conversation.</p>}
@@ -679,7 +850,11 @@ export function TaskDialog({
                             <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                           </a>
                         ))}
-                        <button type="button" onClick={() => removeComment.mutate(c.id)} className="ml-2 text-[11px] text-muted-foreground opacity-0 transition hover:text-rose-500 group-hover:opacity-100">Delete</button>
+                        {/* Deleting a chat message is admin-only — clients and
+                            employees cannot delete any message, not even their own. */}
+                        {isAdmin && (
+                          <button type="button" onClick={() => removeComment.mutate(c.id)} className="ml-2 text-[11px] text-muted-foreground opacity-0 transition hover:text-rose-500 group-hover:opacity-100">Delete</button>
+                        )}
                       </div>
                     </div>
                   );
@@ -734,20 +909,298 @@ export function TaskDialog({
     {/* Full notes reader */}
     <Dialog open={showNotes} onOpenChange={setShowNotes}>
       <DialogContent className="flex max-h-[85vh] flex-col !w-[min(720px,94vw)] !max-w-none gap-0 overflow-hidden p-0">
-        <div className="flex shrink-0 items-center gap-2 border-b border-border px-5 py-3">
-          <FileText className="h-4 w-4 text-primary" />
-          <DialogTitle className="text-sm font-semibold">
-            {draft.title.trim() ? `Notes — ${draft.title.trim()}` : 'Notes'}
-          </DialogTitle>
+        <div className="flex shrink-0 items-start gap-2 border-b border-border px-5 py-3">
+          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <DialogTitle className="text-sm font-semibold">
+              {draft.title.trim() ? `Notes — ${draft.title.trim()}` : 'Notes'}
+            </DialogTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {(liveTask?.notes?.length ?? 0)} note{(liveTask?.notes?.length ?? 0) === 1 ? '' : 's'}
+              {!disabled && <span className="text-muted-foreground/70"> · Writing as {meName}</span>}
+            </p>
+          </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-            {draft.description.trim() || 'No notes yet.'}
-          </p>
+        <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
+          <NotesThread
+            notes={noteEntries}
+            originalNote={liveTask?.description ?? task?.description ?? ''}
+            originalAuthor={liveTask?.descriptionAuthorName ?? undefined}
+            meId={meId}
+            value={note}
+            onChange={setNote}
+            onSend={() => sendNote('NOTE')}
+            sending={addNoteMut.isPending}
+            canAdd={!!task && !addNoteMut.isPending}
+            onEdit={(id, body) => editNoteMut.mutate({ id, body })}
+            scrollClass="flex-1"
+          />
         </div>
       </DialogContent>
     </Dialog>
     </>
+  );
+}
+
+/**
+ * Chat-style notes thread. Each note is a card showing its author and time, so
+ * everyone can see who wrote which note. Any pre-existing single-field note
+ * (the old `description`) is preserved as a pinned "Original" card at the top.
+ */
+function NotesThread({
+  notes,
+  originalNote,
+  originalAuthor,
+  meId,
+  value,
+  onChange,
+  onSend,
+  sending,
+  canAdd,
+  onEdit,
+  scrollClass,
+}: {
+  notes: TaskNote[];
+  originalNote?: string;
+  originalAuthor?: string;
+  meId?: string;
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  sending: boolean;
+  canAdd: boolean;
+  onEdit: (id: string, body: string) => void;
+  scrollClass?: string;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const hasOriginal = !!originalNote?.trim();
+  // Which of my notes is being edited, and its working text.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && !editingId) el.scrollTop = el.scrollHeight;
+  }, [notes.length, editingId]);
+
+  function startEdit(id: string, body: string) {
+    setEditingId(id);
+    setEditText(body);
+  }
+  function saveEdit(id: string) {
+    const body = editText.trim();
+    if (body) onEdit(id, body);
+    setEditingId(null);
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div ref={scrollRef} className={cn('space-y-3 overflow-y-auto rounded-lg border border-border bg-secondary/20 p-3', scrollClass)}>
+        {!hasOriginal && notes.length === 0 && (
+          <p className="py-6 text-center text-xs text-muted-foreground">No notes yet. Add the first note below.</p>
+        )}
+        {hasOriginal && (
+          <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
+            <div className="mb-1 flex items-center gap-2 text-[11px]">
+              <span className="font-semibold text-primary">{originalAuthor || 'Original note'}</span>
+              <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">Original</span>
+            </div>
+            <p className="whitespace-pre-wrap break-words text-sm">{originalNote}</p>
+          </div>
+        )}
+        {notes.map((n) => {
+          const mine = !!meId && n.authorId === meId;
+          const isEditing = editingId === n.id;
+          return (
+            <div key={n.id} className="rounded-lg border border-border bg-card p-3 shadow-sm">
+              <div className="mb-1 flex items-center gap-2 text-[11px]">
+                <Avatar className="h-5 w-5"><AvatarFallback className="text-[9px]">{initials(n.authorName)}</AvatarFallback></Avatar>
+                <span className="font-semibold text-primary">{n.authorName}{mine ? ' (You)' : ''}</span>
+                <span className="text-muted-foreground">{formatDate(n.createdAt, 'dd MMM yyyy, h:mm a')}</span>
+                {/* Only the author can edit their own note — any time. */}
+                {mine && !isEditing && !n.id.startsWith('temp-') && (
+                  <button type="button" onClick={() => startEdit(n.id, n.body)} className="ml-auto text-muted-foreground transition hover:text-primary" title="Edit your note">
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              {isEditing ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={editText}
+                    autoFocus
+                    className="min-h-[64px] w-full resize-none bg-secondary/40 px-2.5 py-1.5 text-sm"
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(n.id); }
+                      if (e.key === 'Escape') { e.preventDefault(); setEditingId(null); }
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" onClick={() => saveEdit(n.id)} disabled={!editText.trim()}>Save</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap break-words text-sm">{n.body}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {/* Composer — add a note (Enter to send, Shift+Enter for a new line). */}
+      <div className="flex items-end gap-2 rounded-xl border border-border bg-card px-3 py-2">
+        <Textarea
+          value={value}
+          placeholder={canAdd ? 'Write a note…' : 'Available after the task is created'}
+          rows={1}
+          disabled={!canAdd}
+          className="min-h-[28px] w-full flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm leading-6 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed"
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+        />
+        <button type="button" onClick={onSend} disabled={!canAdd || !value.trim() || sending} className="mb-0.5 text-primary disabled:text-muted-foreground/40" title="Add note">
+          <Send className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Access Point tab — a small register with three columns: Written by (the
+ * author, filled automatically), Subject, and Notes. Each author can edit their
+ * own rows at any time; other rows are read-only to them.
+ */
+function AccessPointPanel({
+  entries,
+  meId,
+  isAdmin,
+  subject,
+  body,
+  onSubjectChange,
+  onBodyChange,
+  onAdd,
+  adding,
+  canAdd,
+  onEdit,
+  onDelete,
+}: {
+  entries: TaskNote[];
+  meId?: string;
+  isAdmin: boolean;
+  subject: string;
+  body: string;
+  onSubjectChange: (v: string) => void;
+  onBodyChange: (v: string) => void;
+  onAdd: () => void;
+  adding: boolean;
+  canAdd: boolean;
+  onEdit: (id: string, body: string, subject: string | null) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSubject, setEditSubject] = useState('');
+  const [editBody, setEditBody] = useState('');
+
+  function startEdit(n: TaskNote) {
+    setEditingId(n.id);
+    setEditSubject(n.subject ?? '');
+    setEditBody(n.body);
+  }
+  function saveEdit(id: string) {
+    const b = editBody.trim();
+    if (b) onEdit(id, b, editSubject.trim() || null);
+    setEditingId(null);
+  }
+
+  return (
+    <div className="mt-5 space-y-5">
+      {/* Composer — Subject + Notes; the author is filled in automatically. */}
+      <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
+        <h4 className="text-sm font-semibold">Add access point</h4>
+        <Input value={subject} placeholder="Subject" maxLength={200} disabled={!canAdd} onChange={(e) => onSubjectChange(e.target.value)} />
+        <Textarea
+          value={body}
+          placeholder={canAdd ? 'Notes' : 'Available after the task is created'}
+          className="min-h-[72px]"
+          disabled={!canAdd}
+          onChange={(e) => onBodyChange(e.target.value)}
+        />
+        <div className="flex justify-end">
+          <Button type="button" size="sm" onClick={onAdd} disabled={!canAdd || !body.trim() || adding}>
+            <Plus className="mr-1.5 h-4 w-4" /> {adding ? 'Adding…' : 'Add'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Register */}
+      {entries.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">No access points yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <th className="px-2 py-2">Written by</th>
+                <th className="px-2 py-2">Subject</th>
+                <th className="px-2 py-2">Notes</th>
+                <th className="px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((n) => {
+                const mine = !!meId && n.authorId === meId;
+                const canManage = mine || isAdmin; // author, or an admin over any row
+                const isTemp = n.id.startsWith('temp-');
+                const isEditing = editingId === n.id;
+                return (
+                  <tr key={n.id} className="border-b border-border/60 align-top">
+                    <td className="px-2 py-3">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6"><AvatarFallback className="text-[9px]">{initials(n.authorName)}</AvatarFallback></Avatar>
+                        <div>
+                          <div className="font-medium">{n.authorName}{mine ? ' (You)' : ''}</div>
+                          <div className="text-[11px] text-muted-foreground">{formatDate(n.createdAt, 'dd MMM yyyy, h:mm a')}</div>
+                        </div>
+                      </div>
+                    </td>
+                    {isEditing ? (
+                      <>
+                        <td className="px-2 py-3"><Input value={editSubject} placeholder="Subject" maxLength={200} className="h-8 text-xs" onChange={(e) => setEditSubject(e.target.value)} /></td>
+                        <td className="px-2 py-3"><Textarea value={editBody} className="min-h-[60px] text-sm" onChange={(e) => setEditBody(e.target.value)} /></td>
+                        <td className="px-2 py-3">
+                          <div className="flex gap-1.5">
+                            <Button type="button" size="sm" onClick={() => saveEdit(n.id)} disabled={!editBody.trim()}>Save</Button>
+                            <Button type="button" size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-2 py-3 font-medium">{n.subject || '—'}</td>
+                        <td className="px-2 py-3 text-muted-foreground"><p className="max-w-[360px] whitespace-pre-wrap break-words">{n.body}</p></td>
+                        <td className="px-2 py-3">
+                          {canManage && !isTemp && (
+                            <div className="flex items-center gap-2">
+                              <button type="button" onClick={() => startEdit(n)} title={mine ? 'Edit your entry' : 'Edit entry (admin)'} className="text-muted-foreground transition hover:text-primary">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" onClick={() => onDelete(n.id)} title={mine ? 'Delete your entry' : 'Delete entry (admin)'} className="text-muted-foreground transition hover:text-rose-500">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -806,6 +1259,7 @@ function ApprovalPanel({
   onDecide,
   deciding,
   onRemove,
+  onReopen,
 }: {
   approvals: TaskApproval[];
   canApprove: boolean;
@@ -824,6 +1278,7 @@ function ApprovalPanel({
   onDecide: (id: string, status: 'APPROVED' | 'REJECTED') => void;
   deciding?: string;
   onRemove: (id: string) => void;
+  onReopen: (id: string) => void;
 }) {
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
   return (
@@ -979,6 +1434,17 @@ function ApprovalPanel({
                               by {a.decidedByName}
                               {a.decidedAt ? ` · ${formatDate(a.decidedAt, 'dd MMM')}` : ''}
                             </div>
+                          )}
+                          {/* Admin can re-open a wrong decision (e.g. a client
+                              approved/rejected by mistake) to decide again. */}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onReopen(a.id)}
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary transition hover:underline"
+                            >
+                              <RotateCcw className="h-3 w-3" /> Re-open
+                            </button>
                           )}
                         </div>
                       )}

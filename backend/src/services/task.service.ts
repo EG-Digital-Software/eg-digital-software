@@ -20,6 +20,7 @@ const taskInclude = {
     orderBy: { createdAt: 'asc' },
     include: { attachments: { orderBy: { createdAt: 'asc' } } },
   },
+  notes: { orderBy: { createdAt: 'asc' } },
   // Task-level attachments only — approval files are scoped to their request.
   attachments: { where: { approvalId: null }, orderBy: { createdAt: 'asc' } },
   approvals: {
@@ -245,14 +246,24 @@ export async function getTask(customerId: string, taskId: string) {
 export async function updateTask(
   customerId: string,
   taskId: string,
-  input: Partial<TaskInput> & { bucketId?: string }
+  input: Partial<TaskInput> & { bucketId?: string },
+  /** Display name of the user making the edit — stamped on the notes when the
+   * description changes so the "Full Notes" popup can show who wrote it. */
+  actorName?: string
 ) {
   const existing = await ensureTask(customerId, taskId);
   if (input.bucketId) await ensureBucket(customerId, input.bucketId);
 
   const data: Prisma.TaskUpdateInput = {};
   if (input.title !== undefined) data.title = input.title;
-  if (input.description !== undefined) data.description = input.description;
+  if (input.description !== undefined) {
+    data.description = input.description;
+    // Only stamp the author when we know who made the edit; never null it out.
+    if (actorName) {
+      data.descriptionAuthorName = actorName;
+      data.descriptionUpdatedAt = new Date();
+    }
+  }
   if (input.priority !== undefined) data.priority = input.priority;
   if (input.startDate !== undefined) data.startDate = input.startDate ? new Date(input.startDate) : null;
   if (input.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
@@ -411,6 +422,78 @@ export async function deleteComment(customerId: string, taskId: string, commentI
   return { id: commentId };
 }
 
+// ─── Notes (chat-style thread) ────────────────────────────
+
+export async function addNote(
+  customerId: string,
+  taskId: string,
+  author: { id: string; type: Role; name: string },
+  body: string,
+  kind: string = 'NOTE',
+  subject?: string | null
+) {
+  await ensureTask(customerId, taskId);
+  return prisma.taskNote.create({
+    data: {
+      taskId,
+      kind,
+      authorId: author.id,
+      authorType: author.type,
+      authorName: author.name,
+      subject: subject ?? null,
+      body,
+    },
+  });
+}
+
+/**
+ * Edit a note's text. A user may only edit their OWN notes — ownership is
+ * matched on (authorId, authorType). Non-destructive: only the body changes.
+ */
+export async function editNote(
+  customerId: string,
+  taskId: string,
+  noteId: string,
+  actor: { id: string; type: Role },
+  body: string,
+  subject?: string | null
+) {
+  await ensureTask(customerId, taskId);
+  const note = await prisma.taskNote.findFirst({ where: { id: noteId, taskId } });
+  if (!note) throw ApiError.notFound('Note not found');
+  // Owner can edit their own; an admin can edit anyone's.
+  const isOwner = note.authorId === actor.id && note.authorType === actor.type;
+  if (!isOwner && actor.type !== Role.SUPER_ADMIN) {
+    throw ApiError.forbidden('You can only edit your own entries');
+  }
+  return prisma.taskNote.update({
+    where: { id: noteId },
+    // Only touch the subject when the caller sent one (Access Point entries).
+    data: { body, ...(subject !== undefined ? { subject } : {}) },
+  });
+}
+
+/**
+ * Delete a note/access-point entry. The author can delete their own; an admin
+ * can delete anyone's. Non-destructive to other data — removes only this row.
+ */
+export async function deleteNote(
+  customerId: string,
+  taskId: string,
+  noteId: string,
+  actor: { id: string; type: Role }
+) {
+  await ensureTask(customerId, taskId);
+  const note = await prisma.taskNote.findFirst({ where: { id: noteId, taskId } });
+  if (!note) throw ApiError.notFound('Entry not found');
+  const isOwner = note.authorId === actor.id && note.authorType === actor.type;
+  if (!isOwner && actor.type !== Role.SUPER_ADMIN) {
+    throw ApiError.forbidden('You can only delete your own entries');
+  }
+  await prisma.taskNote.delete({ where: { id: noteId } });
+  return { id: noteId };
+}
+
 // ─── Attachments ──────────────────────────────────────────
 
 export async function addAttachment(
@@ -522,6 +605,28 @@ export async function decideApproval(
       decidedByType: decider.type,
       decidedByName: decider.name,
       decidedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Re-open a decided approval back to PENDING so it can be approved/rejected
+ * again — admin-only (enforced in the controller). Non-destructive: only the
+ * decision fields are cleared; the subject, message, feedback, attachments and
+ * requester are all preserved.
+ */
+export async function reopenApproval(customerId: string, taskId: string, approvalId: string) {
+  await ensureTask(customerId, taskId);
+  const approval = await prisma.taskApproval.findFirst({ where: { id: approvalId, taskId } });
+  if (!approval) throw ApiError.notFound('Approval request not found');
+  return prisma.taskApproval.update({
+    where: { id: approvalId },
+    data: {
+      status: 'PENDING',
+      decidedById: null,
+      decidedByType: null,
+      decidedByName: null,
+      decidedAt: null,
     },
   });
 }

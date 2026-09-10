@@ -20,7 +20,7 @@ const NAV = [
   { to: '/client/invoices', label: 'Invoices', icon: Receipt },
   { to: '/client/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/client/licences', label: 'Products', icon: KeyRound },
-  { to: '/client/details', label: 'My Details', icon: IdCard },
+  { to: '/client/details', label: 'Company Details', icon: IdCard },
 ];
 
 /** Full-width shell — content spans the whole screen with a small, even gutter. */

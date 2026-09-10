@@ -74,7 +74,9 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     delete body.bucketId;
     delete body.assignees;
   }
-  return ok(res, await taskService.updateTask(await resolve(req), req.params.taskId, body));
+  // Stamp the notes author only when the notes actually change.
+  const actorName = body.description !== undefined ? (await author(req)).name : undefined;
+  return ok(res, await taskService.updateTask(await resolve(req), req.params.taskId, body, actorName));
 });
 
 export const moveTask = asyncHandler(async (req: Request, res: Response) => {
@@ -115,6 +117,40 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
 export const deleteComment = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await resolve(req);
   return ok(res, await taskService.deleteComment(customerId, req.params.taskId, req.params.commentId), 'Comment deleted');
+});
+
+// ─── Notes (chat-style thread) ────────────────────────────
+
+/** Only these two note kinds exist; anything else falls back to a plain note. */
+const noteKind = (v: unknown): string => (v === 'ACCESS_POINT' ? 'ACCESS_POINT' : 'NOTE');
+
+/** Optional Subject, only used by Access Point entries; trimmed or null. */
+const noteSubject = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim() ? v.trim() : null;
+
+export const addNote = asyncHandler(async (req: Request, res: Response) => {
+  const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
+  if (!body) throw ApiError.badRequest('A note is required');
+  const customerId = await resolve(req);
+  const note = await taskService.addNote(customerId, req.params.taskId, await author(req), body, noteKind(req.body.kind), noteSubject(req.body.subject));
+  return ok(res, note, 'Note added', 201);
+});
+
+export const editNote = asyncHandler(async (req: Request, res: Response) => {
+  const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
+  if (!body) throw ApiError.badRequest('A note is required');
+  const customerId = await resolve(req);
+  // Ownership (own notes only) is enforced in the service. Subject is only sent
+  // for Access Point entries; leaving it undefined keeps a plain note's subject.
+  const subject = req.body.subject === undefined ? undefined : noteSubject(req.body.subject);
+  const note = await taskService.editNote(customerId, req.params.taskId, req.params.noteId, await author(req), body, subject);
+  return ok(res, note, 'Note updated');
+});
+
+export const deleteNote = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await resolve(req);
+  // Owner-or-admin rule is enforced in the service.
+  return ok(res, await taskService.deleteNote(customerId, req.params.taskId, req.params.noteId, await author(req)), 'Entry deleted');
 });
 
 // ─── Attachments ──────────────────────────────────────────
@@ -181,6 +217,20 @@ export const decideApproval = asyncHandler(async (req: Request, res: Response) =
     { status, feedback }
   );
   return ok(res, approval, status === 'APPROVED' ? 'Approved' : 'Rejected');
+});
+
+export const reopenApproval = asyncHandler(async (req: Request, res: Response) => {
+  // Only admins may re-open a decided approval (e.g. a client approved/rejected
+  // by mistake) so it can be approved/rejected again. Clients/team members can't.
+  if (req.user!.role !== 'SUPER_ADMIN') {
+    throw ApiError.forbidden('Only an admin can re-open an approval request');
+  }
+  const customerId = await resolve(req);
+  return ok(
+    res,
+    await taskService.reopenApproval(customerId, req.params.taskId, req.params.approvalId),
+    'Approval request re-opened'
+  );
 });
 
 export const deleteApproval = asyncHandler(async (req: Request, res: Response) => {

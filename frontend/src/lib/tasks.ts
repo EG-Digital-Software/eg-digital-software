@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Circle, CircleDashed, CheckCircle2, CircleAlert, ChevronsUp, Equal, ChevronDown } from 'lucide-react';
+import { Circle, CircleDashed, CircleDot, CheckCircle2, CircleAlert, ChevronsUp, Equal, ChevronDown } from 'lucide-react';
 import type { TaskPriority, TaskProgress, Task } from '@/types';
 
 export const PROGRESS_META: Record<
@@ -8,10 +8,11 @@ export const PROGRESS_META: Record<
 > = {
   NOT_STARTED: { label: 'Not started', dot: 'bg-slate-400', text: 'text-slate-500', icon: Circle },
   IN_PROGRESS: { label: 'In progress', dot: 'bg-blue-500', text: 'text-blue-600', icon: CircleDashed },
+  ONGOING: { label: 'Ongoing', dot: 'bg-violet-500', text: 'text-violet-600', icon: CircleDot },
   COMPLETED: { label: 'Completed', dot: 'bg-emerald-500', text: 'text-emerald-600', icon: CheckCircle2 },
 };
 
-export const PROGRESS_ORDER: TaskProgress[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'];
+export const PROGRESS_ORDER: TaskProgress[] = ['NOT_STARTED', 'IN_PROGRESS', 'ONGOING', 'COMPLETED'];
 
 export const PRIORITY_META: Record<
   TaskPriority,

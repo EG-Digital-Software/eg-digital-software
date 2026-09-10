@@ -69,7 +69,9 @@ export const employeeUpdateTask = asyncHandler(async (req: Request, res: Respons
   // Employees can update the work fields but not the schedule/priority/assignees.
   const { startDate, dueDate, priority, assignees, bucketId, labelIds, ...allowed } = req.body ?? {};
   void startDate; void dueDate; void priority; void assignees; void bucketId; void labelIds;
-  return ok(res, await taskService.updateTask(customerId, req.params.taskId, allowed));
+  // Stamp the notes author only when the notes actually change.
+  const actorName = allowed.description !== undefined ? (await employeeAuthor(req)).name : undefined;
+  return ok(res, await taskService.updateTask(customerId, req.params.taskId, allowed, actorName));
 });
 
 export const employeeAddComment = asyncHandler(async (req: Request, res: Response) => {
@@ -79,9 +81,28 @@ export const employeeAddComment = asyncHandler(async (req: Request, res: Respons
   return ok(res, await taskService.addComment(customerId, req.params.taskId, await employeeAuthor(req), body, req.file), 'Comment added', 201);
 });
 
-export const employeeDeleteComment = asyncHandler(async (req: Request, res: Response) => {
+export const employeeAddNote = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
-  return ok(res, await taskService.deleteComment(customerId, req.params.taskId, req.params.commentId), 'Comment deleted');
+  const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
+  if (!body) throw ApiError.badRequest('A note is required');
+  const kind = req.body.kind === 'ACCESS_POINT' ? 'ACCESS_POINT' : 'NOTE';
+  const subject = typeof req.body.subject === 'string' && req.body.subject.trim() ? req.body.subject.trim() : null;
+  return ok(res, await taskService.addNote(customerId, req.params.taskId, await employeeAuthor(req), body, kind, subject), 'Note added', 201);
+});
+
+export const employeeEditNote = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
+  if (!body) throw ApiError.badRequest('A note is required');
+  // Ownership (own notes only) is enforced in the service.
+  const subject = req.body.subject === undefined ? undefined : (typeof req.body.subject === 'string' && req.body.subject.trim() ? req.body.subject.trim() : null);
+  return ok(res, await taskService.editNote(customerId, req.params.taskId, req.params.noteId, await employeeAuthor(req), body, subject), 'Note updated');
+});
+
+export const employeeDeleteNote = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  // Owner-or-admin rule is enforced in the service (an employee is never admin).
+  return ok(res, await taskService.deleteNote(customerId, req.params.taskId, req.params.noteId, await employeeAuthor(req)), 'Entry deleted');
 });
 
 export const employeeAddAttachment = asyncHandler(async (req: Request, res: Response) => {

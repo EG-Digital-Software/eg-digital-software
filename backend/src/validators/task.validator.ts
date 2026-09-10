@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const progress = z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']);
+const progress = z.enum(['NOT_STARTED', 'IN_PROGRESS', 'ONGOING', 'COMPLETED']);
 const priority = z.enum(['URGENT', 'IMPORTANT', 'MEDIUM', 'LOW']);
 const userType = z.enum(['SUPER_ADMIN', 'CLIENT', 'SUPPLIER', 'EMPLOYEE']);
 

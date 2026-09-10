@@ -565,6 +565,7 @@ model Setting {
 enum TaskProgress {
   NOT_STARTED
   IN_PROGRESS
+  ONGOING
   COMPLETED
 }
 
@@ -622,6 +623,10 @@ model Task {
   bucketId    String
   title       String
   description String?
+  /// Display name of whoever last wrote the notes, and when — shown in the
+  /// "Full Notes" popup so everyone can see who authored the description.
+  descriptionAuthorName String?
+  descriptionUpdatedAt  DateTime?
   progress    TaskProgress @default(NOT_STARTED)
   priority    TaskPriority @default(MEDIUM)
   startDate   DateTime?
@@ -638,12 +643,36 @@ model Task {
   labels      TaskLabelLink[]
   checklist   ChecklistItem[]
   comments    TaskComment[]
+  notes       TaskNote[]
   attachments TaskAttachment[]
   approvals   TaskApproval[]
 
   @@index([customerId])
   @@index([bucketId])
   @@index([dueDate])
+}
+
+/// A note entry on a task — a chat-style thread, separate from Task Chat. Each
+/// note snapshots its author (id, type, name) the same polymorphic way comments
+/// do, so everyone can see who wrote which note. `kind` splits the same thread
+/// UI into two independent lists: NOTE (the Notes section) and ACCESS_POINT (the
+/// Access Point tab).
+model TaskNote {
+  id         String   @id @default(uuid())
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId     String
+  kind       String   @default("NOTE")
+  authorId   String
+  authorType Role
+  authorName String
+  /// Only ACCESS_POINT entries use this — the Access Point register has a
+  /// Subject column alongside the note body. NOTE entries leave it null.
+  subject    String?
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([taskId])
+  @@index([taskId, kind])
 }
 
 /// A staff member assigned to a task. Snapshot of name/avatar so the card

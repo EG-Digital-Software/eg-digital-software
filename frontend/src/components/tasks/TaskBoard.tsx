@@ -170,17 +170,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
               </p>
             </div>
           </div>
-          {totalTasks > 0 && (
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Progress</div>
-                <div className="text-sm font-semibold">{Math.round((doneTasks / totalTasks) * 100)}%</div>
-              </div>
-              <div className="hidden h-2.5 w-40 overflow-hidden rounded-full bg-secondary sm:block">
-                <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all" style={{ width: `${(doneTasks / totalTasks) * 100}%` }} />
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

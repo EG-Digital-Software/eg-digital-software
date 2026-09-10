@@ -44,7 +44,11 @@ export function buildTaskRouter(readOnly = false): Router {
   // controller strips the fields locked in the portal (start/due/priority).
   router.patch('/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.updateTask);
   router.post('/tasks/:taskId/comments', upload.single('file'), ctrl.addComment);
-  router.delete('/tasks/:taskId/comments/:commentId', ctrl.deleteComment);
+  // Notes thread — available to clients too, like comments. Editing is limited
+  // to your own notes (enforced in the controller/service).
+  router.post('/tasks/:taskId/notes', ctrl.addNote);
+  router.patch('/tasks/:taskId/notes/:noteId', ctrl.editNote);
+  router.delete('/tasks/:taskId/notes/:noteId', ctrl.deleteNote);
   router.post('/tasks/:taskId/attachments', upload.single('file'), ctrl.addAttachment);
   router.delete('/tasks/:taskId/attachments/:attachmentId', ctrl.deleteAttachment);
 
@@ -52,6 +56,8 @@ export function buildTaskRouter(readOnly = false): Router {
   // decision itself is role-gated inside the controller (team members view only).
   router.post('/tasks/:taskId/approvals', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.submitApproval);
   router.patch('/tasks/:taskId/approvals/:approvalId', validate({ body: decideApprovalSchema }), ctrl.decideApproval);
+  // Re-open a decided approval (admin-only, enforced in the controller).
+  router.post('/tasks/:taskId/approvals/:approvalId/reopen', ctrl.reopenApproval);
   router.delete('/tasks/:taskId/approvals/:approvalId', ctrl.deleteApproval);
 
   if (!readOnly) {
@@ -63,6 +69,9 @@ export function buildTaskRouter(readOnly = false): Router {
     router.post('/tasks', validate({ body: createTaskSchema }), ctrl.createTask);
     router.patch('/tasks/:taskId/move', validate({ body: moveTaskSchema }), ctrl.moveTask);
     router.delete('/tasks/:taskId', ctrl.deleteTask);
+    // Deleting a chat message is admin-only. The client board mounts this router
+    // with readOnly=true, so clients never get this route; only the admin does.
+    router.delete('/tasks/:taskId/comments/:commentId', ctrl.deleteComment);
 
     router.post('/labels', validate({ body: createLabelSchema }), ctrl.createLabel);
     router.patch('/labels/:labelId', validate({ body: updateLabelSchema }), ctrl.updateLabel);

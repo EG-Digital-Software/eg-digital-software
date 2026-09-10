@@ -279,7 +279,7 @@ export interface SeriesPoint {
 }
 
 // ── Tasks (Microsoft Planner-style board) ────────────────
-export type TaskProgress = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+export type TaskProgress = 'NOT_STARTED' | 'IN_PROGRESS' | 'ONGOING' | 'COMPLETED';
 export type TaskPriority = 'URGENT' | 'IMPORTANT' | 'MEDIUM' | 'LOW';
 
 export interface TaskLabel {
@@ -317,6 +317,22 @@ export interface TaskComment {
   createdAt: string;
   /** Files sent with this chat message (task-level uploads are not included). */
   attachments?: TaskAttachment[];
+}
+
+export type TaskNoteKind = 'NOTE' | 'ACCESS_POINT';
+
+export interface TaskNote {
+  id: string;
+  taskId: string;
+  /** Which thread this entry belongs to: the Notes section or Access Point tab. */
+  kind?: TaskNoteKind;
+  authorId: string;
+  authorType: Role;
+  authorName: string;
+  /** Only Access Point entries use this (their Subject column). */
+  subject?: string | null;
+  body: string;
+  createdAt: string;
 }
 
 export interface TaskAttachment {
@@ -360,6 +376,9 @@ export interface Task {
   bucketId: string;
   title: string;
   description?: string | null;
+  /** Who last wrote the notes, and when — shown in the Full Notes popup. */
+  descriptionAuthorName?: string | null;
+  descriptionUpdatedAt?: string | null;
   progress: TaskProgress;
   priority: TaskPriority;
   startDate?: string | null;
@@ -373,6 +392,7 @@ export interface Task {
   labels: TaskLabel[];
   checklist: ChecklistItem[];
   comments: TaskComment[];
+  notes: TaskNote[];
   attachments: TaskAttachment[];
   approvals: TaskApproval[];
 }

@@ -80,7 +80,7 @@ export default function ClientDetailsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="My Details"
+        title="Company Details"
         description="Your account details on record. These are managed by EG Digital — to update anything, please get in touch."
         icon={Contact}
         iconTone="violet"
@@ -111,7 +111,7 @@ export default function ClientDetailsPage() {
       </DetailCard>
 
       <DetailCard icon={Receipt} title="Invoicing Details">
-        <Row label="Invoice Customer" value={c.invoiceCustomer} />
+        <Row label="Accounts Person Name" value={c.billingContactPerson} />
         <Row label="Accounts Email" value={c.billingEmail} />
         <Row label="Invoice Term" value={c.invoiceTerm} />
         <Row label="Payment Method" value={c.paymentMethod} />
