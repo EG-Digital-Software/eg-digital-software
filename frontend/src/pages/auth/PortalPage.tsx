@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,8 +10,6 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Sun,
-  Moon,
   Users,
   User,
 } from 'lucide-react';
@@ -38,8 +36,8 @@ type TabKey = PortalSlug;
 /** Visible sign-in tabs. Admin stays a hidden entry (footer copyright link).
  *  `portal` is the auth portal a tab maps to. */
 const TABS: { key: TabKey; label: string; icon: LucideIcon; portal: PortalSlug }[] = [
-  { key: 'employee', label: 'Team Member', icon: Users, portal: 'employee' },
   { key: 'client', label: 'Customer', icon: User, portal: 'client' },
+  { key: 'employee', label: 'Team Member', icon: Users, portal: 'employee' },
 ];
 
 /** Feature chips shown bottom-left — icons match the hero art exactly (filled). */
@@ -50,39 +48,14 @@ const FEATURES: { icon: PhosphorIcon; label: string; weight?: 'bold' | 'fill' }[
   { icon: Gear, label: 'Innovative' },
 ];
 
-/** Light/dark toggle scoped to this page — the `dark` class is removed on unmount
- *  so the rest of the app (which has no dark styles) is never affected. */
-function useScopedTheme() {
-  const [dark, setDark] = useState(() => localStorage.getItem('eg-theme') === 'dark');
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle('dark', dark);
-    localStorage.setItem('eg-theme', dark ? 'dark' : 'light');
-    return () => root.classList.remove('dark');
-  }, [dark]);
-  return { dark, setDark };
-}
-
-function MicrosoftLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 23 23" className={className} aria-hidden="true">
-      <path fill="#f25022" d="M1 1h10v10H1z" />
-      <path fill="#7fba00" d="M12 1h10v10H12z" />
-      <path fill="#00a4ef" d="M1 12h10v10H1z" />
-      <path fill="#ffb900" d="M12 12h10v10H12z" />
-    </svg>
-  );
-}
-
 export default function PortalPage() {
   const user = useAuth((s) => s.user);
   const initialized = useAuth((s) => s.initialized);
   const login = useLogin();
   const navigate = useNavigate();
   const location = useLocation();
-  const { dark, setDark } = useScopedTheme();
 
-  const [tab, setTab] = useState<TabKey>('employee');
+  const [tab, setTab] = useState<TabKey>('client');
   const [showPassword, setShowPassword] = useState(false);
 
   const activeTab = TABS.find((t) => t.key === tab)!;
@@ -130,7 +103,7 @@ export default function PortalPage() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#a9c0e2] font-sans dark:bg-slate-950">
       {/* One full-bleed hero photo behind the whole page — cover fills edge-to-edge with no distortion (16:9 image ≈ minimal crop). */}
-      <img src="/portal-hero.jpg?v=syd8" alt="" className="absolute inset-0 h-full w-full object-cover object-[50%_72%]" />
+      <img src="/portal-hero.webp?v=syd9" alt="" className="absolute inset-0 h-full w-full object-cover object-[50%_72%]" />
 
       <div className="relative z-10 grid min-h-screen lg:grid-cols-[1fr_1fr]">
         {/* ---------- Left: brand panel (blue wash over the photo) ---------- */}
@@ -179,69 +152,43 @@ export default function PortalPage() {
         </aside>
 
         {/* ---------- Right: login card (white wash over the photo) ---------- */}
-        <div className="relative flex min-h-screen items-end justify-end py-3 pr-6">
-          {/* Light / dark segmented toggle */}
-          <div className="absolute right-6 top-6 z-20 flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-white">
-            <button
-              type="button"
-              onClick={() => setDark(false)}
-              aria-label="Light mode"
-              className={cn(
-                'flex h-8 w-14 items-center justify-center rounded-full transition',
-                !dark ? 'bg-slate-400 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600',
-              )}
-            >
-              <Sun className="h-[18px] w-[18px]" strokeWidth={2} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setDark(true)}
-              aria-label="Dark mode"
-              className={cn(
-                'flex h-8 w-14 items-center justify-center rounded-full transition',
-                dark ? 'bg-slate-400 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600',
-              )}
-            >
-              <Moon className="h-[18px] w-[18px]" strokeWidth={2} />
-            </button>
-          </div>
-
-          <div className="relative z-10 w-[50vw] animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex h-[92vh] w-full flex-col overflow-y-auto rounded-3xl border border-white/70 bg-white p-14 shadow-2xl shadow-slate-900/10 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900">
-             <div className="flex w-full flex-1 flex-col justify-between">
+        <div className="relative flex min-h-screen items-center justify-center px-4 py-4 sm:px-6 sm:py-6 lg:justify-end lg:px-0 lg:pr-6">
+          <div className="relative z-10 w-full max-w-[700px] animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex max-h-[95vh] w-full flex-col overflow-y-auto rounded-3xl border border-white/70 bg-white px-6 py-6 shadow-2xl shadow-slate-900/10 backdrop-blur-xl sm:px-10 sm:py-10 lg:min-h-[70vh] lg:px-16 lg:py-8 dark:border-slate-800 dark:bg-slate-900">
+             <div className="flex w-full flex-1 flex-col justify-between gap-4 sm:gap-6">
               <div className="flex flex-col items-center text-center">
-                <Logo light={dark} className="text-4xl" />
-                <h1 className="mt-5 !font-bold text-[2.5rem] leading-tight text-slate-900 dark:text-white">
+                <Logo className="text-2xl sm:text-4xl" />
+                <h1 className="mt-2 !font-bold text-[1.6rem] leading-tight text-slate-900 sm:mt-4 sm:text-[2.75rem] dark:text-white">
                   Welcome Back
                 </h1>
-                <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-sm text-slate-500 sm:mt-2 sm:text-lg dark:text-slate-400">
                   Sign in to your {brand.companyName} account
                 </p>
               </div>
 
               {/* Role tabs */}
-              <div className="mt-6 grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 dark:border-slate-700 dark:bg-white">
+              <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 dark:border-slate-700 dark:bg-white">
                 {TABS.map((t) => (
                   <button
                     key={t.key}
                     type="button"
                     onClick={() => setTab(t.key)}
                     className={cn(
-                      'flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-1.5 py-3 text-base font-medium transition',
+                      'flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-1.5 py-2.5 text-sm font-medium transition sm:py-3 sm:text-base',
                       tab === t.key
                         ? 'bg-slate-400 text-white shadow-sm'
                         : 'text-slate-500 hover:text-slate-700',
                     )}
                   >
-                    <t.icon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+                    <t.icon className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" strokeWidth={1.75} />
                     {t.label}
                   </button>
                 ))}
               </div>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="email" className="block text-[15px] font-medium text-slate-700 dark:text-slate-300">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4">
+                <div className="space-y-1.5 sm:space-y-2">
+                  <label htmlFor="email" className="block text-sm font-medium text-slate-700 sm:text-[15px] dark:text-slate-300">
                     Email Address
                   </label>
                   <div className="relative">
@@ -251,15 +198,15 @@ export default function PortalPage() {
                       type="email"
                       autoComplete="email"
                       placeholder="you@egdigital.com"
-                      className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-3 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/5 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:bg-slate-800"
+                      className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-3 text-base sm:h-16 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/5 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:bg-slate-800"
                       {...register('email')}
                     />
                   </div>
                   {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="password" className="block text-[15px] font-medium text-slate-700 dark:text-slate-300">
+                <div className="space-y-1.5 sm:space-y-2">
+                  <label htmlFor="password" className="block text-sm font-medium text-slate-700 sm:text-[15px] dark:text-slate-300">
                     Password
                   </label>
                   <div className="relative">
@@ -269,7 +216,7 @@ export default function PortalPage() {
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       placeholder="Enter your password"
-                      className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/5 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:bg-slate-800"
+                      className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-base sm:h-16 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/5 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:bg-slate-800"
                       {...register('password')}
                     />
                     <button
@@ -285,7 +232,7 @@ export default function PortalPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 text-[15px] text-slate-600 dark:text-slate-400">
+                  <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                     <input
                       type="checkbox"
                       className="h-4 w-4 rounded border-slate-300 accent-slate-900 dark:border-slate-600"
@@ -295,7 +242,7 @@ export default function PortalPage() {
                   </label>
                   <Link
                     to={authPaths.forgot(activeTab.portal ?? 'client')}
-                    className="text-[15px] font-medium text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-white"
+                    className="text-sm font-medium text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-white"
                   >
                     Forgot Password?
                   </Link>
@@ -304,7 +251,7 @@ export default function PortalPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="group flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-slate-500 to-slate-700 text-base font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:from-slate-600 hover:to-slate-800 disabled:opacity-60 dark:from-slate-600 dark:to-slate-800"
+                  className="group mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-slate-500 to-slate-700 text-base font-semibold text-white sm:h-16 shadow-lg shadow-slate-900/20 transition hover:from-slate-600 hover:to-slate-800 disabled:opacity-60 dark:from-slate-600 dark:to-slate-800"
                 >
                   {isSubmitting ? <Spinner /> : null}
                   Sign In
@@ -314,22 +261,7 @@ export default function PortalPage() {
                 </button>
               </form>
 
-              <div className="my-5 flex items-center gap-3 text-xs font-medium text-slate-400">
-                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-                OR
-                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => toast('Microsoft 365 sign-in is coming soon')}
-                className="flex h-14 w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white text-base font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <MicrosoftLogo className="h-5 w-5" />
-                Sign in with Microsoft 365
-              </button>
-
-              <p className="mt-5 text-center text-[15px] text-slate-500 dark:text-slate-400">
+              <p className="text-center text-xs text-slate-500 sm:text-sm dark:text-slate-400">
                 Need help?{' '}
                 <a
                   href={`mailto:${brand.seller.billingEmail}`}
@@ -342,7 +274,7 @@ export default function PortalPage() {
             </div>
 
             {/* Mobile-only hidden admin entry (left panel is hidden on small screens) */}
-            <div className="mt-6 text-center lg:hidden">
+            <div className="mt-3 text-center lg:hidden">
               <Link
                 to="/admin/login"
                 className="text-xs text-slate-400 hover:text-slate-600"
