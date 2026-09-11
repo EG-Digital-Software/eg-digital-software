@@ -145,14 +145,11 @@ export interface Customer {
   authorizedMobileCountry?: string | null;
 
   // Invoicing Details
-  invoiceCustomer?: string | null;
   billingEmail?: string | null;
   billingContactPerson?: string | null;
   billingContactNumber?: string | null;
   billingContactNumberCountry?: string | null;
   creditScore?: number | null;
-  invoiceTerm?: string | null;
-  paymentMethod?: string | null;
 
   reference?: string | null;
 
@@ -342,6 +339,8 @@ export interface TaskNote {
 export interface TaskAttachment {
   id: string;
   taskId: string;
+  /** TASK = Attachments tab / chat / approval files; ARCHIVE = the Archive tab. */
+  kind?: string | null;
   fileName: string;
   url: string;
   size: number;
@@ -398,6 +397,8 @@ export interface Task {
   comments: TaskComment[];
   notes: TaskNote[];
   attachments: TaskAttachment[];
+  /** Admin-managed media (Archive tab). Clients/team can view, not mutate. */
+  archive: TaskAttachment[];
   approvals: TaskApproval[];
 }
 

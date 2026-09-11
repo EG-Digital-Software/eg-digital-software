@@ -21,6 +21,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 // Approval attachments: no size or count cap — admins may upload files of any
 // size, as many as they like.
 const uploadApproval = multer({ storage: multer.memoryStorage() });
+// Archive media: admins store files/images/videos of any type or size, kept
+// raw so they download at original quality — no cap, like approval files.
+const archiveUpload = multer({ storage: multer.memoryStorage() });
 
 /**
  * Full task board — used by the admin (mounted under /customers/:clientId/tasks)
@@ -84,6 +87,13 @@ export function buildTaskRouter(readOnly = false): Router {
     router.post('/labels', validate({ body: createLabelSchema }), ctrl.createLabel);
     router.patch('/labels/:labelId', validate({ body: updateLabelSchema }), ctrl.updateLabel);
     router.delete('/labels/:labelId', ctrl.deleteLabel);
+
+    // Archive tab — admin-only. The client board mounts readOnly=true and the
+    // team board has its own routes, so only the admin can upload/rename/delete
+    // archived media; everyone else views it through the task payload.
+    router.post('/tasks/:taskId/archive', archiveUpload.single('file'), ctrl.uploadArchive);
+    router.patch('/tasks/:taskId/archive/:attachmentId', ctrl.renameArchive);
+    router.delete('/tasks/:taskId/archive/:attachmentId', ctrl.deleteArchive);
   }
 
   return router;

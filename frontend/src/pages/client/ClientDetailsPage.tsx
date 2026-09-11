@@ -113,8 +113,6 @@ export default function ClientDetailsPage() {
       <DetailCard icon={Receipt} title="Invoicing Details">
         <Row label="Accounts Person Name" value={c.billingContactPerson} />
         <Row label="Accounts Email" value={c.billingEmail} />
-        <Row label="Invoice Term" value={c.invoiceTerm} />
-        <Row label="Payment Method" value={c.paymentMethod} />
       </DetailCard>
 
       <DetailCard icon={MapPin} title="Addresses">

@@ -282,8 +282,6 @@ model Customer {
   authorizedMobileCountry String? @default("AU")
 
   // ── Invoicing Details ──────────────────────────────────
-  /// The customer name to appear on invoices. Defaults to companyName.
-  invoiceCustomer             String?
   /// Accounts-payable contact — invoices and reminders are sent here.
   billingEmail                String?
   billingContactPerson        String?
@@ -291,10 +289,6 @@ model Customer {
   billingContactNumberCountry String? @default("AU")
   /// Credit score as reported by the bureau (0–1200).
   creditScore                 Int?
-  /// Default payment terms for this customer, e.g. "NET_30" or "DUE_ON_RECEIPT".
-  invoiceTerm                 String?
-  /// Preferred payment method, e.g. "Bank Transfer (EFT)" or "Credit/Debit Card".
-  paymentMethod               String?
 
   reference     String?
   status        CustomerStatus        @default(ACTIVE)
@@ -749,6 +743,11 @@ model TaskAttachment {
   /// Kept out of the task-level Attachments tab so it stays scoped to the request.
   approval     TaskApproval? @relation(fields: [approvalId], references: [id], onDelete: Cascade)
   approvalId   String?
+  /// Splits task-level files into their tab: TASK = the Attachments tab (and
+  /// chat/approval files), ARCHIVE = the Archive tab (admin-managed media the
+  /// client/team can only view). Kept a plain string like TaskNote.kind so no
+  /// enum migration is needed.
+  kind         String   @default("TASK")
   fileName     String
   url          String
   size         Int
@@ -757,6 +756,7 @@ model TaskAttachment {
   createdAt    DateTime @default(now())
 
   @@index([taskId])
+  @@index([taskId, kind])
   @@index([commentId])
   @@index([approvalId])
 }

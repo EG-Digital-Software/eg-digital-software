@@ -237,17 +237,6 @@ export default function CreateInvoicePage() {
     if (preClient) setValue('clientId', preClient);
   }, [preClient, setValue]);
 
-  // Auto-fill the payment term from the selected customer's saved invoice term
-  // (same values as the customer form's Invoice Term dropdown).
-  const clientId = watch('clientId');
-  const selectedCustomer = useMemo(
-    () => customers?.items.find((c) => c.clientId === clientId),
-    [customers, clientId]
-  );
-  useEffect(() => {
-    if (selectedCustomer?.invoiceTerm) setValue('term', selectedCustomer.invoiceTerm);
-  }, [selectedCustomer, setValue]);
-
   const totals = useMemo(() => {
     let subtotal = 0;
     let tax = 0;

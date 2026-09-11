@@ -83,7 +83,6 @@ async function main() {
     'contactPerson',
     'contactPosition',
     'authorizedPerson',
-    'invoiceCustomer',
     'billingContactPerson',
   ] as const;
   const customers = await prisma.customer.findMany({

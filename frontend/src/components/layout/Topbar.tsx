@@ -16,6 +16,7 @@ import {
   Wallet,
   ListChecks,
   ChevronDown,
+  UserPlus,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -60,6 +61,7 @@ const NAV: NavEntry[] = [
     icon: Users,
     children: [
       { to: '/admin/customers', label: 'Manage Customer', icon: Users },
+      { to: '/admin/customers/new', label: 'Add Customer', icon: UserPlus },
       { to: '/admin/tasks', label: 'Task', icon: ListChecks },
     ],
   },

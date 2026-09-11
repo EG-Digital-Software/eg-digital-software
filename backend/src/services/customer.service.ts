@@ -408,14 +408,11 @@ type CreateInput = {
   }>;
 
   // Invoicing Details
-  invoiceCustomer?: string;
   billingEmail?: string;
   billingContactPerson?: string;
   billingContactNumber?: string;
   billingContactNumberCountry?: string;
   creditScore?: number | '';
-  invoiceTerm?: string;
-  paymentMethod?: string;
 
   reference?: string;
   accountStatus?: CustomerAccountStatus;
@@ -519,14 +516,11 @@ function customerFields(input: Partial<CreateInput>) {
       ? (orNull(input.authorizedMobileCountry) ?? 'AU')
       : null,
 
-    invoiceCustomer: orNull(input.invoiceCustomer),
     billingEmail: orNull(input.billingEmail),
     billingContactPerson: orNull(input.billingContactPerson),
     billingContactNumber: orNull(input.billingContactNumber),
     billingContactNumberCountry: orNull(input.billingContactNumberCountry) ?? 'AU',
     creditScore: numOrNull(input.creditScore),
-    invoiceTerm: orNull(input.invoiceTerm),
-    paymentMethod: orNull(input.paymentMethod),
 
     reference: orNull(input.reference),
     // Left undefined on create, Prisma falls back to the ACTIVE default; on
@@ -563,14 +557,11 @@ function customerUpdateFields(input: Partial<CreateInput>): Prisma.CustomerUpdat
     authorizedEmail: has('authorized'),
     authorizedMobile: has('authorized'),
     authorizedMobileCountry: has('authorized'),
-    invoiceCustomer: has('invoiceCustomer'),
     billingEmail: has('billingEmail'),
     billingContactPerson: has('billingContactPerson'),
     billingContactNumber: has('billingContactNumber'),
     billingContactNumberCountry: has('billingContactNumberCountry'),
     creditScore: has('creditScore'),
-    invoiceTerm: has('invoiceTerm'),
-    paymentMethod: has('paymentMethod'),
     reference: has('reference'),
     accountStatus: has('accountStatus'),
   };

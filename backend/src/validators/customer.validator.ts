@@ -112,24 +112,6 @@ export const createCustomerSchema = z
     billingContactNumberCountry: countryCode,
     billingEmail: optionalEmail,
     creditScore: z.coerce.number().int().min(0).max(1200).optional().or(z.literal('')),
-    // Default payment terms and preferred method. Payment method is kept in step
-    // with the PAYMENT_METHODS list; invoice term is either one of the preset
-    // codes (INVOICE_TERMS) or free text the operator entered manually, so it is
-    // accepted as a bounded string rather than a fixed enum.
-    invoiceTerm: z.string().trim().max(60).optional(),
-    paymentMethod: z
-      .enum([
-        'Bank Transfer (EFT)',
-        'Credit/Debit Card',
-        'UPI',
-        'BPAY',
-        'PayID',
-        'Direct Debit',
-        'Cheque',
-        'Cash',
-      ])
-      .optional()
-      .or(z.literal('')),
 
     reference: z
       .string()

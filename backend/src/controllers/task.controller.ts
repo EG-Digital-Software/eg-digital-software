@@ -172,6 +172,37 @@ export const deleteAttachment = asyncHandler(async (req: Request, res: Response)
   );
 });
 
+// ─── Archive ──────────────────────────────────────────────
+// Admin-only mutations (the routes live in the admin-only block). Clients and
+// team members view archived files through the task payload but never mutate.
+
+export const uploadArchive = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw ApiError.badRequest('No file uploaded');
+  const customerId = await resolve(req);
+  const file = await taskService.addArchiveFile(customerId, req.params.taskId, req.file, req.user?.sub);
+  return ok(res, file, 'File archived', 201);
+});
+
+export const renameArchive = asyncHandler(async (req: Request, res: Response) => {
+  const name = typeof req.body.fileName === 'string' ? req.body.fileName.trim() : '';
+  if (!name) throw ApiError.badRequest('A file name is required');
+  const customerId = await resolve(req);
+  return ok(
+    res,
+    await taskService.renameArchiveFile(customerId, req.params.taskId, req.params.attachmentId, name),
+    'File renamed'
+  );
+});
+
+export const deleteArchive = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await resolve(req);
+  return ok(
+    res,
+    await taskService.deleteArchiveFile(customerId, req.params.taskId, req.params.attachmentId),
+    'File deleted'
+  );
+});
+
 // ─── Approvals ────────────────────────────────────────────
 
 /** Roles allowed to approve/reject: admins and the customer. Team members view only. */

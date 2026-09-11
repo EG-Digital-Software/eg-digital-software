@@ -99,6 +99,23 @@ export function taskApi(base: string) {
     deleteAttachment: (taskId: string, attachmentId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/attachments/${attachmentId}`)),
 
+    // Archive — admin-only media store (kept raw for original-quality download).
+    // These routes exist only on the admin board; the client/team UI never calls
+    // them (they view archived files through the task payload).
+    addArchive: (taskId: string, file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return unwrap<TaskAttachment>(
+        api.post(`${base}/tasks/${taskId}/archive`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      );
+    },
+    renameArchive: (taskId: string, attachmentId: string, fileName: string) =>
+      unwrap<TaskAttachment>(api.patch(`${base}/tasks/${taskId}/archive/${attachmentId}`, { fileName })),
+    deleteArchive: (taskId: string, attachmentId: string) =>
+      unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/archive/${attachmentId}`)),
+
     // Approvals — submit a request; admins/customers decide it (approve/reject
     // with optional feedback). The decision endpoint 403s for team members.
     submitApproval: (taskId: string, body: { subject: string; message: string; files?: File[] }) => {

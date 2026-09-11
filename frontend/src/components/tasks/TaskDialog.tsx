@@ -23,12 +23,18 @@ import {
   RotateCcw,
   Pencil,
   KeyRound,
+  Archive,
+  LineChart,
+  Upload,
+  Film,
+  Image as ImageIcon,
 } from 'lucide-react';
 import type {
   AssignableUser,
   Task,
   TaskApproval,
   TaskApprovalStatus,
+  TaskAttachment,
   TaskBucket,
   TaskComment,
   TaskNote,
@@ -156,7 +162,7 @@ export function TaskDialog({
   const isAdmin = me?.role === 'SUPER_ADMIN';
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
-  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access'>('details');
+  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive'>('details');
   const [approvalSubject, setApprovalSubject] = useState('');
   const [approvalMessage, setApprovalMessage] = useState('');
   const [approvalFiles, setApprovalFiles] = useState<File[]>([]);
@@ -164,13 +170,13 @@ export function TaskDialog({
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [note, setNote] = useState('');
   const [accessNote, setAccessNote] = useState('');
-  const [accessSubject, setAccessSubject] = useState('');
   const [comment, setComment] = useState('');
   const [showChat, setShowChat] = useState(true);
   const [showNotes, setShowNotes] = useState(false);
   const [chatFile, setChatFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
+  const archiveRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -260,7 +266,7 @@ export function TaskDialog({
     mutationFn: (v: { body: string; kind: TaskNoteKind; subject?: string | null }) => api.addNote(task!.id, v.body, v.kind, v.subject),
     // Show the note instantly (and clear the right composer) before the round-trip.
     onMutate: async (v) => {
-      if (v.kind === 'ACCESS_POINT') { setAccessNote(''); setAccessSubject(''); } else setNote('');
+      if (v.kind === 'ACCESS_POINT') setAccessNote(''); else setNote('');
       if (!task) return { prev: undefined };
       await qc.cancelQueries({ queryKey: taskKey });
       const prev = qc.getQueryData<Task>(taskKey);
@@ -289,7 +295,7 @@ export function TaskDialog({
   function sendNote(kind: TaskNoteKind) {
     const body = (kind === 'ACCESS_POINT' ? accessNote : note).trim();
     if (!task || addNoteMut.isPending || !body) return;
-    addNoteMut.mutate({ body, kind, subject: kind === 'ACCESS_POINT' ? (accessSubject.trim() || null) : undefined });
+    addNoteMut.mutate({ body, kind });
   }
   const editNoteMut = useMutation({
     mutationFn: (v: { id: string; body: string; subject?: string | null }) => api.editNote(task!.id, v.id, v.body, v.subject),
@@ -328,6 +334,17 @@ export function TaskDialog({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const removeFile = useMutation({ mutationFn: (id: string) => api.deleteAttachment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
+  const uploadArchive = useMutation({
+    mutationFn: (file: File) => api.addArchive(task!.id, file),
+    onSuccess: () => { invalidateTask(); invalidate(); toast.success('File archived'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const renameArchive = useMutation({
+    mutationFn: (v: { id: string; fileName: string }) => api.renameArchive(task!.id, v.id, v.fileName),
+    onSuccess: () => { invalidateTask(); invalidate(); toast.success('File renamed'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const removeArchive = useMutation({ mutationFn: (id: string) => api.deleteArchive(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
   const submitApproval = useMutation({
     mutationFn: (v: { subject: string; message: string; files?: File[] }) => api.submitApproval(task!.id, v),
     onSuccess: () => { invalidateTask(); invalidate(); setApprovalSubject(''); setApprovalMessage(''); setApprovalFiles([]); toast.success('Approval requested'); },
@@ -574,6 +591,16 @@ export function TaskDialog({
                   Access Point{accessEntries.length > 0 ? ` (${accessEntries.length})` : ''}
                 </TabPill>
               )}
+              {isEdit && (
+                <TabPill active={tab === 'performance'} onClick={() => setTab('performance')} icon={<LineChart className="h-4 w-4" />}>
+                  Performance Dashboard
+                </TabPill>
+              )}
+              {isEdit && (
+                <TabPill active={tab === 'archive'} onClick={() => setTab('archive')} icon={<Archive className="h-4 w-4" />}>
+                  Archive{liveTask && liveTask.archive && liveTask.archive.length > 0 ? ` (${liveTask.archive.length})` : ''}
+                </TabPill>
+              )}
             </div>
 
             {tab === 'details' ? (
@@ -751,22 +778,36 @@ export function TaskDialog({
                 onRemove={(id) => removeApproval.mutate(id)}
                 onReopen={(id) => reopenApproval.mutate(id)}
               />
-            ) : (
+            ) : tab === 'access' ? (
               /* Access Point tab — a register: Written by (auto) · Subject · Notes.
                  You can edit your own rows any time. */
               <AccessPointPanel
                 entries={accessEntries}
                 meId={meId}
                 isAdmin={isAdmin}
-                subject={accessSubject}
                 body={accessNote}
-                onSubjectChange={setAccessSubject}
                 onBodyChange={setAccessNote}
                 onAdd={() => sendNote('ACCESS_POINT')}
                 adding={addNoteMut.isPending}
                 canAdd={!!task && !addNoteMut.isPending}
-                onEdit={(id, body, subject) => editNoteMut.mutate({ id, body, subject })}
+                onEdit={(id, body) => editNoteMut.mutate({ id, body })}
                 onDelete={(id) => deleteNoteMut.mutate(id)}
+              />
+            ) : tab === 'performance' ? (
+              /* Performance Dashboard — coming soon. */
+              <ComingSoonPanel />
+            ) : (
+              /* Archive tab — admin stores files/images/videos (original quality);
+                 the client and team can only view them. */
+              <ArchivePanel
+                files={liveTask?.archive ?? []}
+                isAdmin={isAdmin}
+                inputRef={archiveRef}
+                uploading={uploadArchive.isPending}
+                onPick={() => archiveRef.current?.click()}
+                onUpload={(f) => uploadArchive.mutate(f)}
+                onRename={(id, fileName) => renameArchive.mutate({ id, fileName })}
+                onDelete={(id) => removeArchive.mutate(id)}
               />
             )}
 
@@ -1067,17 +1108,15 @@ function NotesThread({
 }
 
 /**
- * Access Point tab — a small register with three columns: Written by (the
- * author, filled automatically), Subject, and Notes. Each author can edit their
- * own rows at any time; other rows are read-only to them.
+ * Access Point tab — a small register with two columns: Written by (the author,
+ * filled automatically) and Notes. Each author can edit their own rows at any
+ * time; other rows are read-only to them.
  */
 function AccessPointPanel({
   entries,
   meId,
   isAdmin,
-  subject,
   body,
-  onSubjectChange,
   onBodyChange,
   onAdd,
   adding,
@@ -1088,40 +1127,34 @@ function AccessPointPanel({
   entries: TaskNote[];
   meId?: string;
   isAdmin: boolean;
-  subject: string;
   body: string;
-  onSubjectChange: (v: string) => void;
   onBodyChange: (v: string) => void;
   onAdd: () => void;
   adding: boolean;
   canAdd: boolean;
-  onEdit: (id: string, body: string, subject: string | null) => void;
+  onEdit: (id: string, body: string) => void;
   onDelete: (id: string) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editSubject, setEditSubject] = useState('');
   const [editBody, setEditBody] = useState('');
 
   function startEdit(n: TaskNote) {
     setEditingId(n.id);
-    setEditSubject(n.subject ?? '');
     setEditBody(n.body);
   }
   function saveEdit(id: string) {
     const b = editBody.trim();
-    if (b) onEdit(id, b, editSubject.trim() || null);
+    if (b) onEdit(id, b);
     setEditingId(null);
   }
 
   return (
     <div className="mt-5 space-y-5">
-      {/* Composer — Subject + Notes; the author is filled in automatically. */}
+      {/* Composer — Notes only; the author is filled in automatically. */}
       <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
         <h4 className="text-sm font-semibold">Add access point</h4>
-        <Input value={subject} placeholder="Subject" maxLength={200} disabled={!canAdd} onChange={(e) => onSubjectChange(e.target.value)} />
         <Textarea
           value={body}
-          placeholder={canAdd ? 'Notes' : 'Available after the task is created'}
           className="min-h-[72px]"
           disabled={!canAdd}
           onChange={(e) => onBodyChange(e.target.value)}
@@ -1138,12 +1171,11 @@ function AccessPointPanel({
         <p className="py-6 text-center text-sm text-muted-foreground">No access points yet.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+          <table className="w-full min-w-[480px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th className="px-2 py-2">Written by</th>
-                <th className="px-2 py-2">Subject</th>
-                <th className="px-2 py-2">Notes</th>
+                <th className="px-2 py-2">Uploaded By</th>
+                <th className="px-2 py-2">Credentials</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
@@ -1166,7 +1198,6 @@ function AccessPointPanel({
                     </td>
                     {isEditing ? (
                       <>
-                        <td className="px-2 py-3"><Input value={editSubject} placeholder="Subject" maxLength={200} className="h-8 text-xs" onChange={(e) => setEditSubject(e.target.value)} /></td>
                         <td className="px-2 py-3"><Textarea value={editBody} className="min-h-[60px] text-sm" onChange={(e) => setEditBody(e.target.value)} /></td>
                         <td className="px-2 py-3">
                           <div className="flex gap-1.5">
@@ -1177,7 +1208,6 @@ function AccessPointPanel({
                       </>
                     ) : (
                       <>
-                        <td className="px-2 py-3 font-medium">{n.subject || '—'}</td>
                         <td className="px-2 py-3 text-muted-foreground"><p className="max-w-[360px] whitespace-pre-wrap break-words">{n.body}</p></td>
                         <td className="px-2 py-3">
                           {canManage && !isTemp && (
@@ -1217,6 +1247,155 @@ function TabPill({ active, onClick, icon, children }: { active: boolean; onClick
       {icon}
       {children}
     </button>
+  );
+}
+
+/** Performance Dashboard tab — placeholder until the analytics view ships. */
+function ComingSoonPanel() {
+  return (
+    <div className="mt-5 flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
+        <LineChart className="h-7 w-7 text-muted-foreground" />
+      </div>
+      <h4 className="mt-4 text-base font-semibold">Performance Dashboard</h4>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        Task analytics and performance insights are on the way. This space is coming soon.
+      </p>
+      <span className="mt-4 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+        Coming soon
+      </span>
+    </div>
+  );
+}
+
+const isImage = (t?: string | null) => !!t && t.startsWith('image/');
+const isVideo = (t?: string | null) => !!t && t.startsWith('video/');
+
+function humanSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/**
+ * Archive tab. Admins upload/rename/delete and download files at their original
+ * quality; the client and team see the same media as read-only previews with no
+ * download, edit or delete controls.
+ */
+function ArchivePanel({
+  files,
+  isAdmin,
+  inputRef,
+  uploading,
+  onPick,
+  onUpload,
+  onRename,
+  onDelete,
+}: {
+  files: TaskAttachment[];
+  isAdmin: boolean;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  uploading: boolean;
+  onPick: () => void;
+  onUpload: (file: File) => void;
+  onRename: (id: string, fileName: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  return (
+    <div className="mt-5 space-y-4">
+      {isAdmin && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-secondary/30 px-4 py-3">
+          <p className="text-xs text-muted-foreground">
+            Store any file, image or video. Files are kept at original quality — only you can edit, delete or download them.
+          </p>
+          <input
+            ref={inputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }}
+          />
+          <Button type="button" size="sm" onClick={onPick} disabled={uploading} className="shrink-0">
+            <Upload className="mr-1.5 h-4 w-4" /> {uploading ? 'Uploading…' : 'Upload'}
+          </Button>
+        </div>
+      )}
+
+      {files.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          {isAdmin ? 'No archived files yet. Upload one to get started.' : 'Nothing has been archived for this task yet.'}
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {files.map((f) => {
+            const url = mediaUrl(f.url) ?? '';
+            return (
+              <div key={f.id} className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+                {/* Preview */}
+                <div className="flex aspect-video items-center justify-center bg-secondary/50">
+                  {isImage(f.contentType) ? (
+                    <img src={url} alt={f.fileName} className="h-full w-full object-cover" loading="lazy" />
+                  ) : isVideo(f.contentType) ? (
+                    <video
+                      src={url}
+                      className="h-full w-full object-cover"
+                      controls
+                      preload="metadata"
+                      controlsList={isAdmin ? undefined : 'nodownload'}
+                    />
+                  ) : (
+                    <FileText className="h-10 w-10 text-muted-foreground" />
+                  )}
+                </div>
+
+                {/* Meta + actions */}
+                <div className="flex flex-col gap-1 p-2.5">
+                  {renaming === f.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={renameValue}
+                        autoFocus
+                        className="h-7 text-xs"
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { const v = renameValue.trim(); if (v) onRename(f.id, v); setRenaming(null); }
+                          if (e.key === 'Escape') setRenaming(null);
+                        }}
+                      />
+                      <button type="button" className="text-muted-foreground hover:text-primary" onClick={() => { const v = renameValue.trim(); if (v) onRename(f.id, v); setRenaming(null); }}>
+                        <Check className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      {isImage(f.contentType) ? <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : isVideo(f.contentType) ? <Film className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                      <span className="flex-1 truncate text-xs font-medium" title={f.fileName}>{f.fileName}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground">{humanSize(f.size)}</span>
+                    {isAdmin && (
+                      <div className="flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
+                        <a href={url} download={f.fileName} className="text-muted-foreground hover:text-primary" title="Download (original quality)">
+                          <Download className="h-4 w-4" />
+                        </a>
+                        <button type="button" className="text-muted-foreground hover:text-primary" title="Rename" onClick={() => { setRenaming(f.id); setRenameValue(f.fileName); }}>
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button type="button" className="text-muted-foreground hover:text-rose-500" title="Delete" onClick={() => onDelete(f.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

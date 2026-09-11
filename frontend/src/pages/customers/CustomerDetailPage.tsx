@@ -39,7 +39,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials, cn } from '@/lib/utils';
-import { businessTypesLabel, customerName, formatAbn, invoiceTermLabel } from '@/lib/customer';
+import { businessTypesLabel, customerName, formatAbn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName, countryName } from '@/lib/countries';
@@ -716,8 +716,6 @@ export default function CustomerDetailPage() {
                 label="Credit Score"
                 value={c.creditScore != null ? String(c.creditScore) : null}
               />
-              <Detail label="Invoice Term" value={invoiceTermLabel(c.invoiceTerm) || null} />
-              <Detail label="Payment Method" value={c.paymentMethod} />
               <Detail
                 label="Account Status"
                 value={(() => {

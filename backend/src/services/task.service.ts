@@ -29,9 +29,18 @@ const taskInclude = {
   },
 } satisfies Prisma.TaskInclude;
 
-/** Flatten the label join rows into plain labels for the client. */
+/**
+ * Flatten the label join rows into plain labels, and split the task-level files
+ * into `attachments` (the Attachments tab + chat files) and `archive` (the
+ * Archive tab). Keeping the split here means every read path (board, single
+ * task, cross-customer) shapes identically.
+ */
 function shapeTask<T extends { labels: { label: unknown }[] }>(task: T) {
-  return { ...task, labels: task.labels.map((l) => l.label) };
+  const withFiles = task as T & { attachments?: { kind?: string | null }[] };
+  const allFiles = withFiles.attachments ?? [];
+  const archive = allFiles.filter((f) => f.kind === 'ARCHIVE');
+  const attachments = allFiles.filter((f) => f.kind !== 'ARCHIVE');
+  return { ...task, labels: task.labels.map((l) => l.label), attachments, archive };
 }
 
 /** Resolve the internal Customer id from the public clientId (or 404). */
@@ -523,6 +532,64 @@ export async function deleteAttachment(customerId: string, taskId: string, attac
   const attachment = await prisma.taskAttachment.findFirst({ where: { id: attachmentId, taskId } });
   if (!attachment) throw ApiError.notFound('Attachment not found');
   await prisma.taskAttachment.delete({ where: { id: attachmentId } });
+  return { id: attachmentId };
+}
+
+// ─── Archive (admin-managed media the client/team can only view) ──────────────
+//
+// Reuses TaskAttachment with kind='ARCHIVE'. Files are stored raw (no
+// compression), like approval files, so the admin can download them at their
+// original quality. Only admins reach these functions — the routes live in the
+// admin-only block, so the client/team can view the files but never mutate them.
+
+export async function addArchiveFile(
+  customerId: string,
+  taskId: string,
+  file: { originalname: string; buffer: Buffer; mimetype: string; size: number },
+  uploadedById?: string
+) {
+  await ensureTask(customerId, taskId);
+  const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');
+  const key = `tasks/${taskId}/archive/${Date.now()}-${safeName}`;
+  const url = await storage.save(key, file.buffer, file.mimetype);
+  return prisma.taskAttachment.create({
+    data: {
+      taskId,
+      kind: 'ARCHIVE',
+      fileName: file.originalname,
+      url,
+      size: file.size,
+      contentType: file.mimetype,
+      uploadedById,
+    },
+  });
+}
+
+export async function renameArchiveFile(
+  customerId: string,
+  taskId: string,
+  attachmentId: string,
+  fileName: string
+) {
+  await ensureTask(customerId, taskId);
+  const file = await prisma.taskAttachment.findFirst({
+    where: { id: attachmentId, taskId, kind: 'ARCHIVE' },
+  });
+  if (!file) throw ApiError.notFound('Archive file not found');
+  return prisma.taskAttachment.update({ where: { id: attachmentId }, data: { fileName } });
+}
+
+export async function deleteArchiveFile(customerId: string, taskId: string, attachmentId: string) {
+  await ensureTask(customerId, taskId);
+  const file = await prisma.taskAttachment.findFirst({
+    where: { id: attachmentId, taskId, kind: 'ARCHIVE' },
+  });
+  if (!file) throw ApiError.notFound('Archive file not found');
+  await prisma.taskAttachment.delete({ where: { id: attachmentId } });
+  // Purge the blob too (best-effort) so deleted media doesn't linger in storage.
+  await storage
+    .remove(file.url)
+    .catch((err) => logger.warn({ err, url: file.url }, 'Failed to remove archive file from storage'));
   return { id: attachmentId };
 }
 
