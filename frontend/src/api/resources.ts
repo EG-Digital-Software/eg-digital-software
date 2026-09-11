@@ -1,8 +1,10 @@
 import { api } from './client';
 import type {
+  AgreementField,
   ApiEnvelope,
   Customer,
   CustomerCredential,
+  CustomerDocument,
   DashboardSummary,
   Invoice,
   LicenceRow,
@@ -57,6 +59,24 @@ export const customerApi = {
     (await api.patch<ApiEnvelope<Customer>>(`/customers/${clientId}/products/${customerProductId}`, body)).data.data,
   removeProduct: async (clientId: string, customerProductId: string) =>
     (await api.delete<ApiEnvelope<Customer>>(`/customers/${clientId}/products/${customerProductId}`)).data.data,
+  /** Agreement Document upload (no size cap) and delete. */
+  addDocument: async (clientId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return (
+      await api.post<ApiEnvelope<CustomerDocument>>(`/customers/${clientId}/documents`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    ).data.data;
+  },
+  updateDocument: async (
+    clientId: string,
+    documentId: string,
+    body: { fileName?: string; status?: 'SUBMITTED' | 'APPROVED'; fields?: AgreementField[] }
+  ) =>
+    (await api.patch<ApiEnvelope<CustomerDocument>>(`/customers/${clientId}/documents/${documentId}`, body)).data.data,
+  deleteDocument: async (clientId: string, documentId: string) =>
+    (await api.delete<ApiEnvelope<{ id: string }>>(`/customers/${clientId}/documents/${documentId}`)).data.data,
   archive: async (clientId: string) => (await api.delete(`/customers/${clientId}`)).data,
   remove: async (clientId: string) =>
     (await api.delete(`/customers/${clientId}/permanent`)).data,

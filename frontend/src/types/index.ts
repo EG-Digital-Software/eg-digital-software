@@ -167,9 +167,52 @@ export interface Customer {
   addresses?: Address[];
   directors?: Director[];
   itContacts?: ItContact[];
+  documents?: CustomerDocument[];
   customerProducts?: CustomerProduct[];
   invoices?: Invoice[];
   _count?: { customerProducts: number };
+}
+
+/**
+ * An editable region the admin places on a flat agreement PDF (most PDFs have no
+ * real form fields). Coordinates are fractions of the page (0–1, top-left origin)
+ * so they render the same at any zoom.
+ */
+export interface AgreementField {
+  id: string;
+  kind: 'text' | 'signature';
+  label: string;
+  /** 0-based page index. */
+  page: number;
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
+/** An agreement/contract file uploaded against a customer. */
+export interface CustomerDocument {
+  id: string;
+  customerId: string;
+  fileName: string;
+  url: string;
+  size: number;
+  contentType?: string | null;
+  /**
+   * Lifecycle: AWAITING_CLIENT (client must fill + sign) → SUBMITTED (awaiting
+   * admin approval) → APPROVED. Legacy rows may still read PENDING, treated the
+   * same as AWAITING_CLIENT.
+   */
+  status?: 'AWAITING_CLIENT' | 'SUBMITTED' | 'APPROVED' | 'PENDING';
+  /** Editable regions the admin placed for the client to fill; null until set. */
+  fields?: AgreementField[] | null;
+  /** The client's filled + signed PDF; present once submitted. */
+  signedUrl?: string | null;
+  signedAt?: string | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  uploadedById?: string | null;
+  createdAt: string;
 }
 
 export interface Director {

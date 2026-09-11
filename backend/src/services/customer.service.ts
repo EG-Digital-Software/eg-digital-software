@@ -7,6 +7,8 @@ import {
 } from '@prisma/client';
 import argon2 from 'argon2';
 import { prisma } from '../config/prisma.js';
+import { storage } from './storage/index.js';
+import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
 import { encryptSecret, decryptSecret } from '../utils/secretBox.js';
@@ -132,6 +134,7 @@ export async function getCustomerByClientId(clientId: string) {
       addresses: true,
       directors: true,
       itContacts: true,
+      documents: { orderBy: { createdAt: 'desc' } },
       customerProducts: { include: { product: true, licence: true } },
       invoices: { include: { payments: true }, orderBy: { createdAt: 'desc' } },
     },
@@ -918,4 +921,141 @@ export async function deleteCustomer(clientId: string) {
 
   // Bare details for the audit log — the row itself is gone.
   return { id: existing.id, clientId: existing.clientId, companyName: existing.companyName };
+}
+
+// ─── Agreement Documents ──────────────────────────────────
+// Files uploaded against a customer (Agreement Document section). Stored raw so
+// the original downloads intact; no size cap is enforced (the route uses an
+// uncapped uploader). Admin-only, like every customer route.
+
+export async function addDocument(
+  clientId: string,
+  file: { originalname: string; buffer: Buffer; mimetype: string; size: number },
+  uploadedById?: string
+) {
+  const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');
+  const key = `customers/${customer.id}/documents/${Date.now()}-${safeName}`;
+  const url = await storage.save(key, file.buffer, file.mimetype);
+  return prisma.customerDocument.create({
+    data: {
+      customerId: customer.id,
+      fileName: file.originalname,
+      url,
+      size: file.size,
+      contentType: file.mimetype,
+      // The client fills + signs before the admin reviews.
+      status: 'AWAITING_CLIENT',
+      uploadedById,
+    },
+  });
+}
+
+/** Keep only well-formed editable-region definitions before persisting them. */
+function sanitizeFields(input: unknown): Prisma.InputJsonValue | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const clean = input
+    .filter((f): f is Record<string, unknown> => !!f && typeof f === 'object')
+    .map((f) => ({
+      id: String(f.id ?? ''),
+      kind: f.kind === 'signature' ? 'signature' : 'text',
+      label: typeof f.label === 'string' ? f.label.slice(0, 120) : '',
+      page: Number.isFinite(f.page) ? Number(f.page) : 0,
+      xPct: Number(f.xPct) || 0,
+      yPct: Number(f.yPct) || 0,
+      wPct: Number(f.wPct) || 0,
+      hPct: Number(f.hPct) || 0,
+    }))
+    .filter((f) => f.id && f.wPct > 0 && f.hPct > 0);
+  return clean;
+}
+
+export async function updateDocument(
+  clientId: string,
+  documentId: string,
+  changes: { fileName?: string; status?: string; fields?: unknown },
+  approvedById?: string
+) {
+  const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const doc = await prisma.customerDocument.findFirst({
+    where: { id: documentId, customerId: customer.id },
+  });
+  if (!doc) throw ApiError.notFound('Document not found');
+  const data: {
+    fileName?: string;
+    status?: string;
+    approvedAt?: Date | null;
+    approvedById?: string | null;
+    fields?: Prisma.InputJsonValue;
+  } = {};
+  if (changes.fileName && changes.fileName.trim()) data.fileName = changes.fileName.trim();
+  if (changes.fields !== undefined) {
+    const fields = sanitizeFields(changes.fields);
+    if (fields !== undefined) data.fields = fields;
+  }
+  if (changes.status === 'APPROVED') {
+    // Only a copy the client has actually submitted (or one already approved) can
+    // be approved — an admin can't approve a document still awaiting the client.
+    if (doc.status !== 'SUBMITTED' && doc.status !== 'APPROVED') {
+      throw ApiError.badRequest('Document must be submitted by the client before it can be approved');
+    }
+    data.status = 'APPROVED';
+    data.approvedAt = new Date();
+    data.approvedById = approvedById ?? null;
+  } else if (changes.status === 'SUBMITTED') {
+    // Revoke approval — send it back to the review queue.
+    data.status = 'SUBMITTED';
+    data.approvedAt = null;
+    data.approvedById = null;
+  }
+  return prisma.customerDocument.update({ where: { id: documentId }, data });
+}
+
+// ─── Client-side signing ──────────────────────────────────
+// A client fills the blank fields and signs a copy of the PDF in the portal, then
+// submits it here. The original blank template (`url`) is left untouched; the
+// signed copy lands in `signedUrl` and the document moves to SUBMITTED for admin
+// approval. Scoped by customerId — a client can only sign their own documents.
+
+export async function submitSignedDocument(
+  customerId: string,
+  documentId: string,
+  file: { originalname: string; buffer: Buffer; mimetype: string; size: number }
+) {
+  const doc = await prisma.customerDocument.findFirst({
+    where: { id: documentId, customerId },
+  });
+  if (!doc) throw ApiError.notFound('Document not found');
+  if (doc.contentType !== 'application/pdf') {
+    throw ApiError.badRequest('Only PDF agreements can be signed');
+  }
+  const safeName = (doc.fileName || 'agreement.pdf').replace(/[^\w.\-]+/g, '_');
+  const key = `customers/${customerId}/documents/signed/${Date.now()}-${safeName}`;
+  const signedUrl = await storage.save(key, file.buffer, 'application/pdf');
+  return prisma.customerDocument.update({
+    where: { id: documentId },
+    data: {
+      signedUrl,
+      signedAt: new Date(),
+      submittedAt: new Date(),
+      status: 'SUBMITTED',
+    },
+  });
+}
+
+export async function deleteDocument(clientId: string, documentId: string) {
+  const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const doc = await prisma.customerDocument.findFirst({
+    where: { id: documentId, customerId: customer.id },
+  });
+  if (!doc) throw ApiError.notFound('Document not found');
+  await prisma.customerDocument.delete({ where: { id: documentId } });
+  // Purge the blob too (best-effort) so removed agreements don't linger.
+  await storage
+    .remove(doc.url)
+    .catch((err) => logger.warn({ err, url: doc.url }, 'Failed to remove customer document from storage'));
+  return { id: documentId };
 }

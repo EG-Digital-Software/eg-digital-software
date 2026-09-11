@@ -10,6 +10,7 @@ npm-debug.log*
 coverage/
 uploads/*
 !uploads/.gitkeep
+backend/uploads/
 .vite/
 .turbo/
 .localdb/

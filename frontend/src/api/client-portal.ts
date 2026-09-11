@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { ApiEnvelope, Customer, Invoice, LicenceStatus, PageMeta } from '@/types';
+import type { ApiEnvelope, Customer, CustomerDocument, Invoice, LicenceStatus, PageMeta } from '@/types';
 
 export interface ClientDashboard {
   outstanding: { amount: number; count: number };
@@ -66,4 +66,12 @@ export const clientApi = {
     (await api.get<ApiEnvelope<AvailableProduct[]>>('/client/available-products')).data.data,
   addProduct: async (productId: string) =>
     (await api.post<ApiEnvelope<{ id: string }>>('/client/products', { productId })).data.data,
+  /** Submit a filled + signed copy of an agreement PDF for admin approval. */
+  signDocument: async (documentId: string, file: Blob, fileName: string) => {
+    const form = new FormData();
+    form.append('file', file, fileName);
+    return (
+      await api.post<ApiEnvelope<CustomerDocument>>(`/client/documents/${documentId}/sign`, form)
+    ).data.data;
+  },
 };

@@ -21,6 +21,9 @@ import {
   Eye,
   EyeOff,
   Copy,
+  FileText,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { customerApi, productApi, geoApi, abnApi } from '@/api/resources';
@@ -40,10 +43,10 @@ import {
   countryCodeByName,
   countryName,
 } from '@/lib/countries';
-import { BUSINESS_TYPES, businessTypeLabel, formatAbn, isValidAbn } from '@/lib/customer';
+import { BUSINESS_TYPES, businessTypeLabel, formatAbn, formatAcn, isValidAbn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { numericField, guardedField, titleCaseField, toTitleCase } from '@/lib/input';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, cn, mediaUrl } from '@/lib/utils';
 import type { Address } from '@/types';
 
 // ── Validation ─────────────────────────────────────────────
@@ -841,6 +844,11 @@ export default function CustomerFormPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
+  // Agreement Document uploads staged here until the customer is saved (on
+  // create the customer must exist first); existing files come off `existing`.
+  const [agreementFiles, setAgreementFiles] = useState<File[]>([]);
+  const agreementRef = useRef<HTMLInputElement>(null);
+
   const { data: products } = useQuery({
     queryKey: ['products', 'all'],
     queryFn: () => productApi.list({ pageSize: 100, status: 'ACTIVE' }),
@@ -1017,9 +1025,10 @@ export default function CustomerFormPage() {
       const set = (name: Parameters<typeof setValue>[0], value: string) =>
         setValue(name, value, { shouldDirty: true, shouldValidate: true });
 
-      // Normalise to the register's own record of the ABN.
+      // Normalise to the register's own record of the ABN/ACN — shown in the
+      // official ATO/ASIC groupings.
       if (found.abn) set('companyIdentifiers.abn', formatAbn(found.abn));
-      if (found.acn) set('companyIdentifiers.acn', found.acn);
+      if (found.acn) set('companyIdentifiers.acn', formatAcn(found.acn));
       // The ABR returns names in ALL CAPS — normalise to Title Case like the
       // rest of the form.
       if (found.entityName) set('companyName', toTitleCase(found.entityName));
@@ -1231,12 +1240,32 @@ export default function CustomerFormPage() {
       };
       return isEdit ? customerApi.update(clientId!, payload) : customerApi.create(payload);
     },
-    onSuccess: (customer) => {
+    onSuccess: async (customer) => {
+      const targetClientId = customer.clientId ?? clientId!;
+      // Upload any staged agreement documents now that the customer exists.
+      if (agreementFiles.length) {
+        try {
+          for (const f of agreementFiles) await customerApi.addDocument(targetClientId, f);
+          setAgreementFiles([]);
+        } catch (e) {
+          toast.error(apiErrorMessage(e));
+        }
+      }
       qc.invalidateQueries({ queryKey: ['customers'] });
       qc.invalidateQueries({ queryKey: ['customer', clientId] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       toast.success(isEdit ? 'Customer updated' : 'Customer created');
-      navigate(`/admin/customers/${customer.clientId ?? clientId}`);
+      navigate(`/admin/customers/${targetClientId}`);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  // Delete an already-uploaded document (edit mode only) — takes effect at once.
+  const deleteDoc = useMutation({
+    mutationFn: (docId: string) => customerApi.deleteDocument(clientId!, docId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer', clientId] });
+      toast.success('Document deleted');
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
@@ -1925,6 +1954,63 @@ export default function CustomerFormPage() {
             </div>
           </Section>
         )}
+
+        {/* ── Agreement Document ── */}
+        <Section
+          icon={FileText}
+          title="Agreement Document"
+          description="Upload signed agreements or contracts for this customer — any file type, no size limit."
+        >
+          <div className="space-y-3">
+            {/* Already-uploaded documents (edit) — download or delete instantly. */}
+            {existing?.documents?.map((d) => (
+              <div key={d.id} className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm">
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate" title={d.fileName}>{d.fileName}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {d.size >= 1024 * 1024 ? `${(d.size / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(d.size / 1024))} KB`}
+                </span>
+                <a href={mediaUrl(d.url) ?? ''} download={d.fileName} target="_blank" rel="noreferrer" className="shrink-0 text-muted-foreground hover:text-primary" title="Download">
+                  <Download className="h-4 w-4" />
+                </a>
+                <button type="button" onClick={() => deleteDoc.mutate(d.id)} className="shrink-0 text-muted-foreground hover:text-destructive" title="Delete">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+
+            {/* Files staged in this session — uploaded when the customer is saved. */}
+            {agreementFiles.map((f, i) => (
+              <div key={`${f.name}-${i}`} className="flex items-center gap-2.5 rounded-lg border border-dashed border-border bg-secondary/30 px-3 py-2 text-sm">
+                <Upload className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate" title={f.name}>{f.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">pending{isEdit ? ' — saves on “Save changes”' : ''}</span>
+                <button type="button" onClick={() => setAgreementFiles((prev) => prev.filter((_, j) => j !== i))} className="shrink-0 text-muted-foreground hover:text-destructive" title="Remove">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+
+            {!existing?.documents?.length && agreementFiles.length === 0 && (
+              <p className="py-2 text-sm text-muted-foreground">No documents uploaded yet.</p>
+            )}
+
+            <input
+              ref={agreementRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const picked = Array.from(e.target.files ?? []);
+                if (picked.length) setAgreementFiles((prev) => [...prev, ...picked]);
+                e.target.value = '';
+              }}
+            />
+            <Button type="button" variant="outline" onClick={() => agreementRef.current?.click()}>
+              <Upload className="h-4 w-4" /> Upload document
+            </Button>
+          </div>
+        </Section>
 
           </div>
           {/* ── Customer Credential — pinned top-right ── */}

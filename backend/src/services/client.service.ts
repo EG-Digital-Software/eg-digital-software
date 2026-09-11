@@ -5,6 +5,7 @@ import type { PageQuery } from '../utils/http.js';
 import { computeLicenceStatus, daysRemaining } from '../utils/licence.js';
 import { formatLicenceKey } from '../utils/sequence.js';
 import { ensurePayable } from './invoice.service.js';
+import { submitSignedDocument as submitSignedDocumentForCustomer } from './customer.service.js';
 
 /** Resolve the Customer a signed-in client user is linked to. */
 export async function resolveCustomerId(userId: string): Promise<string> {
@@ -16,10 +17,27 @@ export async function resolveCustomerId(userId: string): Promise<string> {
 export async function getProfile(customerId: string) {
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
-    include: { addresses: true, directors: true },
+    include: {
+      addresses: true,
+      directors: true,
+      documents: { orderBy: { createdAt: 'desc' } },
+    },
   });
   if (!customer) throw ApiError.notFound('Customer not found');
   return customer;
+}
+
+/**
+ * Submit a filled + signed copy of an agreement PDF. Delegates to the shared
+ * customer-document logic, scoped to the client's own customer so a client can
+ * only sign their own documents.
+ */
+export function signDocument(
+  customerId: string,
+  documentId: string,
+  file: { originalname: string; buffer: Buffer; mimetype: string; size: number }
+) {
+  return submitSignedDocumentForCustomer(customerId, documentId, file);
 }
 
 /**

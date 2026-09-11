@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/customer.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
@@ -17,6 +18,10 @@ import {
 const router = Router();
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
 
+// Agreement documents: no size cap — the admin uploads contracts/agreements of
+// any size or type, kept raw for original-quality download.
+const docUpload = multer({ storage: multer.memoryStorage() });
+
 // Microsoft Planner-style task board for a customer (full CRUD for admins).
 router.use('/:clientId/tasks', buildTaskRouter());
 
@@ -25,6 +30,11 @@ router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
 router.get('/next-client-id', ctrl.nextClientId);
 router.get('/:clientId', ctrl.getOne);
 // Reveal the customer's portal password (admin-only, like every route here).
+// Agreement Document uploads (admin-only, like every route here).
+router.post('/:clientId/documents', docUpload.single('file'), ctrl.uploadDocument);
+router.patch('/:clientId/documents/:documentId', ctrl.updateDocument);
+router.delete('/:clientId/documents/:documentId', ctrl.deleteDocument);
+
 router.post('/:clientId/products', validate({ body: assignedProductSchema }), ctrl.assignProduct);
 router.patch('/:clientId/products/:customerProductId', validate({ body: updateAssignedProductSchema }), ctrl.updateProduct);
 router.delete('/:clientId/products/:customerProductId', ctrl.removeProduct);

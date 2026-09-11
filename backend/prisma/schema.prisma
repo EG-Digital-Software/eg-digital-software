@@ -304,6 +304,7 @@ model Customer {
   users            ClientUser[]
   directors        Director[]
   itContacts       CustomerITContact[]
+  documents        CustomerDocument[]
   taskBuckets      TaskBucket[]
   tasks            Task[]
   taskLabels       TaskLabel[]
@@ -313,6 +314,39 @@ model Customer {
   @@index([businessType])
   @@index([companyName])
   @@index([createdAt])
+}
+
+/// An agreement / contract file uploaded against a customer (Agreement Document
+/// section of the customer form). Stored raw — no compression, no size cap — so
+/// the original downloads intact.
+model CustomerDocument {
+  id           String   @id @default(uuid())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId   String
+  fileName     String
+  url          String
+  size         Int
+  contentType  String?
+  /// Lifecycle: AWAITING_CLIENT (admin uploaded a fillable PDF, waiting for the
+  /// client to fill + sign) → SUBMITTED (client returned the signed copy, awaiting
+  /// admin approval) → APPROVED (admin signed off, client can download the final
+  /// PDF). Legacy rows may still read PENDING; the UI treats that as AWAITING_CLIENT.
+  status       String   @default("AWAITING_CLIENT")
+  /// Editable regions the admin marks on the (usually flat) PDF for the client to
+  /// fill: an array of { id, kind: 'text'|'signature', label, page, xPct, yPct,
+  /// wPct, hPct } with coordinates as page fractions (top-left origin).
+  fields       Json?
+  /// The client's filled + signed + flattened PDF. `url` stays the blank template;
+  /// this holds the returned copy once the client submits.
+  signedUrl    String?
+  signedAt     DateTime?
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([customerId])
 }
 
 /// A company director/C-suite contact. A customer can list several — every one

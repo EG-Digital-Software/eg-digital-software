@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -20,12 +20,17 @@ import {
   Server,
   Plus,
   Trash2,
+  FileText,
+  Upload,
+  Download,
+  SquarePen,
 } from 'lucide-react';
 import { customerApi, productApi } from '@/api/resources';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
-import type { Address, Customer, CustomerCredential, CustomerProduct } from '@/types';
+import type { Address, AgreementField, Customer, CustomerCredential, CustomerDocument, CustomerProduct } from '@/types';
+import AgreementFieldsDialog from './AgreementFieldsDialog';
 import { Input, Select } from '@/components/ui/input';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,8 +43,8 @@ import { LoadingBlock, ErrorState, EmptyState, Spinner } from '@/components/shar
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
-import { formatCurrency, formatDate, initials, cn } from '@/lib/utils';
-import { businessTypesLabel, customerName, formatAbn } from '@/lib/customer';
+import { formatCurrency, formatDate, initials, cn, mediaUrl } from '@/lib/utils';
+import { businessTypesLabel, customerName, formatAbn, formatAcn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName, countryName } from '@/lib/countries';
@@ -428,6 +433,9 @@ export default function CustomerDetailPage() {
   const { data: c, isLoading, isError, refetch } = useQuery({
     queryKey: ['customer', clientId],
     queryFn: () => customerApi.get(clientId!),
+    // Keep the Agreement status in step with the client without a manual refresh.
+    refetchInterval: 8000,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading) return <LoadingBlock label="Loading customer…" />;
@@ -547,6 +555,9 @@ export default function CustomerDetailPage() {
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="agreement">
+            Agreement{c.documents && c.documents.length > 0 ? ` (${c.documents.length})` : ''}
+          </TabsTrigger>
           <TabsTrigger value="products">Products & Licences</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="credential">Credential</TabsTrigger>
@@ -579,7 +590,7 @@ export default function CustomerDetailPage() {
                   const val = ids[f.key];
                   if (!val) return null;
                   return (
-                    <Detail key={f.key} label={f.label} value={f.key === 'abn' ? formatAbn(val) : val} />
+                    <Detail key={f.key} label={f.label} value={f.key === 'abn' ? formatAbn(val) : f.key === 'acn' ? formatAcn(val) : val} />
                   );
                 });
               })()}
@@ -727,6 +738,10 @@ export default function CustomerDetailPage() {
           </div>
         </TabsContent>
 
+        <TabsContent value="agreement">
+          <AgreementTab customer={c} />
+        </TabsContent>
+
         <TabsContent value="products">
           <ProductsTab customer={c} />
         </TabsContent>
@@ -819,6 +834,160 @@ function daysLeftFromToday(expiryDate?: string | null): string {
   if (Number.isNaN(ms)) return '—';
   const days = Math.ceil(ms / 86_400_000);
   return days > 0 ? String(days) : 'Expired';
+}
+
+function docSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/**
+ * Agreement tab — the customer's uploaded agreement/contract files. The admin
+ * can upload more, rename, approve/revoke and delete each; downloads are the
+ * original file at full quality.
+ */
+function AgreementTab({ customer }: { customer: Customer }) {
+  const qc = useQueryClient();
+  const clientId = customer.clientId;
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [fieldsDoc, setFieldsDoc] = useState<CustomerDocument | null>(null);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ['customer', clientId] });
+  const docs = customer.documents ?? [];
+  const isPdf = (d: CustomerDocument) =>
+    d.contentType === 'application/pdf' || /\.pdf$/i.test(d.fileName);
+
+  const upload = useMutation({
+    mutationFn: (file: File) => customerApi.addDocument(clientId, file),
+    onSuccess: (doc) => {
+      refresh();
+      toast.success('Document uploaded');
+      // Flat PDFs need fields marked before the client can fill them — open the
+      // placement tool straight away, as the admin requested.
+      if (isPdf(doc)) setFieldsDoc(doc);
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const saveFields = useMutation({
+    mutationFn: (v: { id: string; fields: AgreementField[] }) =>
+      customerApi.updateDocument(clientId, v.id, { fields: v.fields }),
+    onSuccess: () => { refresh(); setFieldsDoc(null); toast.success('Fields saved'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const rename = useMutation({
+    mutationFn: (v: { id: string; fileName: string }) => customerApi.updateDocument(clientId, v.id, { fileName: v.fileName }),
+    onSuccess: () => { refresh(); toast.success('Document renamed'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const setStatus = useMutation({
+    mutationFn: (v: { id: string; status: 'SUBMITTED' | 'APPROVED' }) => customerApi.updateDocument(clientId, v.id, { status: v.status }),
+    onSuccess: (_d, v) => { refresh(); toast.success(v.status === 'APPROVED' ? 'Document approved' : 'Approval revoked'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => customerApi.deleteDocument(clientId, id),
+    onSuccess: () => { refresh(); toast.success('Document deleted'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  return (
+    <>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardTitle>Agreement Documents</CardTitle>
+        <input
+          ref={uploadRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ''; }}
+        />
+        <Button type="button" size="sm" onClick={() => uploadRef.current?.click()} disabled={upload.isPending}>
+          <Upload className="h-4 w-4" /> {upload.isPending ? 'Uploading…' : 'Upload'}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {docs.length === 0 ? (
+          <EmptyState icon={<FileText className="h-6 w-6" />} title="No agreement documents" description="Upload a signed agreement or contract for this customer." />
+        ) : (
+          <div className="space-y-2">
+            {docs.map((d: CustomerDocument) => {
+              const approved = d.status === 'APPROVED';
+              const submitted = d.status === 'SUBMITTED';
+              const downloadUrl = mediaUrl(d.signedUrl || d.url) ?? '';
+              return (
+                <div key={d.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3.5 py-3 text-sm">
+                  <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  {renamingId === d.id ? (
+                    <div className="flex flex-1 items-center gap-1.5">
+                      <Input
+                        value={renameValue}
+                        autoFocus
+                        className="h-8"
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { const v = renameValue.trim(); if (v) rename.mutate({ id: d.id, fileName: v }); setRenamingId(null); }
+                          if (e.key === 'Escape') setRenamingId(null);
+                        }}
+                      />
+                      <Button type="button" size="sm" onClick={() => { const v = renameValue.trim(); if (v) rename.mutate({ id: d.id, fileName: v }); setRenamingId(null); }}>Save</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setRenamingId(null)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="flex-1 truncate text-sm font-medium" title={d.fileName}>{d.fileName}</span>
+                      <Badge variant={approved ? 'success' : submitted ? 'secondary' : 'outline'} className="shrink-0">
+                        {approved ? 'Approved' : submitted ? 'Submitted' : 'Awaiting client'}
+                      </Badge>
+                      {isPdf(d) && !approved && (d.fields?.length ?? 0) === 0 && (
+                        <Badge variant="outline" className="shrink-0 border-amber-500 text-amber-600">Needs fields</Badge>
+                      )}
+                      {submitted && (
+                        <Button type="button" size="sm" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'APPROVED' })}>
+                          Approve
+                        </Button>
+                      )}
+                      {approved && (
+                        <Button type="button" size="sm" variant="outline" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'SUBMITTED' })}>
+                          Revoke
+                        </Button>
+                      )}
+                      <span className="w-16 shrink-0 text-right text-sm tabular-nums text-muted-foreground">{docSize(d.size)}</span>
+                      <a href={downloadUrl} download={d.fileName} target="_blank" rel="noreferrer" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title={d.signedUrl ? 'Download signed copy' : 'Download original'}>
+                        <Download className="h-[18px] w-[18px]" />
+                      </a>
+                      {isPdf(d) && !approved && (
+                        <button type="button" onClick={() => setFieldsDoc(d)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title="Mark fields to fill">
+                          <SquarePen className="h-[18px] w-[18px]" />
+                        </button>
+                      )}
+                      <button type="button" onClick={() => { setRenamingId(d.id); setRenameValue(d.fileName); }} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title="Rename">
+                        <Pencil className="h-[18px] w-[18px]" />
+                      </button>
+                      <button type="button" onClick={() => remove.mutate(d.id)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-destructive" title="Delete">
+                        <Trash2 className="h-[18px] w-[18px]" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+    {fieldsDoc && (
+      <AgreementFieldsDialog
+        document={fieldsDoc}
+        open={!!fieldsDoc}
+        onOpenChange={(o) => { if (!o) setFieldsDoc(null); }}
+        saving={saveFields.isPending}
+        onSave={async (fields: AgreementField[]) => { await saveFields.mutateAsync({ id: fieldsDoc.id, fields }); }}
+      />
+    )}
+    </>
+  );
 }
 
 /** Products & Licences tab — admin assigns and removes products here. */

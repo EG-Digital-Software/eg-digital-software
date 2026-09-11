@@ -113,6 +113,12 @@ export default function ClientDetailsPage() {
       <DetailCard icon={Receipt} title="Invoicing Details">
         <Row label="Accounts Person Name" value={c.billingContactPerson} />
         <Row label="Accounts Email" value={c.billingEmail} />
+        <Row label="Accounts Mobile" value={c.billingContactNumber} />
+        <Row label="Credit Score" value={c.creditScore != null ? String(c.creditScore) : null} />
+        <Row
+          label="Account Status"
+          value={c.accountStatus ? c.accountStatus.charAt(0) + c.accountStatus.slice(1).toLowerCase() : null}
+        />
       </DetailCard>
 
       <DetailCard icon={MapPin} title="Addresses">

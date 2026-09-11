@@ -53,3 +53,9 @@ export const addProduct = asyncHandler(async (req: Request, res: Response) => {
     201
   );
 });
+
+export const signDocument = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw ApiError.badRequest('No signed document was uploaded');
+  const doc = await clientService.signDocument(await cid(req), req.params.documentId, req.file);
+  return ok(res, doc, 'Agreement submitted for approval');
+});

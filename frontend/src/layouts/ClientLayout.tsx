@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Receipt, KeyRound, LogOut, User, IdCard, ListChecks } from 'lucide-react';
+import { LayoutDashboard, Receipt, KeyRound, LogOut, User, IdCard, ListChecks, FileText } from 'lucide-react';
 import { useAuth } from '@/store/auth';
 import { useLogout } from '@/hooks/useSession';
 import { initials, cn, mediaUrl } from '@/lib/utils';
@@ -21,6 +21,7 @@ const NAV = [
   { to: '/client/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/client/licences', label: 'Products', icon: KeyRound },
   { to: '/client/details', label: 'Company Details', icon: IdCard },
+  { to: '/client/agreement', label: 'Agreement', icon: FileText },
 ];
 
 /** Full-width shell — content spans the whole screen with a small, even gutter. */

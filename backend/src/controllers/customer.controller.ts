@@ -3,6 +3,7 @@ import { ActivityAction } from '@prisma/client';
 import * as customerService from '../services/customer.service.js';
 import { logActivity } from '../services/activity.service.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
+import { ApiError } from '../utils/ApiError.js';
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const page = parsePagination(req.query);
@@ -25,6 +26,33 @@ export const nextClientId = asyncHandler(async (_req: Request, res: Response) =>
 export const getOne = asyncHandler(async (req: Request, res: Response) => {
   const customer = await customerService.getCustomerByClientId(req.params.clientId);
   return ok(res, customer);
+});
+
+// ─── Agreement Documents ──────────────────────────────────
+
+export const uploadDocument = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw ApiError.badRequest('No file uploaded');
+  const doc = await customerService.addDocument(req.params.clientId, req.file, req.user?.sub);
+  return ok(res, doc, 'Document uploaded', 201);
+});
+
+export const updateDocument = asyncHandler(async (req: Request, res: Response) => {
+  const doc = await customerService.updateDocument(
+    req.params.clientId,
+    req.params.documentId,
+    {
+      fileName: typeof req.body.fileName === 'string' ? req.body.fileName : undefined,
+      status: typeof req.body.status === 'string' ? req.body.status : undefined,
+      fields: req.body.fields,
+    },
+    req.user?.sub
+  );
+  return ok(res, doc, 'Document updated');
+});
+
+export const deleteDocument = asyncHandler(async (req: Request, res: Response) => {
+  const deleted = await customerService.deleteDocument(req.params.clientId, req.params.documentId);
+  return ok(res, deleted, 'Document deleted');
 });
 
 export const assignProduct = asyncHandler(async (req: Request, res: Response) => {
