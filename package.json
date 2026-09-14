@@ -10,6 +10,7 @@
     "dev:frontend": "npm run dev --workspace frontend",
     "build": "npm run build --workspace backend && npm run build --workspace frontend",
     "seed": "npm run seed --workspace backend",
-    "migrate": "npm run prisma:migrate --workspace backend"
+    "migrate": "npm run prisma:migrate --workspace backend",
+    "prisma:studio": "npm run prisma:studio --workspace backend"
   }
 }
