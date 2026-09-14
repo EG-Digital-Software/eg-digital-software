@@ -155,9 +155,12 @@ export function TaskDialog({
   const me = useAuth((s) => s.user);
   const meId = me?.id;
   const meName = [me?.firstName, me?.lastName].filter(Boolean).join(' ') || me?.email || 'You';
-  // Only admins and the customer submit/decide approvals; team members (and
-  // suppliers) see the tab read-only — just the outcome. Mirrors the backend gate.
+  // Only admins and the customer DECIDE approvals; suppliers/clients-without-rights
+  // see the tab read-only — just the outcome. Mirrors the backend gate.
   const canApprove = me?.role === 'SUPER_ADMIN' || me?.role === 'CLIENT';
+  // Admins and employees (the team doing the work) can RAISE approval requests;
+  // the customer only reviews & decides. Mirrors the backend gate.
+  const canSubmitApproval = me?.role === 'SUPER_ADMIN' || me?.role === 'EMPLOYEE';
   // Deleting an approval request (at any status) is admin-only.
   const isAdmin = me?.role === 'SUPER_ADMIN';
 
@@ -755,6 +758,7 @@ export function TaskDialog({
               <ApprovalPanel
                 approvals={liveTask?.approvals ?? []}
                 canApprove={canApprove}
+                canSubmit={canSubmitApproval}
                 isAdmin={isAdmin}
                 subject={approvalSubject}
                 message={approvalMessage}
@@ -1423,6 +1427,7 @@ function ApprovalStatusBadge({ status }: { status: TaskApprovalStatus }) {
 function ApprovalPanel({
   approvals,
   canApprove,
+  canSubmit,
   isAdmin,
   subject,
   message,
@@ -1442,6 +1447,7 @@ function ApprovalPanel({
 }: {
   approvals: TaskApproval[];
   canApprove: boolean;
+  canSubmit: boolean;
   isAdmin: boolean;
   subject: string;
   message: string;
@@ -1462,8 +1468,8 @@ function ApprovalPanel({
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
   return (
     <div className="mt-5 space-y-5">
-      {/* Submit a request — admins only. The customer just reviews & decides. */}
-      {isAdmin && (
+      {/* Submit a request — admins and employees. The customer just reviews & decides. */}
+      {canSubmit && (
         <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
           <h4 className="text-sm font-semibold">Request approval</h4>
           <Input value={subject} placeholder="Subject" maxLength={200} onChange={(e) => onSubjectChange(e.target.value)} />

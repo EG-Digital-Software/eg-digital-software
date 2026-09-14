@@ -5,9 +5,11 @@ import * as ctrl from '../controllers/portal.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
-import { taskProgressSchema, updateTaskSchema, createAppointmentSchema } from '../validators/task.validator.js';
+import { taskProgressSchema, updateTaskSchema, createAppointmentSchema, submitApprovalSchema } from '../validators/task.validator.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+// Approval attachments carry no size/count cap — mirrors the admin task board.
+const uploadApproval = multer({ storage: multer.memoryStorage() });
 
 const router = Router();
 router.use(authenticate, authorize(Role.EMPLOYEE));
@@ -34,5 +36,7 @@ router.patch('/tasks/tasks/:taskId/notes/:noteId', ctrl.employeeEditNote);
 router.delete('/tasks/tasks/:taskId/notes/:noteId', ctrl.employeeDeleteNote);
 router.post('/tasks/tasks/:taskId/attachments', upload.single('file'), ctrl.employeeAddAttachment);
 router.delete('/tasks/tasks/:taskId/attachments/:attachmentId', ctrl.employeeDeleteAttachment);
+// Raise an approval request (subject/message + optional files). Deciding stays admin/customer-only.
+router.post('/tasks/tasks/:taskId/approvals', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.employeeSubmitApproval);
 
 export default router;

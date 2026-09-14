@@ -144,3 +144,24 @@ export const employeeDeleteAttachment = asyncHandler(async (req: Request, res: R
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
   return ok(res, await taskService.deleteAttachment(customerId, req.params.taskId, req.params.attachmentId), 'Attachment deleted');
 });
+
+// Employees raise approval requests on tasks they're assigned to; the admin or
+// customer decides them (deciding/re-opening/deleting stay off the employee API).
+export const employeeSubmitApproval = asyncHandler(async (req: Request, res: Response) => {
+  const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
+  const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+  const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : undefined;
+  // A file-only request is fine; only reject a wholly empty submission.
+  if (!subject && !message && !(files && files.length)) {
+    throw ApiError.badRequest('Add a subject, a message, or a file');
+  }
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  const approval = await taskService.createApproval(
+    customerId,
+    req.params.taskId,
+    await employeeAuthor(req),
+    { subject, message },
+    files
+  );
+  return ok(res, approval, 'Approval requested', 201);
+});
