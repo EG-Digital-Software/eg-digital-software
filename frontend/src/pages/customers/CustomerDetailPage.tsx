@@ -1173,7 +1173,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
           <EmptyState title="No products assigned" description="Use “Assign Product” to add one." />
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
-            <Table className="min-w-[960px]">
+            <Table className="min-w-[1040px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="whitespace-nowrap text-center">Product</TableHead>
@@ -1182,6 +1182,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
                   <TableHead className="whitespace-nowrap text-center">Expiry</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Days Left</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Agreed Price</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Net Amount</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Contract</TableHead>
                   <TableHead className="whitespace-nowrap text-center">GST</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Status</TableHead>
@@ -1200,6 +1201,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
                     <TableCell className="whitespace-nowrap text-center text-sm">{formatDate(cp.expiryDate)}</TableCell>
                     <TableCell className="text-center text-sm tabular-nums">{daysLeftFromToday(cp.expiryDate)}</TableCell>
                     <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(cp.price)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency((Number(cp.price) || 0) * (cp.quantity || 0))}</TableCell>
                     <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(cp.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
                     <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(cp.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
                     <TableCell className="whitespace-nowrap text-center">
