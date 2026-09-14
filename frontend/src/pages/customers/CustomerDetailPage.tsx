@@ -1173,7 +1173,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
           <EmptyState title="No products assigned" description="Use “Assign Product” to add one." />
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
-            <Table className="min-w-[820px]">
+            <Table className="min-w-[960px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="whitespace-nowrap text-center">Product</TableHead>
@@ -1182,6 +1182,8 @@ function ProductsTab({ customer }: { customer: Customer }) {
                   <TableHead className="whitespace-nowrap text-center">Expiry</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Days Left</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Agreed Price</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Contract</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">GST</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Status</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Action</TableHead>
                 </TableRow>
@@ -1198,6 +1200,8 @@ function ProductsTab({ customer }: { customer: Customer }) {
                     <TableCell className="whitespace-nowrap text-center text-sm">{formatDate(cp.expiryDate)}</TableCell>
                     <TableCell className="text-center text-sm tabular-nums">{daysLeftFromToday(cp.expiryDate)}</TableCell>
                     <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(cp.price)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(cp.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
+                    <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(cp.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
                     <TableCell className="whitespace-nowrap text-center">
                       {cp.approvalStatus === 'PENDING' ? (
                         /* Client added this product — approve it, then the status
