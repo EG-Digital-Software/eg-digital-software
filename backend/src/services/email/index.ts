@@ -77,8 +77,14 @@ class SmtpProvider implements EmailProvider {
       icalEvent: msg.icalEvent
         ? { method: msg.icalEvent.method, filename: msg.icalEvent.filename ?? 'invite.ics', content: msg.icalEvent.content }
         : undefined,
-      // Bounce/return-path aligns with the authenticated sender for SPF.
-      envelope: { from: env.SMTP_USER ?? env.EMAIL_FROM, to: msg.to },
+      // Bounce/return-path is EMAIL_FROM, not SMTP_USER: DMARC aligns the
+      // return-path domain against the From: domain, and with a relay (Brevo,
+      // SES, Mailgun) the SMTP login is the provider's own address — using it
+      // here breaks alignment and lands the mail in spam. With a mailbox relay
+      // (M365/Google) the two are the same address anyway.
+      // Naming an envelope replaces the recipient list, so `cc` must be
+      // repeated here or the CC'd address is never actually delivered to.
+      envelope: { from: env.EMAIL_FROM, to: [msg.to, msg.cc].filter(Boolean).join(',') },
     });
   }
 }

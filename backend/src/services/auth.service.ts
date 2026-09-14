@@ -14,6 +14,7 @@ import { logger } from '../config/logger.js';
 import { storage } from './storage/index.js';
 import { encryptSecret } from '../utils/secretBox.js';
 import { notifySuperAdmins } from './notification.service.js';
+import { sendPasswordReset } from './email/templates.js';
 import * as accounts from './accounts.js';
 import type { Account } from './accounts.js';
 
@@ -299,6 +300,8 @@ export async function changePassword(role: Role, userId: string, current: string
   };
 }
 
+const RESET_TOKEN_TTL_MINUTES = 60;
+
 /**
  * Forgot-password: always returns success (no user enumeration). When `portal`
  * is supplied the search is scoped to that portal; otherwise it spans all
@@ -318,13 +321,13 @@ export async function forgotPassword(email: string, portal?: Role) {
       tokenHash,
       userId: account.id,
       userType: account.role,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000),
     },
   });
   if (env.NODE_ENV !== 'production') {
     logger.info({ email, role: account.role, resetToken: rawToken }, '🔑 Password reset token (dev only)');
   }
-  // TODO: emailService.sendPasswordReset(account.email, rawToken)
+  sendPasswordReset(account, rawToken, RESET_TOKEN_TTL_MINUTES);
 }
 
 export async function resetPassword(rawToken: string, newPassword: string) {

@@ -3,11 +3,13 @@ import type { Role } from '@prisma/client';
 import { sendEmail, type EmailMessage } from './index.js';
 
 const ROLE_SLUG: Record<string, string> = {
+  SUPER_ADMIN: 'admin',
   CLIENT: 'client',
   SUPPLIER: 'supplier',
   EMPLOYEE: 'employee',
 };
 const ROLE_LABEL: Record<string, string> = {
+  SUPER_ADMIN: 'Admin',
   CLIENT: 'Client',
   SUPPLIER: 'Supplier',
   EMPLOYEE: 'Employee',
@@ -48,6 +50,30 @@ export function sendAccountApproved(user: { email: string; firstName: string; ro
       'Your account is approved 🎉',
       `Hi ${user.firstName},<br/><br/>Great news — your <strong>${label}</strong> account with EG Digital has been approved. You can now sign in and access your portal.`,
       { label: `Sign in to your ${label} portal`, url: loginUrl }
+    ),
+  });
+}
+
+/**
+ * Password reset link. The token is single-use and expires in an hour, so the
+ * mail is sent immediately (fire-and-forget) — `forgotPassword` must not reveal
+ * whether the address exists, so a delivery failure is logged, never surfaced.
+ */
+export function sendPasswordReset(
+  user: { email: string; firstName: string; role: Role },
+  rawToken: string,
+  expiresInMinutes: number
+) {
+  const slug = ROLE_SLUG[user.role] ?? 'client';
+  const resetUrl = `${env.APP_URL.replace(/\/$/, '')}/${slug}/reset-password?token=${encodeURIComponent(rawToken)}`;
+  sendEmail({
+    to: user.email,
+    subject: 'Reset your EG Digital password',
+    text: `Hi ${user.firstName}, reset your EG Digital password here: ${resetUrl} — the link expires in ${expiresInMinutes} minutes and can only be used once. If you did not request this, ignore this email; your password stays unchanged.`,
+    html: shell(
+      'Reset your password',
+      `Hi ${user.firstName},<br/><br/>We received a request to reset the password for your EG Digital account. Use the button below to choose a new one.<br/><br/>This link expires in <strong>${expiresInMinutes} minutes</strong> and can only be used once.<br/><br/><span style="color:#94a3b8">If you did not request this, you can safely ignore this email — your password will stay unchanged.</span>`,
+      { label: 'Choose a new password', url: resetUrl }
     ),
   });
 }

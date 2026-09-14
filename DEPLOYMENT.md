@@ -214,34 +214,90 @@ Domain badalne ke baad `CORS_ORIGIN`, `APP_URL`, `PAYMENT_PUBLIC_BASE_URL` aur `
 
 ---
 
-## 8. Email bhejna (invoice) — inbox mein aaye, spam mein nahi
+## 8. Email bhejna — inbox mein aaye, spam mein nahi
 
-"Send to Client" button invoice ko client ke email par bhejta hai. Real send ke liye:
+Ek hi SMTP transport se saari transactional mail jaati hai: **password reset**,
+invoice ("Send to Client"), aur account approve/reject. Yaani `EMAIL_PROVIDER=smtp`
+karte hi teeno live ho jaate hain — pehle `console` par test kar lein.
 
-**a) App Service env variables** (section 3 jaisa):
+**a) Do env variables, ek hi domain — dono set karna zaroori hai:**
+
+| | Value | Env var | Kis liye |
+|---|--------|---------|----------|
+| Web app | `https://teamegdigital.com` | `APP_URL` | Email ke andar ka **link** isse banta hai |
+| Sender | `no-reply@teamegdigital.com` | `EMAIL_FROM` | Mail **kahan se** jaati hai — SPF/DKIM isi par |
+
+Dono `teamegdigital.com` par rakhein, kyunki DNS usi ka aapke paas hai. SPF/DKIM
+hamesha **sender ke domain** par lagta hai — yaani `EMAIL_FROM` ka domain. Agar
+kabhi kisi aur domain se bhejna ho to records wahan lagane honge.
+
+> ⚠️ `APP_URL` set nahi kiya to default `http://localhost:5173` lag jaata hai aur
+> **har email ka link toot jaata hai** — reset bhi, invoice bhi. Production me
+> ise `https://teamegdigital.com` karna mat bhooliye.
+
+**b) Mailbox ki zaroorat nahi hai**
+
+Mail *bhejne* ke liye mailbox nahi chahiye — mailbox *receive* karne ke liye hota
+hai. `no-reply@teamegdigital.com` se mail ja sakti hai bina koi inbox bane,
+kyunki us address par koi reply nahi aani. Chahiye sirf **domain ka DNS control**.
+
+Isliye hum **Brevo** (transactional email relay) use karte hain, kisi mailbox ka
+SMTP nahi. Free tier: 300 mail/din.
+
+**Setup:**
+1. Brevo account banayein → account dropdown → **Settings → Senders, Domains, IPs → Domains** → `teamegdigital.com` add karein.
+2. Brevo jo TXT records dega (Brevo code + DKIM, aur DMARC) wo domain ke DNS par add karein → **Authenticate**. Verify hone tak asli users ko mail nahi jayegi.
+3. **SMTP & API → SMTP** tab se **SMTP key** banayein — API key nahi, dono alag hain.
+
+**c) App Service env variables** (section 3 jaisa):
 ```
+APP_URL=https://teamegdigital.com      # web domain — email links isse bante hain
 EMAIL_PROVIDER=smtp
-EMAIL_FROM=admin@egdigital.com.au      # jis address se bhejna hai
+EMAIL_FROM=no-reply@teamegdigital.com  # sending identity — mailbox nahi, sirf From:
 EMAIL_FROM_NAME=EG Digital
-SMTP_HOST=smtp.office365.com           # M365; Google ke liye smtp.gmail.com
+EMAIL_REPLY_TO=                        # reply kahan aaye — no-reply se bhej rahe hain to asli inbox dein
+SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
 SMTP_SECURE=false                      # 587=STARTTLS(false), 465=SSL(true)
-SMTP_USER=admin@egdigital.com.au       # aksar EMAIL_FROM jaisa
-SMTP_PASS=<app-password>               # mailbox ka app password (normal password nahi)
+SMTP_USER=<brevo smtp login>           # jaise 9a1b2c@smtp-brevo.com — EMAIL_FROM se alag hota hai
+SMTP_PASS=<brevo smtp key>             # account password NAHI
 ```
 > `EMAIL_PROVIDER=smtp` hai par `SMTP_HOST` blank hai to app crash nahi hoga — console par log karega.
 
-**b) Spam/junk se bachne ke liye DNS records** (domain `egdigital.com.au` ke DNS par — **yeh sabse zaroori hai**, warna mail junk mein jaayega):
+> ⚠️ `EMAIL_FROM` ka domain **wahi** ho jo Brevo par verify kiya hai. Brevo
+> un-verified domain se bhejne se mana kar deta hai — mail chupchaap fail hogi
+> aur sirf server log me dikhegi (`Email send failed`).
 
-| Record | Type | Value (example) |
-|--------|------|-----------------|
-| SPF | TXT `@` | `v=spf1 include:spf.protection.outlook.com -all` (M365) ya `include:_spf.google.com` (Google) |
-| DKIM | CNAME | Mail provider ke admin panel se DKIM enable karein, wahan diye 2 CNAME add karein |
-| DMARC | TXT `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:dmarc@egdigital.com.au` |
+**Doosre providers (agar Brevo chhodna ho):** SES, Resend, Mailgun — sabhi SMTP
+relay dete hain, to sirf `SMTP_*` badalna hoga, code nahi. Mailbox-based relay
+(M365 `smtp.office365.com`, Google `smtp.gmail.com`) bhi chalega, par tab asli
+mailbox + app password chahiye — aur M365 me "Authenticated SMTP" tenant par
+aksar disabled hota hai.
 
-- `EMAIL_FROM` ka domain **wahi** ho jis par SPF/DKIM laga hai.
-- Personal Gmail/Outlook se generic domain par bhejna spam-flag karta hai — hamesha apne domain ka authenticated mailbox use karein.
-- Test: pehle apne aap ko invoice bhejein, phir https://www.mail-tester.com par score check karein (10/10 target).
+**d) Spam/junk se bachne ke liye DNS records** (domain `teamegdigital.com` ke DNS par — **yeh sabse zaroori hai**, warna mail junk mein jaayega):
+
+Brevo domain-authentication screen par khud ye records dikhata hai — **wahan se
+copy karein**, neeche wali table sirf samajhne ke liye hai:
+
+| Record | Type | Value |
+|--------|------|-------|
+| Brevo code | TXT | `brevo-code:<aapka code>` — ownership proof |
+| DKIM | TXT | `v=DKIM1; k=rsa; p=<lamba public key>` |
+| DMARC | TXT `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@teamegdigital.com` |
+
+- `EMAIL_FROM` ka domain **wahi** ho jis par ye records lage hain (`teamegdigital.com`).
+- Brevo ke paas **automatic setup** bhi hai — DNS provider me Brevo se hi login karke wo khud records daal deta hai. Manual jhanjhat bach jaata hai.
+- Pehle se koi **SPF** TXT record hai to **doosra mat banayein** — ek domain par sirf ek SPF chalta hai. Maujooda wale me `include:spf.brevo.com` jod dein.
+- Pehle se **DMARC** hai to Brevo poochhega ki replace karna hai — apne maujooda record ko bina dekhe replace mat karein.
+- Free email domain (gmail.com, yahoo.com) authenticate nahi ho sakte — isliye `EMAIL_FROM` me personal Gmail kaam nahi karega.
+- DMARC `p=none` se shuru karein (sirf report, mail block nahi). Reports saaf aane lagein tab `p=quarantine` karein.
+- Test: pehle apne aap ko mail bhejein, phir https://www.mail-tester.com par score check karein (10/10 target).
+
+**e) Password reset ka end-to-end check** (SMTP on karne ke baad):
+1. `/employee/forgot-password` par apna email daalein.
+2. Mail aaya? Link `https://teamegdigital.com/employee/reset-password?token=…` hona chahiye — `localhost` dikha to `APP_URL` galat hai.
+3. Link kholke naya password set karein. Token **ek baar** hi chalta hai aur **1 ghante** me expire hota hai; reset hote hi us user ke saare purane session logout ho jaate hain.
+4. Response hamesha `"If an account exists, a reset link has been sent"` aata hai — email galat ho tab bhi. Ye jaanbujh kar hai (user enumeration rokne ke liye), isliye "success aaya par mail nahi aayi" ka matlab hai: account exist nahi karta, ya SMTP config galat hai. Server logs dekhein.
 
 ---
 
