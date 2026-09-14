@@ -453,6 +453,12 @@ model CustomerProduct {
   issueDate  DateTime      @default(now())
   expiryDate DateTime?
   status     LicenceStatus @default(ACTIVE)
+  /// Contract type chosen when the product is assigned: LOCKED (committed term)
+  /// or TRIAL (evaluation period).
+  contractType String     @default("LOCKED")
+  /// Whether the agreed price is GST-INCLUSIVE (price already contains GST) or
+  /// GST-EXCLUSIVE (GST added on top). Drives the total-amount calculation.
+  gstType      String     @default("EXCLUSIVE")
   /// Approval state for the product. Admin-assigned products are APPROVED
   /// immediately; products a client adds themselves start as PENDING and show
   /// "Pending" to the client until an admin approves them.

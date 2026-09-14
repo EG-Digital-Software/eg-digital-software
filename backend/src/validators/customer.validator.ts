@@ -62,6 +62,8 @@ export const assignedProductSchema = z.object({
   price: z.coerce.number().min(0).optional(),
   unit: z.string().max(30).optional(),
   taxRate: z.coerce.number().min(0).max(100).optional(),
+  contractType: z.enum(['LOCKED', 'TRIAL']).optional(),
+  gstType: z.enum(['INCLUSIVE', 'EXCLUSIVE']).optional(),
   licence: z.string().optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
   issueDate: z.coerce.date().optional(),

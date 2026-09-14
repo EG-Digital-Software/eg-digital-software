@@ -813,6 +813,8 @@ const EMPTY_ASSIGN = {
   price: '',
   unit: '',
   taxRate: '10', // GST — fixed at 10%
+  contractType: 'LOCKED', // LOCKED | TRIAL
+  gstType: 'EXCLUSIVE', // INCLUSIVE | EXCLUSIVE
   licence: '',
   issueDate: '',
   expiryDate: '',
@@ -1007,7 +1009,10 @@ function ProductsTab({ customer }: { customer: Customer }) {
   const set = (k: keyof typeof EMPTY_ASSIGN, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const net = (Number(form.price) || 0) * (Number(form.quantity) || 0);
-  const total = net + net * ((Number(form.taxRate) || 0) / 100);
+  // GST-inclusive: the agreed price already contains GST, so the total is the net.
+  // GST-exclusive: GST is added on top of the net.
+  const total =
+    form.gstType === 'INCLUSIVE' ? net : net + net * ((Number(form.taxRate) || 0) / 100);
 
   const assign = useMutation({
     mutationFn: () => {
@@ -1018,6 +1023,8 @@ function ProductsTab({ customer }: { customer: Customer }) {
       if (form.price !== '') payload.price = Number(form.price);
       if (form.unit.trim()) payload.unit = form.unit.trim();
       if (form.taxRate !== '') payload.taxRate = Number(form.taxRate);
+      payload.contractType = form.contractType;
+      payload.gstType = form.gstType;
       if (form.licence.trim()) payload.licence = form.licence.trim();
       if (form.issueDate) payload.issueDate = form.issueDate;
       if (form.expiryDate) payload.expiryDate = form.expiryDate;
@@ -1033,6 +1040,8 @@ function ProductsTab({ customer }: { customer: Customer }) {
       payload.price = form.price !== '' ? Number(form.price) : 0;
       payload.unit = form.unit.trim();
       payload.taxRate = form.taxRate !== '' ? Number(form.taxRate) : 0;
+      payload.contractType = form.contractType;
+      payload.gstType = form.gstType;
       if (form.licence.trim()) payload.licence = form.licence.trim();
       if (form.issueDate) payload.issueDate = form.issueDate;
       if (form.expiryDate) payload.expiryDate = form.expiryDate;
@@ -1051,7 +1060,8 @@ function ProductsTab({ customer }: { customer: Customer }) {
       price: cp.price != null ? String(cp.price) : '',
       unit: cp.unit ?? '',
       taxRate: '10', // GST — fixed at 10%
-
+      contractType: cp.contractType ?? 'LOCKED',
+      gstType: cp.gstType ?? 'EXCLUSIVE',
       licence: cp.licence?.licenceKey ?? '',
       issueDate: cp.issueDate ? cp.issueDate.slice(0, 10) : '',
       expiryDate: cp.expiryDate ? cp.expiryDate.slice(0, 10) : '',
@@ -1114,6 +1124,18 @@ function ProductsTab({ customer }: { customer: Customer }) {
                 <div title="GST is fixed at 10%" className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium text-foreground">
                   {form.taxRate}%
                 </div>
+              </Field>
+              <Field label="Type of Contract">
+                <Select value={form.contractType} onChange={(e) => set('contractType', e.target.value)}>
+                  <option value="LOCKED">Locked</option>
+                  <option value="TRIAL">Trial</option>
+                </Select>
+              </Field>
+              <Field label="GST">
+                <Select value={form.gstType} onChange={(e) => set('gstType', e.target.value)}>
+                  <option value="EXCLUSIVE">Exclusive</option>
+                  <option value="INCLUSIVE">Inclusive</option>
+                </Select>
               </Field>
               <Field label="Total Amount">
                 <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium">

@@ -433,6 +433,8 @@ type CreateInput = {
     price?: number;
     unit?: string;
     taxRate?: number;
+    contractType?: 'LOCKED' | 'TRIAL';
+    gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
     licence?: string;
     status?: 'ACTIVE' | 'SUSPENDED';
     issueDate?: Date;
@@ -743,6 +745,8 @@ async function assignProducts(
         price: new Prisma.Decimal(ap.price ?? 0),
         unit: ap.unit ?? null,
         taxRate: new Prisma.Decimal(ap.taxRate ?? 0),
+        contractType: ap.contractType ?? 'LOCKED',
+        gstType: ap.gstType ?? 'EXCLUSIVE',
         issueDate: ap.issueDate ?? new Date(),
         expiryDate: ap.expiryDate ?? null,
         status,
@@ -802,6 +806,8 @@ export async function updateCustomerProduct(
     price?: number;
     unit?: string;
     taxRate?: number;
+    contractType?: 'LOCKED' | 'TRIAL';
+    gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
     licence?: string;
     status?: 'ACTIVE' | 'SUSPENDED';
     approvalStatus?: string;
@@ -834,6 +840,8 @@ export async function updateCustomerProduct(
         ...(input.price !== undefined ? { price: new Prisma.Decimal(input.price) } : {}),
         ...(input.unit !== undefined ? { unit: input.unit || null } : {}),
         ...(input.taxRate !== undefined ? { taxRate: new Prisma.Decimal(input.taxRate) } : {}),
+        ...(input.contractType !== undefined ? { contractType: input.contractType } : {}),
+        ...(input.gstType !== undefined ? { gstType: input.gstType } : {}),
         ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
         ...(input.approvalStatus ? { approvalStatus: input.approvalStatus } : {}),
         issueDate,

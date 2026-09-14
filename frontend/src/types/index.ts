@@ -103,6 +103,10 @@ export interface CustomerProduct {
   price: string;
   unit?: string | null;
   taxRate?: string | null;
+  /** Contract term: 'LOCKED' (committed) or 'TRIAL' (evaluation). */
+  contractType?: string | null;
+  /** 'INCLUSIVE' (price includes GST) or 'EXCLUSIVE' (GST added on top). */
+  gstType?: string | null;
   issueDate: string;
   expiryDate?: string | null;
   status: LicenceStatus;
