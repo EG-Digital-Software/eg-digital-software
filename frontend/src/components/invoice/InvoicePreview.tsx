@@ -148,6 +148,8 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
               <th className="px-3 py-2.5 text-right font-semibold">Quantity</th>
               <th className="px-3 py-2.5 text-right font-semibold">Price</th>
               <th className="px-3 py-2.5 text-right font-semibold">Tax</th>
+              <th className="px-3 py-2.5 text-center font-semibold">Contract</th>
+              <th className="px-3 py-2.5 text-center font-semibold">GST</th>
               <th className="py-2.5 pl-3 text-right font-semibold">Amount</th>
             </tr>
           </thead>
@@ -163,6 +165,8 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
                 <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
                   {Number(it.taxRate) ? `${Number(it.taxRate)}%` : '—'}
                 </td>
+                <td className="px-3 py-3 text-center capitalize">{(it.contractType ?? 'LOCKED').toLowerCase()}</td>
+                <td className="px-3 py-3 text-center capitalize">{(it.gstType ?? 'EXCLUSIVE').toLowerCase()}</td>
                 <td className="py-3 pl-3 text-right font-medium tabular-nums">
                   {formatCurrency(it.lineTotal)}
                 </td>

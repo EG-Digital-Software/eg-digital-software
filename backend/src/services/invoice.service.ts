@@ -210,6 +210,8 @@ type CreateInput = {
     quantity: number;
     unitPrice: number;
     taxRate: number;
+    contractType?: 'LOCKED' | 'TRIAL';
+    gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
   }>;
 };
 
@@ -260,6 +262,8 @@ export async function createInvoice(input: CreateInput) {
               quantity: it.quantity,
               unitPrice: D(it.unitPrice),
               taxRate: D(it.taxRate),
+              contractType: it.contractType ?? 'LOCKED',
+              gstType: it.gstType ?? 'EXCLUSIVE',
               taxAmount: line.taxAmount,
               lineTotal: line.lineTotal,
             };

@@ -7,6 +7,8 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().int().positive(),
   unitPrice: z.coerce.number().min(0),
   taxRate: z.coerce.number().min(0).max(100).default(0),
+  contractType: z.enum(['LOCKED', 'TRIAL']).optional(),
+  gstType: z.enum(['INCLUSIVE', 'EXCLUSIVE']).optional(),
 });
 
 export const createInvoiceSchema = z.object({

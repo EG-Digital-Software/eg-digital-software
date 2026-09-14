@@ -16,6 +16,12 @@ export interface LineInput {
   quantity: number;
   unitPrice: Prisma.Decimal.Value;
   taxRate: Prisma.Decimal.Value; // percentage, e.g. 10 for 10%
+  /**
+   * How GST relates to unitPrice. EXCLUSIVE (default): unitPrice is net, GST is
+   * added on top. INCLUSIVE: unitPrice already contains GST, so it is backed out
+   * — the line total is unchanged and the net is derived.
+   */
+  gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
 }
 
 export interface LineResult {
@@ -25,8 +31,16 @@ export interface LineResult {
 }
 
 export function computeLine(line: LineInput): LineResult {
+  const rate = D(line.taxRate).div(100);
+  if (line.gstType === 'INCLUSIVE') {
+    // unitPrice is GST-inclusive: gross stays as entered, net + tax are derived.
+    const gross = round2(D(line.unitPrice).mul(line.quantity));
+    const lineNet = round2(gross.div(D(1).add(rate)));
+    const taxAmount = round2(gross.sub(lineNet));
+    return { lineNet, taxAmount, lineTotal: gross };
+  }
   const lineNet = round2(D(line.unitPrice).mul(line.quantity));
-  const taxAmount = round2(lineNet.mul(D(line.taxRate).div(100)));
+  const taxAmount = round2(lineNet.mul(rate));
   const lineTotal = round2(lineNet.add(taxAmount));
   return { lineNet, taxAmount, lineTotal };
 }

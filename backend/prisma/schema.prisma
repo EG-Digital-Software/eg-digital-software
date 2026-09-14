@@ -537,6 +537,11 @@ model InvoiceItem {
   taxRate     Decimal  @default(0) @db.Decimal(5, 2)
   taxAmount   Decimal  @default(0) @db.Decimal(12, 2)
   lineTotal   Decimal  @default(0) @db.Decimal(12, 2)
+  /// Contract term for this line: LOCKED (committed) or TRIAL (evaluation).
+  contractType String  @default("LOCKED")
+  /// Whether unitPrice is GST-INCLUSIVE (price contains GST) or EXCLUSIVE (GST
+  /// added on top). Drives this line's tax split and total.
+  gstType      String  @default("EXCLUSIVE")
 
   @@index([invoiceId])
 }

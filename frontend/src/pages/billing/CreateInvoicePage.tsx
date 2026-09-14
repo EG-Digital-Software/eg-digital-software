@@ -37,6 +37,8 @@ const schema = z
           quantity: z.coerce.number().int().positive(),
           unitPrice: z.coerce.number().min(0),
           taxRate: z.coerce.number().min(0).max(100),
+          contractType: z.enum(['LOCKED', 'TRIAL']).default('LOCKED'),
+          gstType: z.enum(['INCLUSIVE', 'EXCLUSIVE']).default('EXCLUSIVE'),
         })
       )
       .min(1),
@@ -213,7 +215,7 @@ export default function CreateInvoicePage() {
       clientId: preClient,
       term: 'NET_30',
       discount: 0,
-      items: [{ description: '', quantity: 1, unitPrice: 0, taxRate: 10 }],
+      items: [{ description: '', quantity: 1, unitPrice: 0, taxRate: 10, contractType: 'LOCKED', gstType: 'EXCLUSIVE' }],
     },
   });
 
@@ -241,9 +243,17 @@ export default function CreateInvoicePage() {
     let subtotal = 0;
     let tax = 0;
     for (const it of items ?? []) {
-      const net = (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0);
-      subtotal += net;
-      tax += net * ((Number(it.taxRate) || 0) / 100);
+      const gross = (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0);
+      const rate = (Number(it.taxRate) || 0) / 100;
+      if (it.gstType === 'INCLUSIVE') {
+        // unitPrice already includes GST — back it out, line total stays `gross`.
+        const net = gross / (1 + rate);
+        subtotal += net;
+        tax += gross - net;
+      } else {
+        subtotal += gross;
+        tax += gross * rate;
+      }
     }
     const disc = Number(discount) || 0;
     return {
@@ -359,7 +369,7 @@ export default function CreateInvoicePage() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ description: period, quantity: 1, unitPrice: 0, taxRate: 10 })}
+              onClick={() => append({ description: period, quantity: 1, unitPrice: 0, taxRate: 10, contractType: 'LOCKED', gstType: 'EXCLUSIVE' })}
             >
               <Plus className="h-4 w-4" /> Add line
             </Button>
@@ -424,6 +434,22 @@ export default function CreateInvoicePage() {
                   <div className="sm:col-span-2">
                     <Field label="Tax %">
                       <Input className={FILLED_CONTROL} {...numericField(register(`items.${index}.taxRate`), 'decimal')} />
+                    </Field>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Field label="Contract">
+                      <Select className={FILLED_CONTROL} {...register(`items.${index}.contractType`)}>
+                        <option value="LOCKED">Locked</option>
+                        <option value="TRIAL">Trial</option>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Field label="GST">
+                      <Select className={FILLED_CONTROL} {...register(`items.${index}.gstType`)}>
+                        <option value="EXCLUSIVE">Exclusive</option>
+                        <option value="INCLUSIVE">Inclusive</option>
+                      </Select>
                     </Field>
                   </div>
                   <div className="flex items-end justify-between gap-2 sm:col-span-2">

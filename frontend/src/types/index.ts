@@ -256,6 +256,10 @@ export interface InvoiceItem {
   taxRate: string;
   taxAmount: string;
   lineTotal: string;
+  /** Contract term for this line: 'LOCKED' or 'TRIAL'. */
+  contractType?: string | null;
+  /** 'INCLUSIVE' (unitPrice contains GST) or 'EXCLUSIVE' (GST added on top). */
+  gstType?: string | null;
 }
 
 export interface Payment {
