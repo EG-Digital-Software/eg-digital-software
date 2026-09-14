@@ -190,6 +190,8 @@ export async function listProducts(
     quantity: r.quantity,
     licence: r.licence?.licenceKey ?? '—',
     price: r.price,
+    contractType: r.contractType,
+    gstType: r.gstType,
     issueDate: r.issueDate,
     expiryDate: r.expiryDate,
     daysRemaining: daysRemaining(r.expiryDate),

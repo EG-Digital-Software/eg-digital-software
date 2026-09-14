@@ -136,7 +136,7 @@ export default function ClientLicencesPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-          <Table className="min-w-[760px]">
+          <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow>
                 <TableHead className="whitespace-nowrap text-center">Product</TableHead>
@@ -145,6 +145,9 @@ export default function ClientLicencesPage() {
                 <TableHead className="whitespace-nowrap text-center">Expiry</TableHead>
                 <TableHead className="whitespace-nowrap text-center">Days Left</TableHead>
                 <TableHead className="whitespace-nowrap text-center">Agreed Price</TableHead>
+                <TableHead className="whitespace-nowrap text-center">Net Amount</TableHead>
+                <TableHead className="whitespace-nowrap text-center">Contract</TableHead>
+                <TableHead className="whitespace-nowrap text-center">GST</TableHead>
                 <TableHead className="whitespace-nowrap text-center">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -167,6 +170,9 @@ export default function ClientLicencesPage() {
                     )}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(p.price)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency((Number(p.price) || 0) * (p.quantity || 0))}</TableCell>
+                  <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(p.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
+                  <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(p.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
                   <TableCell className="text-center">
                     {p.pending ? <Badge variant="warning">Pending</Badge> : <LicenceBadge status={p.status} />}
                   </TableCell>

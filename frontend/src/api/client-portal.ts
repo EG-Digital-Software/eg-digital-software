@@ -18,6 +18,10 @@ export interface ClientProduct {
   quantity: number;
   licence: string;
   price: string;
+  /** Contract term: 'LOCKED' (committed) or 'TRIAL' (evaluation). */
+  contractType?: string | null;
+  /** 'INCLUSIVE' (price includes GST) or 'EXCLUSIVE' (GST added on top). */
+  gstType?: string | null;
   issueDate: string;
   expiryDate?: string | null;
   daysRemaining: number | null;
