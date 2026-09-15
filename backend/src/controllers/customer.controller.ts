@@ -28,6 +28,12 @@ export const getOne = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, customer);
 });
 
+/** Issue a read-only impersonation session for viewing this client's portal. */
+export const impersonate = asyncHandler(async (req: Request, res: Response) => {
+  const session = await customerService.impersonateCustomer(req.params.clientId);
+  return ok(res, session, 'Viewing client portal');
+});
+
 // ─── Agreement Documents ──────────────────────────────────
 
 export const uploadDocument = asyncHandler(async (req: Request, res: Response) => {

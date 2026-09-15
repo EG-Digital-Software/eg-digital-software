@@ -28,9 +28,10 @@ import { countryCodeByName } from '@/lib/countries';
 
 const ACCOUNT_STATUS: Record<
   NonNullable<Customer['accountStatusEffective']>,
-  { label: string; variant: 'success' | 'warning' | 'destructive' }
+  { label: string; variant: 'default' | 'success' | 'warning' | 'destructive' }
 > = {
   ACTIVE: { label: 'Active', variant: 'success' },
+  ACTIVE_TRIAL: { label: 'Active-Trial', variant: 'default' },
   DORMANT: { label: 'Dormant', variant: 'warning' },
   SUSPENDED: { label: 'Suspended', variant: 'destructive' },
 };
@@ -155,6 +156,7 @@ export default function CustomersPage() {
             className="sm:w-40"
           >
             <option value="ACTIVE">Active</option>
+            <option value="ACTIVE_TRIAL">Active-Trial</option>
             <option value="DORMANT">Dormant</option>
             <option value="SUSPENDED">Suspended</option>
             <option value="ARCHIVED">Archived</option>

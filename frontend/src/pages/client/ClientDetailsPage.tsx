@@ -120,7 +120,15 @@ export default function ClientDetailsPage() {
         <Row label="Credit Score" value={c.creditScore != null ? String(c.creditScore) : null} />
         <Row
           label="Account Status"
-          value={c.accountStatus ? c.accountStatus.charAt(0) + c.accountStatus.slice(1).toLowerCase() : null}
+          value={
+            c.accountStatus
+              ? c.accountStatus
+                  .toLowerCase()
+                  .split('_')
+                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                  .join('-')
+              : null
+          }
         />
       </DetailCard>
 

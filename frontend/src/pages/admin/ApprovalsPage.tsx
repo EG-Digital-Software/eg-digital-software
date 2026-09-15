@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, X, ShieldCheck, Search, RotateCcw, UserPlus, KeyRound, Eye, EyeOff, Copy } from 'lucide-react';
+import { Check, X, ShieldCheck, Search, RotateCcw, UserPlus, KeyRound, Eye, EyeOff, Copy, Users, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { adminApi, type PendingUser, type ApprovalStatus } from '@/api/resources';
+import { adminApi, settingsApi, type PendingUser, type ApprovalStatus } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, Pagination } from '@/components/shared/misc';
@@ -63,7 +63,9 @@ export default function ApprovalsPage() {
   const [page, setPage] = useState(1);
   const [role, setRole] = useState(initialRole);
   const [search, setSearch] = useState('');
-  const [confirm, setConfirm] = useState<{ user: PendingUser; action: 'reject' } | null>(null);
+  const [confirm, setConfirm] = useState<{ user: PendingUser; action: 'reject' | 'delete' } | null>(
+    null
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [managePw, setManagePw] = useState<PendingUser | null>(null);
   const debounced = useDebounce(search);
@@ -100,6 +102,16 @@ export default function ApprovalsPage() {
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => adminApi.deleteRegistration(id),
+    onSuccess: () => {
+      invalidate();
+      toast.success('Account deleted');
+      setConfirm(null);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
   const counts = data?.meta.counts;
   const filtered = !!(debounced || role);
   const clearFilters = () => {
@@ -121,6 +133,8 @@ export default function ApprovalsPage() {
           </Button>
         }
       />
+
+      <GlobalAccountManagerCard />
 
       <Tabs
         value={tab}
@@ -326,6 +340,16 @@ export default function ApprovalsPage() {
                               Re-approve
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => setConfirm({ user: u, action: 'delete' })}
+                            title="Permanently delete this account"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -342,22 +366,105 @@ export default function ApprovalsPage() {
         open={!!confirm}
         onOpenChange={(v) => !v && setConfirm(null)}
         title={
-          confirm?.user.approvalStatus === 'APPROVED' ? 'Revoke access?' : 'Reject this request?'
+          confirm?.action === 'delete'
+            ? 'Delete this account?'
+            : confirm?.user.approvalStatus === 'APPROVED'
+              ? 'Revoke access?'
+              : 'Reject this request?'
         }
         description={
-          confirm?.user.approvalStatus === 'APPROVED'
-            ? `${confirm.user.firstName} ${confirm.user.lastName} (${confirm.user.email}) will be signed out of the ${ROLE_BADGE[confirm.user.role].label.toLowerCase()} portal and blocked from signing in again. You can re-approve them later.`
-            : `${confirm?.user.firstName} ${confirm?.user.lastName} (${confirm?.user.email}) will not be able to sign in. You can re-approve them later.`
+          confirm?.action === 'delete'
+            ? `${confirm.user.firstName} ${confirm.user.lastName} (${confirm.user.email}) will be permanently deleted and can never sign in again. This cannot be undone.${
+                confirm.user.role === 'CLIENT'
+                  ? ' Their company record, invoices and products are kept — only the login is removed.'
+                  : ''
+              }`
+            : confirm?.user.approvalStatus === 'APPROVED'
+              ? `${confirm.user.firstName} ${confirm.user.lastName} (${confirm.user.email}) will be signed out of the ${ROLE_BADGE[confirm.user.role].label.toLowerCase()} portal and blocked from signing in again. You can re-approve them later.`
+              : `${confirm?.user.firstName} ${confirm?.user.lastName} (${confirm?.user.email}) will not be able to sign in. You can re-approve them later.`
         }
-        confirmLabel={confirm?.user.approvalStatus === 'APPROVED' ? 'Revoke access' : 'Reject'}
+        confirmLabel={
+          confirm?.action === 'delete'
+            ? 'Delete permanently'
+            : confirm?.user.approvalStatus === 'APPROVED'
+              ? 'Revoke access'
+              : 'Reject'
+        }
         destructive
-        loading={rejectMut.isPending}
-        onConfirm={() => confirm && rejectMut.mutate(confirm.user.id)}
+        loading={confirm?.action === 'delete' ? deleteMut.isPending : rejectMut.isPending}
+        onConfirm={() =>
+          confirm &&
+          (confirm.action === 'delete'
+            ? deleteMut.mutate(confirm.user.id)
+            : rejectMut.mutate(confirm.user.id))
+        }
       />
 
       <AddEmployeeDialog open={addOpen} onOpenChange={setAddOpen} onDone={invalidate} />
       <ManageEmployeePasswordDialog user={managePw} onOpenChange={(v) => !v && setManagePw(null)} />
     </div>
+  );
+}
+
+/**
+ * Single, global account manager shown to every client in their portal. Set
+ * once here (not per-customer) — every customer shares the same manager.
+ */
+function GlobalAccountManagerCard() {
+  const qc = useQueryClient();
+  const { data: setting } = useQuery({
+    queryKey: ['admin', 'account-manager'],
+    queryFn: settingsApi.getAccountManager,
+  });
+  const { data: emps } = useQuery({
+    queryKey: ['employees', 'approved'],
+    queryFn: () => adminApi.registrations({ role: 'EMPLOYEE', status: 'APPROVED', pageSize: 100 }),
+  });
+  const employees = emps?.items ?? [];
+  const currentId = setting?.employeeId ?? '';
+  const current = employees.find((e) => e.id === currentId) ?? null;
+
+  const save = useMutation({
+    mutationFn: (employeeId: string) => settingsApi.setAccountManager(employeeId || null),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'account-manager'] });
+      qc.invalidateQueries({ queryKey: ['client', 'profile'] });
+      toast.success('Account manager updated');
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  return (
+    <Card>
+      <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Account Manager</p>
+            <p className="text-xs text-muted-foreground">
+              {current
+                ? `${current.firstName} ${current.lastName} · ${current.email}`
+                : 'Assign one team member — shown to every client in their portal'}
+            </p>
+          </div>
+        </div>
+        <Select
+          value={currentId}
+          disabled={save.isPending}
+          onChange={(e) => save.mutate(e.target.value)}
+          className="sm:w-64"
+        >
+          <option value="">— Not assigned —</option>
+          {employees.map((emp) => (
+            <option key={emp.id} value={emp.id}>
+              {emp.firstName} {emp.lastName}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </Card>
   );
 }
 

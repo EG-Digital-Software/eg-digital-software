@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -9,9 +10,13 @@ import {
   TrendingUp,
   ArrowRight,
   AlertTriangle,
+  Building2,
+  ChevronDown,
+  Check,
+  Search,
 } from 'lucide-react';
-import { dashboardApi } from '@/api/resources';
-import type { DashboardSummary, LicenceRow } from '@/types';
+import { dashboardApi, productApi, customerApi } from '@/api/resources';
+import type { DashboardSummary } from '@/types';
 import type { LucideProps } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { useAuth } from '@/store/auth';
@@ -19,11 +24,13 @@ import { StatDelta } from '@/components/shared/misc';
 import { SalesChart } from './SalesChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/misc';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LicenceBadge } from '@/components/shared/status';
+import { Input } from '@/components/ui/input';
+import { Skeleton, Avatar, AvatarFallback } from '@/components/ui/misc';
 import { EmptyState } from '@/components/shared/states';
-import { formatCurrency, formatNumber, formatDate, cn } from '@/lib/utils';
+import { HeroWave, HeroHealthCluster, healthLabel } from '@/components/shared/HeroHealth';
+import { customerName } from '@/lib/customer';
+import { ProductGlyph } from '@/lib/product-icon';
+import { formatCurrency, formatNumber, formatDate, cn, initials } from '@/lib/utils';
 
 // Soft pastel tones for the stat-card icon tiles (matches the reference).
 const TONES: Record<string, string> = {
@@ -119,17 +126,18 @@ export default function DashboardPage() {
     queryKey: ['dashboard', 'summary'],
     queryFn: dashboardApi.summary,
   });
-  const licencesQ = useQuery<LicenceRow[]>({
-    queryKey: ['dashboard', 'licences'],
-    queryFn: dashboardApi.licences,
-  });
 
   const s = summaryQ.data;
+
+  // Portfolio health = share of licences that aren't expiring soon or expired.
+  const licTotal = s ? s.licences.active + s.licences.expiringSoon + s.licences.expired : 0;
+  const healthPct = licTotal > 0 ? Math.round((s!.licences.active / licTotal) * 100) : 100;
 
   return (
     <div className="space-y-6">
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[#eaf1ff] via-[#f3f7ff] to-[#e9f6ef] p-6 sm:p-8">
+        <HeroWave />
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="max-w-xl">
             <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">
@@ -149,18 +157,9 @@ export default function DashboardPage() {
           </div>
 
           {s && (
-            <div className="flex items-center gap-4 rounded-2xl border border-border bg-card/80 p-5 shadow-card backdrop-blur">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                <TrendingUp className="h-7 w-7" />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Revenue (Month)</p>
-                <p className="text-lg font-semibold tabular-nums">{formatCurrency(s.revenue.current)}</p>
-              </div>
-            </div>
+            <HeroHealthCluster title="System Health" pct={healthPct} label={healthLabel(healthPct)} />
           )}
         </div>
-        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -265,64 +264,315 @@ export default function DashboardPage() {
 
       <RecentActivity />
 
-      <div className="grid grid-cols-1 gap-6">
-        {/* Licence monitoring */}
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Licence Monitoring</CardTitle>
-            <Link
-              to="/admin/customers"
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-            >
-              View all <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent className="p-0">
-            {licencesQ.isLoading ? (
-              <div className="space-y-2 p-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : !licencesQ.data?.length ? (
-              <div className="p-6">
-                <EmptyState title="All licences healthy" description="No licences are expiring soon." />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Expiry</TableHead>
-                    <TableHead className="text-right">Days</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {licencesQ.data.slice(0, 8).map((l) => (
-                    <TableRow key={l.id}>
-                      <TableCell>
-                        <p className="font-medium">{l.customer}</p>
-                        <p className="text-xs text-muted-foreground">{l.clientId}</p>
-                      </TableCell>
-                      <TableCell className="text-sm">{l.product}</TableCell>
-                      <TableCell className="text-sm">{formatDate(l.expiryDate)}</TableCell>
-                      <TableCell className="text-right text-sm tabular-nums">
-                        {l.daysRemaining ?? '—'}
-                      </TableCell>
-                      <TableCell>
-                        <LicenceBadge status={l.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+      {/* Task overview + Total products */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <TasksOverviewCard />
+        <TotalProductsCard />
       </div>
     </div>
+  );
+}
+
+/** Multi-segment donut for the Tasks Overview card. */
+function Donut({ total, segments }: { total: number; segments: { value: number; color: string }[] }) {
+  const r = 42;
+  const c = 2 * Math.PI * r;
+  const sum = segments.reduce((s, x) => s + x.value, 0) || 1;
+  let acc = 0;
+  return (
+    <div className="relative h-28 w-28 shrink-0">
+      <svg viewBox="0 0 100 100" className="h-28 w-28 -rotate-90">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="hsl(var(--secondary))" strokeWidth="10" />
+        {segments.map((seg, i) => {
+          if (seg.value <= 0) return null;
+          const len = (seg.value / sum) * c;
+          const el = (
+            <circle
+              key={i}
+              cx="50"
+              cy="50"
+              r={r}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth="10"
+              strokeDasharray={`${len} ${c - len}`}
+              strokeDashoffset={-acc}
+              strokeLinecap="round"
+            />
+          );
+          acc += len;
+          return el;
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-semibold tabular-nums">{total}</span>
+        <span className="text-[11px] text-muted-foreground">Total tasks</span>
+      </div>
+    </div>
+  );
+}
+
+const TASK_PILL: Record<string, { label: string; cls: string }> = {
+  IN_PROGRESS: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
+  ONGOING: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
+  NOT_STARTED: { label: 'Pending', cls: 'bg-blue-100 text-blue-700' },
+  COMPLETED: { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700' },
+};
+
+function TasksOverviewCard() {
+  // '' = all customers; otherwise a specific customer's clientId.
+  const [clientId, setClientId] = useState('');
+  const custQ = useQuery({
+    queryKey: ['customers', 'task-picker'],
+    queryFn: () => customerApi.list({ pageSize: 200, sortBy: 'companyName', sortDir: 'asc' }),
+  });
+  const { data, isLoading } = useQuery({
+    queryKey: ['dashboard', 'tasks-overview', clientId],
+    queryFn: () => dashboardApi.tasksOverview(clientId || undefined),
+  });
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="flex-col items-stretch gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle className="text-base">Task Overview</CardTitle>
+        <div className="flex items-center gap-3">
+          <TaskCustomerPicker customers={custQ.data?.items ?? []} selected={clientId} onSelect={setClientId} />
+          <Link to="/admin/tasks" className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline">
+            View all <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {isLoading || !data ? (
+          <div className="space-y-3">
+            <Skeleton className="h-28 w-28 rounded-full" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-5">
+              <Donut
+                total={data.total}
+                segments={[
+                  { value: data.inProgress, color: '#f59e0b' },
+                  { value: data.pending, color: '#3b82f6' },
+                  { value: data.completed, color: '#10b981' },
+                ]}
+              />
+              <ul className="space-y-2.5 text-sm">
+                <li className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                  <span className="font-semibold tabular-nums">{data.inProgress}</span>
+                  <span className="text-muted-foreground">In progress</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                  <span className="font-semibold tabular-nums">{data.pending}</span>
+                  <span className="text-muted-foreground">Pending</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  <span className="font-semibold tabular-nums">{data.completed}</span>
+                  <span className="text-muted-foreground">Completed</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              {data.upcoming.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No open tasks — everything is done.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {data.upcoming.map((t) => {
+                    const pill = TASK_PILL[t.progress] ?? TASK_PILL.NOT_STARTED;
+                    return (
+                      <li key={t.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{t.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">{t.customer}</p>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <span className="text-xs text-muted-foreground">{t.dueDate ? formatDate(t.dueDate) : '—'}</span>
+                          <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium', pill.cls)}>{pill.label}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface PickerCustomer {
+  clientId: string;
+  companyName?: string | null;
+  contactPerson?: string | null;
+}
+
+/** Compact customer filter for the Task Overview card. "All customers" clears the scope. */
+function TaskCustomerPicker({
+  customers,
+  selected,
+  onSelect,
+}: {
+  customers: PickerCustomer[];
+  selected: string;
+  onSelect: (clientId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const current = customers.find((c) => c.clientId === selected);
+  const label = current ? customerName(current) : 'All customers';
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return customers;
+    return customers.filter(
+      (c) => customerName(c).toLowerCase().includes(s) || c.clientId.toLowerCase().includes(s)
+    );
+  }, [customers, q]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 min-w-[190px] items-center gap-2 rounded-lg border border-input bg-card px-2.5 text-sm shadow-sm transition hover:border-ring"
+      >
+        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="flex-1 truncate text-left font-medium">{label}</span>
+        <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 w-[300px] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+          <div className="relative border-b border-border p-2">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={q}
+              placeholder="Search customers"
+              className="h-9 pl-8"
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto p-1">
+            <button
+              type="button"
+              onClick={() => { onSelect(''); setOpen(false); setQ(''); }}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-secondary',
+                selected === '' && 'bg-secondary'
+              )}
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                <Users className="h-4 w-4" />
+              </span>
+              <span className="flex-1 font-medium">All customers</span>
+              {selected === '' && <Check className="h-4 w-4 shrink-0 text-primary" />}
+            </button>
+            {filtered.map((c) => {
+              const active = c.clientId === selected;
+              return (
+                <button
+                  key={c.clientId}
+                  type="button"
+                  onClick={() => { onSelect(c.clientId); setOpen(false); setQ(''); }}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-secondary',
+                    active && 'bg-secondary'
+                  )}
+                >
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback className="text-[10px]">{initials(customerName(c))}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{customerName(c)}</div>
+                    <div className="truncate text-xs text-muted-foreground">{c.clientId}</div>
+                  </div>
+                  {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TotalProductsCard() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['dashboard', 'products-list'],
+    queryFn: () => productApi.list({ page: 1, pageSize: 6, status: '', sortBy: 'createdAt', sortDir: 'desc' }),
+  });
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="flex-row items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">Total Products</CardTitle>
+          {data && (
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+              {data.meta.total}
+            </span>
+          )}
+        </div>
+        <Link to="/admin/products" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+          View all <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : !data?.items.length ? (
+          <EmptyState title="No products" description="Products you add will appear here." />
+        ) : (
+          <ul className="space-y-3">
+            {data.items.map((p) => {
+              return (
+              <li key={p.id} className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                  <ProductGlyph parts={[p.name, p.category, p.type]} className="h-[20px] w-[20px]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{p.name}</p>
+                  <p className="text-xs text-muted-foreground">{p.category || p.productCode}</p>
+                </div>
+                <span
+                  className={cn(
+                    'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                    p.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                  )}
+                >
+                  {p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                </span>
+              </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -175,3 +175,41 @@ export async function updateOrganisationSettings(input: Partial<OrganisationSett
   });
   return next;
 }
+
+// ─── Account Manager (single, global) ─────────────────────
+//
+// Every client sees the same account manager. The chosen team member is stored
+// as one Setting row rather than per-customer, so it is set once from Approvals.
+
+const ACCOUNT_MANAGER_KEY = 'accountManager';
+
+/** The raw setting: which employee is the global account manager (or none). */
+export async function getAccountManagerSetting(): Promise<{ employeeId: string | null }> {
+  const row = await prisma.setting.findUnique({ where: { key: ACCOUNT_MANAGER_KEY } });
+  const value = (row?.value as { employeeId?: string | null } | undefined) ?? {};
+  return { employeeId: value.employeeId ?? null };
+}
+
+/** Persist the global account manager. Pass null / '' to clear it. */
+export async function updateAccountManagerSetting(employeeId: string | null) {
+  const value = { employeeId: employeeId || null };
+  await prisma.setting.upsert({
+    where: { key: ACCOUNT_MANAGER_KEY },
+    create: { key: ACCOUNT_MANAGER_KEY, value },
+    update: { value },
+  });
+  return value;
+}
+
+/**
+ * Resolve the global account manager to the fields the client portal shows.
+ * Returns null when unset or the employee no longer exists.
+ */
+export async function getResolvedAccountManager() {
+  const { employeeId } = await getAccountManagerSetting();
+  if (!employeeId) return null;
+  return prisma.employeeUser.findUnique({
+    where: { id: employeeId },
+    select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, designation: true },
+  });
+}

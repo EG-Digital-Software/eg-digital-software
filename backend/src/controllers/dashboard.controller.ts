@@ -33,3 +33,8 @@ export const recentActivity = asyncHandler(async (_req: Request, res: Response) 
   const [recent, activity] = await Promise.all([dash.getRecent(), listActivity(15)]);
   return ok(res, { ...recent, activity });
 });
+
+export const taskOverview = asyncHandler(async (req: Request, res: Response) => {
+  const clientId = (req.query.clientId as string) || undefined;
+  return ok(res, await dash.getTaskOverview(clientId));
+});

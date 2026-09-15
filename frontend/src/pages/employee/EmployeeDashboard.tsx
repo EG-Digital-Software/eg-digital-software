@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Users, UserCheck, KeyRound, AlertTriangle, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { Users, UserCheck, KeyRound, AlertTriangle, ArrowRight } from 'lucide-react';
 import { employeeApi } from '@/api/staff-portal';
 import { useAuth } from '@/store/auth';
-import { PageHeader } from '@/components/shared/misc';
+import { HeroWave, HeroHealthCluster, healthLabel } from '@/components/shared/HeroHealth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,9 +33,26 @@ export default function EmployeeDashboard() {
   const licQ = useQuery({ queryKey: ['employee', 'licences'], queryFn: employeeApi.licences });
   const d = dashQ.data;
 
+  // Portfolio health = share of customers that are active.
+  const healthPct = d && d.customers > 0 ? Math.round((d.activeCustomers / d.customers) * 100) : 100;
+
   return (
     <div className="space-y-6">
-      <PageHeader title={`Welcome, ${user?.firstName ?? ''}`} description="Operational overview — customers and licence monitoring" icon={LayoutDashboard} iconTone="sky" />
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[#eaf1ff] via-[#f3f7ff] to-[#e9f6ef] p-6 sm:p-8">
+        <HeroWave />
+        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-xl">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">
+              Welcome, {user?.firstName ?? ''} <span className="align-middle">👋</span>
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Operational overview — customers and licence monitoring.
+            </p>
+          </div>
+          {d && <HeroHealthCluster title="Portfolio Health" pct={healthPct} label={healthLabel(healthPct)} />}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {dashQ.isLoading || !d ? (

@@ -5,6 +5,7 @@ import * as ctrl from '../controllers/client.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { buildTaskRouter } from './task.routes.js';
+import { ApiError } from '../utils/ApiError.js';
 import {
   listClientInvoiceQuerySchema,
   listClientProductQuerySchema,
@@ -12,6 +13,15 @@ import {
 
 const router = Router();
 router.use(authenticate, authorize(Role.CLIENT));
+
+// When an admin is viewing this portal (impersonation token), it is strictly
+// read-only — no writes on the client's behalf.
+router.use((req, _res, next) => {
+  if (req.user?.imp && req.method !== 'GET') {
+    return next(ApiError.forbidden('Read-only: you are viewing this portal as an admin'));
+  }
+  next();
+});
 
 // Signed agreement uploads: no size cap — the filled + flattened PDF is stored raw.
 const docUpload = multer({ storage: multer.memoryStorage() });

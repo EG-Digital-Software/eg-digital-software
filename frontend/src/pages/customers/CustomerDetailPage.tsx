@@ -25,7 +25,8 @@ import {
   Download,
   SquarePen,
 } from 'lucide-react';
-import { customerApi, productApi, adminApi } from '@/api/resources';
+import { customerApi, productApi } from '@/api/resources';
+import { useAuth } from '@/store/auth';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
@@ -45,6 +46,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials, cn, mediaUrl } from '@/lib/utils';
+import { ProductGlyph } from '@/lib/product-icon';
 import { businessTypesLabel, customerName, formatAbn, formatAcn } from '@/lib/customer';
 import { companyFieldsFor } from '@/lib/company';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
@@ -414,9 +416,10 @@ function CredentialsPanel({ clientId }: { clientId: string }) {
 
 const ACCOUNT_STATUS: Record<
   NonNullable<Customer['accountStatusEffective']>,
-  { label: string; variant: 'success' | 'warning' | 'destructive' }
+  { label: string; variant: 'default' | 'success' | 'warning' | 'destructive' }
 > = {
   ACTIVE: { label: 'Active', variant: 'success' },
+  ACTIVE_TRIAL: { label: 'Active-Trial', variant: 'default' },
   DORMANT: { label: 'Dormant', variant: 'warning' },
   SUSPENDED: { label: 'Suspended', variant: 'destructive' },
 };
@@ -431,12 +434,29 @@ function primaryAddress(c: Customer) {
 export default function CustomerDetailPage() {
   const { clientId } = useParams();
   const navigate = useNavigate();
+  const qcRoot = useQueryClient();
+  const startImpersonation = useAuth((s) => s.startImpersonation);
   const { data: c, isLoading, isError, refetch } = useQuery({
     queryKey: ['customer', clientId],
     queryFn: () => customerApi.get(clientId!),
     // Keep the Agreement status in step with the client without a manual refresh.
     refetchInterval: 8000,
     refetchOnWindowFocus: true,
+  });
+
+  const viewPortal = useMutation({
+    mutationFn: () => customerApi.impersonate(clientId!),
+    onSuccess: (session) => {
+      startImpersonation({
+        user: session.user,
+        accessToken: session.accessToken,
+        meta: { clientId: session.company.clientId, companyName: session.company.companyName },
+      });
+      // Clear admin-scoped cache so the client portal fetches fresh as the client.
+      qcRoot.clear();
+      navigate('/client/dashboard');
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
   if (isLoading) return <LoadingBlock label="Loading customer…" />;
@@ -461,6 +481,14 @@ export default function CustomerDetailPage() {
           iconTone="primary"
           actions={
             <>
+              <Button
+                variant="outline"
+                disabled={viewPortal.isPending}
+                onClick={() => viewPortal.mutate()}
+                title="Open this client's portal read-only, without their password"
+              >
+                <Eye className="h-4 w-4" /> View portal
+              </Button>
               <Button variant="outline" asChild>
                 <Link to={`/admin/customers/${c.clientId}/edit`}>
                   <Pencil className="h-4 w-4" /> Edit
@@ -473,8 +501,6 @@ export default function CustomerDetailPage() {
           }
         />
       </div>
-
-      <AccountManagerCard customer={c} />
 
       {/* Profile card */}
       <Card>
@@ -828,59 +854,6 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
       <Label className="block text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
     </div>
-  );
-}
-
-/** Assign a team member as this client's account manager (shown in their portal). */
-function AccountManagerCard({ customer }: { customer: Customer }) {
-  const qc = useQueryClient();
-  const { data: emps } = useQuery({
-    queryKey: ['employees', 'approved'],
-    queryFn: () => adminApi.registrations({ role: 'EMPLOYEE', status: 'APPROVED', pageSize: 100 }),
-  });
-  const employees = emps?.items ?? [];
-  const current = customer.accountManager ?? null;
-
-  const assign = useMutation({
-    mutationFn: (accountManagerId: string) => customerApi.update(customer.clientId, { accountManagerId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['customer', customer.clientId] });
-      toast.success('Account manager updated');
-    },
-    onError: (e) => toast.error(apiErrorMessage(e)),
-  });
-
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Users className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-medium">Account Manager</p>
-            <p className="text-xs text-muted-foreground">
-              {current
-                ? `${current.firstName} ${current.lastName} · ${current.email}`
-                : 'Assign a team member — shown to the client in their portal'}
-            </p>
-          </div>
-        </div>
-        <Select
-          value={customer.accountManagerId ?? ''}
-          disabled={assign.isPending}
-          onChange={(e) => assign.mutate(e.target.value)}
-          className="sm:w-64"
-        >
-          <option value="">— Not assigned —</option>
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.firstName} {emp.lastName}
-            </option>
-          ))}
-        </Select>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -1571,8 +1544,15 @@ function LicenceGroupDetailsDialog({
                     return (
                       <tr key={cp.id} className="border-t border-border">
                         <td className="px-3 py-2">
-                          <p className="font-medium">{cp.product.name}</p>
-                          <p className="text-xs text-muted-foreground">{cp.product.sku ?? cp.product.productCode}</p>
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                              <ProductGlyph parts={[cp.product.name, cp.product.category, cp.product.type]} className="h-[18px] w-[18px]" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-medium">{cp.product.name}</p>
+                              <p className="text-xs text-muted-foreground">{cp.product.sku ?? cp.product.productCode}</p>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(cp.price)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(net)}</td>

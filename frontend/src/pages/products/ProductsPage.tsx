@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Upload, Pencil, Trash2, Package } from 'lucide-react';
+import { ProductGlyph } from '@/lib/product-icon';
 import { toast } from 'sonner';
 import { productApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
@@ -181,10 +182,18 @@ export default function ProductsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.items.map((p) => (
+                {data.items.map((p) => {
+                  return (
                   <TableRow key={p.id}>
                     <TableCell className="font-mono text-xs text-muted-foreground">{p.productCode}</TableCell>
-                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                          <ProductGlyph parts={[p.name, p.category, p.type]} className="h-[18px] w-[18px]" />
+                        </span>
+                        {p.name}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm">{p.type ?? '—'}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{p.sku ?? '—'}</TableCell>
                     <TableCell className="text-sm">{p.category ?? '—'}</TableCell>
@@ -214,7 +223,8 @@ export default function ProductsPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
             <Pagination meta={data.meta} onPageChange={setPage} />

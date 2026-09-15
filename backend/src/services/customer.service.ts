@@ -16,13 +16,14 @@ import { reserveStock } from './product.service.js';
 import { nextSequence, formatClientId, formatLicenceKey } from '../utils/sequence.js';
 import { computeLicenceStatus } from '../utils/licence.js';
 import { effectiveAccountStatus, dormancyCutoff } from '../utils/accountStatus.js';
+import { signImpersonationToken } from '../utils/tokens.js';
 
 /**
  * The customer-list filter. `ACTIVE`/`ARCHIVED` select the archive state; the
  * two account standings (`DORMANT`, `SUSPENDED`) narrow the non-archived set by
  * the *effective* status shown in the table — matching what the operator sees.
  */
-export type CustomerListStatus = 'ACTIVE' | 'ARCHIVED' | 'DORMANT' | 'SUSPENDED';
+export type CustomerListStatus = 'ACTIVE' | 'ARCHIVED' | 'DORMANT' | 'SUSPENDED' | 'ACTIVE_TRIAL';
 
 interface ListParams extends PageQuery {
   search?: string;
@@ -44,6 +45,9 @@ export async function listCustomers(params: ListParams) {
     if (status === 'SUSPENDED') {
       // Suspended is always a pinned override, so stored == effective.
       where.accountStatus = CustomerAccountStatus.SUSPENDED;
+    } else if (status === 'ACTIVE_TRIAL') {
+      // Active-Trial is a pinned override, so stored == effective.
+      where.accountStatus = CustomerAccountStatus.ACTIVE_TRIAL;
     } else if (status === 'DORMANT') {
       // Effective dormant: pinned dormant, or active with no recent invoice.
       where.AND = [
@@ -125,6 +129,50 @@ export async function listCustomers(params: ListParams) {
 export async function previewNextClientId(): Promise<string> {
   const counter = await prisma.counter.findUnique({ where: { key: 'clientId' } });
   return formatClientId((counter?.value ?? 0) + 1);
+}
+
+/**
+ * Mint a read-only impersonation session so an admin can view a client's portal
+ * (every tab, real data) without the client's password. The token carries the
+ * customer id directly, so it works even for customers with no portal login. The
+ * client route layer refuses any write while `imp` is set.
+ */
+export async function impersonateCustomer(clientId: string) {
+  const customer = await prisma.customer.findUnique({
+    where: { clientId },
+    select: { id: true, clientId: true, companyName: true, contactPerson: true },
+  });
+  if (!customer) throw ApiError.notFound('Customer not found');
+
+  // Prefer the real portal login's identity when one exists.
+  const login = await prisma.clientUser.findFirst({
+    where: { customerId: customer.id },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+  });
+
+  const displayName = (customer.companyName || customer.contactPerson || 'Client').trim();
+  const accessToken = signImpersonationToken({
+    sub: login?.id ?? customer.id,
+    role: 'CLIENT',
+    email: login?.email ?? '',
+    cid: customer.id,
+  });
+
+  const user = {
+    id: login?.id ?? customer.id,
+    firstName: login?.firstName || displayName,
+    lastName: login?.lastName || '',
+    email: login?.email ?? '',
+    role: 'CLIENT' as const,
+    avatarUrl: login?.avatarUrl ?? null,
+  };
+
+  return {
+    accessToken,
+    user,
+    company: { clientId: customer.clientId, companyName: customer.companyName },
+  };
 }
 
 export async function getCustomerByClientId(clientId: string) {

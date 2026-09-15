@@ -7,7 +7,6 @@ import {
   ArrowRight,
   AlertTriangle,
   ListChecks,
-  ShieldCheck,
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -19,15 +18,11 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/misc';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
-import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/states';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-
-const ACCOUNT_STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' }> = {
-  ACTIVE: { label: 'Active', variant: 'success' },
-  DORMANT: { label: 'Dormant', variant: 'warning' },
-  SUSPENDED: { label: 'Suspended', variant: 'destructive' },
-};
+import { HeroWave, HeroHealthCluster } from '@/components/shared/HeroHealth';
+import { ProductGlyph } from '@/lib/product-icon';
+import headphonesArt from '@/assets/headphones.png';
 
 // Soft pastel tones for the stat-card icon tiles (matches the reference).
 const TONES: Record<string, { tile: string; link: string }> = {
@@ -115,37 +110,13 @@ function Donut({ total, segments }: { total: number; segments: { value: number; 
   );
 }
 
-/** Headphones illustration for the Need Help card (inline SVG — no external asset). */
-function HeadphonesArt({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 140 130" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="hp-band" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#60a5fa" />
-          <stop offset="100%" stopColor="#2563eb" />
-        </linearGradient>
-        <linearGradient id="hp-cup" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#3b82f6" />
-          <stop offset="100%" stopColor="#1e40af" />
-        </linearGradient>
-      </defs>
-      {/* head band */}
-      <path
-        d="M24 86 V64 a46 46 0 0 1 92 0 V86"
-        fill="none"
-        stroke="url(#hp-band)"
-        strokeWidth="10"
-        strokeLinecap="round"
-      />
-      {/* ear cups */}
-      <rect x="14" y="78" width="26" height="44" rx="13" fill="url(#hp-cup)" />
-      <rect x="100" y="78" width="26" height="44" rx="13" fill="url(#hp-cup)" />
-      {/* cushions */}
-      <rect x="34" y="86" width="10" height="28" rx="5" fill="#bfdbfe" />
-      <rect x="96" y="86" width="10" height="28" rx="5" fill="#bfdbfe" />
-    </svg>
-  );
-}
+// Account status → health score shown by the hero donut.
+const ACCOUNT_HEALTH: Record<string, { pct: number; label: string }> = {
+  ACTIVE: { pct: 98, label: 'Excellent' },
+  ACTIVE_TRIAL: { pct: 90, label: 'Trial' },
+  DORMANT: { pct: 68, label: 'Fair' },
+  SUSPENDED: { pct: 34, label: 'At risk' },
+};
 
 const TASK_PILL: Record<string, { label: string; cls: string }> = {
   IN_PROGRESS: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
@@ -175,9 +146,8 @@ export default function ClientDashboard() {
   const profileQ = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
 
   const d = dashQ.data;
-  const acct = profileQ.data
-    ? ACCOUNT_STATUS[profileQ.data.accountStatusEffective ?? profileQ.data.accountStatus]
-    : undefined;
+  const acctStatus = profileQ.data?.accountStatusEffective ?? profileQ.data?.accountStatus;
+  const health = (acctStatus && ACCOUNT_HEALTH[acctStatus]) ?? ACCOUNT_HEALTH.ACTIVE;
   const displayName =
     profileQ.data?.companyName?.trim() ||
     [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
@@ -187,6 +157,8 @@ export default function ClientDashboard() {
     <div className="space-y-6">
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[#eaf1ff] via-[#f3f7ff] to-[#e9f6ef] p-6 sm:p-8">
+        {/* Blue wave background graphic — fitted to the right and faded to the left */}
+        <HeroWave />
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="max-w-xl">
             <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">
@@ -205,22 +177,9 @@ export default function ClientDashboard() {
             </div>
           </div>
 
-          {/* Account status card */}
-          <div className="flex items-center gap-4 rounded-2xl border border-border bg-card/80 p-5 shadow-card backdrop-blur">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-              <ShieldCheck className="h-7 w-7" />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Account Health</p>
-              <p className="text-lg font-semibold">
-                {acct ? acct.label : '—'}
-              </p>
-              {acct && <Badge variant={acct.variant} className="mt-1">{acct.label}</Badge>}
-            </div>
-          </div>
+          {/* Account Health floating cluster (shield · donut · chart) */}
+          <HeroHealthCluster title="Account Health" pct={health.pct} label={health.label} />
         </div>
-        {/* Soft decorative glow */}
-        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
       </div>
 
       {/* Stat cards — existing KPIs */}
@@ -352,10 +311,11 @@ export default function ClientDashboard() {
               <EmptyState title="No products" description="Your licences will appear here." />
             ) : (
               <ul className="space-y-3">
-                {prodQ.data.slice(0, 6).map((p) => (
+                {prodQ.data.slice(0, 6).map((p) => {
+                  return (
                   <li key={p.id} className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-                      <Package className="h-[18px] w-[18px]" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                      <ProductGlyph parts={[p.product]} className="h-[20px] w-[20px]" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{p.product}</p>
@@ -363,7 +323,8 @@ export default function ClientDashboard() {
                     </div>
                     <LicenceBadge status={p.status} />
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </CardContent>
@@ -441,19 +402,23 @@ export default function ClientDashboard() {
 
         {/* Need help */}
         <Card className="relative overflow-hidden">
-          <CardContent className="flex h-full flex-col pt-6">
+          {/* Headphones illustration — anchored to the bottom-right, fully visible */}
+          <img
+            src={headphonesArt}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-3 -right-1 z-0 h-60 w-60 select-none object-contain object-right-bottom drop-shadow-lg sm:h-64 sm:w-64"
+          />
+          <CardContent className="relative z-10 flex h-full min-h-[248px] flex-col pt-6">
             <div>
               <h3 className="text-lg font-semibold">Need Help?</h3>
               <p className="mt-1 text-sm text-muted-foreground">We’re here to help you 24/7.</p>
             </div>
-            <div className="my-4 flex justify-center">
-              <HeadphonesArt className="h-28 w-28 drop-shadow-sm" />
-            </div>
-            <div className="mt-auto space-y-2">
+            <div className="mt-auto max-w-[180px] space-y-2">
               <Button className="w-full" asChild>
                 <a href="mailto:support@egdigital.com.au?subject=Support%20request">Create a Ticket</a>
               </Button>
-              <Button variant="outline" className="w-full" asChild>
+              <Button variant="outline" className="w-full bg-card/80 backdrop-blur" asChild>
                 <a href="mailto:support@egdigital.com.au?subject=Knowledge%20base%20enquiry">Browse Knowledge Base</a>
               </Button>
             </div>

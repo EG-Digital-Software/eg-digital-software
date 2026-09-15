@@ -45,6 +45,11 @@ export const paymentSettingsSchema = z.object({
   payInstructions: z.string().max(2000).optional(),
 });
 
+/** Set the single, global account manager shown to every client. Blank clears it. */
+export const accountManagerSettingSchema = z.object({
+  employeeId: z.string().uuid().optional().or(z.literal('')).or(z.null()),
+});
+
 /** Admin creating a team (EMPLOYEE) login directly from the Approvals page. */
 export const createEmployeeSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(60),

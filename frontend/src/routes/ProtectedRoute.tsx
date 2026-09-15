@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { Role } from '@/types';
 import { useAuth } from '@/store/auth';
+import { ROLE_HOME } from '@/lib/portal';
 import { LoadingBlock } from '@/components/shared/states';
 
 export function ProtectedRoute({ roles }: { roles?: Role[] }) {
@@ -22,8 +23,12 @@ export function ProtectedRoute({ roles }: { roles?: Role[] }) {
     return <Navigate to="/" replace state={{ from: location.pathname }} />;
   }
 
+  // Wrong portal for this role. Rather than dead-end on /forbidden, send the user
+  // to their own home — this keeps a valid admin from ever looking "locked out"
+  // (e.g. when a read-only client view is active, or after exiting one).
   if (roles && !roles.includes(user.role)) {
-    return <Navigate to="/forbidden" replace />;
+    const home = ROLE_HOME[user.role];
+    return <Navigate to={home ?? '/forbidden'} replace />;
   }
 
   return <Outlet />;

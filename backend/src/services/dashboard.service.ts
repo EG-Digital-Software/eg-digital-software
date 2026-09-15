@@ -303,3 +303,48 @@ export async function getRecent() {
   ]);
   return { customers, invoices, payments };
 }
+
+/**
+ * Cross-customer task snapshot for the admin dashboard: status counts plus the
+ * soonest-due open tasks. Read-only aggregate over every customer's board.
+ */
+export async function getTaskOverview(clientId?: string) {
+  // Optional scope: a single customer (by their public clientId) or all customers.
+  const scope: Prisma.TaskWhereInput = clientId ? { customer: { clientId } } : {};
+
+  const [grouped, total, upcoming] = await Promise.all([
+    prisma.task.groupBy({ by: ['progress'], where: scope, _count: { _all: true } }),
+    prisma.task.count({ where: scope }),
+    prisma.task.findMany({
+      where: { ...scope, progress: { not: 'COMPLETED' } },
+      orderBy: [{ dueDate: 'asc' }],
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        dueDate: true,
+        progress: true,
+        customer: { select: { companyName: true, contactPerson: true, clientId: true } },
+      },
+    }),
+  ]);
+
+  const countBy = (p: string) => grouped.find((g) => g.progress === p)?._count._all ?? 0;
+  const inProgress = countBy('IN_PROGRESS') + countBy('ONGOING');
+  const pending = countBy('NOT_STARTED');
+  const completed = countBy('COMPLETED');
+
+  return {
+    total,
+    inProgress,
+    pending,
+    completed,
+    upcoming: upcoming.map((t) => ({
+      id: t.id,
+      title: t.title,
+      dueDate: t.dueDate,
+      progress: t.progress,
+      customer: t.customer.companyName || t.customer.contactPerson || t.customer.clientId,
+    })),
+  };
+}

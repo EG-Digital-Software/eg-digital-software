@@ -31,3 +31,12 @@ export const updateOrganisation = asyncHandler(async (req: Request, res: Respons
 export const getPublicOrganisation = asyncHandler(async (_req: Request, res: Response) => {
   return ok(res, await settingsService.getOrganisationSettings());
 });
+
+export const getAccountManager = asyncHandler(async (_req: Request, res: Response) => {
+  return ok(res, await settingsService.getAccountManagerSetting());
+});
+
+export const updateAccountManager = asyncHandler(async (req: Request, res: Response) => {
+  const updated = await settingsService.updateAccountManagerSetting(req.body.employeeId ?? null);
+  return ok(res, updated, 'Account manager updated');
+});

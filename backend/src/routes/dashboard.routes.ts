@@ -15,5 +15,6 @@ router.get('/series', validate({ query: seriesQuerySchema }), ctrl.series);
 router.get('/licences', ctrl.licences);
 router.get('/low-stock', ctrl.lowStock);
 router.get('/recent-activity', ctrl.recentActivity);
+router.get('/tasks-overview', ctrl.taskOverview);
 
 export default router;

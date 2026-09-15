@@ -10,6 +10,7 @@ import {
   listRegistrationQuerySchema,
   createEmployeeSchema,
   employeePasswordSchema,
+  accountManagerSettingSchema,
 } from '../validators/settings.validator.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
@@ -23,6 +24,7 @@ router.get('/registrations', validate({ query: listRegistrationQuerySchema }), a
 router.get('/registrations/count', approvals.count);
 router.post('/registrations/:id/approve', approvals.approve);
 router.post('/registrations/:id/reject', approvals.reject);
+router.delete('/registrations/:id', approvals.remove);
 
 // Admin-provisioned team (EMPLOYEE) logins: create, reveal password, reset password.
 router.post('/employees', validate({ body: createEmployeeSchema }), approvals.createEmployee);
@@ -43,6 +45,14 @@ router.put(
   '/organisation',
   validate({ body: organisationSettingsSchema }),
   settings.updateOrganisation
+);
+
+// Single, global account manager shown to every client (set from Approvals).
+router.get('/account-manager', settings.getAccountManager);
+router.put(
+  '/account-manager',
+  validate({ body: accountManagerSettingSchema }),
+  settings.updateAccountManager
 );
 
 // Manually trigger the daily licence-expiry reminder job.

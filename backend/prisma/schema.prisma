@@ -36,6 +36,7 @@ enum CustomerStatus {
 /// SUSPENDED are manual overrides an admin pins on the account.
 enum CustomerAccountStatus {
   ACTIVE
+  ACTIVE_TRIAL
   DORMANT
   SUSPENDED
 }

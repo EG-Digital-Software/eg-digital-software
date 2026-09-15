@@ -150,7 +150,7 @@ export const createCustomerSchema = z
       .regex(/^[a-zA-Z0-9]*$/, 'Reference must be alphanumeric')
       .optional(),
 
-    accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).optional(),
+    accountStatus: z.enum(['ACTIVE', 'ACTIVE_TRIAL', 'DORMANT', 'SUSPENDED']).optional(),
 
     /// Team member assigned as this client's account manager. Empty string clears it.
     accountManagerId: z.string().uuid().optional().or(z.literal('')),
@@ -187,7 +187,7 @@ export const listCustomerQuerySchema = z.object({
   page: z.coerce.number().optional(),
   pageSize: z.coerce.number().optional(),
   search: z.string().optional(),
-  status: z.enum(['ACTIVE', 'ARCHIVED', 'DORMANT', 'SUSPENDED']).optional(),
+  status: z.enum(['ACTIVE', 'ARCHIVED', 'DORMANT', 'SUSPENDED', 'ACTIVE_TRIAL']).optional(),
   businessType: z.string().optional(),
   sortBy: z
     .enum(['createdAt', 'companyName', 'firstName', 'clientId', 'creditScore'])

@@ -6,6 +6,7 @@ import { computeLicenceStatus, daysRemaining } from '../utils/licence.js';
 import { formatLicenceKey } from '../utils/sequence.js';
 import { ensurePayable } from './invoice.service.js';
 import { submitSignedDocument as submitSignedDocumentForCustomer } from './customer.service.js';
+import { getResolvedAccountManager } from './settings.service.js';
 
 /** Resolve the Customer a signed-in client user is linked to. */
 export async function resolveCustomerId(userId: string): Promise<string> {
@@ -15,19 +16,20 @@ export async function resolveCustomerId(userId: string): Promise<string> {
 }
 
 export async function getProfile(customerId: string) {
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
-    include: {
-      addresses: true,
-      directors: true,
-      documents: { orderBy: { createdAt: 'desc' } },
-      accountManager: {
-        select: { firstName: true, lastName: true, email: true, avatarUrl: true, designation: true },
+  const [customer, accountManager] = await Promise.all([
+    prisma.customer.findUnique({
+      where: { id: customerId },
+      include: {
+        addresses: true,
+        directors: true,
+        documents: { orderBy: { createdAt: 'desc' } },
       },
-    },
-  });
+    }),
+    // One global account manager applies to every client (set from Approvals).
+    getResolvedAccountManager(),
+  ]);
   if (!customer) throw ApiError.notFound('Customer not found');
-  return customer;
+  return { ...customer, accountManager };
 }
 
 /**

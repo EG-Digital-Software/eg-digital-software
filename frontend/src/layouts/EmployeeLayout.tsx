@@ -9,6 +9,7 @@ import {
   Search,
   Menu,
   X,
+  ShieldCheck,
   type LucideProps,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -74,6 +75,24 @@ export function EmployeeLayout() {
           </NavLink>
         ))}
       </nav>
+
+      {/* System status */}
+      <div className="px-3 pb-2">
+        <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary/40 px-3.5 py-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            </span>
+            <div className="leading-tight">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                System Status
+              </p>
+              <p className="text-sm font-semibold text-emerald-600">Operational</p>
+            </div>
+          </div>
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+        </div>
+      </div>
 
       {/* Account + sign out */}
       <div className="border-t border-border p-3">

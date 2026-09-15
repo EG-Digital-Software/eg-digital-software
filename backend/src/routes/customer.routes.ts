@@ -31,6 +31,8 @@ router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
 // Must precede `/:clientId` or "next-client-id" would be read as a Client ID.
 router.get('/next-client-id', ctrl.nextClientId);
 router.get('/:clientId', ctrl.getOne);
+// Read-only "view as client" — mints an impersonation token for the admin.
+router.post('/:clientId/impersonate', ctrl.impersonate);
 // Reveal the customer's portal password (admin-only, like every route here).
 // Agreement Document uploads (admin-only, like every route here).
 router.post('/:clientId/documents', docUpload.single('file'), ctrl.uploadDocument);

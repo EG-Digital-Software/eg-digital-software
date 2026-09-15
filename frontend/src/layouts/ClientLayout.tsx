@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   MessageCircle,
+  ShieldCheck,
   type LucideProps,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -24,6 +25,7 @@ import { useLogout } from '@/hooks/useSession';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
+import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 
 interface NavItem {
@@ -31,6 +33,14 @@ interface NavItem {
   label: string;
   icon: ComponentType<LucideProps>;
 }
+
+// Account status → sidebar card presentation.
+const ACCOUNT_STATUS: Record<string, { label: string; dot: string; text: string; ring: string }> = {
+  ACTIVE: { label: 'Active', dot: 'bg-emerald-500', text: 'text-emerald-600', ring: 'bg-emerald-500/15' },
+  ACTIVE_TRIAL: { label: 'Active-Trial', dot: 'bg-blue-500', text: 'text-blue-600', ring: 'bg-blue-500/15' },
+  DORMANT: { label: 'Dormant', dot: 'bg-amber-500', text: 'text-amber-600', ring: 'bg-amber-500/15' },
+  SUSPENDED: { label: 'Suspended', dot: 'bg-rose-500', text: 'text-rose-600', ring: 'bg-rose-500/15' },
+};
 
 const NAV: NavItem[] = [
   { to: '/client/dashboard', label: 'Dashboard', icon: Home },
@@ -44,11 +54,14 @@ const NAV: NavItem[] = [
 /** Left-rail portal shell matching the customer-portal reference design. */
 export function ClientLayout() {
   const user = useAuth((s) => s.user);
+  const impersonating = useAuth((s) => !!s.impersonation);
   const logout = useLogout();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false); // mobile drawer
   const { data: profile } = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
   const manager = profile?.accountManager ?? null;
+  const acctStatus = profile?.accountStatusEffective ?? profile?.accountStatus;
+  const status = (acctStatus && ACCOUNT_STATUS[acctStatus]) ?? undefined;
 
   const handleLogout = async () => {
     await logout();
@@ -116,6 +129,26 @@ export function ClientLayout() {
         </div>
       )}
 
+      {/* Account status */}
+      {status && (
+        <div className="px-3 pb-2">
+          <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary/40 px-3.5 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className={cn('flex h-7 w-7 items-center justify-center rounded-full', status.ring)}>
+                <ShieldCheck className={cn('h-4 w-4', status.text)} />
+              </span>
+              <div className="leading-tight">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Account Status
+                </p>
+                <p className={cn('text-sm font-semibold', status.text)}>{status.label}</p>
+              </div>
+            </div>
+            <span className={cn('h-2.5 w-2.5 rounded-full', status.dot)} />
+          </div>
+        </div>
+      )}
+
       {/* Account + sign out */}
       <div className="border-t border-border p-3">
         <div className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2">
@@ -154,9 +187,15 @@ export function ClientLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f5f7fa]">
+    <div className={cn('min-h-screen bg-[#f5f7fa]', impersonating && 'pt-10')}>
+      <ImpersonationBanner />
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card lg:block">
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card lg:block',
+          impersonating && 'top-10'
+        )}
+      >
         {sidebar}
       </aside>
 
@@ -180,7 +219,12 @@ export function ClientLayout() {
 
       <div className="lg:pl-72">
         {/* Top bar */}
-        <header className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-md">
+        <header
+          className={cn(
+            'sticky z-20 border-b border-border bg-card/85 backdrop-blur-md',
+            impersonating ? 'top-10' : 'top-0'
+          )}
+        >
           <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
             <button
               type="button"

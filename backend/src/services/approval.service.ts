@@ -5,6 +5,7 @@ import { encryptSecret, decryptSecret } from '../utils/secretBox.js';
 import { publicUser } from './auth.service.js';
 import { sendAccountApproved, sendAccountRejected } from './email/templates.js';
 import { notify } from './notification.service.js';
+import { getAccountManagerSetting, updateAccountManagerSetting } from './settings.service.js';
 import * as accounts from './accounts.js';
 
 const ROLE_HOME: Record<string, string> = {
@@ -98,6 +99,46 @@ export async function reject(userId: string, approverId: string) {
   });
   sendAccountRejected({ email: updated.email, firstName: updated.firstName, role: updated.role });
   return publicUser(updated);
+}
+
+/**
+ * Permanently delete a registration (CLIENT / SUPPLIER / EMPLOYEE login) from
+ * the Approvals page. Runs in one transaction: the user's sessions, reset tokens
+ * and notifications are cleared first, then the account row is removed.
+ *
+ * Business records are NOT touched — a client's Customer (company, invoices,
+ * products) stays intact, and any customer that pinned this employee as its
+ * account manager simply has that link cleared (SET NULL), never deleted.
+ */
+export async function remove(userId: string) {
+  const account = await accounts.findSignupById(userId);
+  if (!account) throw ApiError.notFound('Request not found');
+  const role = account.role;
+
+  // If this employee is pinned as the single global account manager, unpin it
+  // first so the client portal doesn't reference a deleted team member.
+  if (role === 'EMPLOYEE') {
+    const am = await getAccountManagerSetting();
+    if (am.employeeId === userId) await updateAccountManagerSetting(null);
+  }
+
+  const del =
+    role === 'CLIENT'
+      ? prisma.clientUser.delete({ where: { id: userId } })
+      : role === 'SUPPLIER'
+        ? prisma.supplierUser.delete({ where: { id: userId } })
+        : prisma.employeeUser.delete({ where: { id: userId } });
+
+  await prisma.$transaction([
+    prisma.refreshToken.deleteMany({ where: { userId, userType: role } }),
+    prisma.passwordResetToken.deleteMany({ where: { userId, userType: role } }),
+    prisma.notification.deleteMany({ where: { userId, userType: role } }),
+    // Remove this user from every task they were assigned to (polymorphic ref).
+    prisma.taskAssignee.deleteMany({ where: { userId, userType: role } }),
+    del,
+  ]);
+
+  return { id: userId, role };
 }
 
 // ── Admin-provisioned team (EMPLOYEE) accounts ───────────────────────────────

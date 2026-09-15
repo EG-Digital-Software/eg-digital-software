@@ -12,6 +12,8 @@ import type {
   PageMeta,
   Product,
   SeriesPoint,
+  TaskOverview,
+  User,
 } from '@/types';
 
 function qs(params: Record<string, unknown>): string {
@@ -36,6 +38,8 @@ export const dashboardApi = {
   lowStock: async () => (await api.get<ApiEnvelope<LowStockRow[]>>('/dashboard/low-stock')).data.data,
   recent: async () =>
     (await api.get<ApiEnvelope<Record<string, unknown>>>('/dashboard/recent-activity')).data.data,
+  tasksOverview: async (clientId?: string) =>
+    (await api.get<ApiEnvelope<TaskOverview>>(`/dashboard/tasks-overview${qs({ clientId })}`)).data.data,
 };
 
 // ── Customers ────────────────────────────────────────────
@@ -46,6 +50,13 @@ export const customerApi = {
   },
   get: async (clientId: string) =>
     (await api.get<ApiEnvelope<Customer>>(`/customers/${clientId}`)).data.data,
+  /** Mint a read-only impersonation session to view this client's portal. */
+  impersonate: async (clientId: string) =>
+    (
+      await api.post<ApiEnvelope<{ accessToken: string; user: User; company: { clientId: string; companyName: string | null } }>>(
+        `/customers/${clientId}/impersonate`
+      )
+    ).data.data,
   nextClientId: async () =>
     (await api.get<ApiEnvelope<{ clientId: string }>>('/customers/next-client-id')).data.data
       .clientId,
@@ -218,6 +229,7 @@ export const adminApi = {
     (await api.get<ApiEnvelope<{ count: number }>>('/admin/registrations/count')).data.data.count,
   approve: async (id: string) => (await api.post(`/admin/registrations/${id}/approve`)).data,
   reject: async (id: string) => (await api.post(`/admin/registrations/${id}/reject`)).data,
+  deleteRegistration: async (id: string) => (await api.delete(`/admin/registrations/${id}`)).data,
 
   // Admin-provisioned team (EMPLOYEE) accounts.
   createEmployee: async (body: {
@@ -344,6 +356,11 @@ export const settingsApi = {
     (await api.put<ApiEnvelope<PaymentSettings>>('/admin/payment-settings', body)).data.data,
   publicPayment: async () =>
     (await api.get<ApiEnvelope<PublicPaymentSettings>>('/payments/public/settings')).data.data,
+  getAccountManager: async () =>
+    (await api.get<ApiEnvelope<{ employeeId: string | null }>>('/admin/account-manager')).data.data,
+  setAccountManager: async (employeeId: string | null) =>
+    (await api.put<ApiEnvelope<{ employeeId: string | null }>>('/admin/account-manager', { employeeId }))
+      .data.data,
 };
 
 // ── ABN lookup ───────────────────────────────────────────

@@ -4,6 +4,9 @@ import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
 
 async function cid(req: Request) {
+  // An admin impersonation token carries the target customer id directly, so it
+  // resolves even for customers that have no portal login of their own.
+  if (req.user?.cid) return req.user.cid;
   return clientService.resolveCustomerId(req.user!.sub);
 }
 

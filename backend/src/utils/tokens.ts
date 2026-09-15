@@ -7,11 +7,27 @@ export interface AccessPayload {
   sub: string; // user id
   role: Role;
   email: string;
+  /** Set when an admin is viewing a client portal (read-only impersonation). */
+  imp?: boolean;
+  /** Target customer id carried by an impersonation token. */
+  cid?: string;
 }
 
 export function signAccessToken(payload: AccessPayload): string {
   return jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: env.JWT_ACCESS_EXPIRES,
+  } as SignOptions);
+}
+
+/**
+ * Access token an admin uses to view a client's portal read-only. Signed with a
+ * longer window than a normal access token so the admin isn't kicked out mid
+ * investigation. There is no refresh counterpart — it simply expires (or the
+ * admin exits) and the admin's own session resumes.
+ */
+export function signImpersonationToken(payload: AccessPayload): string {
+  return jwt.sign({ ...payload, imp: true }, env.JWT_SECRET, {
+    expiresIn: '2h',
   } as SignOptions);
 }
 

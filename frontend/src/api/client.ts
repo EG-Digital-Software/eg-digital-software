@@ -56,6 +56,12 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as AxiosRequestConfig & { _retry?: boolean };
     const isAuthCall = original?.url?.includes('/auth/');
+    // While impersonating a client, never silently refresh into the admin's own
+    // session — the impersonation token simply expired, so drop back to admin.
+    if (error.response?.status === 401 && authStore.getState().impersonation) {
+      authStore.getState().stopImpersonation();
+      return Promise.reject(error);
+    }
     if (error.response?.status === 401 && !original._retry && !isAuthCall) {
       original._retry = true;
       const token = await silentRefresh();

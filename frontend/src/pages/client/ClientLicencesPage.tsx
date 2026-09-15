@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/misc';
 import { LicenceBadge } from '@/components/shared/status';
 import { EmptyState, ErrorState, Spinner } from '@/components/shared/states';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { ProductGlyph } from '@/lib/product-icon';
 
 const STATUSES = [
   { value: 'ACTIVE', label: 'Active' },
@@ -158,9 +159,17 @@ export default function ClientLicencesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((p) => (
+              {data.map((p) => {
+                return (
                 <TableRow key={p.id}>
-                  <TableCell className="text-center font-medium">{p.product}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                        <ProductGlyph parts={[p.product]} className="h-[18px] w-[18px]" />
+                      </span>
+                      {p.product}
+                    </div>
+                  </TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm tracking-wide">{p.licence}</TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm">{formatDate(p.issueDate)}</TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm">{formatDate(p.expiryDate)}</TableCell>
@@ -198,7 +207,8 @@ export default function ClientLicencesPage() {
                     </button>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
           </div>
@@ -261,9 +271,14 @@ function LicenceDetailsDialog({
         </DialogHeader>
         {product && (
           <div className="space-y-4">
-            <div>
-              <p className="text-lg font-semibold">{product.product}</p>
-              <p className="text-sm text-muted-foreground">{product.sku}</p>
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-card">
+                <ProductGlyph parts={[product.product]} className="h-[24px] w-[24px]" />
+              </span>
+              <div>
+                <p className="text-lg font-semibold">{product.product}</p>
+                <p className="text-sm text-muted-foreground">{product.sku}</p>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
               <Detail label="Licence Key" value={product.licence} mono />

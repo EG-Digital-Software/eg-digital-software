@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/misc';
 import { LicenceBadge } from '@/components/shared/status';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { formatDate } from '@/lib/utils';
+import { ProductGlyph } from '@/lib/product-icon';
 
 const STATUSES = [
   { value: 'EXPIRING_SOON', label: 'Expiring soon' },
@@ -117,13 +118,21 @@ export default function EmployeeLicencesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((l) => (
+              {rows.map((l) => {
+                return (
                 <TableRow key={l.id}>
                   <TableCell>
                     <p className="font-medium">{l.customer}</p>
                     <p className="text-xs text-muted-foreground">{l.clientId}</p>
                   </TableCell>
-                  <TableCell className="text-sm">{l.product}</TableCell>
+                  <TableCell className="text-sm">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                        <ProductGlyph parts={[l.product]} className="h-[18px] w-[18px]" />
+                      </span>
+                      {l.product}
+                    </div>
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{l.licence}</TableCell>
                   <TableCell className="text-sm">{formatDate(l.expiryDate)}</TableCell>
                   <TableCell className="text-right tabular-nums">{l.daysRemaining ?? '—'}</TableCell>
@@ -131,7 +140,8 @@ export default function EmployeeLicencesPage() {
                     <LicenceBadge status={l.status} />
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}

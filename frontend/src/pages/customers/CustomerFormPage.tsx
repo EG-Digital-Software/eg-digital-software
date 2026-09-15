@@ -109,7 +109,7 @@ const schema = z
         return Number.isInteger(n) && n >= 0 && n <= 1200;
       }, 'Credit score must be a whole number between 0 and 1200'),
 
-    accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).default('ACTIVE'),
+    accountStatus: z.enum(['ACTIVE', 'ACTIVE_TRIAL', 'DORMANT', 'SUSPENDED']).default('ACTIVE'),
 
     // Customer Credential — the portal login the admin provisions for this
     // customer. Email + password; password left blank on edit keeps the current.
@@ -1782,6 +1782,7 @@ export default function CustomerFormPage() {
             >
               <Select {...register('accountStatus')}>
                 <option value="ACTIVE">Active</option>
+                <option value="ACTIVE_TRIAL">Active-Trial</option>
                 <option value="DORMANT">Dormant</option>
                 <option value="SUSPENDED">Suspended</option>
               </Select>

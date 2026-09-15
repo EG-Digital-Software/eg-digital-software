@@ -28,6 +28,11 @@ export const reject = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, user, 'Account rejected');
 });
 
+export const remove = asyncHandler(async (req: Request, res: Response) => {
+  const result = await approvalService.remove(req.params.id);
+  return ok(res, result, 'Account deleted');
+});
+
 export const createEmployee = asyncHandler(async (req: Request, res: Response) => {
   const employee = await approvalService.createEmployee(req.body, req.user!.sub);
   return ok(res, employee, 'Team member added', 201);

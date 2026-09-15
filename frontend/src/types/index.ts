@@ -119,7 +119,7 @@ export interface CustomerProduct {
   licence?: { licenceKey: string } | null;
 }
 
-export type AccountStatus = 'ACTIVE' | 'DORMANT' | 'SUSPENDED';
+export type AccountStatus = 'ACTIVE' | 'ACTIVE_TRIAL' | 'DORMANT' | 'SUSPENDED';
 
 export interface Customer {
   id: string;
@@ -315,6 +315,20 @@ export interface DashboardSummary {
   /** Owed and past its due date — matches the Billing page's Overdue tab. */
   overdue: { count: number; amount: number };
   licences: { active: number; expiringSoon: number; expired: number; suspended: number };
+}
+
+export interface TaskOverview {
+  total: number;
+  inProgress: number;
+  pending: number;
+  completed: number;
+  upcoming: Array<{
+    id: string;
+    title: string;
+    dueDate: string | null;
+    progress: 'NOT_STARTED' | 'IN_PROGRESS' | 'ONGOING' | 'COMPLETED';
+    customer: string;
+  }>;
 }
 
 export interface LicenceRow {
