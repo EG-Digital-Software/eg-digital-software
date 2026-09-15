@@ -149,7 +149,6 @@ const schema = z
       .array(
         z.object({
           productId: z.string().min(1, 'Select a product'),
-          quantity: z.coerce.number().int().positive(),
           price: z.coerce.number().min(0).optional(),
           unit: z.string().optional(),
           taxRate: z.coerce.number().min(0).max(100).optional(),
@@ -1876,7 +1875,7 @@ export default function CustomerFormPage() {
             <div className="space-y-4">
               {fields.map((field, index) => {
                 const row = assigned?.[index];
-                const rowNet = (Number(row?.price) || 0) * (Number(row?.quantity) || 0);
+                const rowNet = Number(row?.price) || 0;
                 const rowTotal = rowNet + rowNet * ((Number(row?.taxRate) || 0) / 100);
                 return (
                   <div key={field.id} className="rounded-lg border border-border bg-secondary/30 p-4">
@@ -1903,13 +1902,7 @@ export default function CustomerFormPage() {
                           )}
                         />
                       </Field>
-                      <Field
-                        label="Quantity"
-                        error={errors.assignedProducts?.[index]?.quantity?.message}
-                      >
-                        <Input {...numericField(register(`assignedProducts.${index}.quantity`))} />
-                      </Field>
-                      <Field label="Price Per Qty">
+                      <Field label="Agreed Price">
                         <Input {...numericField(register(`assignedProducts.${index}.price`), 'decimal')} />
                       </Field>
                       <Field label="Unit">
@@ -1946,7 +1939,7 @@ export default function CustomerFormPage() {
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  append({ productId: '', quantity: 1, price: 0, unit: '', taxRate: 0, licence: '', issueDate: '', expiryDate: '' })
+                  append({ productId: '', price: 0, unit: '', taxRate: 0, licence: '', issueDate: '', expiryDate: '' })
                 }
               >
                 <Plus className="h-4 w-4" /> Add Product

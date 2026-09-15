@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, EmptyState, Spinner } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -809,7 +810,6 @@ export default function CustomerDetailPage() {
 
 const EMPTY_ASSIGN = {
   productId: '',
-  quantity: '1',
   price: '',
   unit: '',
   taxRate: '10', // GST — fixed at 10%
@@ -996,9 +996,29 @@ function AgreementTab({ customer }: { customer: Customer }) {
 function ProductsTab({ customer }: { customer: Customer }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  // Editing works on a licence "group" (the products that share one licence key),
+  // identified by that key. null = not editing.
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_ASSIGN });
+  // Products picked in the Assign/Edit form, each with its OWN agreed price.
+  // Map of productId -> price (string).
+  const [selected, setSelected] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ key: string; items: CustomerProduct[] } | null>(null);
+  const selectedIds = Object.keys(selected);
+
+  // Group the assigned products by their shared licence key so each licence shows
+  // as a single row (products assigned together share one key).
+  const groups = (() => {
+    const map = new Map<string, CustomerProduct[]>();
+    for (const cp of customer.customerProducts ?? []) {
+      const key = cp.licence?.licenceKey ?? `__${cp.id}`;
+      const arr = map.get(key);
+      if (arr) arr.push(cp);
+      else map.set(key, [cp]);
+    }
+    return [...map.entries()].map(([key, items]) => ({ key, items }));
+  })();
 
   const { data: products } = useQuery({
     queryKey: ['products', 'all'],
@@ -1008,88 +1028,132 @@ function ProductsTab({ customer }: { customer: Customer }) {
   const refresh = () => qc.invalidateQueries({ queryKey: ['customer', customer.clientId] });
   const set = (k: keyof typeof EMPTY_ASSIGN, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const net = (Number(form.price) || 0) * (Number(form.quantity) || 0);
-  // GST-inclusive: the agreed price already contains GST, so the total is the net.
-  // GST-exclusive: GST is added on top of the net.
-  const total =
-    form.gstType === 'INCLUSIVE' ? net : net + net * ((Number(form.taxRate) || 0) / 100);
+  // Apply GST to a net figure per the selected mode: INCLUSIVE means the agreed
+  // price already contains GST (total == net); EXCLUSIVE adds it on top.
+  const withGst = (netAmt: number) =>
+    form.gstType === 'INCLUSIVE' ? netAmt : netAmt + netAmt * ((Number(form.taxRate) || 0) / 100);
+
+  // Total across every selected product (each has its own agreed price).
+  const total = selectedIds.reduce((sum, id) => sum + withGst(Number(selected[id]) || 0), 0);
 
   const assign = useMutation({
     mutationFn: () => {
-      const payload: Record<string, unknown> = {
-        productId: form.productId,
-        quantity: Number(form.quantity) || 1,
+      // Terms other than price are shared across every selected product; the
+      // agreed price is per-product. The licence key is only carried through for
+      // a single product (many can't share one — each auto-generates its own).
+      const shared: Record<string, unknown> = {
+        contractType: form.contractType,
+        gstType: form.gstType,
       };
-      if (form.price !== '') payload.price = Number(form.price);
-      if (form.unit.trim()) payload.unit = form.unit.trim();
-      if (form.taxRate !== '') payload.taxRate = Number(form.taxRate);
-      payload.contractType = form.contractType;
-      payload.gstType = form.gstType;
-      if (form.licence.trim()) payload.licence = form.licence.trim();
-      if (form.issueDate) payload.issueDate = form.issueDate;
-      if (form.expiryDate) payload.expiryDate = form.expiryDate;
-      return customerApi.assignProduct(customer.clientId, payload);
+      if (form.unit.trim()) shared.unit = form.unit.trim();
+      if (form.taxRate !== '') shared.taxRate = Number(form.taxRate);
+      if (form.issueDate) shared.issueDate = form.issueDate;
+      if (form.expiryDate) shared.expiryDate = form.expiryDate;
+      const products = selectedIds.map((id) => ({
+        ...shared,
+        productId: id,
+        ...(selected[id] !== '' ? { price: Number(selected[id]) } : {}),
+        ...(selectedIds.length === 1 && form.licence.trim() ? { licence: form.licence.trim() } : {}),
+      }));
+      return customerApi.assignProducts(customer.clientId, products);
     },
-    onSuccess: () => { refresh(); toast.success('Product assigned'); setForm({ ...EMPTY_ASSIGN }); setAdding(false); },
+    onSuccess: () => {
+      refresh();
+      toast.success(selectedIds.length === 1 ? 'Product assigned' : `${selectedIds.length} products assigned`);
+      setForm({ ...EMPTY_ASSIGN });
+      setSelected({});
+      setAdding(false);
+    },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
-  const update = useMutation({
+  // Save a whole group: the ticked products (with prices) are the desired set —
+  // added ones get created, unticked ones removed, all under the shared key.
+  const updateGroup = useMutation({
     mutationFn: () => {
-      const payload: Record<string, unknown> = { quantity: Number(form.quantity) || 1 };
-      if (form.productId) payload.productId = form.productId;
-      payload.price = form.price !== '' ? Number(form.price) : 0;
-      payload.unit = form.unit.trim();
-      payload.taxRate = form.taxRate !== '' ? Number(form.taxRate) : 0;
-      payload.contractType = form.contractType;
-      payload.gstType = form.gstType;
-      if (form.licence.trim()) payload.licence = form.licence.trim();
-      if (form.issueDate) payload.issueDate = form.issueDate;
-      if (form.expiryDate) payload.expiryDate = form.expiryDate;
-      return customerApi.updateProduct(customer.clientId, editingId!, payload);
+      // Always send the price (0 when cleared) so clearing it actually saves —
+      // otherwise the backend keeps the previous value.
+      const products = selectedIds.map((id) => ({
+        productId: id,
+        price: Number(selected[id]) || 0,
+      }));
+      const body: Record<string, unknown> = {
+        products,
+        contractType: form.contractType,
+        gstType: form.gstType,
+      };
+      if (form.licence.trim()) body.licenceKey = form.licence.trim();
+      if (form.issueDate) body.issueDate = form.issueDate;
+      if (form.expiryDate) body.expiryDate = form.expiryDate;
+      return customerApi.updateProductGroup(customer.clientId, editingKey!, body);
     },
-    onSuccess: () => { refresh(); toast.success('Product updated'); setForm({ ...EMPTY_ASSIGN }); setEditingId(null); },
+    onSuccess: () => {
+      refresh();
+      toast.success('Products updated');
+      setForm({ ...EMPTY_ASSIGN });
+      setSelected({});
+      setEditingKey(null);
+    },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
-  function startEdit(cp: CustomerProduct) {
+  function startEditGroup(group: { key: string; items: CustomerProduct[] }) {
+    const rep = group.items[0];
     setAdding(false);
-    setEditingId(cp.id);
+    setEditingKey(group.key);
+    setSelected(
+      Object.fromEntries(group.items.map((cp) => [cp.product.id, cp.price != null ? String(cp.price) : '']))
+    );
     setForm({
-      productId: cp.product.id,
-      quantity: String(cp.quantity),
-      price: cp.price != null ? String(cp.price) : '',
-      unit: cp.unit ?? '',
+      productId: '',
+      price: '',
+      unit: rep.unit ?? '',
       taxRate: '10', // GST — fixed at 10%
-      contractType: cp.contractType ?? 'LOCKED',
-      gstType: cp.gstType ?? 'EXCLUSIVE',
-      licence: cp.licence?.licenceKey ?? '',
-      issueDate: cp.issueDate ? cp.issueDate.slice(0, 10) : '',
-      expiryDate: cp.expiryDate ? cp.expiryDate.slice(0, 10) : '',
+      contractType: rep.contractType ?? 'LOCKED',
+      gstType: rep.gstType ?? 'EXCLUSIVE',
+      licence: rep.licence?.licenceKey ?? '',
+      issueDate: rep.issueDate ? rep.issueDate.slice(0, 10) : '',
+      expiryDate: rep.expiryDate ? rep.expiryDate.slice(0, 10) : '',
     });
   }
   function cancelForm() {
     setAdding(false);
-    setEditingId(null);
+    setEditingKey(null);
     setForm({ ...EMPTY_ASSIGN });
+    setSelected({});
   }
+  const toggleProduct = (id: string) =>
+    setSelected((s) => {
+      if (id in s) {
+        const { [id]: _drop, ...rest } = s;
+        void _drop;
+        return rest;
+      }
+      return { ...s, [id]: '' };
+    });
+  const setProductPrice = (id: string, price: string) =>
+    setSelected((s) => ({ ...s, [id]: price }));
 
+  // Status / approve / remove act on the whole licence group at once.
   const setStatus = useMutation({
-    mutationFn: (v: { id: string; status: 'ACTIVE' | 'SUSPENDED' }) =>
-      customerApi.updateProduct(customer.clientId, v.id, { status: v.status }),
+    mutationFn: (v: { items: CustomerProduct[]; status: 'ACTIVE' | 'SUSPENDED' }) =>
+      Promise.all(v.items.map((cp) => customerApi.updateProduct(customer.clientId, cp.id, { status: v.status }))),
     onSuccess: () => { refresh(); toast.success('Status updated'); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
   const approve = useMutation({
-    mutationFn: (id: string) => customerApi.updateProduct(customer.clientId, id, { approvalStatus: 'APPROVED', status: 'ACTIVE' }),
-    onSuccess: () => { refresh(); toast.success('Product approved'); },
+    mutationFn: (items: CustomerProduct[]) =>
+      Promise.all(
+        items.map((cp) => customerApi.updateProduct(customer.clientId, cp.id, { approvalStatus: 'APPROVED', status: 'ACTIVE' }))
+      ),
+    onSuccess: () => { refresh(); toast.success('Products approved'); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => customerApi.removeProduct(customer.clientId, id),
-    onSuccess: () => { refresh(); toast.success('Product removed'); setRemoving(null); },
+    mutationFn: (key: string) => customerApi.removeProductGroup(customer.clientId, key),
+    onSuccess: () => { refresh(); toast.success('Products removed'); setRemoving(null); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
@@ -1097,27 +1161,65 @@ function ProductsTab({ customer }: { customer: Customer }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="text-base">Products & Licences</CardTitle>
-        {!adding && !editingId && (
+        {!adding && !editingKey && (
           <Button size="sm" onClick={() => setAdding(true)}>
             <Plus className="h-4 w-4" /> Assign Product
           </Button>
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {(adding || editingId) && (
+        {(adding || editingKey) && (
           <div className="rounded-lg border border-border bg-secondary/30 p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Product">
-                <Select value={form.productId} onChange={(e) => set('productId', e.target.value)}>
-                  <option value="">Select product…</option>
-                  {products?.items.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Agreed Price">
-                <Input type="number" min={0} step="0.01" value={form.price} onChange={(e) => set('price', e.target.value)} />
-              </Field>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <Field label={`Products${selectedIds.length ? ` (${selectedIds.length} selected)` : ''}`}>
+                  <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border border-input bg-background p-2">
+                    {!products?.items.length ? (
+                      <p className="px-1 py-2 text-sm text-muted-foreground">No active products available.</p>
+                    ) : (
+                      products.items.map((p) => {
+                        const picked = p.id in selected;
+                        return (
+                          <div
+                            key={p.id}
+                            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-secondary/60"
+                          >
+                            <label className="flex flex-1 cursor-pointer items-center gap-2">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-input accent-primary"
+                                checked={picked}
+                                onChange={() => toggleProduct(p.id)}
+                              />
+                              <span className="flex-1">{p.name}</span>
+                              <span className="text-xs text-muted-foreground">{p.sku ?? p.productCode}</span>
+                            </label>
+                            {picked && (
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground">Agreed Price</span>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  value={selected[p.id]}
+                                  onChange={(e) => setProductPrice(p.id, e.target.value)}
+                                  placeholder="0.00"
+                                  className="h-8 w-28"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {editingKey
+                      ? 'Tick to add products to this licence, untick to remove — all share the one licence key below.'
+                      : 'Tick products and set each one’s agreed price — the other terms below apply to all selected.'}
+                  </p>
+                </Field>
+              </div>
               <Field label="Unit">
                 <Input placeholder="unit / seat / licence" value={form.unit} onChange={(e) => set('unit', e.target.value)} />
               </Field>
@@ -1143,8 +1245,12 @@ function ProductsTab({ customer }: { customer: Customer }) {
                   {formatCurrency(total)}
                 </div>
               </Field>
-              <Field label="Licence Key">
-                <Input placeholder="Auto-generated" value={form.licence} onChange={(e) => set('licence', e.target.value)} />
+              <Field label={editingKey ? 'Licence Key (shared)' : 'Licence Key'}>
+                <Input
+                  placeholder={editingKey ? '' : 'Auto-generated (shared)'}
+                  value={form.licence}
+                  onChange={(e) => set('licence', e.target.value)}
+                />
               </Field>
               <Field label="Issue Date">
                 <Input type="date" value={form.issueDate} onChange={(e) => set('issueDate', e.target.value)} />
@@ -1157,13 +1263,13 @@ function ProductsTab({ customer }: { customer: Customer }) {
               <Button variant="outline" size="sm" onClick={cancelForm}>
                 Cancel
               </Button>
-              {editingId ? (
-                <Button size="sm" disabled={update.isPending} onClick={() => update.mutate()}>
-                  {update.isPending && <Spinner />} Save changes
+              {editingKey ? (
+                <Button size="sm" disabled={!selectedIds.length || updateGroup.isPending} onClick={() => updateGroup.mutate()}>
+                  {updateGroup.isPending && <Spinner />} Save changes
                 </Button>
               ) : (
-                <Button size="sm" disabled={!form.productId || assign.isPending} onClick={() => assign.mutate()}>
-                  {assign.isPending && <Spinner />} Assign
+                <Button size="sm" disabled={!selectedIds.length || assign.isPending} onClick={() => assign.mutate()}>
+                  {assign.isPending && <Spinner />} {selectedIds.length > 1 ? `Assign ${selectedIds.length} products` : 'Assign'}
                 </Button>
               )}
             </div>
@@ -1177,78 +1283,108 @@ function ProductsTab({ customer }: { customer: Customer }) {
             <Table className="min-w-[1040px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-nowrap text-center">Product</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">Licence</TableHead>
+                  <TableHead className="whitespace-nowrap">Products</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Issued</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Expiry</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Days Left</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">Agreed Price</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">Net Amount</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Agreed Amount</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Contract</TableHead>
                   <TableHead className="whitespace-nowrap text-center">GST</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Total Amount</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Status</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customer.customerProducts.map((cp) => (
-                  <TableRow key={cp.id}>
-                    <TableCell className="text-center">
-                      <p className="font-medium">{cp.product.name}</p>
-                      <p className="text-xs text-muted-foreground">{cp.product.sku ?? cp.product.productCode}</p>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-center text-sm tracking-wide">{cp.licence?.licenceKey ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap text-center text-sm">{formatDate(cp.issueDate)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-center text-sm">{formatDate(cp.expiryDate)}</TableCell>
-                    <TableCell className="text-center text-sm tabular-nums">{daysLeftFromToday(cp.expiryDate)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(cp.price)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency((Number(cp.price) || 0) * (cp.quantity || 0))}</TableCell>
-                    <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(cp.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
-                    <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(cp.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
-                    <TableCell className="whitespace-nowrap text-center">
-                      {cp.approvalStatus === 'PENDING' ? (
-                        /* Client added this product — approve it, then the status
-                           dropdown (below) controls what the client sees. */
-                        <div className="flex flex-col items-center gap-1.5">
-                          <Badge variant="warning">Pending approval</Badge>
-                          <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(cp.id)}>
-                            {approve.isPending && <Spinner />} Approve
-                          </Button>
+                {groups.map((group) => {
+                  const rep = group.items[0];
+                  const pending = group.items.some((it) => it.approvalStatus === 'PENDING');
+                  // Total = agreed price + GST (EXCLUSIVE adds GST on top; INCLUSIVE
+                  // already contains it), summed across the group's products.
+                  const total = group.items.reduce((s, it) => {
+                    const p = Number(it.price) || 0;
+                    const rate = Number(it.taxRate ?? 10) || 0;
+                    const gst = (it.gstType ?? 'EXCLUSIVE') === 'INCLUSIVE' ? 0 : p * (rate / 100);
+                    return s + p + gst;
+                  }, 0);
+                  return (
+                    <TableRow key={group.key}>
+                      <TableCell className="align-top">
+                        <div className="space-y-1">
+                          {group.items.map((it) => (
+                            <div key={it.id}>
+                              <span className="font-medium">{it.product.name}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">{it.product.sku ?? it.product.productCode}</span>
+                            </div>
+                          ))}
                         </div>
-                      ) : (
-                        /* Admin sets the status here; the client sees exactly this. */
-                        <Select
-                          value={cp.status === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE'}
-                          onChange={(e) => setStatus.mutate({ id: cp.id, status: e.target.value as 'ACTIVE' | 'SUSPENDED' })}
-                          className="mx-auto h-9 w-40"
-                        >
-                          <option value="ACTIVE">Active</option>
-                          <option value="SUSPENDED">Suspended - Overdue</option>
-                        </Select>
-                      )}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => startEdit(cp)}
-                          title="Edit assigned product"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRemoving(cp.id)}
-                          title="Remove product"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm align-top">{formatDate(rep.issueDate)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm align-top">{formatDate(rep.expiryDate)}</TableCell>
+                      <TableCell className="text-center text-sm tabular-nums align-top">{daysLeftFromToday(rep.expiryDate)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums align-top">
+                        <div className="space-y-1">
+                          {group.items.map((it) => (
+                            <div key={it.id}>{formatCurrency(it.price)}</div>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm capitalize align-top">{(rep.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm capitalize align-top">{(rep.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums align-top">{formatCurrency(total)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center align-top">
+                        {pending ? (
+                          /* Client added this — approve it, then the status
+                             dropdown (below) controls what the client sees. */
+                          <div className="flex flex-col items-center gap-1.5">
+                            <Badge variant="warning">Pending approval</Badge>
+                            <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(group.items)}>
+                              {approve.isPending && <Spinner />} Approve
+                            </Button>
+                          </div>
+                        ) : (
+                          /* Admin sets the status here; the client sees exactly this. */
+                          <Select
+                            value={rep.status === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE'}
+                            onChange={(e) => setStatus.mutate({ items: group.items, status: e.target.value as 'ACTIVE' | 'SUSPENDED' })}
+                            className="mx-auto h-9 w-40"
+                          >
+                            <option value="ACTIVE">Active</option>
+                            <option value="SUSPENDED">Suspended - Overdue</option>
+                          </Select>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-center align-top">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setViewing(group)}
+                            title="View full details"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startEditGroup(group)}
+                            title="Edit this licence (add/remove products, prices)"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRemoving(group.key)}
+                            title="Remove this licence (all its products)"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -1258,13 +1394,102 @@ function ProductsTab({ customer }: { customer: Customer }) {
       <ConfirmDialog
         open={!!removing}
         onOpenChange={(v) => !v && setRemoving(null)}
-        title="Remove Product?"
-        description="This removes the assigned product and its licence from the customer, and returns the stock."
+        title="Remove this licence?"
+        description="This removes the licence and every product assigned under it from the customer."
         confirmLabel="Remove"
         destructive
         loading={remove.isPending}
         onConfirm={() => removing && remove.mutate(removing)}
       />
+
+      <LicenceGroupDetailsDialog group={viewing} onOpenChange={(v) => !v && setViewing(null)} />
     </Card>
+  );
+}
+
+/** Read-only full details of a licence group — everything the table columns omit. */
+function LicenceGroupDetailsDialog({
+  group,
+  onOpenChange,
+}: {
+  group: { key: string; items: CustomerProduct[] } | null;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const rep = group?.items[0];
+  const lineTotals = (cp: CustomerProduct) => {
+    const net = Number(cp.price) || 0;
+    const rate = Number(cp.taxRate ?? 10) || 0;
+    const gst = cp.gstType === 'INCLUSIVE' ? 0 : net * (rate / 100);
+    return { net, gst, total: net + gst };
+  };
+  const totals = (group?.items ?? []).reduce(
+    (acc, cp) => {
+      const { net, gst, total } = lineTotals(cp);
+      return { net: acc.net + net, gst: acc.gst + gst, total: acc.total + total };
+    },
+    { net: 0, gst: 0, total: 0 }
+  );
+
+  return (
+    <Dialog open={!!group} onOpenChange={onOpenChange}>
+      <DialogContent size="lg">
+        <DialogHeader>
+          <DialogTitle>Licence details</DialogTitle>
+          <DialogDescription>Full details of this licence and its products.</DialogDescription>
+        </DialogHeader>
+        {rep && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <Detail label="Licence Key" value={<span className="font-mono tracking-wide">{rep.licence?.licenceKey ?? '—'}</span>} />
+              <Detail label="Status" value={<span className="capitalize">{(rep.status ?? 'ACTIVE').replace(/_/g, ' ').toLowerCase()}</span>} />
+              <Detail label="Contract" value={<span className="capitalize">{(rep.contractType ?? 'LOCKED').toLowerCase()}</span>} />
+              <Detail label="GST" value={<span className="capitalize">{(rep.gstType ?? 'EXCLUSIVE').toLowerCase()}</span>} />
+              <Detail label="Issued" value={formatDate(rep.issueDate)} />
+              <Detail label="Expiry" value={formatDate(rep.expiryDate)} />
+              <Detail label="Days Left" value={String(daysLeftFromToday(rep.expiryDate))} />
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary/50 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Product</th>
+                    <th className="px-3 py-2 text-center">Unit</th>
+                    <th className="px-3 py-2 text-right">Agreed Price</th>
+                    <th className="px-3 py-2 text-right">GST</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.items.map((cp) => {
+                    const { gst, total } = lineTotals(cp);
+                    return (
+                      <tr key={cp.id} className="border-t border-border">
+                        <td className="px-3 py-2">
+                          <p className="font-medium">{cp.product.name}</p>
+                          <p className="text-xs text-muted-foreground">{cp.product.sku ?? cp.product.productCode}</p>
+                        </td>
+                        <td className="px-3 py-2 text-center text-muted-foreground">{cp.unit ?? '—'}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(cp.price)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(gst)}</td>
+                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatCurrency(total)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="border-t border-border bg-secondary/30 font-medium">
+                  <tr>
+                    <td className="px-3 py-2" colSpan={2}>Totals</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totals.net)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totals.gst)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totals.total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

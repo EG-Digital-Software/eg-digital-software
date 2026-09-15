@@ -12,7 +12,9 @@ import {
   addCredentialSchema,
   changePasswordSchema,
   assignedProductSchema,
+  bulkAssignProductsSchema,
   updateAssignedProductSchema,
+  updateProductGroupSchema,
 } from '../validators/customer.validator.js';
 
 const router = Router();
@@ -36,6 +38,11 @@ router.patch('/:clientId/documents/:documentId', ctrl.updateDocument);
 router.delete('/:clientId/documents/:documentId', ctrl.deleteDocument);
 
 router.post('/:clientId/products', validate({ body: assignedProductSchema }), ctrl.assignProduct);
+// Assign several products in one action (multi-select on the client detail page).
+router.post('/:clientId/products/bulk', validate({ body: bulkAssignProductsSchema }), ctrl.assignProducts);
+// A licence "group" = the products sharing one licence key. Edit/remove as a unit.
+router.put('/:clientId/product-groups/:licenceKey', validate({ body: updateProductGroupSchema }), ctrl.updateProductGroup);
+router.delete('/:clientId/product-groups/:licenceKey', ctrl.removeProductGroup);
 router.patch('/:clientId/products/:customerProductId', validate({ body: updateAssignedProductSchema }), ctrl.updateProduct);
 router.delete('/:clientId/products/:customerProductId', ctrl.removeProduct);
 

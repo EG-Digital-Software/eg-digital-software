@@ -55,10 +55,20 @@ export const customerApi = {
     (await api.put<ApiEnvelope<Customer>>(`/customers/${clientId}`, body)).data.data,
   assignProduct: async (clientId: string, body: unknown) =>
     (await api.post<ApiEnvelope<Customer>>(`/customers/${clientId}/products`, body)).data.data,
+  /** Assign several products at once (multi-select). */
+  assignProducts: async (clientId: string, products: unknown[]) =>
+    (await api.post<ApiEnvelope<Customer>>(`/customers/${clientId}/products/bulk`, { products }))
+      .data.data,
   updateProduct: async (clientId: string, customerProductId: string, body: unknown) =>
     (await api.patch<ApiEnvelope<Customer>>(`/customers/${clientId}/products/${customerProductId}`, body)).data.data,
   removeProduct: async (clientId: string, customerProductId: string) =>
     (await api.delete<ApiEnvelope<Customer>>(`/customers/${clientId}/products/${customerProductId}`)).data.data,
+  /** Edit a whole licence group (products sharing one key) — add/remove/reprice. */
+  updateProductGroup: async (clientId: string, licenceKey: string, body: unknown) =>
+    (await api.put<ApiEnvelope<Customer>>(`/customers/${clientId}/product-groups/${encodeURIComponent(licenceKey)}`, body)).data.data,
+  /** Remove an entire licence group (all products sharing the key). */
+  removeProductGroup: async (clientId: string, licenceKey: string) =>
+    (await api.delete<ApiEnvelope<Customer>>(`/customers/${clientId}/product-groups/${encodeURIComponent(licenceKey)}`)).data.data,
   /** Agreement Document upload (no size cap) and delete. */
   addDocument: async (clientId: string, file: File) => {
     const form = new FormData();

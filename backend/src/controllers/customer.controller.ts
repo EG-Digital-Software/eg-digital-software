@@ -60,6 +60,15 @@ export const assignProduct = asyncHandler(async (req: Request, res: Response) =>
   return ok(res, customer, 'Product assigned', 201);
 });
 
+export const assignProducts = asyncHandler(async (req: Request, res: Response) => {
+  const customer = await customerService.assignProductsToCustomer(
+    req.params.clientId,
+    req.body.products
+  );
+  const count = req.body.products?.length ?? 0;
+  return ok(res, customer, `${count} product${count === 1 ? '' : 's'} assigned`, 201);
+});
+
 export const updateProduct = asyncHandler(async (req: Request, res: Response) => {
   const customer = await customerService.updateCustomerProduct(
     req.params.clientId,
@@ -67,6 +76,23 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
     req.body
   );
   return ok(res, customer, 'Assigned product updated');
+});
+
+export const updateProductGroup = asyncHandler(async (req: Request, res: Response) => {
+  const customer = await customerService.updateProductGroup(
+    req.params.clientId,
+    decodeURIComponent(req.params.licenceKey),
+    req.body
+  );
+  return ok(res, customer, 'Products updated');
+});
+
+export const removeProductGroup = asyncHandler(async (req: Request, res: Response) => {
+  const customer = await customerService.removeProductGroup(
+    req.params.clientId,
+    decodeURIComponent(req.params.licenceKey)
+  );
+  return ok(res, customer, 'Products removed');
 });
 
 export const removeProduct = asyncHandler(async (req: Request, res: Response) => {

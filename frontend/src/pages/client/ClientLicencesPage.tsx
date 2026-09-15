@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { KeyRound, Search, Plus } from 'lucide-react';
-import { clientApi } from '@/api/client-portal';
+import { KeyRound, Search, Plus, Eye } from 'lucide-react';
+import { clientApi, type ClientProduct } from '@/api/client-portal';
 import { apiErrorMessage } from '@/api/client';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader } from '@/components/shared/misc';
@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/misc';
 import { LicenceBadge } from '@/components/shared/status';
@@ -31,6 +31,7 @@ export default function ClientLicencesPage() {
   const [status, setStatus] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [selected, setSelected] = useState('');
+  const [viewing, setViewing] = useState<ClientProduct | null>(null);
   const debounced = useDebounce(search);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -149,6 +150,7 @@ export default function ClientLicencesPage() {
                 <TableHead className="whitespace-nowrap text-center">Contract</TableHead>
                 <TableHead className="whitespace-nowrap text-center">GST</TableHead>
                 <TableHead className="whitespace-nowrap text-center">Status</TableHead>
+                <TableHead className="whitespace-nowrap text-center">Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -170,11 +172,21 @@ export default function ClientLicencesPage() {
                     )}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(p.price)}</TableCell>
-                  <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency((Number(p.price) || 0) * (p.quantity || 0))}</TableCell>
+                  <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(p.price)}</TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(p.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(p.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
                   <TableCell className="text-center">
                     {p.pending ? <Badge variant="warning">Pending</Badge> : <LicenceBadge status={p.status} />}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => setViewing(p)}
+                      title="View full details"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -210,6 +222,89 @@ export default function ClientLicencesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <LicenceDetailsDialog product={viewing} onOpenChange={(v) => !v && setViewing(null)} />
+    </div>
+  );
+}
+
+/** Read-only full details of one assigned product/licence for the client. */
+function LicenceDetailsDialog({
+  product,
+  onOpenChange,
+}: {
+  product: ClientProduct | null;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const net = Number(product?.price) || 0;
+  // GST is fixed at 10%; INCLUSIVE means it is already in the agreed price.
+  const gst = product?.gstType === 'INCLUSIVE' ? 0 : net * 0.1;
+  const total = net + gst;
+
+  return (
+    <Dialog open={!!product} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Licence details</DialogTitle>
+          <DialogDescription>Full details of this product and its licence.</DialogDescription>
+        </DialogHeader>
+        {product && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-lg font-semibold">{product.product}</p>
+              <p className="text-sm text-muted-foreground">{product.sku}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <Detail label="Licence Key" value={product.licence} mono />
+              <Detail
+                label="Status"
+                value={product.pending ? 'Pending approval' : (product.status ?? '').replace(/_/g, ' ')}
+                className="capitalize"
+              />
+              <Detail label="Contract" value={(product.contractType ?? 'LOCKED').toLowerCase()} className="capitalize" />
+              <Detail label="GST" value={(product.gstType ?? 'EXCLUSIVE').toLowerCase()} className="capitalize" />
+              <Detail label="Agreed Price" value={formatCurrency(product.price)} />
+              <Detail label="Issued" value={formatDate(product.issueDate)} />
+              <Detail label="Expiry" value={formatDate(product.expiryDate)} />
+              <Detail
+                label="Days Left"
+                value={
+                  product.daysRemaining == null
+                    ? '—'
+                    : product.daysRemaining < 0
+                      ? `${Math.abs(product.daysRemaining)} overdue`
+                      : String(product.daysRemaining)
+                }
+              />
+            </div>
+            <div className="space-y-1 rounded-lg border border-border bg-secondary/30 p-3 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Net amount</span><span className="tabular-nums">{formatCurrency(net)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">GST (10%)</span><span className="tabular-nums">{formatCurrency(gst)}</span></div>
+              <div className="flex justify-between border-t border-border pt-1 font-medium"><span>Total</span><span className="tabular-nums">{formatCurrency(total)}</span></div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** One label/value pair used in the details dialog. */
+function Detail({
+  label,
+  value,
+  mono,
+  className,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  className?: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-0.5 font-medium ${mono ? 'font-mono tracking-wide' : ''} ${className ?? ''}`}>{value}</p>
     </div>
   );
 }

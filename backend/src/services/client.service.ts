@@ -187,7 +187,6 @@ export async function listProducts(
     id: r.id,
     product: r.product.name,
     sku: r.product.sku ?? r.product.productCode,
-    quantity: r.quantity,
     licence: r.licence?.licenceKey ?? '—',
     price: r.price,
     contractType: r.contractType,
@@ -229,7 +228,6 @@ export async function addClientProduct(customerId: string, productId: string) {
     data: {
       customerId,
       productId,
-      quantity: 1,
       price: new Prisma.Decimal(0),
       taxRate: new Prisma.Decimal(10),
       issueDate: new Date(),

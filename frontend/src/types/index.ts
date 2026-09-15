@@ -99,7 +99,6 @@ export interface Address {
 
 export interface CustomerProduct {
   id: string;
-  quantity: number;
   price: string;
   unit?: string | null;
   taxRate?: string | null;

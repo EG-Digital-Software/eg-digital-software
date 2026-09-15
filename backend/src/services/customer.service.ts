@@ -429,7 +429,6 @@ type CreateInput = {
 
   assignedProducts?: Array<{
     productId: string;
-    quantity: number;
     price?: number;
     unit?: string;
     taxRate?: number;
@@ -732,16 +731,18 @@ export async function updateCustomer(clientId: string, input: Partial<CreateInpu
 async function assignProducts(
   tx: Prisma.TransactionClient,
   customerId: string,
-  assignedProducts?: CreateInput['assignedProducts']
+  assignedProducts?: CreateInput['assignedProducts'],
+  // When set, every product in this batch shares this one licence key (they form
+  // a single licence "group"). Otherwise each product gets its own key.
+  sharedLicenceKey?: string
 ) {
   for (const ap of assignedProducts ?? []) {
-    await reserveStock(tx, ap.productId, ap.quantity);
+    await reserveStock(tx, ap.productId, 1);
     const status = (ap.status as LicenceStatus) ?? computeLicenceStatus(ap.expiryDate);
     const cp = await tx.customerProduct.create({
       data: {
         customerId,
         productId: ap.productId,
-        quantity: ap.quantity,
         price: new Prisma.Decimal(ap.price ?? 0),
         unit: ap.unit ?? null,
         taxRate: new Prisma.Decimal(ap.taxRate ?? 0),
@@ -756,7 +757,7 @@ async function assignProducts(
     await tx.licence.create({
       data: {
         customerProductId: cp.id,
-        licenceKey: ap.licence?.trim() || formatLicenceKey(),
+        licenceKey: sharedLicenceKey || ap.licence?.trim() || formatLicenceKey(),
         issueDate: ap.issueDate ?? new Date(),
         expiryDate: ap.expiryDate ?? null,
         status,
@@ -793,6 +794,28 @@ export async function assignProductToCustomer(
 }
 
 /**
+ * Assign several products at once (each with its own licence) in a single
+ * transaction, so an admin can hand a client multiple products in one action.
+ * All-or-nothing: if any one fails, none are created.
+ */
+export async function assignProductsToCustomer(
+  clientId: string,
+  aps: NonNullable<CreateInput['assignedProducts']>
+) {
+  const existing = await prisma.customer.findUnique({ where: { clientId } });
+  if (!existing) throw ApiError.notFound('Customer not found');
+  if (!aps.length) throw ApiError.badRequest('Select at least one product');
+  // One licence key for the whole batch: use the admin's typed key if any, else
+  // generate a single shared one.
+  const sharedKey = aps.map((a) => a.licence?.trim()).find(Boolean) || formatLicenceKey();
+  await prisma.$transaction((tx) => assignProducts(tx, existing.id, aps, sharedKey), {
+    timeout: 20000,
+    maxWait: 15000,
+  });
+  return getCustomerByClientId(clientId);
+}
+
+/**
  * Edit an already-assigned product's terms (quantity, pricing, dates, licence
  * key, status). The product itself is not swapped — to change which product,
  * remove and assign again. Non-destructive: updates the existing rows only, and
@@ -803,7 +826,6 @@ export async function updateCustomerProduct(
   customerProductId: string,
   input: {
     productId?: string;
-    quantity?: number;
     price?: number;
     unit?: string;
     taxRate?: number;
@@ -844,7 +866,6 @@ export async function updateCustomerProduct(
       where: { id: cp.id },
       data: {
         ...(input.productId ? { productId: input.productId } : {}),
-        ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
         ...(input.price !== undefined ? { price: new Prisma.Decimal(input.price) } : {}),
         ...(input.unit !== undefined ? { unit: input.unit || null } : {}),
         ...(input.taxRate !== undefined ? { taxRate: new Prisma.Decimal(input.taxRate) } : {}),
@@ -886,6 +907,97 @@ export async function removeCustomerProduct(clientId: string, customerProductId:
   return getCustomerByClientId(clientId);
 }
 
+/**
+ * Edit a whole licence "group" — the set of products that share one licence key.
+ * Reconciles the desired product set against what is currently in the group:
+ * updates products that stay (price + shared terms), assigns products that were
+ * added, and removes products that were dropped. Everything keeps (or moves to)
+ * the one shared key. All-or-nothing.
+ */
+export async function updateProductGroup(
+  clientId: string,
+  currentKey: string,
+  input: {
+    licenceKey?: string;
+    contractType?: 'LOCKED' | 'TRIAL';
+    gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
+    issueDate?: Date;
+    expiryDate?: Date;
+    status?: 'ACTIVE' | 'SUSPENDED';
+    products: Array<{ productId: string; price?: number }>;
+  }
+) {
+  const existing = await prisma.customer.findUnique({ where: { clientId } });
+  if (!existing) throw ApiError.notFound('Customer not found');
+  if (!input.products.length) throw ApiError.badRequest('Select at least one product');
+
+  const group = await prisma.customerProduct.findMany({
+    where: { customerId: existing.id, licence: { licenceKey: currentKey } },
+    include: { licence: true },
+  });
+  if (!group.length) throw ApiError.notFound('Licence group not found');
+
+  const targetKey = input.licenceKey?.trim() || currentKey;
+  const byProduct = new Map(group.map((cp) => [cp.productId, cp]));
+  const desiredIds = new Set(input.products.map((p) => p.productId));
+  const forcedStatus = input.status as LicenceStatus | undefined;
+
+  await prisma.$transaction(
+    async (tx) => {
+      // Drop products no longer in the group (their licence cascades).
+      for (const cp of group) {
+        if (!desiredIds.has(cp.productId)) {
+          await tx.customerProduct.delete({ where: { id: cp.id } });
+        }
+      }
+      // Upsert every desired product with the shared terms + its own price.
+      for (const p of input.products) {
+        const cur = byProduct.get(p.productId);
+        const issueDate = input.issueDate ?? cur?.issueDate ?? new Date();
+        const expiryDate =
+          input.expiryDate !== undefined ? input.expiryDate : (cur?.expiryDate ?? null);
+        const status = forcedStatus ?? (cur?.status as LicenceStatus) ?? computeLicenceStatus(expiryDate);
+        const data = {
+          price: new Prisma.Decimal(p.price ?? Number(cur?.price ?? 0)),
+          contractType: input.contractType ?? cur?.contractType ?? 'LOCKED',
+          gstType: input.gstType ?? cur?.gstType ?? 'EXCLUSIVE',
+          issueDate,
+          expiryDate,
+          status,
+        };
+        if (cur) {
+          await tx.customerProduct.update({ where: { id: cur.id }, data });
+          await tx.licence.update({
+            where: { customerProductId: cur.id },
+            data: { licenceKey: targetKey, issueDate, expiryDate, status },
+          });
+        } else {
+          await reserveStock(tx, p.productId, 1);
+          const created = await tx.customerProduct.create({
+            data: { customerId: existing.id, productId: p.productId, ...data },
+          });
+          await tx.licence.create({
+            data: { customerProductId: created.id, licenceKey: targetKey, issueDate, expiryDate, status },
+          });
+        }
+      }
+    },
+    { timeout: 20000, maxWait: 15000 }
+  );
+  return getCustomerByClientId(clientId);
+}
+
+/** Remove an entire licence group (all products sharing the key). */
+export async function removeProductGroup(clientId: string, licenceKey: string) {
+  const existing = await prisma.customer.findUnique({ where: { clientId } });
+  if (!existing) throw ApiError.notFound('Customer not found');
+  const result = await prisma.customerProduct.deleteMany({
+    where: { customerId: existing.id, licence: { licenceKey } },
+  });
+  if (!result.count) throw ApiError.notFound('Licence group not found');
+  return getCustomerByClientId(clientId);
+}
+
 export async function archiveCustomer(clientId: string) {
   const existing = await prisma.customer.findUnique({ where: { clientId } });
   if (!existing) throw ApiError.notFound('Customer not found');
@@ -909,7 +1021,6 @@ export async function deleteCustomer(clientId: string) {
     where: { clientId },
     include: {
       _count: { select: { invoices: true } },
-      customerProducts: { select: { productId: true, quantity: true } },
     },
   });
   if (!existing) throw ApiError.notFound('Customer not found');
@@ -920,20 +1031,9 @@ export async function deleteCustomer(clientId: string) {
     );
   }
 
-  await prisma.$transaction(async (tx) => {
-    // Hand back the stock each assigned product was holding — the inverse of the
-    // reservation made when the product was assigned.
-    for (const cp of existing.customerProducts) {
-      await tx.product.update({
-        where: { id: cp.productId },
-        data: {
-          availableStock: { increment: cp.quantity },
-          reservedStock: { decrement: cp.quantity },
-        },
-      });
-    }
-    await tx.customer.delete({ where: { id: existing.id } });
-  });
+  // Inventory is unlimited (nothing is reserved on assign), so there is no stock
+  // to hand back — assigned products and their licences cascade on delete.
+  await prisma.customer.delete({ where: { id: existing.id } });
 
   // Bare details for the audit log — the row itself is gone.
   return { id: existing.id, clientId: existing.clientId, companyName: existing.companyName };

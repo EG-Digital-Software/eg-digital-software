@@ -58,7 +58,6 @@ const itContactSchema = z.object({
 
 export const assignedProductSchema = z.object({
   productId: z.string().uuid(),
-  quantity: z.coerce.number().int().positive(),
   price: z.coerce.number().min(0).optional(),
   unit: z.string().max(30).optional(),
   taxRate: z.coerce.number().min(0).max(100).optional(),
@@ -69,6 +68,34 @@ export const assignedProductSchema = z.object({
   issueDate: z.coerce.date().optional(),
   expiryDate: z.coerce.date().optional(),
   notes: z.string().optional(),
+});
+
+// Assigning several products in one action — each entry is a full assignment,
+// so the client can share the common terms (price, dates, contract) across the
+// selected products or vary them per line.
+export const bulkAssignProductsSchema = z.object({
+  products: z.array(assignedProductSchema).min(1, 'Select at least one product').max(100),
+});
+
+// Editing a whole licence group: shared terms plus the desired final set of
+// products (each with its own agreed price). Products dropped from the list are
+// removed from the group; new ones are added — all under the one shared key.
+export const updateProductGroupSchema = z.object({
+  licenceKey: z.string().max(60).optional(),
+  contractType: z.enum(['LOCKED', 'TRIAL']).optional(),
+  gstType: z.enum(['INCLUSIVE', 'EXCLUSIVE']).optional(),
+  issueDate: z.coerce.date().optional(),
+  expiryDate: z.coerce.date().optional(),
+  status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
+  products: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        price: z.coerce.number().min(0).optional(),
+      })
+    )
+    .min(1, 'Select at least one product')
+    .max(100),
 });
 
 // Editing an already-assigned product: same fields, all optional, including the

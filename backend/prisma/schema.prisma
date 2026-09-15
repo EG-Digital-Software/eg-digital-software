@@ -451,10 +451,9 @@ model CustomerProduct {
   customerId String
   product    Product       @relation(fields: [productId], references: [id])
   productId  String
-  quantity   Int           @default(1)
   price      Decimal       @default(0) @db.Decimal(12, 2)
-  /// Per-customer pricing entered when the product is assigned (products no
-  /// longer carry their own price). `price` is the price per quantity.
+  /// Per-customer agreed price entered when the product is assigned (products no
+  /// longer carry their own price).
   unit       String?
   taxRate    Decimal       @default(0) @db.Decimal(5, 2)
   issueDate  DateTime      @default(now())
@@ -486,7 +485,9 @@ model Licence {
   id                String          @id @default(uuid())
   customerProduct   CustomerProduct @relation(fields: [customerProductId], references: [id], onDelete: Cascade)
   customerProductId String          @unique
-  licenceKey        String          @unique
+  /// Not unique: products assigned together in one action share a single licence
+  /// key (they form one licence "group" shown as one row to the admin).
+  licenceKey        String
   issueDate         DateTime        @default(now())
   expiryDate        DateTime?
   status            LicenceStatus   @default(ACTIVE)

@@ -15,7 +15,6 @@ export interface ClientProduct {
   id: string;
   product: string;
   sku: string;
-  quantity: number;
   licence: string;
   price: string;
   /** Contract term: 'LOCKED' (committed) or 'TRIAL' (evaluation). */
