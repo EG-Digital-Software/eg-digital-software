@@ -177,6 +177,16 @@ export interface Customer {
   customerProducts?: CustomerProduct[];
   invoices?: Invoice[];
   _count?: { customerProducts: number };
+  /** Team member assigned as this client's account manager (admin-set). */
+  accountManagerId?: string | null;
+  accountManager?: {
+    id?: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl?: string | null;
+    designation?: string | null;
+  } | null;
 }
 
 /**

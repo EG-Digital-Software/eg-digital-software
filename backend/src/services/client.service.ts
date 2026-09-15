@@ -21,6 +21,9 @@ export async function getProfile(customerId: string) {
       addresses: true,
       directors: true,
       documents: { orderBy: { createdAt: 'desc' } },
+      accountManager: {
+        select: { firstName: true, lastName: true, email: true, avatarUrl: true, designation: true },
+      },
     },
   });
   if (!customer) throw ApiError.notFound('Customer not found');

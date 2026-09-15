@@ -9,59 +9,63 @@ import {
   TrendingUp,
   ArrowRight,
   AlertTriangle,
-  LayoutDashboard,
 } from 'lucide-react';
 import { dashboardApi } from '@/api/resources';
 import type { DashboardSummary, LicenceRow } from '@/types';
+import type { LucideProps } from 'lucide-react';
+import type { ComponentType } from 'react';
 import { useAuth } from '@/store/auth';
-import { PageHeader, StatDelta } from '@/components/shared/misc';
+import { StatDelta } from '@/components/shared/misc';
 import { SalesChart } from './SalesChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/misc';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LicenceBadge } from '@/components/shared/status';
 import { EmptyState } from '@/components/shared/states';
-import { formatCurrency, formatNumber, formatDate } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatDate, cn } from '@/lib/utils';
 
-function KpiCard({
+// Soft pastel tones for the stat-card icon tiles (matches the reference).
+const TONES: Record<string, string> = {
+  violet: 'bg-violet-100 text-violet-600',
+  emerald: 'bg-emerald-100 text-emerald-600',
+  blue: 'bg-blue-100 text-blue-600',
+  amber: 'bg-amber-100 text-amber-600',
+  rose: 'bg-rose-100 text-rose-600',
+  cyan: 'bg-cyan-100 text-cyan-600',
+};
+
+function StatCard({
   title,
   icon: Icon,
   value,
   footer,
-  accent,
+  tone,
   to,
   hint,
 }: {
   title: string;
-  icon: typeof DollarSign;
+  icon: ComponentType<LucideProps>;
   value: string;
   footer: React.ReactNode;
-  accent: [string, string];
+  tone: keyof typeof TONES;
   /** Where the tile drills through to. */
   to?: string;
   /** Tooltip clarifying what the number counts. */
   hint?: string;
 }) {
   const card = (
-    <Card className="group relative h-full overflow-hidden hover:-translate-y-0.5 hover:shadow-card-hover">
-      {/* accent wash on hover */}
-      <span
-        className="pointer-events-none absolute inset-x-0 top-0 h-1 opacity-70"
-        style={{ background: `linear-gradient(90deg, ${accent[0]}, ${accent[1]})` }}
-      />
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm transition-transform group-hover:scale-110"
-            style={{ background: `linear-gradient(135deg, ${accent[0]}, ${accent[1]})` }}
-          >
-            <Icon className="h-[18px] w-[18px]" />
-          </div>
+    <Card className="h-full p-5 transition-shadow hover:shadow-card-hover">
+      <div className="flex items-start gap-3">
+        <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', TONES[tone])}>
+          <Icon className="h-[22px] w-[22px]" />
         </div>
-        <p className="mt-3 text-2xl font-semibold tracking-tight">{value}</p>
-        <div className="mt-1.5 text-xs text-muted-foreground">{footer}</div>
-      </CardContent>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
+          <div className="mt-0.5 text-xs text-muted-foreground">{footer}</div>
+        </div>
+      </div>
     </Card>
   );
 
@@ -124,22 +128,50 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={user ? `Welcome Back, ${user.firstName} ${user.lastName} 👋` : 'Welcome Back 👋'}
-        description={`${greeting()} — here's an overview of your business performance`}
-        icon={LayoutDashboard}
-        iconTone="primary"
-      />
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[#eaf1ff] via-[#f3f7ff] to-[#e9f6ef] p-6 sm:p-8">
+        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-xl">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">
+              {greeting()}, {user?.firstName ?? 'Admin'} <span className="align-middle">👋</span>
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Here’s an overview of your business performance.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Button asChild>
+                <Link to="/admin/approvals?role=EMPLOYEE">Manage Team</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link to="/admin/customers">Manage customers</Link>
+              </Button>
+            </div>
+          </div>
 
-      <div className="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {s && (
+            <div className="flex items-center gap-4 rounded-2xl border border-border bg-card/80 p-5 shadow-card backdrop-blur">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <TrendingUp className="h-7 w-7" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Revenue (Month)</p>
+                <p className="text-lg font-semibold tabular-nums">{formatCurrency(s.revenue.current)}</p>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {summaryQ.isLoading || !s ? (
           <KpiSkeletons />
         ) : (
           <>
-            <KpiCard
+            <StatCard
               title="Sales (Month)"
               icon={DollarSign}
-              accent={['#6366f1', '#8b5cf6']}
+              tone="violet"
               to="/admin/billing"
               hint="Value invoiced this month, paid or not (drafts and cancellations excluded)"
               value={formatCurrency(s.totalSales.current)}
@@ -149,10 +181,10 @@ export default function DashboardPage() {
                 </span>
               }
             />
-            <KpiCard
+            <StatCard
               title="Total Customers"
               icon={Users}
-              accent={['#0d9488', '#10b981']}
+              tone="emerald"
               to="/admin/customers"
               hint="Active customers; the delta compares new sign-ups month on month"
               value={formatNumber(s.customers.total)}
@@ -162,19 +194,19 @@ export default function DashboardPage() {
                 </span>
               }
             />
-            <KpiCard
+            <StatCard
               title="Total Products"
               icon={Package}
-              accent={['#0284c7', '#38bdf8']}
+              tone="blue"
               to="/admin/products"
               hint="Active products in the catalogue"
               value={formatNumber(s.products.active)}
               footer={<span>In the catalogue</span>}
             />
-            <KpiCard
+            <StatCard
               title="Outstanding"
               icon={FileWarning}
-              accent={['#ea580c', '#f59e0b']}
+              tone="amber"
               to="/admin/billing"
               hint="Total still owed across every unpaid invoice"
               value={formatCurrency(s.outstanding.amount)}
@@ -184,27 +216,25 @@ export default function DashboardPage() {
                 </span>
               }
             />
-            <KpiCard
+            <StatCard
               title="Overdue"
               icon={AlertTriangle}
-              accent={['#dc2626', '#f87171']}
+              tone="rose"
               to="/admin/billing"
               hint="Owed and already past the due date"
               value={formatCurrency(s.overdue.amount)}
               footer={
                 s.overdue.count > 0 ? (
-                  <span className="font-medium text-destructive">
-                    {s.overdue.count} past due
-                  </span>
+                  <span className="font-medium text-destructive">{s.overdue.count} past due</span>
                 ) : (
                   <span>Nothing past due</span>
                 )
               }
             />
-            <KpiCard
+            <StatCard
               title="Expiring Licences"
               icon={KeyRound}
-              accent={['#e11d48', '#fb7185']}
+              tone="rose"
               to="/admin/customers"
               hint="Licences expiring within 30 days"
               value={formatNumber(s.licences.expiringSoon)}
@@ -214,10 +244,10 @@ export default function DashboardPage() {
                 </span>
               }
             />
-            <KpiCard
+            <StatCard
               title="Revenue (Month)"
               icon={TrendingUp}
-              accent={['#0891b2', '#22d3ee']}
+              tone="cyan"
               to="/admin/billing"
               hint="Cash actually collected this month — payments received, not invoiced value"
               value={formatCurrency(s.revenue.current)}
@@ -232,6 +262,8 @@ export default function DashboardPage() {
       </div>
 
       <SalesChart />
+
+      <RecentActivity />
 
       <div className="grid grid-cols-1 gap-6">
         {/* Licence monitoring */}
@@ -290,8 +322,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      <RecentActivity />
     </div>
   );
 }

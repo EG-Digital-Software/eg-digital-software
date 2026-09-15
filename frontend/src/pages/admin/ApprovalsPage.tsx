@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, X, ShieldCheck, Search, RotateCcw, UserPlus, KeyRound, Eye, EyeOff, Copy } from 'lucide-react';
 import { toast } from 'sonner';
@@ -54,9 +55,13 @@ const TABS: Array<{ value: string; label: string; status?: ApprovalStatus }> = [
 
 export default function ApprovalsPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState('PENDING');
+  // Arriving via "Manage Team" (?role=EMPLOYEE) opens pre-filtered to team,
+  // showing every status (not just pending) so all team members are listed.
+  const [searchParams] = useSearchParams();
+  const initialRole = searchParams.get('role') ?? '';
+  const [tab, setTab] = useState(initialRole ? 'ALL' : 'PENDING');
   const [page, setPage] = useState(1);
-  const [role, setRole] = useState('');
+  const [role, setRole] = useState(initialRole);
   const [search, setSearch] = useState('');
   const [confirm, setConfirm] = useState<{ user: PendingUser; action: 'reject' } | null>(null);
   const [addOpen, setAddOpen] = useState(false);

@@ -7,20 +7,21 @@ import {
   ArrowRight,
   AlertTriangle,
   ListChecks,
-  LayoutDashboard,
+  ShieldCheck,
 } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
+import type { ComponentType } from 'react';
 import { clientApi } from '@/api/client-portal';
 import { clientTaskApi } from '@/api/tasks';
-import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { useAuth } from '@/store/auth';
-import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/misc';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/states';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, cn } from '@/lib/utils';
 
 const ACCOUNT_STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'destructive' }> = {
   ACTIVE: { label: 'Active', variant: 'success' },
@@ -28,53 +29,144 @@ const ACCOUNT_STATUS: Record<string, { label: string; variant: 'success' | 'warn
   SUSPENDED: { label: 'Suspended', variant: 'destructive' },
 };
 
-function Kpi({
+// Soft pastel tones for the stat-card icon tiles (matches the reference).
+const TONES: Record<string, { tile: string; link: string }> = {
+  violet: { tile: 'bg-violet-100 text-violet-600', link: 'text-violet-600' },
+  emerald: { tile: 'bg-emerald-100 text-emerald-600', link: 'text-emerald-600' },
+  blue: { tile: 'bg-blue-100 text-blue-600', link: 'text-blue-600' },
+  amber: { tile: 'bg-amber-100 text-amber-600', link: 'text-amber-600' },
+  rose: { tile: 'bg-rose-100 text-rose-600', link: 'text-rose-600' },
+};
+
+function StatCard({
   title,
   icon: Icon,
   value,
   sub,
   to,
+  tone,
 }: {
   title: string;
-  icon: typeof FileWarning;
+  icon: ComponentType<LucideProps>;
   value: string;
   sub?: React.ReactNode;
-  /** Where the tile drills through to. */
-  to?: string;
+  to: string;
+  tone: keyof typeof TONES;
 }) {
-  const card = (
-    <Card className="group h-full transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-card-hover">
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">
-            {title}
-          </p>
-          {/* Monochrome icon tile — calm by default; meaning lives in the numbers. */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-            <Icon className="h-[18px] w-[18px]" />
-          </div>
+  const t = TONES[tone];
+  return (
+    <Card className="flex flex-col justify-between p-5 transition-shadow hover:shadow-card-hover">
+      <div className="flex items-start gap-3">
+        <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', t.tile)}>
+          <Icon className="h-[22px] w-[22px]" />
         </div>
-        <p className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
-      </CardContent>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
+          {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
+        </div>
+      </div>
+      <Link
+        to={to}
+        className={cn('mt-4 inline-flex items-center gap-1 text-sm font-medium hover:gap-1.5 transition-all', t.link)}
+      >
+        View all <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
     </Card>
   );
-  return to ? (
-    <Link to={to} className="block">
-      {card}
-    </Link>
-  ) : (
-    card
+}
+
+/** Multi-segment donut used by the Tasks Overview card. */
+function Donut({ total, segments }: { total: number; segments: { value: number; color: string }[] }) {
+  const r = 42;
+  const c = 2 * Math.PI * r;
+  const sum = segments.reduce((s, x) => s + x.value, 0) || 1;
+  let acc = 0;
+  return (
+    <div className="relative h-32 w-32 shrink-0">
+      <svg viewBox="0 0 100 100" className="h-32 w-32 -rotate-90">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="hsl(var(--secondary))" strokeWidth="10" />
+        {segments.map((seg, i) => {
+          if (seg.value <= 0) return null;
+          const len = (seg.value / sum) * c;
+          const el = (
+            <circle
+              key={i}
+              cx="50"
+              cy="50"
+              r={r}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth="10"
+              strokeDasharray={`${len} ${c - len}`}
+              strokeDashoffset={-acc}
+              strokeLinecap="round"
+            />
+          );
+          acc += len;
+          return el;
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-semibold tabular-nums">{total}</span>
+        <span className="text-[11px] text-muted-foreground">Total tasks</span>
+      </div>
+    </div>
   );
 }
+
+/** Headphones illustration for the Need Help card (inline SVG — no external asset). */
+function HeadphonesArt({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 140 130" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id="hp-band" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#60a5fa" />
+          <stop offset="100%" stopColor="#2563eb" />
+        </linearGradient>
+        <linearGradient id="hp-cup" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="100%" stopColor="#1e40af" />
+        </linearGradient>
+      </defs>
+      {/* head band */}
+      <path
+        d="M24 86 V64 a46 46 0 0 1 92 0 V86"
+        fill="none"
+        stroke="url(#hp-band)"
+        strokeWidth="10"
+        strokeLinecap="round"
+      />
+      {/* ear cups */}
+      <rect x="14" y="78" width="26" height="44" rx="13" fill="url(#hp-cup)" />
+      <rect x="100" y="78" width="26" height="44" rx="13" fill="url(#hp-cup)" />
+      {/* cushions */}
+      <rect x="34" y="86" width="10" height="28" rx="5" fill="#bfdbfe" />
+      <rect x="96" y="86" width="10" height="28" rx="5" fill="#bfdbfe" />
+    </svg>
+  );
+}
+
+const TASK_PILL: Record<string, { label: string; cls: string }> = {
+  IN_PROGRESS: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
+  ONGOING: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
+  NOT_STARTED: { label: 'Pending', cls: 'bg-blue-100 text-blue-700' },
+  COMPLETED: { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700' },
+};
 
 export default function ClientDashboard() {
   const user = useAuth((s) => s.user);
   const dashQ = useQuery({ queryKey: ['client', 'dashboard'], queryFn: clientApi.dashboard });
   const tasksQ = useQuery({ queryKey: ['client', 'tasks', 'summary'], queryFn: () => clientTaskApi().board() });
-  const activeTasks = (tasksQ.data?.buckets ?? [])
-    .flatMap((b) => b.tasks)
-    .filter((t) => t.progress !== 'COMPLETED').length;
+  const allTasks = (tasksQ.data?.buckets ?? []).flatMap((b) => b.tasks);
+  const activeTasks = allTasks.filter((t) => t.progress !== 'COMPLETED').length;
+  const tInProgress = allTasks.filter((t) => t.progress === 'IN_PROGRESS' || t.progress === 'ONGOING').length;
+  const tPending = allTasks.filter((t) => t.progress === 'NOT_STARTED').length;
+  const tCompleted = allTasks.filter((t) => t.progress === 'COMPLETED').length;
+  const upcomingTasks = allTasks
+    .filter((t) => t.progress !== 'COMPLETED')
+    .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
+    .slice(0, 4);
   const invQ = useQuery({
     queryKey: ['client', 'invoices', 'recent'],
     queryFn: () => clientApi.invoices({ pageSize: 5 }),
@@ -88,80 +180,111 @@ export default function ClientDashboard() {
     : undefined;
   const displayName =
     profileQ.data?.companyName?.trim() ||
-    [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
+    'there';
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`Welcome Back, ${displayName} 👋`}
-        description="Your invoices, licences and account overview"
-        icon={LayoutDashboard}
-        iconTone="emerald"
-        actions={acct ? <Badge variant={acct.variant}>{acct.label}</Badge> : undefined}
-      />
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[#eaf1ff] via-[#f3f7ff] to-[#e9f6ef] p-6 sm:p-8">
+        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-xl">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">
+              Welcome back, {displayName} <span className="align-middle">👋</span>
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Here’s an overview of your invoices, products and account.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Button asChild>
+                <Link to="/client/invoices">View invoices</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link to="/client/licences">Explore products</Link>
+              </Button>
+            </div>
+          </div>
 
+          {/* Account status card */}
+          <div className="flex items-center gap-4 rounded-2xl border border-border bg-card/80 p-5 shadow-card backdrop-blur">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <ShieldCheck className="h-7 w-7" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Account Health</p>
+              <p className="text-lg font-semibold">
+                {acct ? acct.label : '—'}
+              </p>
+              {acct && <Badge variant={acct.variant} className="mt-1">{acct.label}</Badge>}
+            </div>
+          </div>
+        </div>
+        {/* Soft decorative glow */}
+        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+      </div>
+
+      {/* Stat cards — existing KPIs */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {dashQ.isLoading || !d ? (
           Array.from({ length: 5 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="space-y-3 p-5">
+            <Card key={i} className="p-5">
+              <div className="space-y-3">
+                <Skeleton className="h-11 w-11 rounded-xl" />
                 <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-8 w-28" />
-              </CardContent>
+                <Skeleton className="h-7 w-20" />
+              </div>
             </Card>
           ))
         ) : (
           <>
-            <Kpi
-              title="Outstanding"
-              icon={FileWarning}
-              to="/client/invoices"
-              value={formatCurrency(d.outstanding.amount)}
-              sub={`${d.outstanding.count} unpaid invoice${d.outstanding.count === 1 ? '' : 's'}`}
+            <StatCard
+              title="Products"
+              icon={Package}
+              tone="violet"
+              to="/client/licences"
+              value={String(d.products)}
+              sub="assigned to you"
             />
-            <Kpi
-              title="Overdue"
-              icon={AlertTriangle}
-              to="/client/invoices"
-              value={formatCurrency(d.overdue.amount)}
-              sub={
-                d.overdue.count > 0 ? (
-                  <span className="font-medium text-destructive">
-                    {d.overdue.count} past due — please pay
-                  </span>
-                ) : (
-                  'Nothing past due'
-                )
-              }
-            />
-            <Kpi
-              title="Total Paid"
-              icon={CheckCircle2}
-              to="/client/invoices"
-              value={formatCurrency(d.totalPaid)}
-              sub={`${d.invoices} invoice${d.invoices === 1 ? '' : 's'} total`}
-            />
-            <Kpi
+            <StatCard
               title="Active Task"
               icon={ListChecks}
+              tone="blue"
               to="/client/tasks"
               value={String(activeTasks)}
               sub="tasks in progress"
             />
-            <Kpi
-              title="Products"
-              icon={Package}
-              to="/client/licences"
-              value={String(d.products)}
-              sub="assigned to you"
+            <StatCard
+              title="Total Paid"
+              icon={CheckCircle2}
+              tone="emerald"
+              to="/client/invoices"
+              value={formatCurrency(d.totalPaid)}
+              sub={`${d.invoices} invoice${d.invoices === 1 ? '' : 's'} total`}
+            />
+            <StatCard
+              title="Outstanding"
+              icon={FileWarning}
+              tone="amber"
+              to="/client/invoices"
+              value={formatCurrency(d.outstanding.amount)}
+              sub={`${d.outstanding.count} unpaid`}
+            />
+            <StatCard
+              title="Overdue"
+              icon={AlertTriangle}
+              tone="rose"
+              to="/client/invoices"
+              value={formatCurrency(d.overdue.amount)}
+              sub={d.overdue.count > 0 ? `${d.overdue.count} past due` : 'Nothing past due'}
             />
           </>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* Main grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Recent invoices */}
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Recent Invoices</CardTitle>
             <Link to="/client/invoices" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
@@ -210,62 +333,133 @@ export default function ClientDashboard() {
           </CardContent>
         </Card>
 
-        {/* Licences */}
+        {/* Product status */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="text-base">Your Product & License</CardTitle>
+            <CardTitle className="text-base">Product Status</CardTitle>
             <Link to="/client/licences" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
               View all <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="pt-0">
             {prodQ.isLoading ? (
-              <div className="space-y-2 p-4">
+              <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
+                  <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
             ) : !prodQ.data?.length ? (
-              <div className="p-6">
-                <EmptyState title="No products" description="Your licences will appear here." />
-              </div>
+              <EmptyState title="No products" description="Your licences will appear here." />
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Expiry</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {prodQ.data.slice(0, 5).map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.product}</TableCell>
-                      <TableCell className="text-sm">{formatDate(p.expiryDate)}</TableCell>
-                      <TableCell>
-                        <LicenceBadge status={p.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <ul className="space-y-3">
+                {prodQ.data.slice(0, 6).map((p) => (
+                  <li key={p.id} className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
+                      <Package className="h-[18px] w-[18px]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{p.product}</p>
+                      <p className="text-xs text-muted-foreground">Expires {formatDate(p.expiryDate)}</p>
+                    </div>
+                    <LicenceBadge status={p.status} />
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Tasks — full width, opens on the grid view */}
-      <Card>
-        <CardContent className="pt-6">
-          <TaskBoard
-            api={clientTaskApi()}
-            scopeKey="client"
-            customerName={profileQ.data?.companyName ?? undefined}
-            readOnly
-          />
-        </CardContent>
-      </Card>
+      {/* Tasks overview + Need help */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="text-base">Tasks Overview</CardTitle>
+            <Link to="/client/tasks" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+              View all tasks <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
+              {/* Donut + legend */}
+              <div className="flex items-center gap-5">
+                <Donut
+                  total={allTasks.length}
+                  segments={[
+                    { value: tInProgress, color: '#f59e0b' },
+                    { value: tPending, color: '#3b82f6' },
+                    { value: tCompleted, color: '#10b981' },
+                  ]}
+                />
+                <ul className="space-y-2.5 text-sm">
+                  <li className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                    <span className="font-semibold tabular-nums">{tInProgress}</span>
+                    <span className="text-muted-foreground">In progress</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                    <span className="font-semibold tabular-nums">{tPending}</span>
+                    <span className="text-muted-foreground">Pending</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <span className="font-semibold tabular-nums">{tCompleted}</span>
+                    <span className="text-muted-foreground">Completed</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Upcoming task list */}
+              <div className="min-w-0 flex-1">
+                {upcomingTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No open tasks — you’re all caught up.</p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {upcomingTasks.map((t) => {
+                      const pill = TASK_PILL[t.progress] ?? TASK_PILL.NOT_STARTED;
+                      return (
+                        <li key={t.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{t.title}</p>
+                            <span className={cn('mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium', pill.cls)}>
+                              {pill.label}
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {t.dueDate ? formatDate(t.dueDate) : '—'}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Need help */}
+        <Card className="relative overflow-hidden">
+          <CardContent className="flex h-full flex-col pt-6">
+            <div>
+              <h3 className="text-lg font-semibold">Need Help?</h3>
+              <p className="mt-1 text-sm text-muted-foreground">We’re here to help you 24/7.</p>
+            </div>
+            <div className="my-4 flex justify-center">
+              <HeadphonesArt className="h-28 w-28 drop-shadow-sm" />
+            </div>
+            <div className="mt-auto space-y-2">
+              <Button className="w-full" asChild>
+                <a href="mailto:support@egdigital.com.au?subject=Support%20request">Create a Ticket</a>
+              </Button>
+              <Button variant="outline" className="w-full" asChild>
+                <a href="mailto:support@egdigital.com.au?subject=Knowledge%20base%20enquiry">Browse Knowledge Base</a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

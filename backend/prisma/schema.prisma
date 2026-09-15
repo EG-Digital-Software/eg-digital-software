@@ -196,6 +196,9 @@ model EmployeeUser {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  /// Customers this team member is the assigned account manager for.
+  managedCustomers Customer[] @relation("CustomerAccountManager")
+
   @@index([approvalStatus])
 }
 
@@ -302,6 +305,10 @@ model Customer {
   /// Manual account-standing override. Left at ACTIVE, the effective standing is
   /// auto-derived from invoice activity (see CustomerAccountStatus).
   accountStatus CustomerAccountStatus @default(ACTIVE)
+  /// Team member (EmployeeUser) an admin assigns as this client's account
+  /// manager — shown to the client in their portal. Optional.
+  accountManagerId String?
+  accountManager   EmployeeUser? @relation("CustomerAccountManager", fields: [accountManagerId], references: [id])
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 

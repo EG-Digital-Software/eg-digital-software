@@ -1,142 +1,230 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Receipt, KeyRound, LogOut, User, IdCard, ListChecks, FileText } from 'lucide-react';
+import {
+  Home,
+  Package,
+  Receipt,
+  ListChecks,
+  IdCard,
+  FileText,
+  LogOut,
+  User,
+  Search,
+  HelpCircle,
+  Menu,
+  X,
+  MessageCircle,
+  type LucideProps,
+} from 'lucide-react';
+import type { ComponentType } from 'react';
+import { clientApi } from '@/api/client-portal';
 import { useAuth } from '@/store/auth';
 import { useLogout } from '@/hooks/useSession';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
-const NAV = [
-  { to: '/client/dashboard', label: 'Overview', icon: LayoutDashboard },
+interface NavItem {
+  to: string;
+  label: string;
+  icon: ComponentType<LucideProps>;
+}
+
+const NAV: NavItem[] = [
+  { to: '/client/dashboard', label: 'Dashboard', icon: Home },
+  { to: '/client/licences', label: 'Products', icon: Package },
   { to: '/client/invoices', label: 'Invoices', icon: Receipt },
   { to: '/client/tasks', label: 'Tasks', icon: ListChecks },
-  { to: '/client/licences', label: 'Products', icon: KeyRound },
   { to: '/client/details', label: 'Company Details', icon: IdCard },
   { to: '/client/agreement', label: 'Agreement', icon: FileText },
 ];
 
-/** Full-width shell — content spans the whole screen with a small, even gutter. */
-const SHELL = 'w-full px-4 sm:px-6 lg:px-8';
-
+/** Left-rail portal shell matching the customer-portal reference design. */
 export function ClientLayout() {
   const user = useAuth((s) => s.user);
   const logout = useLogout();
   const navigate = useNavigate();
+  const [open, setOpen] = useState(false); // mobile drawer
+  const { data: profile } = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
+  const manager = profile?.accountManager ?? null;
 
   const handleLogout = async () => {
     await logout();
     navigate('/', { replace: true });
   };
 
-  return (
-    <div className="flex min-h-screen flex-col bg-white">
-      <header className="sticky top-0 z-20 border-b border-border/70 bg-card/85 backdrop-blur-xl">
-        <div className={cn(SHELL, 'relative flex h-16 items-center gap-3')}>
-          <NavLink to="/client/dashboard" className="flex shrink-0 items-center">
-            <Logo className="text-[24px]" />
+  const sidebar = (
+    <div className="flex h-full flex-col">
+      {/* Brand */}
+      <div className="flex h-16 items-center gap-2 px-5">
+        <Logo className="shrink-0 whitespace-nowrap text-[22px]" />
+        <span className="shrink-0 whitespace-nowrap rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          Customer Portal
+        </span>
+      </div>
+
+      {/* Primary navigation */}
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
+        {NAV.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            onClick={() => setOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-slate-600 hover:bg-secondary hover:text-foreground'
+              )
+            }
+          >
+            <item.icon className="h-[18px] w-[18px] shrink-0" />
+            <span>{item.label}</span>
           </NavLink>
-          <span className="ml-1 hidden rounded-full border border-[#34B98C]/20 bg-[#34B98C]/10 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-[#2f9d78] sm:inline">
-            Customer Portal
-          </span>
+        ))}
+      </nav>
 
-          {/* Primary nav — a single pill rail, absolutely centred in the header. */}
-          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 rounded-full border border-border/70 bg-secondary/50 p-1 md:flex">
-            {NAV.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )
-                }
-              >
-                <item.icon className="h-[18px] w-[18px]" />
-                <span className="hidden lg:inline">{item.label}</span>
-              </NavLink>
-            ))}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-1">
-            <NotificationBell />
-
-            <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-full p-1 pr-2.5 transition-colors hover:bg-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Avatar>
-                  {user?.avatarUrl && <AvatarImage src={mediaUrl(user.avatarUrl)} alt="" />}
-                  <AvatarFallback>{initials(user?.firstName, user?.lastName)}</AvatarFallback>
-                </Avatar>
-                <span className="hidden text-sm font-medium leading-tight sm:block">
-                  {user?.firstName} {user?.lastName}
-                </span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <p className="text-sm font-medium">
-                    {user?.firstName} {user?.lastName}
-                  </p>
-                  <p className="text-xs font-normal text-muted-foreground">{user?.email}</p>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/client/account')}>
-                  <User /> My Account
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem destructive onClick={handleLogout}>
-                  <LogOut /> Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+      {/* Account manager — shown when an admin has assigned one */}
+      {manager && (
+        <div className="px-3 pb-1">
+          <div className="rounded-2xl border border-border bg-secondary/40 p-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Account Manager
+            </p>
+            <div className="flex items-center gap-3">
+              <Avatar>
+                {manager.avatarUrl && <AvatarImage src={mediaUrl(manager.avatarUrl)} alt="" />}
+                <AvatarFallback>{initials(manager.firstName, manager.lastName)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {manager.firstName} {manager.lastName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{manager.email}</p>
+              </div>
+            </div>
+            <a
+              href={`mailto:${manager.email}`}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+            >
+              <MessageCircle className="h-4 w-4" /> Contact
+            </a>
           </div>
         </div>
+      )}
 
-        {/* Compact nav rail for tablet / phone, where the header pill is hidden. */}
-        <nav className="border-t border-border/70 bg-card/60 md:hidden">
-          <div className={cn(SHELL, 'flex items-center gap-1 overflow-x-auto py-2')}>
-            {NAV.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  cn(
-                    'flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                  )
-                }
-              >
-                <item.icon className="h-[18px] w-[18px]" />
-                <span>{item.label}</span>
-              </NavLink>
-            ))}
+      {/* Account + sign out */}
+      <div className="border-t border-border p-3">
+        <div className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2">
+          <Avatar>
+            {user?.avatarUrl && <AvatarImage src={mediaUrl(user.avatarUrl)} alt="" />}
+            <AvatarFallback>{initials(user?.firstName, user?.lastName)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
           </div>
-        </nav>
-      </header>
-
-      <main className="flex-1">
-        <div className={cn(SHELL, 'space-y-6 py-6 lg:py-8')}>
-          <Outlet />
         </div>
-      </main>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            navigate('/client/account');
+          }}
+          className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <User className="h-[18px] w-[18px]" />
+          My Account
+        </button>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-1 flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-destructive/10 hover:text-destructive"
+        >
+          <LogOut className="h-[18px] w-[18px]" />
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
 
-      <footer className="border-t border-border/60">
-        <div className={cn(SHELL, 'py-6 text-center text-sm font-medium text-muted-foreground')}>
-          This portal is under construction — some features may still be on the way.
+  return (
+    <div className="min-h-screen bg-[#f5f7fa]">
+      {/* Desktop sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card lg:block">
+        {sidebar}
+      </aside>
+
+      {/* Mobile drawer */}
+      {open && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-72 border-r border-border bg-card shadow-xl">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="absolute right-3 top-4 rounded-md p-1 text-muted-foreground hover:bg-secondary"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            {sidebar}
+          </aside>
         </div>
-      </footer>
+      )}
+
+      <div className="lg:pl-72">
+        {/* Top bar */}
+        <header className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-md">
+          <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="rounded-md p-2 text-muted-foreground hover:bg-secondary lg:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+
+            {/* Search */}
+            <div className="relative hidden max-w-md flex-1 sm:block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search anything..."
+                className="h-10 w-full rounded-full border border-input bg-secondary/50 pl-9 pr-14 text-sm outline-none transition-colors focus:border-primary focus:bg-card"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground md:inline">
+                ⌘K
+              </span>
+            </div>
+
+            <div className="ml-auto flex items-center gap-1">
+              <NotificationBell />
+              <button
+                type="button"
+                onClick={() => navigate('/client/agreement')}
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                aria-label="Help"
+                title="Help"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="px-3 py-4 sm:px-4 lg:py-6">
+          <div className="w-full space-y-6">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

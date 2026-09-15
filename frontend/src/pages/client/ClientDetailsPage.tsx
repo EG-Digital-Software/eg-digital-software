@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
 import { ErrorState } from '@/components/shared/states';
+import { formatAbn, formatAcn } from '@/lib/customer';
 import type { Address } from '@/types';
 
 /** Turn an enum like HOSPITALITY_AND_TOURISM into "Hospitality And Tourism". */
@@ -98,9 +99,11 @@ export default function ClientDetailsPage() {
         <Row label="Trading As" value={c.tradingAs} />
         <Row label="Business Type" value={prettify(c.businessType)} />
         <Row label="Registration Country" value={c.registrationCountry} />
-        {Object.entries(identifiers).map(([key, val]) => (
-          <Row key={key} label={key.toUpperCase()} value={val} />
-        ))}
+        {Object.entries(identifiers).map(([key, val]) => {
+          const k = key.toLowerCase();
+          const display = k === 'abn' ? formatAbn(val) : k === 'acn' ? formatAcn(val) : val;
+          return <Row key={key} label={key.toUpperCase()} value={display} />;
+        })}
       </DetailCard>
 
       <DetailCard icon={Contact} title="Contact Information">

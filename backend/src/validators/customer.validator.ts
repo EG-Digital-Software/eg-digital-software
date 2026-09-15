@@ -152,6 +152,9 @@ export const createCustomerSchema = z
 
     accountStatus: z.enum(['ACTIVE', 'DORMANT', 'SUSPENDED']).optional(),
 
+    /// Team member assigned as this client's account manager. Empty string clears it.
+    accountManagerId: z.string().uuid().optional().or(z.literal('')),
+
     // ── Customer Credential (admin-provisioned portal login) ──
     // Present only when the admin sets or changes the login. Empty strings are
     // allowed so the form can submit the section untouched.

@@ -25,7 +25,7 @@ import {
   Download,
   SquarePen,
 } from 'lucide-react';
-import { customerApi, productApi } from '@/api/resources';
+import { customerApi, productApi, adminApi } from '@/api/resources';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
@@ -474,6 +474,8 @@ export default function CustomerDetailPage() {
         />
       </div>
 
+      <AccountManagerCard customer={c} />
+
       {/* Profile card */}
       <Card>
         <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start">
@@ -826,6 +828,59 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
       <Label className="block text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
     </div>
+  );
+}
+
+/** Assign a team member as this client's account manager (shown in their portal). */
+function AccountManagerCard({ customer }: { customer: Customer }) {
+  const qc = useQueryClient();
+  const { data: emps } = useQuery({
+    queryKey: ['employees', 'approved'],
+    queryFn: () => adminApi.registrations({ role: 'EMPLOYEE', status: 'APPROVED', pageSize: 100 }),
+  });
+  const employees = emps?.items ?? [];
+  const current = customer.accountManager ?? null;
+
+  const assign = useMutation({
+    mutationFn: (accountManagerId: string) => customerApi.update(customer.clientId, { accountManagerId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer', customer.clientId] });
+      toast.success('Account manager updated');
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Account Manager</p>
+            <p className="text-xs text-muted-foreground">
+              {current
+                ? `${current.firstName} ${current.lastName} · ${current.email}`
+                : 'Assign a team member — shown to the client in their portal'}
+            </p>
+          </div>
+        </div>
+        <Select
+          value={customer.accountManagerId ?? ''}
+          disabled={assign.isPending}
+          onChange={(e) => assign.mutate(e.target.value)}
+          className="sm:w-64"
+        >
+          <option value="">— Not assigned —</option>
+          {employees.map((emp) => (
+            <option key={emp.id} value={emp.id}>
+              {emp.firstName} {emp.lastName}
+            </option>
+          ))}
+        </Select>
+      </CardContent>
+    </Card>
   );
 }
 

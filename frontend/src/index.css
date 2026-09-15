@@ -19,7 +19,9 @@ h1, h2, h3, h4, h5, h6 {
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 243 75% 59%;
+    /* Reference royal blue (#2563eb) — the portal accent used across buttons,
+       links and the active sidebar item. */
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
@@ -30,8 +32,8 @@ h1, h2, h3, h4, h5, h6 {
        deliberate, a common premium hierarchy fix. */
     --muted-foreground: 215 19% 41%;
 
-    --accent: 243 75% 96%;
-    --accent-foreground: 243 75% 40%;
+    --accent: 221 83% 96%;
+    --accent-foreground: 221 83% 45%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -44,7 +46,7 @@ h1, h2, h3, h4, h5, h6 {
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 243 75% 59%;
+    --ring: 221 83% 53%;
 
     --radius: 0.75rem;
   }

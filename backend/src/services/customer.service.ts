@@ -137,6 +137,9 @@ export async function getCustomerByClientId(clientId: string) {
       documents: { orderBy: { createdAt: 'desc' } },
       customerProducts: { include: { product: true, licence: true } },
       invoices: { include: { payments: true }, orderBy: { createdAt: 'desc' } },
+      accountManager: {
+        select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, designation: true },
+      },
     },
   });
   if (!customer) throw ApiError.notFound('Customer not found');
@@ -419,6 +422,7 @@ type CreateInput = {
 
   reference?: string;
   accountStatus?: CustomerAccountStatus;
+  accountManagerId?: string;
 
   // Customer Credential — the admin-provisioned client portal login. Optional:
   // present it only when the admin is setting or changing the login.
@@ -677,10 +681,15 @@ export async function updateCustomer(clientId: string, input: Partial<CreateInpu
   if (!existing) throw ApiError.notFound('Customer not found');
 
   return prisma.$transaction(async (tx) => {
-    await tx.customer.update({
-      where: { clientId },
-      data: customerUpdateFields(input),
-    });
+    const data = customerUpdateFields(input);
+    // Account manager is a relation — connect the chosen team member, or
+    // disconnect when cleared (empty string). Undefined leaves it untouched.
+    if (input.accountManagerId !== undefined) {
+      data.accountManager = input.accountManagerId
+        ? { connect: { id: input.accountManagerId } }
+        : { disconnect: true };
+    }
+    await tx.customer.update({ where: { clientId }, data });
 
     const billing = input.sameAsPrincipal ? input.principalAddress : input.billingAddress;
     await upsertAddress(tx, existing.id, AddressType.PRINCIPAL, input.principalAddress);
