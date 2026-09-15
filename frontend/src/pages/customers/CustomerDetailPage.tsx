@@ -1037,6 +1037,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
   const update = useMutation({
     mutationFn: () => {
       const payload: Record<string, unknown> = { quantity: Number(form.quantity) || 1 };
+      if (form.productId) payload.productId = form.productId;
       payload.price = form.price !== '' ? Number(form.price) : 0;
       payload.unit = form.unit.trim();
       payload.taxRate = form.taxRate !== '' ? Number(form.taxRate) : 0;
@@ -1107,7 +1108,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
           <div className="rounded-lg border border-border bg-secondary/30 p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Field label="Product">
-                <Select value={form.productId} disabled={!!editingId} onChange={(e) => set('productId', e.target.value)}>
+                <Select value={form.productId} onChange={(e) => set('productId', e.target.value)}>
                   <option value="">Select product…</option>
                   {products?.items.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>

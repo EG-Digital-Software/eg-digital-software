@@ -802,6 +802,7 @@ export async function updateCustomerProduct(
   clientId: string,
   customerProductId: string,
   input: {
+    productId?: string;
     quantity?: number;
     price?: number;
     unit?: string;
@@ -824,6 +825,12 @@ export async function updateCustomerProduct(
   });
   if (!cp) throw ApiError.notFound('Assigned product not found');
 
+  // The admin can swap the assigned product for another; verify it exists first.
+  if (input.productId && input.productId !== cp.productId) {
+    const product = await prisma.product.findUnique({ where: { id: input.productId } });
+    if (!product) throw ApiError.notFound('Product not found');
+  }
+
   // Fall back to the current values for anything the caller left out.
   const issueDate = input.issueDate ?? cp.issueDate;
   const expiryDate = input.expiryDate !== undefined ? input.expiryDate : cp.expiryDate;
@@ -836,6 +843,7 @@ export async function updateCustomerProduct(
     await tx.customerProduct.update({
       where: { id: cp.id },
       data: {
+        ...(input.productId ? { productId: input.productId } : {}),
         ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
         ...(input.price !== undefined ? { price: new Prisma.Decimal(input.price) } : {}),
         ...(input.unit !== undefined ? { unit: input.unit || null } : {}),
