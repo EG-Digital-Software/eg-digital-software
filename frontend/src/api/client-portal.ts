@@ -17,6 +17,9 @@ export interface ClientProduct {
   sku: string;
   licence: string;
   price: string;
+  /** Optional Unit/Hours multiplier. */
+  unitHoursEnabled?: boolean;
+  unitHours?: string | null;
   /** Contract term: 'LOCKED' (committed) or 'TRIAL' (evaluation). */
   contractType?: string | null;
   /** 'INCLUSIVE' (price includes GST) or 'EXCLUSIVE' (GST added on top). */

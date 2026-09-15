@@ -431,6 +431,8 @@ type CreateInput = {
     productId: string;
     price?: number;
     unit?: string;
+    unitHoursEnabled?: boolean;
+    unitHours?: number;
     taxRate?: number;
     contractType?: 'LOCKED' | 'TRIAL';
     gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
@@ -745,6 +747,8 @@ async function assignProducts(
         productId: ap.productId,
         price: new Prisma.Decimal(ap.price ?? 0),
         unit: ap.unit ?? null,
+        unitHoursEnabled: ap.unitHoursEnabled ?? false,
+        unitHours: ap.unitHours != null ? new Prisma.Decimal(ap.unitHours) : null,
         taxRate: new Prisma.Decimal(ap.taxRate ?? 0),
         contractType: ap.contractType ?? 'LOCKED',
         gstType: ap.gstType ?? 'EXCLUSIVE',
@@ -921,6 +925,8 @@ export async function updateProductGroup(
     licenceKey?: string;
     contractType?: 'LOCKED' | 'TRIAL';
     gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
+    unitHoursEnabled?: boolean;
+    unitHours?: number;
     issueDate?: Date;
     expiryDate?: Date;
     status?: 'ACTIVE' | 'SUSPENDED';
@@ -957,10 +963,19 @@ export async function updateProductGroup(
         const expiryDate =
           input.expiryDate !== undefined ? input.expiryDate : (cur?.expiryDate ?? null);
         const status = forcedStatus ?? (cur?.status as LicenceStatus) ?? computeLicenceStatus(expiryDate);
+        // Unit/Hours is shared across the group: apply the input's value to every
+        // product (falling back to the current row's value when not supplied).
+        const unitHoursEnabled = input.unitHoursEnabled ?? cur?.unitHoursEnabled ?? false;
+        const unitHours =
+          input.unitHours !== undefined
+            ? new Prisma.Decimal(input.unitHours)
+            : (cur?.unitHours ?? null);
         const data = {
           price: new Prisma.Decimal(p.price ?? Number(cur?.price ?? 0)),
           contractType: input.contractType ?? cur?.contractType ?? 'LOCKED',
           gstType: input.gstType ?? cur?.gstType ?? 'EXCLUSIVE',
+          unitHoursEnabled,
+          unitHours,
           issueDate,
           expiryDate,
           status,

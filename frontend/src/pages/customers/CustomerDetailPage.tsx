@@ -811,7 +811,7 @@ export default function CustomerDetailPage() {
 const EMPTY_ASSIGN = {
   productId: '',
   price: '',
-  unit: '',
+  unitHours: '', // Unit/Hours multiplier (used only when enabled)
   taxRate: '10', // GST — fixed at 10%
   contractType: 'LOCKED', // LOCKED | TRIAL
   gstType: 'EXCLUSIVE', // INCLUSIVE | EXCLUSIVE
@@ -820,10 +820,10 @@ const EMPTY_ASSIGN = {
   expiryDate: '',
 };
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      <Label className="block text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
     </div>
   );
@@ -1005,6 +1005,9 @@ function ProductsTab({ customer }: { customer: Customer }) {
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ key: string; items: CustomerProduct[] } | null>(null);
+  // Unit/Hours multiplier (shared across the group). Off by default; when on, the
+  // total becomes agreed price × unitHours (+ GST).
+  const [unitEnabled, setUnitEnabled] = useState(false);
   const selectedIds = Object.keys(selected);
 
   // Group the assigned products by their shared licence key so each licence shows
@@ -1020,6 +1023,9 @@ function ProductsTab({ customer }: { customer: Customer }) {
     return [...map.entries()].map(([key, items]) => ({ key, items }));
   })();
 
+  // Only show the Unit/Hours column when at least one licence has it enabled.
+  const showUnitColumn = groups.some((g) => g.items[0]?.unitHoursEnabled);
+
   const { data: products } = useQuery({
     queryKey: ['products', 'all'],
     queryFn: () => productApi.list({ pageSize: 100, status: 'ACTIVE' }),
@@ -1033,8 +1039,12 @@ function ProductsTab({ customer }: { customer: Customer }) {
   const withGst = (netAmt: number) =>
     form.gstType === 'INCLUSIVE' ? netAmt : netAmt + netAmt * ((Number(form.taxRate) || 0) / 100);
 
-  // Total across every selected product (each has its own agreed price).
-  const total = selectedIds.reduce((sum, id) => sum + withGst(Number(selected[id]) || 0), 0);
+  // When Unit/Hours is on, each agreed price is multiplied by it before GST.
+  const unitFactor = unitEnabled ? Number(form.unitHours) || 0 : 1;
+  const total = selectedIds.reduce(
+    (sum, id) => sum + withGst((Number(selected[id]) || 0) * unitFactor),
+    0
+  );
 
   const assign = useMutation({
     mutationFn: () => {
@@ -1044,8 +1054,9 @@ function ProductsTab({ customer }: { customer: Customer }) {
       const shared: Record<string, unknown> = {
         contractType: form.contractType,
         gstType: form.gstType,
+        unitHoursEnabled: unitEnabled,
+        unitHours: unitEnabled ? Number(form.unitHours) || 0 : 0,
       };
-      if (form.unit.trim()) shared.unit = form.unit.trim();
       if (form.taxRate !== '') shared.taxRate = Number(form.taxRate);
       if (form.issueDate) shared.issueDate = form.issueDate;
       if (form.expiryDate) shared.expiryDate = form.expiryDate;
@@ -1062,6 +1073,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       toast.success(selectedIds.length === 1 ? 'Product assigned' : `${selectedIds.length} products assigned`);
       setForm({ ...EMPTY_ASSIGN });
       setSelected({});
+      setUnitEnabled(false);
       setAdding(false);
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
@@ -1081,6 +1093,8 @@ function ProductsTab({ customer }: { customer: Customer }) {
         products,
         contractType: form.contractType,
         gstType: form.gstType,
+        unitHoursEnabled: unitEnabled,
+        unitHours: unitEnabled ? Number(form.unitHours) || 0 : 0,
       };
       if (form.licence.trim()) body.licenceKey = form.licence.trim();
       if (form.issueDate) body.issueDate = form.issueDate;
@@ -1092,6 +1106,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       toast.success('Products updated');
       setForm({ ...EMPTY_ASSIGN });
       setSelected({});
+      setUnitEnabled(false);
       setEditingKey(null);
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
@@ -1104,10 +1119,11 @@ function ProductsTab({ customer }: { customer: Customer }) {
     setSelected(
       Object.fromEntries(group.items.map((cp) => [cp.product.id, cp.price != null ? String(cp.price) : '']))
     );
+    setUnitEnabled(rep.unitHoursEnabled ?? false);
     setForm({
       productId: '',
       price: '',
-      unit: rep.unit ?? '',
+      unitHours: rep.unitHours != null ? String(rep.unitHours) : '',
       taxRate: '10', // GST — fixed at 10%
       contractType: rep.contractType ?? 'LOCKED',
       gstType: rep.gstType ?? 'EXCLUSIVE',
@@ -1121,6 +1137,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
     setEditingKey(null);
     setForm({ ...EMPTY_ASSIGN });
     setSelected({});
+    setUnitEnabled(false);
   }
   const toggleProduct = (id: string) =>
     setSelected((s) => {
@@ -1220,8 +1237,31 @@ function ProductsTab({ customer }: { customer: Customer }) {
                   </p>
                 </Field>
               </div>
-              <Field label="Unit">
-                <Input placeholder="unit / seat / licence" value={form.unit} onChange={(e) => set('unit', e.target.value)} />
+              <Field
+                label={
+                  <span className="flex items-center justify-between gap-2">
+                    <span>Unit/Hours</span>
+                    <label className="flex cursor-pointer items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 rounded border-input accent-primary"
+                        checked={unitEnabled}
+                        onChange={(e) => setUnitEnabled(e.target.checked)}
+                      />
+                      Enable
+                    </label>
+                  </span>
+                }
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder={unitEnabled ? 'e.g. 10' : 'Disabled'}
+                  value={unitEnabled ? form.unitHours : ''}
+                  disabled={!unitEnabled}
+                  onChange={(e) => set('unitHours', e.target.value)}
+                />
               </Field>
               <Field label="Tax Rate (%)">
                 <div title="GST is fixed at 10%" className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium text-foreground">
@@ -1288,6 +1328,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
                   <TableHead className="whitespace-nowrap text-center">Expiry</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Days Left</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Agreed Amount</TableHead>
+                  {showUnitColumn && <TableHead className="whitespace-nowrap text-center">Unit/Hours</TableHead>}
                   <TableHead className="whitespace-nowrap text-center">Contract</TableHead>
                   <TableHead className="whitespace-nowrap text-center">GST</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Total Amount</TableHead>
@@ -1299,13 +1340,14 @@ function ProductsTab({ customer }: { customer: Customer }) {
                 {groups.map((group) => {
                   const rep = group.items[0];
                   const pending = group.items.some((it) => it.approvalStatus === 'PENDING');
-                  // Total = agreed price + GST (EXCLUSIVE adds GST on top; INCLUSIVE
-                  // already contains it), summed across the group's products.
+                  // Unit/Hours (shared across the group) multiplies each agreed price
+                  // before GST when enabled. Total = base(+GST) summed over products.
+                  const gu = rep.unitHoursEnabled ? Number(rep.unitHours) || 0 : 1;
                   const total = group.items.reduce((s, it) => {
-                    const p = Number(it.price) || 0;
+                    const base = (Number(it.price) || 0) * gu;
                     const rate = Number(it.taxRate ?? 10) || 0;
-                    const gst = (it.gstType ?? 'EXCLUSIVE') === 'INCLUSIVE' ? 0 : p * (rate / 100);
-                    return s + p + gst;
+                    const gst = (it.gstType ?? 'EXCLUSIVE') === 'INCLUSIVE' ? 0 : base * (rate / 100);
+                    return s + base + gst;
                   }, 0);
                   return (
                     <TableRow key={group.key}>
@@ -1329,6 +1371,11 @@ function ProductsTab({ customer }: { customer: Customer }) {
                           ))}
                         </div>
                       </TableCell>
+                      {showUnitColumn && (
+                        <TableCell className="whitespace-nowrap text-center text-sm tabular-nums align-top">
+                          {rep.unitHoursEnabled ? (Number(rep.unitHours) || 0) : '—'}
+                        </TableCell>
+                      )}
                       <TableCell className="whitespace-nowrap text-center text-sm capitalize align-top">{(rep.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
                       <TableCell className="whitespace-nowrap text-center text-sm capitalize align-top">{(rep.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
                       <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums align-top">{formatCurrency(total)}</TableCell>
@@ -1416,8 +1463,10 @@ function LicenceGroupDetailsDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const rep = group?.items[0];
+  const unitOn = !!rep?.unitHoursEnabled;
+  const unitVal = unitOn ? Number(rep?.unitHours) || 0 : 1;
   const lineTotals = (cp: CustomerProduct) => {
-    const net = Number(cp.price) || 0;
+    const net = (Number(cp.price) || 0) * unitVal;
     const rate = Number(cp.taxRate ?? 10) || 0;
     const gst = cp.gstType === 'INCLUSIVE' ? 0 : net * (rate / 100);
     return { net, gst, total: net + gst };
@@ -1444,6 +1493,7 @@ function LicenceGroupDetailsDialog({
               <Detail label="Status" value={<span className="capitalize">{(rep.status ?? 'ACTIVE').replace(/_/g, ' ').toLowerCase()}</span>} />
               <Detail label="Contract" value={<span className="capitalize">{(rep.contractType ?? 'LOCKED').toLowerCase()}</span>} />
               <Detail label="GST" value={<span className="capitalize">{(rep.gstType ?? 'EXCLUSIVE').toLowerCase()}</span>} />
+              <Detail label="Unit/Hours" value={unitOn ? String(unitVal) : 'Off'} />
               <Detail label="Issued" value={formatDate(rep.issueDate)} />
               <Detail label="Expiry" value={formatDate(rep.expiryDate)} />
               <Detail label="Days Left" value={String(daysLeftFromToday(rep.expiryDate))} />
@@ -1454,23 +1504,23 @@ function LicenceGroupDetailsDialog({
                 <thead className="bg-secondary/50 text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 text-left">Product</th>
-                    <th className="px-3 py-2 text-center">Unit</th>
                     <th className="px-3 py-2 text-right">Agreed Price</th>
+                    <th className="px-3 py-2 text-right">Net</th>
                     <th className="px-3 py-2 text-right">GST</th>
                     <th className="px-3 py-2 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {group.items.map((cp) => {
-                    const { gst, total } = lineTotals(cp);
+                    const { net, gst, total } = lineTotals(cp);
                     return (
                       <tr key={cp.id} className="border-t border-border">
                         <td className="px-3 py-2">
                           <p className="font-medium">{cp.product.name}</p>
                           <p className="text-xs text-muted-foreground">{cp.product.sku ?? cp.product.productCode}</p>
                         </td>
-                        <td className="px-3 py-2 text-center text-muted-foreground">{cp.unit ?? '—'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(cp.price)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(net)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(gst)}</td>
                         <td className="px-3 py-2 text-right font-medium tabular-nums">{formatCurrency(total)}</td>
                       </tr>

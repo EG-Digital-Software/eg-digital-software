@@ -101,6 +101,9 @@ export interface CustomerProduct {
   id: string;
   price: string;
   unit?: string | null;
+  /** Optional Unit/Hours multiplier (shared across a licence group). */
+  unitHoursEnabled?: boolean;
+  unitHours?: string | null;
   taxRate?: string | null;
   /** Contract term: 'LOCKED' (committed) or 'TRIAL' (evaluation). */
   contractType?: string | null;

@@ -66,6 +66,9 @@ export default function ClientLicencesPage() {
     data?.filter((p) => p.status === 'EXPIRING_SOON' || p.status === 'CRITICAL' || p.status === 'EXPIRED')
       .length ?? 0;
 
+  // Only show the Unit/Hours column when at least one product has it enabled.
+  const showUnit = data?.some((p) => p.unitHoursEnabled) ?? false;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -146,6 +149,7 @@ export default function ClientLicencesPage() {
                 <TableHead className="whitespace-nowrap text-center">Expiry</TableHead>
                 <TableHead className="whitespace-nowrap text-center">Days Left</TableHead>
                 <TableHead className="whitespace-nowrap text-center">Agreed Price</TableHead>
+                {showUnit && <TableHead className="whitespace-nowrap text-center">Unit/Hours</TableHead>}
                 <TableHead className="whitespace-nowrap text-center">Net Amount</TableHead>
                 <TableHead className="whitespace-nowrap text-center">Contract</TableHead>
                 <TableHead className="whitespace-nowrap text-center">GST</TableHead>
@@ -172,7 +176,12 @@ export default function ClientLicencesPage() {
                     )}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(p.price)}</TableCell>
-                  <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(p.price)}</TableCell>
+                  {showUnit && (
+                    <TableCell className="whitespace-nowrap text-center text-sm tabular-nums">
+                      {p.unitHoursEnabled ? (Number(p.unitHours) || 0) : '—'}
+                    </TableCell>
+                  )}
+                  <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency((Number(p.price) || 0) * (p.unitHoursEnabled ? Number(p.unitHours) || 0 : 1))}</TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(p.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(p.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
                   <TableCell className="text-center">
@@ -236,7 +245,9 @@ function LicenceDetailsDialog({
   product: ClientProduct | null;
   onOpenChange: (v: boolean) => void;
 }) {
-  const net = Number(product?.price) || 0;
+  const unitOn = !!product?.unitHoursEnabled;
+  const unitVal = unitOn ? Number(product?.unitHours) || 0 : 1;
+  const net = (Number(product?.price) || 0) * unitVal;
   // GST is fixed at 10%; INCLUSIVE means it is already in the agreed price.
   const gst = product?.gstType === 'INCLUSIVE' ? 0 : net * 0.1;
   const total = net + gst;
@@ -263,6 +274,7 @@ function LicenceDetailsDialog({
               />
               <Detail label="Contract" value={(product.contractType ?? 'LOCKED').toLowerCase()} className="capitalize" />
               <Detail label="GST" value={(product.gstType ?? 'EXCLUSIVE').toLowerCase()} className="capitalize" />
+              <Detail label="Unit/Hours" value={unitOn ? String(unitVal) : 'Off'} />
               <Detail label="Agreed Price" value={formatCurrency(product.price)} />
               <Detail label="Issued" value={formatDate(product.issueDate)} />
               <Detail label="Expiry" value={formatDate(product.expiryDate)} />

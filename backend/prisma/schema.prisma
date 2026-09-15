@@ -455,6 +455,11 @@ model CustomerProduct {
   /// Per-customer agreed price entered when the product is assigned (products no
   /// longer carry their own price).
   unit       String?
+  /// Optional Unit/Hours multiplier. When enabled, the total is agreed price ×
+  /// unitHours (+ GST); when disabled it is the agreed price as-is. Shared across
+  /// a licence group.
+  unitHoursEnabled Boolean  @default(false)
+  unitHours        Decimal? @db.Decimal(12, 2)
   taxRate    Decimal       @default(0) @db.Decimal(5, 2)
   issueDate  DateTime      @default(now())
   expiryDate DateTime?

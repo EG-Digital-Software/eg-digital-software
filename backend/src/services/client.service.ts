@@ -189,6 +189,8 @@ export async function listProducts(
     sku: r.product.sku ?? r.product.productCode,
     licence: r.licence?.licenceKey ?? '—',
     price: r.price,
+    unitHoursEnabled: r.unitHoursEnabled,
+    unitHours: r.unitHours,
     contractType: r.contractType,
     gstType: r.gstType,
     issueDate: r.issueDate,
