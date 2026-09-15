@@ -89,6 +89,68 @@ class SmtpProvider implements EmailProvider {
   }
 }
 
+/** Split a comma-joined recipient list into Brevo's `[{ email }]` shape. */
+function toAddressList(value?: string): Array<{ email: string }> | undefined {
+  if (!value) return undefined;
+  const list = value
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean)
+    .map((email) => ({ email }));
+  return list.length ? list : undefined;
+}
+
+/**
+ * Brevo transactional email over its HTTP API (https://api.brevo.com/v3/smtp/email).
+ * Unlike the SMTP relay, the API authenticates with an api-key and is NOT subject
+ * to Brevo's "Authorized IPs" restriction — so it sends from any host (incl. Azure
+ * App Service) without whitelisting outbound IPs. Uses the global fetch (Node 18+).
+ */
+class BrevoApiProvider implements EmailProvider {
+  readonly name = 'brevo';
+  constructor(private readonly apiKey: string) {}
+
+  async send(msg: EmailMessage): Promise<void> {
+    const text =
+      msg.text ?? msg.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const payload: Record<string, unknown> = {
+      sender: { email: env.EMAIL_FROM, ...(env.EMAIL_FROM_NAME ? { name: env.EMAIL_FROM_NAME } : {}) },
+      to: toAddressList(msg.to),
+      cc: toAddressList(msg.cc),
+      replyTo: { email: msg.replyTo ?? env.EMAIL_REPLY_TO ?? env.EMAIL_FROM },
+      subject: msg.subject,
+      htmlContent: msg.html,
+      textContent: text,
+      // A calendar invite goes as a base64 .ics attachment (the API has no
+      // dedicated icalEvent field like nodemailer does).
+      ...(msg.icalEvent
+        ? {
+            attachment: [
+              {
+                name: msg.icalEvent.filename ?? 'invite.ics',
+                content: Buffer.from(msg.icalEvent.content, 'utf-8').toString('base64'),
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': this.apiKey,
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Brevo API ${res.status}: ${body}`);
+    }
+  }
+}
+
 // Placeholder for API-based providers — implement when enabling one.
 class UnconfiguredProvider implements EmailProvider {
   constructor(readonly name: string) {}
@@ -101,6 +163,14 @@ function build(): EmailProvider {
   switch (env.EMAIL_PROVIDER) {
     case 'console':
       return new ConsoleProvider();
+    case 'brevo':
+      // API key not in yet? Don't crash — log to console so the flow works
+      // end-to-end until the key is dropped into env.
+      if (!env.EMAIL_API_KEY) {
+        logger.warn('EMAIL_PROVIDER=brevo but EMAIL_API_KEY is unset — falling back to console');
+        return new ConsoleProvider();
+      }
+      return new BrevoApiProvider(env.EMAIL_API_KEY);
     case 'smtp':
       // Credentials not in yet? Don't crash — log to console so the flow works
       // end-to-end until the mailbox details are dropped into env.
