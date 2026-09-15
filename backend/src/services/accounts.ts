@@ -30,6 +30,8 @@ export interface Account {
   role: Role;
   customerId?: string | null;
   approvedById?: string | null;
+  // Present on EMPLOYEE accounts (admin-set role/designation label).
+  designation?: string | null;
   // Present on pending-list rows for CLIENT accounts.
   customer?: { clientId: string; companyName: string | null } | null;
 }

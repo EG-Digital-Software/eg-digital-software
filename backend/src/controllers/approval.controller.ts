@@ -27,3 +27,18 @@ export const reject = asyncHandler(async (req: Request, res: Response) => {
   const user = await approvalService.reject(req.params.id, req.user!.sub);
   return ok(res, user, 'Account rejected');
 });
+
+export const createEmployee = asyncHandler(async (req: Request, res: Response) => {
+  const employee = await approvalService.createEmployee(req.body, req.user!.sub);
+  return ok(res, employee, 'Team member added', 201);
+});
+
+export const revealEmployeePassword = asyncHandler(async (req: Request, res: Response) => {
+  const credential = await approvalService.revealEmployeePassword(req.params.id);
+  return ok(res, credential, 'Password revealed');
+});
+
+export const changeEmployeePassword = asyncHandler(async (req: Request, res: Response) => {
+  const result = await approvalService.changeEmployeePassword(req.params.id, req.body.password);
+  return ok(res, result, 'Password updated');
+});

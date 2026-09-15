@@ -186,7 +186,15 @@ export interface PendingUser {
   lastLoginAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Admin-set role/designation, EMPLOYEE accounts only. */
+  designation?: string | null;
   customer?: { clientId: string; companyName?: string | null } | null;
+}
+
+export interface RevealedCredential {
+  email: string;
+  password: string | null;
+  available: boolean;
 }
 
 export const adminApi = {
@@ -200,6 +208,20 @@ export const adminApi = {
     (await api.get<ApiEnvelope<{ count: number }>>('/admin/registrations/count')).data.data.count,
   approve: async (id: string) => (await api.post(`/admin/registrations/${id}/approve`)).data,
   reject: async (id: string) => (await api.post(`/admin/registrations/${id}/reject`)).data,
+
+  // Admin-provisioned team (EMPLOYEE) accounts.
+  createEmployee: async (body: {
+    firstName: string;
+    lastName?: string;
+    email: string;
+    designation?: string;
+    password: string;
+  }) => (await api.post<ApiEnvelope<PendingUser>>('/admin/employees', body)).data.data,
+  revealEmployeePassword: async (id: string) =>
+    (await api.get<ApiEnvelope<RevealedCredential>>(`/admin/employees/${id}/password`)).data.data,
+  changeEmployeePassword: async (id: string, password: string) =>
+    (await api.patch<ApiEnvelope<{ id: string }>>(`/admin/employees/${id}/password`, { password }))
+      .data.data,
 };
 
 export interface PaymentRow {

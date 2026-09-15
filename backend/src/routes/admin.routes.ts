@@ -8,6 +8,8 @@ import {
   paymentSettingsSchema,
   organisationSettingsSchema,
   listRegistrationQuerySchema,
+  createEmployeeSchema,
+  employeePasswordSchema,
 } from '../validators/settings.validator.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
@@ -21,6 +23,15 @@ router.get('/registrations', validate({ query: listRegistrationQuerySchema }), a
 router.get('/registrations/count', approvals.count);
 router.post('/registrations/:id/approve', approvals.approve);
 router.post('/registrations/:id/reject', approvals.reject);
+
+// Admin-provisioned team (EMPLOYEE) logins: create, reveal password, reset password.
+router.post('/employees', validate({ body: createEmployeeSchema }), approvals.createEmployee);
+router.get('/employees/:id/password', approvals.revealEmployeePassword);
+router.patch(
+  '/employees/:id/password',
+  validate({ body: employeePasswordSchema }),
+  approvals.changeEmployeePassword
+);
 
 // Payment configuration (gateway keys, bank transfer details, card surcharge).
 router.get('/payment-settings', settings.getPayment);

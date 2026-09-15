@@ -45,6 +45,20 @@ export const paymentSettingsSchema = z.object({
   payInstructions: z.string().max(2000).optional(),
 });
 
+/** Admin creating a team (EMPLOYEE) login directly from the Approvals page. */
+export const createEmployeeSchema = z.object({
+  firstName: z.string().min(1, 'First name is required').max(60),
+  lastName: z.string().max(60).optional().or(z.literal('')),
+  email: z.string().email('Enter a valid email'),
+  designation: z.string().max(80).optional().or(z.literal('')),
+  password: z.string().min(8, 'At least 8 characters'),
+});
+
+/** Admin resetting a team member's password. */
+export const employeePasswordSchema = z.object({
+  password: z.string().min(8, 'At least 8 characters'),
+});
+
 export const listRegistrationQuerySchema = z.object({
   page: z.coerce.number().optional(),
   pageSize: z.coerce.number().optional(),

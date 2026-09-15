@@ -181,6 +181,13 @@ model EmployeeUser {
   lastName       String
   email          String        @unique
   passwordHash   String
+  /// Admin-provisioned team logins keep a reversible, AES-256-GCM encrypted copy
+  /// of the current password so an admin can reveal it. Login always uses
+  /// passwordHash (argon2); this is view-only. Null for self-registered staff.
+  passwordEnc    String?
+  /// Free-text role / designation shown to the admin (e.g. "Accountant",
+  /// "Support Lead"). Not tied to the Role enum, which governs the portal.
+  designation    String?
   approvalStatus AccountStatus @default(PENDING)
   approvedById   String?
   avatarUrl      String?

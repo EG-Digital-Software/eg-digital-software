@@ -1,4 +1,7 @@
+import argon2 from 'argon2';
+import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
+import { encryptSecret, decryptSecret } from '../utils/secretBox.js';
 import { publicUser } from './auth.service.js';
 import { sendAccountApproved, sendAccountRejected } from './email/templates.js';
 import { notify } from './notification.service.js';
@@ -11,8 +14,12 @@ const ROLE_HOME: Record<string, string> = {
 };
 
 const strip = (u: accounts.Account) => {
-  const { passwordHash: _pw, ...rest } = u;
+  // Never expose the auth hash or the reversible reveal copy in list responses.
+  const { passwordHash: _pw, passwordEnc: _enc, ...rest } = u as accounts.Account & {
+    passwordEnc?: string | null;
+  };
   void _pw;
+  void _enc;
   return rest;
 };
 
@@ -91,4 +98,87 @@ export async function reject(userId: string, approverId: string) {
   });
   sendAccountRejected({ email: updated.email, firstName: updated.firstName, role: updated.role });
   return publicUser(updated);
+}
+
+// ── Admin-provisioned team (EMPLOYEE) accounts ───────────────────────────────
+// An admin creates these directly from the Approvals page: APPROVED immediately,
+// and — like admin-provisioned client logins — a reversible AES copy of the
+// password is stored so the admin can reveal and reset it later. Login always
+// uses the argon2 hash; the reversible copy is view-only and needs
+// CREDENTIAL_ENC_KEY configured.
+
+// Fields safe to return to the admin (never the hash or the encrypted copy).
+const EMPLOYEE_PUBLIC = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+  designation: true,
+  approvalStatus: true,
+  isActive: true,
+  lastLoginAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export async function createEmployee(
+  input: { firstName: string; lastName?: string; email: string; designation?: string; password: string },
+  approverId: string
+) {
+  const firstName = input.firstName.trim();
+  const lastName = (input.lastName ?? '').trim();
+  const email = input.email.trim().toLowerCase();
+  const password = input.password.trim();
+  const designation = input.designation?.trim() || null;
+
+  if (!firstName) throw ApiError.badRequest('First name is required');
+  if (!email) throw ApiError.badRequest('A login email is required');
+  if (password.length < 8) throw ApiError.badRequest('Password must be at least 8 characters');
+  if (await accounts.emailExistsAnywhere(email)) {
+    throw ApiError.badRequest('That login email is already in use by another account');
+  }
+
+  return prisma.employeeUser.create({
+    data: {
+      firstName,
+      lastName,
+      email,
+      designation,
+      passwordHash: await argon2.hash(password),
+      passwordEnc: encryptSecret(password),
+      approvalStatus: 'APPROVED',
+      isActive: true,
+      approvedById: approverId,
+    },
+    select: EMPLOYEE_PUBLIC,
+  });
+}
+
+/**
+ * Reveal a team member's current password. Returns available=false when no
+ * reveal copy exists (self-registered, or set before encryption was configured);
+ * the admin can still reset it.
+ */
+export async function revealEmployeePassword(id: string) {
+  const emp = await prisma.employeeUser.findUnique({
+    where: { id },
+    select: { email: true, passwordEnc: true },
+  });
+  if (!emp) throw ApiError.notFound('Team member not found');
+  const password = decryptSecret(emp.passwordEnc);
+  return { email: emp.email, password, available: password !== null };
+}
+
+/** Reset a team member's password (admin only): updates the argon2 hash used to
+ *  authenticate and the reversible copy the admin can later reveal. */
+export async function changeEmployeePassword(id: string, password?: string) {
+  const emp = await prisma.employeeUser.findUnique({ where: { id }, select: { id: true } });
+  if (!emp) throw ApiError.notFound('Team member not found');
+  const pw = password?.trim() || '';
+  if (pw.length < 8) throw ApiError.badRequest('Password must be at least 8 characters');
+  await prisma.employeeUser.update({
+    where: { id },
+    data: { passwordHash: await argon2.hash(pw), passwordEnc: encryptSecret(pw) },
+  });
+  return { id };
 }

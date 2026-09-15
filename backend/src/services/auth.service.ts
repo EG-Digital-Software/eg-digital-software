@@ -34,10 +34,14 @@ export function verifyPassword(hash: string, password: string) {
   return argon2.verify(hash, password);
 }
 
-/** Strip the password hash; the `role` is already synthesized onto Account. */
+/** Strip the password hash (and any reversible reveal copy); the `role` is
+ *  already synthesized onto Account. */
 export function publicUser(account: Account) {
-  const { passwordHash: _pw, ...rest } = account;
+  const { passwordHash: _pw, passwordEnc: _enc, ...rest } = account as Account & {
+    passwordEnc?: string | null;
+  };
   void _pw;
+  void _enc;
   return rest;
 }
 
