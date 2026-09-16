@@ -7,6 +7,10 @@ import {
   ArrowRight,
   AlertTriangle,
   ListChecks,
+  RefreshCw,
+  ClipboardCheck,
+  FileText,
+  BadgeCheck,
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -23,6 +27,7 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import { HeroWave, HeroHealthCluster } from '@/components/shared/HeroHealth';
 import { ProductGlyph } from '@/lib/product-icon';
 import headphonesArt from '@/assets/headphones.png';
+import upgradeRocketArt from '@/assets/upgrade-rocket-cutout.png';
 
 // Soft pastel tones for the stat-card icon tiles (matches the reference).
 const TONES: Record<string, { tile: string; link: string }> = {
@@ -125,6 +130,28 @@ const TASK_PILL: Record<string, { label: string; cls: string }> = {
   COMPLETED: { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700' },
 };
 
+interface ActivityItem {
+  id: string;
+  icon: ComponentType<LucideProps>;
+  tone: string;
+  title: string;
+  sub: string;
+  at: number; // epoch ms — for sorting
+}
+
+// Split a timestamp into a short day label ("Today" / "Yesterday" / date) and a
+// clock time, matching the reference's two-line right column.
+function activityWhen(iso: string): { day: string; time: string } {
+  const dt = new Date(iso);
+  const today = new Date();
+  const yest = new Date();
+  yest.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  const day = sameDay(dt, today) ? 'Today' : sameDay(dt, yest) ? 'Yesterday' : formatDate(iso);
+  const time = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return { day, time };
+}
+
 export default function ClientDashboard() {
   const user = useAuth((s) => s.user);
   const dashQ = useQuery({ queryKey: ['client', 'dashboard'], queryFn: clientApi.dashboard });
@@ -152,6 +179,55 @@ export default function ClientDashboard() {
     profileQ.data?.companyName?.trim() ||
     [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
     'there';
+
+  // Recent Activity — derived read-only from data already loaded on this page
+  // (invoices, products/licences, tasks). No new API, no data mutation.
+  const activityLoading = invQ.isLoading || prodQ.isLoading || tasksQ.isLoading;
+  const activity: ActivityItem[] = [];
+  for (const inv of invQ.data?.items ?? []) {
+    if (inv.status === 'PAID' || Number(inv.amountPaid) > 0) {
+      activity.push({
+        id: `pay-${inv.id}`,
+        icon: BadgeCheck,
+        tone: 'bg-emerald-100 text-emerald-600',
+        title: 'Payment received',
+        sub: inv.invoiceNumber,
+        at: new Date(inv.createdAt).getTime(),
+      });
+    }
+    activity.push({
+      id: `inv-${inv.id}`,
+      icon: FileText,
+      tone: 'bg-amber-100 text-amber-600',
+      title: 'Invoice generated',
+      sub: inv.invoiceNumber,
+      at: new Date(inv.createdAt).getTime(),
+    });
+  }
+  for (const p of prodQ.data ?? []) {
+    if (!p.issueDate) continue;
+    activity.push({
+      id: `lic-${p.id}`,
+      icon: RefreshCw,
+      tone: 'bg-violet-100 text-violet-600',
+      title: p.pending ? 'Product requested' : 'Licence activated',
+      sub: p.product,
+      at: new Date(p.issueDate).getTime(),
+    });
+  }
+  for (const t of allTasks) {
+    const iso = t.completedAt ?? t.updatedAt ?? t.createdAt;
+    activity.push({
+      id: `task-${t.id}`,
+      icon: ClipboardCheck,
+      tone: 'bg-blue-100 text-blue-600',
+      title: t.progress === 'COMPLETED' ? 'Task completed' : 'Task updated',
+      sub: t.title,
+      at: new Date(iso).getTime(),
+    });
+  }
+  activity.sort((a, b) => b.at - a.at);
+  const recentActivity = activity.slice(0, 6);
 
   return (
     <div className="space-y-6">
@@ -243,7 +319,7 @@ export default function ClientDashboard() {
       {/* Main grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Recent invoices */}
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Recent Invoices</CardTitle>
             <Link to="/client/invoices" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
@@ -329,11 +405,54 @@ export default function ClientDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Recent activity */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="text-base">Recent Activity</CardTitle>
+            <Link to="/client/invoices" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+              View all <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {activityLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : recentActivity.length === 0 ? (
+              <EmptyState title="No activity yet" description="Recent account activity will appear here." />
+            ) : (
+              <ul className="space-y-3.5">
+                {recentActivity.map((a) => {
+                  const Icon = a.icon;
+                  const when = activityWhen(new Date(a.at).toISOString());
+                  return (
+                    <li key={a.id} className="flex items-start gap-3">
+                      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', a.tone)}>
+                        <Icon className="h-[18px] w-[18px]" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{a.title}</p>
+                        <p className="truncate text-xs text-muted-foreground">{a.sub}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs font-medium text-muted-foreground">{when.day}</p>
+                        <p className="text-[11px] text-muted-foreground">{when.time}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Tasks overview + Need help */}
+      {/* Tasks overview + Upgrade + Need help */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Tasks Overview</CardTitle>
             <Link to="/client/tasks" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
@@ -400,6 +519,30 @@ export default function ClientDashboard() {
           </CardContent>
         </Card>
 
+        {/* Upgrade your experience */}
+        <Card className="relative overflow-hidden bg-gradient-to-br from-[#eef2ff] via-[#eef4ff] to-[#e9f1ff]">
+          {/* Rocket illustration (extracted cutout) — anchored bottom-right */}
+          <img
+            src={upgradeRocketArt}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-3 right-3 z-0 h-64 w-auto select-none object-contain object-right-bottom drop-shadow-md sm:h-72"
+          />
+          <CardContent className="relative z-10 flex h-full min-h-[248px] flex-col pt-6">
+            <div className="max-w-[190px]">
+              <h3 className="text-lg font-semibold text-slate-800">Upgrade Your Experience</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Discover advanced solutions to grow your business and improve efficiency.
+              </p>
+            </div>
+            <div className="mt-auto max-w-[190px]">
+              <Button variant="outline" className="w-full bg-white/85 backdrop-blur" asChild>
+                <Link to="/client/licences">View recommendations</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Need help */}
         <Card className="relative overflow-hidden">
           {/* Headphones illustration — anchored to the bottom-right, fully visible */}
@@ -416,7 +559,7 @@ export default function ClientDashboard() {
             </div>
             <div className="mt-auto max-w-[180px] space-y-2">
               <Button className="w-full" asChild>
-                <a href="mailto:support@egdigital.com.au?subject=Support%20request">Create a Ticket</a>
+                <a href="mailto:help@egdigital.com.au?subject=Support%20request">Create a Ticket</a>
               </Button>
               <Button variant="outline" className="w-full bg-card/80 backdrop-blur" asChild>
                 <a href="mailto:support@egdigital.com.au?subject=Knowledge%20base%20enquiry">Browse Knowledge Base</a>
