@@ -47,6 +47,7 @@ import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
 import { cn, formatDate, initials, mediaUrl } from '@/lib/utils';
 import { downloadChatDoc, printChatPdf } from '@/lib/chatExport';
+import { renderMessageBody } from '@/lib/mentions';
 import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER } from '@/lib/tasks';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input, Textarea, Select } from '@/components/ui/input';
@@ -177,6 +178,10 @@ export function TaskDialog({
   const [showChat, setShowChat] = useState(true);
   const [showNotes, setShowNotes] = useState(false);
   const [chatFile, setChatFile] = useState<File | null>(null);
+  // @mention autocomplete for the chat composer. `mention` is active only while
+  // the caret sits inside a `@query` token; index tracks the highlighted row.
+  const [mention, setMention] = useState<{ start: number; query: string; index: number } | null>(null);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
   const archiveRef = useRef<HTMLInputElement>(null);
@@ -211,6 +216,20 @@ export function TaskDialog({
   });
   const liveTask = taskQ.data ?? task;
   const invalidateTask = () => qc.invalidateQueries({ queryKey: taskKey });
+
+  // People who can be @mentioned in this task's chat — admins, team members and
+  // this customer's clients. Fetched per task (the board-wide `assignableUsers`
+  // prop is admins + team only and drives the assignee picker, not mentions).
+  const mentionUsersQ = useQuery({
+    queryKey: ['mentionable', scopeKey, task?.id],
+    queryFn: () => api.mentionableUsers(task!.id),
+    enabled: open && isEdit && !!task?.id,
+    staleTime: 60_000,
+  });
+  // Source of truth is the scoped endpoint (it already hides the system admin and
+  // gates clients by viewer role). Fall back to an empty list — never the raw
+  // assignee list — so a hidden account can't flash in while the query loads.
+  const mentionUsers = mentionUsersQ.data ?? [];
 
   // Keep the chat pinned to the newest message — on open, on send, and when a
   // poll pulls in a reply from the other party.
@@ -443,7 +462,62 @@ export function TaskDialog({
   function sendChat() {
     const body = comment.trim();
     if (!task || addComment.isPending || (!body && !chatFile)) return;
+    setMention(null);
     addComment.mutate({ body, file: chatFile ?? undefined });
+  }
+
+  // People who can be @mentioned — the same admins/team members the task can be
+  // assigned to — filtered by whatever the user has typed after the `@`.
+  const mentionMatches = mention
+    ? mentionUsers
+        // You can't @mention yourself, so the signed-in user never lists.
+        .filter((u) => u.userId !== meId)
+        .filter((u) => u.name.toLowerCase().includes(mention.query.toLowerCase()))
+        // Clients sit last in the list; a small cap would hide them behind the
+        // admins/team, so keep it generous and let the dropdown scroll.
+        .slice(0, 20)
+    : [];
+
+  // Detect a live `@query` at the caret: triggers at the start of the message
+  // or right after whitespace, and stays open until a space ends the token.
+  function detectMention(value: string, caret: number) {
+    const upto = value.slice(0, caret);
+    const at = upto.lastIndexOf('@');
+    if (at === -1) return setMention(null);
+    const before = at === 0 ? '' : upto[at - 1];
+    const query = upto.slice(at + 1);
+    if ((at === 0 || /\s/.test(before)) && !/[\s@[\]]/.test(query)) {
+      // Preserve the highlighted row while the token is unchanged — otherwise a
+      // caret move (e.g. after an arrow keypress) would reset it back to 0 and
+      // break keyboard navigation.
+      setMention((prev) =>
+        prev && prev.start === at && prev.query === query ? prev : { start: at, query, index: 0 }
+      );
+    } else {
+      setMention(null);
+    }
+  }
+
+  function onCommentChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setComment(e.target.value);
+    detectMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
+  }
+
+  // Replace the `@query` under the caret with a mention token and a trailing
+  // space, then restore focus just past what we inserted.
+  function pickMention(u: AssignableUser) {
+    if (!mention) return;
+    const el = commentRef.current;
+    const caret = el?.selectionStart ?? comment.length;
+    const token = `@[${u.name}](${u.userType}:${u.userId}) `;
+    const next = comment.slice(0, mention.start) + token + comment.slice(caret);
+    const pos = mention.start + token.length;
+    setComment(next);
+    setMention(null);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
   }
   function submitCreate() {
     if (!draft.title.trim()) return toast.error('Title is required');
@@ -876,7 +950,7 @@ export function TaskDialog({
                         </div>
                         {c.body && (
                           <div className={cn('inline-block rounded-2xl px-3 py-2 text-left text-sm', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
-                            <p className="whitespace-pre-wrap break-words">{c.body}</p>
+                            <p className="whitespace-pre-wrap break-words">{renderMessageBody(c.body, { meId })}</p>
                           </div>
                         )}
                         {c.attachments?.map((f) => (
@@ -905,7 +979,29 @@ export function TaskDialog({
                   );
                 })}
               </div>
-              <div className="border-t border-border p-3">
+              <div className="relative border-t border-border p-3">
+                {mention && mentionMatches.length > 0 && (
+                  <div className="absolute bottom-full left-3 right-3 z-20 mb-1 max-h-56 overflow-auto rounded-xl border border-border bg-card p-1 shadow-lg">
+                    {mentionMatches.map((u, i) => (
+                      <button
+                        key={`${u.userType}:${u.userId}`}
+                        type="button"
+                        // Keep the arrow-selected row scrolled into view.
+                        ref={(el) => { if (i === mention.index) el?.scrollIntoView({ block: 'nearest' }); }}
+                        onMouseDown={(e) => { e.preventDefault(); pickMention(u); }}
+                        onMouseEnter={() => setMention((m) => (m ? { ...m, index: i } : m))}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm',
+                          i === mention.index ? 'bg-primary/10' : 'hover:bg-secondary'
+                        )}
+                      >
+                        <Avatar className="h-6 w-6"><AvatarFallback className="text-[10px]">{initials(u.name)}</AvatarFallback></Avatar>
+                        <span className="min-w-0 flex-1 truncate font-medium">{u.name}</span>
+                        <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">{u.userType === 'SUPER_ADMIN' ? 'Admin' : u.userType === 'CLIENT' ? 'Client' : 'Team'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {chatFile && (
                   <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
                     <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -932,13 +1028,30 @@ export function TaskDialog({
                     <Paperclip className="h-5 w-5" />
                   </button>
                   <Textarea
+                    ref={commentRef}
                     value={comment}
-                    placeholder={task ? 'Type a message' : 'Available after the task is created'}
+                    placeholder={task ? 'Type a message — @ to mention someone' : 'Available after the task is created'}
                     rows={1}
                     disabled={!task}
                     className="min-h-[28px] w-full flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm leading-6 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed"
-                    onChange={(e) => setComment(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                    onChange={onCommentChange}
+                    onKeyUp={(e) => {
+                      // Navigation keys are handled in onKeyDown; re-running
+                      // detection here would fight the arrow-key highlight.
+                      if (['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) return;
+                      detectMention(e.currentTarget.value, e.currentTarget.selectionStart ?? e.currentTarget.value.length);
+                    }}
+                    onClick={(e) => detectMention(e.currentTarget.value, e.currentTarget.selectionStart ?? e.currentTarget.value.length)}
+                    onBlur={() => setMention(null)}
+                    onKeyDown={(e) => {
+                      if (mention && mentionMatches.length) {
+                        if (e.key === 'ArrowDown') { e.preventDefault(); setMention({ ...mention, index: (mention.index + 1) % mentionMatches.length }); return; }
+                        if (e.key === 'ArrowUp') { e.preventDefault(); setMention({ ...mention, index: (mention.index - 1 + mentionMatches.length) % mentionMatches.length }); return; }
+                        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(mentionMatches[mention.index]); return; }
+                        if (e.key === 'Escape') { e.preventDefault(); setMention(null); return; }
+                      }
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+                    }}
                   />
                   <button type="button" onClick={sendChat} disabled={!task || addComment.isPending || (!comment.trim() && !chatFile)} className="mb-0.5 text-primary disabled:text-muted-foreground/40">
                     <Send className="h-5 w-5" />

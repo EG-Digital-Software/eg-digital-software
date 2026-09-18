@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import type { Task } from '@/types';
+import { stripMentions } from './mentions';
 
 /**
  * Export a task's chat thread to a downloadable file — admin-only feature.
@@ -33,7 +34,7 @@ export function buildChatHtml(task: Task, customerName?: string): string {
           const files = (c.attachments ?? [])
             .map((f) => `<div class="file">📎 ${esc(f.fileName)}</div>`)
             .join('');
-          const body = c.body ? `<div class="body">${esc(c.body).replace(/\n/g, '<br/>')}</div>` : '';
+          const body = c.body ? `<div class="body">${esc(stripMentions(c.body)).replace(/\n/g, '<br/>')}</div>` : '';
           return `
             <div class="msg">
               <div class="meta"><span class="author">${esc(c.authorName)}</span>

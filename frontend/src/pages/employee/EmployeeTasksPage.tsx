@@ -12,7 +12,7 @@ export default function EmployeeTasksPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Tasks" description="Tasks assigned to you across all customers." icon={ListChecks} iconTone="sky" />
-      <TaskBoard api={employeeTaskApi()} scopeKey="employee" readOnly />
+      <TaskBoard api={employeeTaskApi()} scopeKey="employee" readOnly groupTabs />
     </div>
   );
 }

@@ -61,12 +61,16 @@ interface Filters {
 
 const EMPTY_FILTERS: Filters = { search: '', assignee: '', priority: '', progress: '', labelId: '' };
 
-export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { api: TaskApi; scopeKey: string; customerName?: string; readOnly?: boolean }) {
+export function TaskBoard({ api, scopeKey, customerName, readOnly = false, groupTabs = false }: { api: TaskApi; scopeKey: string; customerName?: string; readOnly?: boolean; groupTabs?: boolean }) {
   const qc = useQueryClient();
   const queryKey = ['tasks', scopeKey];
 
   const [view, setView] = useState<ViewKey>('grid');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  // Employee portal only: the board is grouped one bucket-per-customer, shown as
+  // company tabs. Holds the selected company's id; empty until one is picked, at
+  // which point it defaults to the first company.
+  const [activeGroup, setActiveGroup] = useState<string>('');
   const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string } | null>(null);
 
   const boardQ = useQuery({ queryKey, queryFn: () => api.board() });
@@ -164,6 +168,15 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
 
   if (boardQ.isLoading) return <LoadingBlock label="Loading tasks…" />;
   if (boardQ.isError || !board || !filtered) return <ErrorState onRetry={() => boardQ.refetch()} />;
+
+  // Company tabs (employee portal): default to the first company, and fall back
+  // to it if the selected one is gone from the current board.
+  const effectiveGroup = filtered.buckets.some((b) => b.id === activeGroup)
+    ? activeGroup
+    : filtered.buckets[0]?.id ?? '';
+  const visibleBuckets = !groupTabs
+    ? filtered.buckets
+    : filtered.buckets.filter((b) => b.id === effectiveGroup);
 
   const totalTasks = board.buckets.reduce((n, b) => n + b.tasks.length, 0);
   const doneTasks = board.buckets.reduce((n, b) => n + b.tasks.filter((t) => t.progress === 'COMPLETED').length, 0);
@@ -281,10 +294,28 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
         </div>
       </div>
 
+      {/* Company tabs — employee portal groups tasks by customer/company. */}
+      {groupTabs && board.buckets.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border/70 bg-card/80 p-1.5 shadow-sm">
+          {board.buckets.map((b) => {
+            const shown = filtered.buckets.find((x) => x.id === b.id);
+            return (
+              <GroupTab
+                key={b.id}
+                active={effectiveGroup === b.id}
+                label={b.name}
+                count={shown?.tasks.length ?? 0}
+                onClick={() => setActiveGroup(b.id)}
+              />
+            );
+          })}
+        </div>
+      )}
+
       {/* Views */}
       {view === 'board' && (
         <BoardView
-          buckets={filtered.buckets}
+          buckets={visibleBuckets}
           readOnly={readOnly}
           onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
           onCreateTask={(bucketId) => setDialog({ mode: 'create', bucketId })}
@@ -296,7 +327,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
       )}
       {view === 'grid' && (
         <GridView
-          buckets={filtered.buckets}
+          buckets={visibleBuckets}
           readOnly={readOnly}
           onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
           onDeleteTask={(id) => delTask.mutate(id)}
@@ -305,7 +336,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
       )}
       {view === 'schedule' && (
         <ScheduleView
-          buckets={filtered.buckets}
+          buckets={visibleBuckets}
           onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
           appointments={apptQ.data ?? []}
           users={users as AssignableUser[]}
@@ -314,7 +345,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
           booking={bookAppt.isPending}
         />
       )}
-      {view === 'charts' && <ChartsView buckets={filtered.buckets} />}
+      {view === 'charts' && <ChartsView buckets={visibleBuckets} />}
 
       {dialog && (
         <TaskDialog
@@ -333,6 +364,42 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false }: { a
         />
       )}
     </div>
+  );
+}
+
+/** A single company tab in the employee portal's grouped board. */
+function GroupTab({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all',
+        active
+          ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30'
+          : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+      )}
+    >
+      <span className="max-w-[14rem] truncate">{label}</span>
+      <span
+        className={cn(
+          'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+          active ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'
+        )}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 

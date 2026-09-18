@@ -48,6 +48,12 @@ export const employeeAssignableUsers = asyncHandler(async (_req: Request, res: R
   return ok(res, await taskService.listAssignableUsers());
 });
 
+/** Mentionable people for one of the employee's tasks — scoped to that task's customer. */
+export const employeeMentionableUsers = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  return ok(res, await taskService.listMentionableUsers(customerId, req.user!.role));
+});
+
 /** Display name + role for the signed-in employee, for comment attribution. */
 async function employeeAuthor(req: Request) {
   const { sub, role, email } = req.user!;
