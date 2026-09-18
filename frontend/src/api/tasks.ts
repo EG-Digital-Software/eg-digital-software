@@ -39,6 +39,10 @@ export function taskApi(base: string) {
   return {
     board: () => unwrap<TaskBoard>(api.get(`${base}`)),
     assignableUsers: () => unwrap<AssignableUser[]>(api.get(`${base}/assignable-users`)),
+    // Everyone mentionable in a task's chat — admins, team, and that task's
+    // customer's clients (scoped per task, unlike the board-wide assignee list).
+    mentionableUsers: (taskId: string) =>
+      unwrap<AssignableUser[]>(api.get(`${base}/tasks/${taskId}/mentionable-users`)),
     getTask: (taskId: string) => unwrap<Task>(api.get(`${base}/tasks/${taskId}`)),
 
     // Buckets

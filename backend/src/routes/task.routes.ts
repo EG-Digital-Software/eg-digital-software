@@ -48,6 +48,8 @@ export function buildTaskRouter(readOnly = false): Router {
   router.delete('/appointments/:appointmentId', ctrl.deleteAppointment);
 
   router.get('/tasks/:taskId', ctrl.getTask);
+  // Who can be @mentioned in this task's chat — admins, team, and the customer's clients.
+  router.get('/tasks/:taskId/mentionable-users', ctrl.mentionableUsers);
 
   // Collaboration — available to clients too.
   router.patch('/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.setProgress);

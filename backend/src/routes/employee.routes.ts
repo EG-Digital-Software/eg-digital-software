@@ -27,6 +27,7 @@ router.get('/tasks/appointments', ctrl.employeeListAppointments);
 router.post('/tasks/appointments', validate({ body: createAppointmentSchema }), ctrl.employeeCreateAppointment);
 router.delete('/tasks/appointments/:appointmentId', ctrl.employeeDeleteAppointment);
 router.get('/tasks/tasks/:taskId', ctrl.employeeGetTask);
+router.get('/tasks/tasks/:taskId/mentionable-users', ctrl.employeeMentionableUsers);
 router.patch('/tasks/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.employeeSetProgress);
 router.patch('/tasks/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.employeeUpdateTask);
 router.post('/tasks/tasks/:taskId/comments', upload.single('file'), ctrl.employeeAddComment);

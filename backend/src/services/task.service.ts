@@ -4,6 +4,64 @@ import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 import { storage } from './storage/index.js';
 import { nextSequence, formatTaskNumber } from '../utils/sequence.js';
+import { notify } from './notification.service.js';
+
+/**
+ * @mention tokens are embedded inline in a chat message body as
+ * `@[Full Name](ROLE:userId)`. Storing them in the existing `body` column keeps
+ * mentions schema-free — no new table or column on the shared database.
+ */
+const MENTION_RE = /@\[([^\]]+)\]\((SUPER_ADMIN|EMPLOYEE|CLIENT|SUPPLIER):([0-9a-fA-F-]+)\)/g;
+
+/** The task board each mentioned role lands on when they open the notification. */
+const MENTION_HOME: Partial<Record<Role, string>> = {
+  SUPER_ADMIN: '/admin/tasks',
+  EMPLOYEE: '/employee/tasks',
+  CLIENT: '/client/tasks',
+};
+
+/** Distinct (userId, userType) pairs tagged in a message body. */
+function parseMentions(body: string): Array<{ userId: string; userType: Role }> {
+  const seen = new Set<string>();
+  const out: Array<{ userId: string; userType: Role }> = [];
+  for (const m of body.matchAll(MENTION_RE)) {
+    const userType = m[2] as Role;
+    const userId = m[3];
+    const key = `${userType}:${userId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ userId, userType });
+  }
+  return out;
+}
+
+/** Plain text with each mention collapsed to `@Full Name`, for the preview. */
+function stripMentions(body: string): string {
+  return body.replace(MENTION_RE, '@$1');
+}
+
+/** Fire-and-forget a notification to everyone tagged in a chat message. */
+function notifyMentions(
+  task: { id: string; title: string },
+  author: { id: string; type: Role; name: string },
+  body: string
+): void {
+  const preview = stripMentions(body).replace(/\s+/g, ' ').trim();
+  for (const m of parseMentions(body)) {
+    // Tagging yourself does not notify you.
+    if (m.userId === author.id) continue;
+    notify({
+      userId: m.userId,
+      userType: m.userType,
+      type: 'TASK_MENTION',
+      title: `${author.name} mentioned you`,
+      body: preview ? `${task.title} — ${preview.slice(0, 140)}` : task.title,
+      link: MENTION_HOME[m.userType] ?? '/',
+      entityType: 'task',
+      entityId: task.id,
+    });
+  }
+}
 
 /**
  * Microsoft Planner-style task board, scoped to one customer. Buckets are the
@@ -392,11 +450,15 @@ export async function addComment(
   body: string,
   file?: { originalname: string; buffer: Buffer; mimetype: string; size: number }
 ) {
-  await ensureTask(customerId, taskId);
+  const task = await ensureTask(customerId, taskId);
 
   const comment = await prisma.taskComment.create({
     data: { taskId, authorId: author.id, authorType: author.type, authorName: author.name, body },
   });
+
+  // Tag anyone @mentioned in the message — fire-and-forget so a notification
+  // hiccup never blocks the chat.
+  notifyMentions(task, author, body);
 
   // A file sent with the message is stored as a task attachment linked back to
   // this comment, so it shows both in the chat bubble and the Attachments tab.
@@ -810,5 +872,52 @@ export async function listAssignableUsers() {
   return [
     ...admins.map((u) => shape(u, Role.SUPER_ADMIN)),
     ...employees.map((u) => shape(u, Role.EMPLOYEE)),
+  ];
+}
+
+/** The seeded system super-admin ("EG Admin") — never listed as a mention target. */
+const SYSTEM_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || 'admin@egdigital.com.au').toLowerCase();
+
+/**
+ * Everyone who can be @mentioned in a task's chat.
+ *  - Admins (minus the seeded system account) and team members: always listed.
+ *  - Clients of *this task's* customer: listed only when the viewer is an admin
+ *    or team member. A client viewer never sees any client (not even their own
+ *    company's) in the tag list — clients are addressable by staff, not peers.
+ * The system admin is hidden from everyone; scoping clients to the customer also
+ * keeps one company's client names out of another's board.
+ */
+export async function listMentionableUsers(customerId: string, viewerRole: Role) {
+  const staffCanSeeClients = viewerRole === Role.SUPER_ADMIN || viewerRole === Role.EMPLOYEE;
+  const [admins, employees, clients] = await Promise.all([
+    prisma.adminUser.findMany({
+      where: { isActive: true, approvalStatus: 'APPROVED', email: { not: SYSTEM_ADMIN_EMAIL } },
+      select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+      orderBy: { firstName: 'asc' },
+    }),
+    prisma.employeeUser.findMany({
+      where: { isActive: true, approvalStatus: 'APPROVED' },
+      select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+      orderBy: { firstName: 'asc' },
+    }),
+    staffCanSeeClients
+      ? prisma.clientUser.findMany({
+          where: { isActive: true, approvalStatus: 'APPROVED', customerId },
+          select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+          orderBy: { firstName: 'asc' },
+        })
+      : Promise.resolve([] as Array<{ id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null }>),
+  ]);
+  const shape = (u: { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null }, userType: Role) => ({
+    userId: u.id,
+    userType,
+    name: `${u.firstName} ${u.lastName}`.trim(),
+    email: u.email,
+    avatarUrl: u.avatarUrl,
+  });
+  return [
+    ...admins.map((u) => shape(u, Role.SUPER_ADMIN)),
+    ...employees.map((u) => shape(u, Role.EMPLOYEE)),
+    ...clients.map((u) => shape(u, Role.CLIENT)),
   ];
 }
