@@ -33,6 +33,8 @@ const profileSchema = z.object({
   firstName: z.string().min(1, 'Required').max(80),
   lastName: z.string().min(1, 'Required').max(80),
   email: z.string().email('Enter a valid email'),
+  // Team members only — shown to clients when they're the account manager.
+  phone: z.string().max(40).optional(),
 });
 type ProfileValues = z.infer<typeof profileSchema>;
 
@@ -129,6 +131,7 @@ export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'prof
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      phone: user.phone ?? '',
     });
   }, [user, profileForm]);
 
@@ -282,6 +285,15 @@ export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'prof
                     </p>
                   )}
                 </div>
+                {user?.role === 'EMPLOYEE' && (
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Phone</Label>
+                    <Input type="tel" placeholder="e.g. +61 400 000 000" {...profileForm.register('phone')} />
+                    <p className="text-xs text-muted-foreground">
+                      Shown to clients when you're their account manager.
+                    </p>
+                  </div>
+                )}
                 <div className="flex justify-end sm:col-span-2">
                   <Button
                     type="submit"

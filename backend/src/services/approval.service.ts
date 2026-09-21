@@ -154,6 +154,7 @@ const EMPLOYEE_PUBLIC = {
   firstName: true,
   lastName: true,
   email: true,
+  phone: true,
   designation: true,
   approvalStatus: true,
   isActive: true,
@@ -193,6 +194,39 @@ export async function createEmployee(
     },
     select: EMPLOYEE_PUBLIC,
   });
+}
+
+/** Edit a team member's profile (admin only): name, login email, designation
+ *  and the contact phone shown to clients when they're the account manager. */
+export async function updateEmployee(
+  id: string,
+  input: { firstName?: string; lastName?: string; email?: string; designation?: string; phone?: string }
+) {
+  const emp = await prisma.employeeUser.findUnique({ where: { id }, select: { id: true, email: true } });
+  if (!emp) throw ApiError.notFound('Team member not found');
+
+  const data: Record<string, unknown> = {};
+  if (input.firstName !== undefined) {
+    const firstName = input.firstName.trim();
+    if (!firstName) throw ApiError.badRequest('First name is required');
+    data.firstName = firstName;
+  }
+  if (input.lastName !== undefined) data.lastName = input.lastName.trim();
+  if (input.designation !== undefined) data.designation = input.designation.trim() || null;
+  if (input.phone !== undefined) data.phone = input.phone.trim() || null;
+  if (input.email !== undefined) {
+    const email = input.email.trim().toLowerCase();
+    if (!email) throw ApiError.badRequest('A login email is required');
+    if (email !== emp.email) {
+      const owner = await accounts.findByEmailAnywhere(email);
+      if (owner && owner.id !== id) {
+        throw ApiError.badRequest('That login email is already in use by another account');
+      }
+      data.email = email;
+    }
+  }
+
+  return prisma.employeeUser.update({ where: { id }, data, select: EMPLOYEE_PUBLIC });
 }
 
 /**

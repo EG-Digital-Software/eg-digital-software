@@ -32,6 +32,8 @@ export interface Account {
   approvedById?: string | null;
   // Present on EMPLOYEE accounts (admin-set role/designation label).
   designation?: string | null;
+  // Present on EMPLOYEE accounts (contact number shown as account manager).
+  phone?: string | null;
   // Present on pending-list rows for CLIENT accounts.
   customer?: { clientId: string; companyName: string | null } | null;
 }

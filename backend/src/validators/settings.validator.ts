@@ -59,6 +59,15 @@ export const createEmployeeSchema = z.object({
   password: z.string().min(8, 'At least 8 characters'),
 });
 
+/** Admin editing a team member's profile from the Approvals page. */
+export const updateEmployeeSchema = z.object({
+  firstName: z.string().min(1, 'First name is required').max(60).optional(),
+  lastName: z.string().max(60).optional().or(z.literal('')),
+  email: z.string().email('Enter a valid email').optional(),
+  designation: z.string().max(80).optional().or(z.literal('')),
+  phone: z.string().max(40).optional().or(z.literal('')),
+});
+
 /** Admin resetting a team member's password. */
 export const employeePasswordSchema = z.object({
   password: z.string().min(8, 'At least 8 characters'),

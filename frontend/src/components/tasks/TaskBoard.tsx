@@ -294,21 +294,26 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
         </div>
       </div>
 
-      {/* Company tabs — employee portal groups tasks by customer/company. */}
+      {/* Customer selector — employee portal groups tasks by customer.
+          A dropdown keeps the header compact when a staff member works across
+          many customers. */}
       {groupTabs && board.buckets.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border/70 bg-card/80 p-1.5 shadow-sm">
-          {board.buckets.map((b) => {
-            const shown = filtered.buckets.find((x) => x.id === b.id);
-            return (
-              <GroupTab
-                key={b.id}
-                active={effectiveGroup === b.id}
-                label={b.name}
-                count={shown?.tasks.length ?? 0}
-                onClick={() => setActiveGroup(b.id)}
-              />
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Customer</span>
+          <Select
+            value={effectiveGroup}
+            onChange={(e) => setActiveGroup(e.target.value)}
+            className="h-9 w-auto min-w-[16rem] max-w-full"
+          >
+            {board.buckets.map((b) => {
+              const shown = filtered.buckets.find((x) => x.id === b.id);
+              return (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({shown?.tasks.length ?? 0})
+                </option>
+              );
+            })}
+          </Select>
         </div>
       )}
 
@@ -364,42 +369,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
         />
       )}
     </div>
-  );
-}
-
-/** A single company tab in the employee portal's grouped board. */
-function GroupTab({
-  active,
-  label,
-  count,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  count: number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all',
-        active
-          ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30'
-          : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-      )}
-    >
-      <span className="max-w-[14rem] truncate">{label}</span>
-      <span
-        className={cn(
-          'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-          active ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'
-        )}
-      >
-        {count}
-      </span>
-    </button>
   );
 }
 

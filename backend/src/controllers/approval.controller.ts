@@ -38,6 +38,11 @@ export const createEmployee = asyncHandler(async (req: Request, res: Response) =
   return ok(res, employee, 'Team member added', 201);
 });
 
+export const updateEmployee = asyncHandler(async (req: Request, res: Response) => {
+  const employee = await approvalService.updateEmployee(req.params.id, req.body);
+  return ok(res, employee, 'Team member updated');
+});
+
 export const revealEmployeePassword = asyncHandler(async (req: Request, res: Response) => {
   const credential = await approvalService.revealEmployeePassword(req.params.id);
   return ok(res, credential, 'Password revealed');

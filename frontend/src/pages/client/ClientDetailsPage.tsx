@@ -117,7 +117,7 @@ export default function ClientDetailsPage() {
         <Row label="Accounts Person Name" value={c.billingContactPerson} />
         <Row label="Accounts Email" value={c.billingEmail} />
         <Row label="Accounts Mobile" value={c.billingContactNumber} />
-        <Row label="Credit Score" value={c.creditScore != null ? String(c.creditScore) : null} />
+        <Row label="Invoicing Term" value={c.invoicingTerm} />
         <Row
           label="Account Status"
           value={

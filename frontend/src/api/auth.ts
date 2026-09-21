@@ -80,6 +80,7 @@ export async function updateProfileRequest(input: {
   firstName?: string;
   lastName?: string;
   email?: string;
+  phone?: string;
 }) {
   const { data } = await api.put<ApiEnvelope<User>>('/auth/me', input);
   return data.data;

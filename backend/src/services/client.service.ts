@@ -16,7 +16,7 @@ export async function resolveCustomerId(userId: string): Promise<string> {
 }
 
 export async function getProfile(customerId: string) {
-  const [customer, accountManager] = await Promise.all([
+  const [customer, accountManager, latestTerm] = await Promise.all([
     prisma.customer.findUnique({
       where: { id: customerId },
       include: {
@@ -27,9 +27,16 @@ export async function getProfile(customerId: string) {
     }),
     // One global account manager applies to every client (set from Approvals).
     getResolvedAccountManager(),
+    // The invoicing term is agreed per product assignment; surface the most
+    // recently set one as the client's current term in their Invoicing Details.
+    prisma.customerProduct.findFirst({
+      where: { customerId, invoicingTerm: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      select: { invoicingTerm: true },
+    }),
   ]);
   if (!customer) throw ApiError.notFound('Customer not found');
-  return { ...customer, accountManager };
+  return { ...customer, accountManager, invoicingTerm: latestTerm?.invoicingTerm ?? null };
 }
 
 /**

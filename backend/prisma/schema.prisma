@@ -181,6 +181,9 @@ model EmployeeUser {
   firstName      String
   lastName       String
   email          String        @unique
+  /// Optional contact number. Shown to clients when this team member is the
+  /// assigned account manager. Nullable — most staff won't set one.
+  phone          String?
   passwordHash   String
   /// Admin-provisioned team logins keep a reversible, AES-256-GCM encrypted copy
   /// of the current password so an admin can reveal it. Login always uses
@@ -478,6 +481,9 @@ model CustomerProduct {
   /// Whether the agreed price is GST-INCLUSIVE (price already contains GST) or
   /// GST-EXCLUSIVE (GST added on top). Drives the total-amount calculation.
   gstType      String     @default("EXCLUSIVE")
+  /// Invoicing/payment term agreed when the product is assigned (e.g. "30 Days",
+  /// "Due on Receipt"). Shown to the client in their portal's Invoicing Details.
+  invoicingTerm String?
   /// Approval state for the product. Admin-assigned products are APPROVED
   /// immediately; products a client adds themselves start as PENDING and show
   /// "Pending" to the client until an admin approves them.

@@ -15,12 +15,14 @@ import {
   Search,
   Menu,
   X,
+  PanelLeft,
   type LucideProps,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { useAuth } from '@/store/auth';
 import { adminApi } from '@/api/resources';
 import { useLogout } from '@/hooks/useSession';
+import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
@@ -49,6 +51,7 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false); // mobile drawer
+  const { collapsed, toggle } = useSidebarCollapse(); // desktop slide in/out
   const { data: pending } = useQuery({
     queryKey: ['admin', 'pendingCount'],
     queryFn: adminApi.pendingCount,
@@ -155,8 +158,13 @@ export function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fa]">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card lg:block">
+      {/* Desktop sidebar — slides out of view when collapsed */}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card transition-transform duration-300 lg:block',
+          collapsed && 'lg:-translate-x-full'
+        )}
+      >
         {sidebar}
       </aside>
 
@@ -178,7 +186,7 @@ export function AdminLayout() {
         </div>
       )}
 
-      <div className="lg:pl-72">
+      <div className={cn('transition-[padding] duration-300', collapsed ? 'lg:pl-0' : 'lg:pl-72')}>
         {/* Top bar */}
         <header className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-md">
           <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
@@ -189,6 +197,15 @@ export function AdminLayout() {
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={toggle}
+              className="hidden rounded-md p-2 text-muted-foreground hover:bg-secondary lg:inline-flex"
+              aria-label={collapsed ? 'Show sidebar' : 'Hide sidebar'}
+              title={collapsed ? 'Show sidebar' : 'Hide sidebar'}
+            >
+              <PanelLeft className="h-5 w-5" />
             </button>
 
             {/* Search */}

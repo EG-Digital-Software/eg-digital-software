@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, X, ShieldCheck, Search, RotateCcw, UserPlus, KeyRound, Eye, EyeOff, Copy, Users, Trash2 } from 'lucide-react';
+import { Check, X, ShieldCheck, Search, RotateCcw, UserPlus, KeyRound, Eye, EyeOff, Copy, Users, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi, settingsApi, type PendingUser, type ApprovalStatus } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
@@ -68,6 +68,7 @@ export default function ApprovalsPage() {
   );
   const [addOpen, setAddOpen] = useState(false);
   const [managePw, setManagePw] = useState<PendingUser | null>(null);
+  const [editEmp, setEditEmp] = useState<PendingUser | null>(null);
   const debounced = useDebounce(search);
 
   const status = TABS.find((t) => t.value === tab)?.status;
@@ -291,14 +292,24 @@ export default function ApprovalsPage() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           {u.role === 'EMPLOYEE' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setManagePw(u)}
-                              title="View or reset this team member's password"
-                            >
-                              <KeyRound className="h-4 w-4" /> Password
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditEmp(u)}
+                                title="Edit this team member's profile"
+                              >
+                                <Pencil className="h-4 w-4" /> Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setManagePw(u)}
+                                title="View or reset this team member's password"
+                              >
+                                <KeyRound className="h-4 w-4" /> Password
+                              </Button>
+                            </>
                           )}
                           {u.approvalStatus === 'PENDING' && (
                             <>
@@ -401,6 +412,7 @@ export default function ApprovalsPage() {
       />
 
       <AddEmployeeDialog open={addOpen} onOpenChange={setAddOpen} onDone={invalidate} />
+      <EditEmployeeDialog user={editEmp} onOpenChange={(v) => !v && setEditEmp(null)} onDone={invalidate} />
       <ManageEmployeePasswordDialog user={managePw} onOpenChange={(v) => !v && setManagePw(null)} />
     </div>
   );
@@ -579,6 +591,113 @@ function AddEmployeeDialog({
           </Button>
           <Button disabled={!valid || create.isPending} onClick={() => create.mutate()}>
             {create.isPending && <Spinner />} Add Employee
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Admin edits a team member's profile: name, login email, designation, phone. */
+function EditEmployeeDialog({
+  user,
+  onOpenChange,
+  onDone,
+}: {
+  user: PendingUser | null;
+  onOpenChange: (v: boolean) => void;
+  onDone: () => void;
+}) {
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', designation: '', phone: '' });
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Prefill from the selected member whenever the dialog opens for a new one.
+  useEffect(() => {
+    if (user) {
+      setForm({
+        firstName: user.firstName ?? '',
+        lastName: user.lastName ?? '',
+        email: user.email ?? '',
+        designation: user.designation ?? '',
+        phone: user.phone ?? '',
+      });
+    }
+  }, [user]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      adminApi.updateEmployee(user!.id, {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim(),
+        designation: form.designation.trim(),
+        phone: form.phone.trim(),
+      }),
+    onSuccess: () => {
+      toast.success('Team member updated');
+      onDone();
+      onOpenChange(false);
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  const valid = form.firstName.trim() && form.email.trim();
+
+  return (
+    <Dialog open={!!user} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Team Member</DialogTitle>
+          <DialogDescription>Update this team member's profile details.</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>First name</Label>
+            <Input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} placeholder="Jane" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Last name</Label>
+            <Input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} placeholder="Doe" />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Email</Label>
+            <Input
+              type="email"
+              autoComplete="off"
+              value={form.email}
+              onChange={(e) => set('email', e.target.value)}
+              placeholder="jane@company.com"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Role / Designation</Label>
+            <Input
+              value={form.designation}
+              onChange={(e) => set('designation', e.target.value)}
+              placeholder="e.g. Accountant, Support Lead"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Phone</Label>
+            <Input
+              type="tel"
+              value={form.phone}
+              onChange={(e) => set('phone', e.target.value)}
+              placeholder="e.g. +61 400 000 000"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown to clients when this team member is their account manager.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button disabled={!valid || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending && <Spinner />} Save changes
           </Button>
         </DialogFooter>
       </DialogContent>

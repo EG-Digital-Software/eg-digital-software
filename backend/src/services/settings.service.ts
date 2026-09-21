@@ -210,6 +210,6 @@ export async function getResolvedAccountManager() {
   if (!employeeId) return null;
   return prisma.employeeUser.findUnique({
     where: { id: employeeId },
-    select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, designation: true },
+    select: { id: true, firstName: true, lastName: true, email: true, phone: true, avatarUrl: true, designation: true },
   });
 }

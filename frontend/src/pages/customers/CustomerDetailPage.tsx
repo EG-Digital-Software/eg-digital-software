@@ -843,6 +843,7 @@ const EMPTY_ASSIGN = {
   taxRate: '10', // GST — fixed at 10%
   contractType: 'LOCKED', // LOCKED | TRIAL
   gstType: 'EXCLUSIVE', // INCLUSIVE | EXCLUSIVE
+  invoicingTerm: '', // e.g. "30 Days", "Due on Receipt"
   licence: '',
   issueDate: '',
   expiryDate: '',
@@ -1082,6 +1083,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       const shared: Record<string, unknown> = {
         contractType: form.contractType,
         gstType: form.gstType,
+        invoicingTerm: form.invoicingTerm,
         unitHoursEnabled: unitEnabled,
         unitHours: unitEnabled ? Number(form.unitHours) || 0 : 0,
       };
@@ -1121,6 +1123,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
         products,
         contractType: form.contractType,
         gstType: form.gstType,
+        invoicingTerm: form.invoicingTerm,
         unitHoursEnabled: unitEnabled,
         unitHours: unitEnabled ? Number(form.unitHours) || 0 : 0,
       };
@@ -1155,6 +1158,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       taxRate: '10', // GST — fixed at 10%
       contractType: rep.contractType ?? 'LOCKED',
       gstType: rep.gstType ?? 'EXCLUSIVE',
+      invoicingTerm: rep.invoicingTerm ?? '',
       licence: rep.licence?.licenceKey ?? '',
       issueDate: rep.issueDate ? rep.issueDate.slice(0, 10) : '',
       expiryDate: rep.expiryDate ? rep.expiryDate.slice(0, 10) : '',
@@ -1306,6 +1310,17 @@ function ProductsTab({ customer }: { customer: Customer }) {
                 <Select value={form.gstType} onChange={(e) => set('gstType', e.target.value)}>
                   <option value="EXCLUSIVE">Exclusive</option>
                   <option value="INCLUSIVE">Inclusive</option>
+                </Select>
+              </Field>
+              <Field label="Invoicing Term">
+                <Select value={form.invoicingTerm} onChange={(e) => set('invoicingTerm', e.target.value)}>
+                  <option value="">—</option>
+                  <option value="Due on Receipt">Due on Receipt</option>
+                  <option value="7 Days">7 Days</option>
+                  <option value="14 Days">14 Days</option>
+                  <option value="30 Days">30 Days</option>
+                  <option value="60 Days">60 Days</option>
+                  <option value="90 Days">90 Days</option>
                 </Select>
               </Field>
               <Field label="Total Amount">

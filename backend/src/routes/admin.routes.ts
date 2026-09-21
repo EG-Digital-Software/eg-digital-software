@@ -9,6 +9,7 @@ import {
   organisationSettingsSchema,
   listRegistrationQuerySchema,
   createEmployeeSchema,
+  updateEmployeeSchema,
   employeePasswordSchema,
   accountManagerSettingSchema,
 } from '../validators/settings.validator.js';
@@ -28,6 +29,7 @@ router.delete('/registrations/:id', approvals.remove);
 
 // Admin-provisioned team (EMPLOYEE) logins: create, reveal password, reset password.
 router.post('/employees', validate({ body: createEmployeeSchema }), approvals.createEmployee);
+router.patch('/employees/:id', validate({ body: updateEmployeeSchema }), approvals.updateEmployee);
 router.get('/employees/:id/password', approvals.revealEmployeePassword);
 router.patch(
   '/employees/:id/password',

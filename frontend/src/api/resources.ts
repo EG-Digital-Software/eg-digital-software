@@ -209,6 +209,8 @@ export interface PendingUser {
   updatedAt: string;
   /** Admin-set role/designation, EMPLOYEE accounts only. */
   designation?: string | null;
+  /** Contact number, EMPLOYEE accounts only (shown to clients as account manager). */
+  phone?: string | null;
   customer?: { clientId: string; companyName?: string | null } | null;
 }
 
@@ -239,6 +241,10 @@ export const adminApi = {
     designation?: string;
     password: string;
   }) => (await api.post<ApiEnvelope<PendingUser>>('/admin/employees', body)).data.data,
+  updateEmployee: async (
+    id: string,
+    body: { firstName?: string; lastName?: string; email?: string; designation?: string; phone?: string }
+  ) => (await api.patch<ApiEnvelope<PendingUser>>(`/admin/employees/${id}`, body)).data.data,
   revealEmployeePassword: async (id: string) =>
     (await api.get<ApiEnvelope<RevealedCredential>>(`/admin/employees/${id}/password`)).data.data,
   changeEmployeePassword: async (id: string, password: string) =>

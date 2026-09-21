@@ -48,4 +48,6 @@ export const updateProfileSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(80).optional(),
   lastName: z.string().min(1, 'Last name is required').max(80).optional(),
   email: z.string().email('Enter a valid email').optional(),
+  // Team members only — contact number shown to clients as the account manager.
+  phone: z.string().max(40).optional().or(z.literal('')),
 });

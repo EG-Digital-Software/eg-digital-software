@@ -6,6 +6,8 @@ export interface User {
   lastName: string;
   email: string;
   role: Role;
+  /** Team members only — contact number shown to clients as account manager. */
+  phone?: string | null;
   avatarUrl?: string | null;
   approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   isActive?: boolean;
@@ -109,6 +111,8 @@ export interface CustomerProduct {
   contractType?: string | null;
   /** 'INCLUSIVE' (price includes GST) or 'EXCLUSIVE' (GST added on top). */
   gstType?: string | null;
+  /** Invoicing/payment term agreed for this assignment (e.g. "30 Days"). */
+  invoicingTerm?: string | null;
   issueDate: string;
   expiryDate?: string | null;
   status: LicenceStatus;
@@ -156,6 +160,8 @@ export interface Customer {
   billingContactNumber?: string | null;
   billingContactNumberCountry?: string | null;
   creditScore?: number | null;
+  /** Client portal only — invoicing term surfaced from the latest product assignment. */
+  invoicingTerm?: string | null;
 
   reference?: string | null;
 
@@ -184,6 +190,7 @@ export interface Customer {
     firstName: string;
     lastName: string;
     email: string;
+    phone?: string | null;
     avatarUrl?: string | null;
     designation?: string | null;
   } | null;

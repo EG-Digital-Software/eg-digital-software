@@ -241,7 +241,7 @@ export async function setAvatar(role: Role, userId: string, avatarUrl: string | 
 export async function updateProfile(
   role: Role,
   userId: string,
-  input: { firstName?: string; lastName?: string; email?: string }
+  input: { firstName?: string; lastName?: string; email?: string; phone?: string }
 ) {
   const account = await accounts.findById(role, userId);
   if (!account) throw ApiError.notFound('User not found');
@@ -258,6 +258,10 @@ export async function updateProfile(
     ...(input.firstName !== undefined ? { firstName: input.firstName.trim() } : {}),
     ...(input.lastName !== undefined ? { lastName: input.lastName.trim() } : {}),
     ...(email ? { email } : {}),
+    // Only team members have a phone column; ignore it for other portals.
+    ...(role === 'EMPLOYEE' && input.phone !== undefined
+      ? { phone: input.phone.trim() || null }
+      : {}),
   });
   return publicUser(updated);
 }

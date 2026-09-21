@@ -186,7 +186,7 @@ export async function getCustomerByClientId(clientId: string) {
       customerProducts: { include: { product: true, licence: true } },
       invoices: { include: { payments: true }, orderBy: { createdAt: 'desc' } },
       accountManager: {
-        select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, designation: true },
+        select: { id: true, firstName: true, lastName: true, email: true, phone: true, avatarUrl: true, designation: true },
       },
     },
   });
@@ -488,6 +488,7 @@ type CreateInput = {
     taxRate?: number;
     contractType?: 'LOCKED' | 'TRIAL';
     gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
+    invoicingTerm?: string;
     licence?: string;
     status?: 'ACTIVE' | 'SUSPENDED';
     issueDate?: Date;
@@ -809,6 +810,7 @@ async function assignProducts(
         taxRate: new Prisma.Decimal(ap.taxRate ?? 0),
         contractType: ap.contractType ?? 'LOCKED',
         gstType: ap.gstType ?? 'EXCLUSIVE',
+        invoicingTerm: ap.invoicingTerm?.trim() || null,
         issueDate: ap.issueDate ?? new Date(),
         expiryDate: ap.expiryDate ?? null,
         status,
@@ -892,6 +894,7 @@ export async function updateCustomerProduct(
     taxRate?: number;
     contractType?: 'LOCKED' | 'TRIAL';
     gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
+    invoicingTerm?: string;
     licence?: string;
     status?: 'ACTIVE' | 'SUSPENDED';
     approvalStatus?: string;
@@ -932,6 +935,7 @@ export async function updateCustomerProduct(
         ...(input.taxRate !== undefined ? { taxRate: new Prisma.Decimal(input.taxRate) } : {}),
         ...(input.contractType !== undefined ? { contractType: input.contractType } : {}),
         ...(input.gstType !== undefined ? { gstType: input.gstType } : {}),
+        ...(input.invoicingTerm !== undefined ? { invoicingTerm: input.invoicingTerm.trim() || null } : {}),
         ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
         ...(input.approvalStatus ? { approvalStatus: input.approvalStatus } : {}),
         issueDate,
@@ -982,6 +986,7 @@ export async function updateProductGroup(
     licenceKey?: string;
     contractType?: 'LOCKED' | 'TRIAL';
     gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
+    invoicingTerm?: string;
     unitHoursEnabled?: boolean;
     unitHours?: number;
     issueDate?: Date;
@@ -1031,6 +1036,8 @@ export async function updateProductGroup(
           price: new Prisma.Decimal(p.price ?? Number(cur?.price ?? 0)),
           contractType: input.contractType ?? cur?.contractType ?? 'LOCKED',
           gstType: input.gstType ?? cur?.gstType ?? 'EXCLUSIVE',
+          invoicingTerm:
+            input.invoicingTerm !== undefined ? input.invoicingTerm.trim() || null : (cur?.invoicingTerm ?? null),
           unitHoursEnabled,
           unitHours,
           issueDate,

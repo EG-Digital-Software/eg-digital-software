@@ -16,12 +16,15 @@ import {
   X,
   MessageCircle,
   ShieldCheck,
+  Phone,
+  PanelLeft,
   type LucideProps,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { clientApi } from '@/api/client-portal';
 import { useAuth } from '@/store/auth';
 import { useLogout } from '@/hooks/useSession';
+import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
@@ -58,6 +61,7 @@ export function ClientLayout() {
   const logout = useLogout();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false); // mobile drawer
+  const { collapsed, toggle } = useSidebarCollapse(); // desktop slide in/out
   const { data: profile } = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
   const manager = profile?.accountManager ?? null;
   const acctStatus = profile?.accountStatusEffective ?? profile?.accountStatus;
@@ -117,14 +121,30 @@ export function ClientLayout() {
                   {manager.firstName} {manager.lastName}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{manager.email}</p>
+                {manager.phone && (
+                  <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                    <Phone className="h-3 w-3 shrink-0" /> {manager.phone}
+                  </p>
+                )}
               </div>
             </div>
-            <a
-              href={`mailto:${manager.email}`}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-            >
-              <MessageCircle className="h-4 w-4" /> Contact
-            </a>
+            <div className="mt-3 flex gap-2">
+              <a
+                href={`mailto:${manager.email}`}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+              >
+                <MessageCircle className="h-4 w-4" /> Contact
+              </a>
+              {manager.phone && (
+                <a
+                  href={`tel:${manager.phone.replace(/\s+/g, '')}`}
+                  title={`Call ${manager.phone}`}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+                >
+                  <Phone className="h-4 w-4" /> Call
+                </a>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -192,8 +212,9 @@ export function ClientLayout() {
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card lg:block',
-          impersonating && 'top-10'
+          'fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card transition-transform duration-300 lg:block',
+          impersonating && 'top-10',
+          collapsed && 'lg:-translate-x-full'
         )}
       >
         {sidebar}
@@ -217,7 +238,7 @@ export function ClientLayout() {
         </div>
       )}
 
-      <div className="lg:pl-72">
+      <div className={cn('transition-[padding] duration-300', collapsed ? 'lg:pl-0' : 'lg:pl-72')}>
         {/* Top bar */}
         <header
           className={cn(
@@ -233,6 +254,15 @@ export function ClientLayout() {
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={toggle}
+              className="hidden rounded-md p-2 text-muted-foreground hover:bg-secondary lg:inline-flex"
+              aria-label={collapsed ? 'Show sidebar' : 'Hide sidebar'}
+              title={collapsed ? 'Show sidebar' : 'Hide sidebar'}
+            >
+              <PanelLeft className="h-5 w-5" />
             </button>
 
             {/* Search */}
