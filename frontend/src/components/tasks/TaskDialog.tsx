@@ -175,6 +175,10 @@ export function TaskDialog({
   const [note, setNote] = useState('');
   const [accessNote, setAccessNote] = useState('');
   const [comment, setComment] = useState('');
+  // Mentions show as a friendly `@Name` in the composer while their full token
+  // `@[Name](TYPE:id)` is kept here and swapped back in on send — so the raw id
+  // never appears in the textarea.
+  const [mentionTokens, setMentionTokens] = useState<{ display: string; token: string }[]>([]);
   const [showChat, setShowChat] = useState(true);
   const [showNotes, setShowNotes] = useState(false);
   const [chatFile, setChatFile] = useState<File | null>(null);
@@ -211,7 +215,11 @@ export function TaskDialog({
     enabled: open && isEdit && !!task?.id,
     initialData: task ?? undefined,
     staleTime: 0,
-    refetchInterval: open && isEdit ? 2000 : false,
+    // Pause the 2s poll while any mutation is in flight: otherwise a background
+    // refetch can land between an optimistic write and its save, overwriting the
+    // just-sent message with server data that doesn't have it yet — so the message
+    // flickers away for a moment and then reappears.
+    refetchInterval: () => (open && isEdit && qc.isMutating() === 0 ? 2000 : false),
     refetchIntervalInBackground: false,
   });
   const liveTask = taskQ.data ?? task;
@@ -256,6 +264,7 @@ export function TaskDialog({
     // the round-trip.
     onMutate: async (v) => {
       setComment('');
+      setMentionTokens([]);
       setChatFile(null);
       if (!task) return { prev: undefined };
       await qc.cancelQueries({ queryKey: taskKey });
@@ -459,8 +468,19 @@ export function TaskDialog({
     const next: TaskProgress = draft.progress === 'COMPLETED' ? 'NOT_STARTED' : 'COMPLETED';
     update({ progress: next }, { progress: next });
   }
+  // Rebuild the message body by swapping each friendly `@Name` back into its full
+  // `@[Name](TYPE:id)` token. Longest names first so `@Johnny` is matched before
+  // `@John`; the token's leading `@[` means an already-swapped mention is never
+  // re-matched.
+  function toMentionBody(text: string): string {
+    let out = text;
+    for (const m of [...mentionTokens].sort((a, b) => b.display.length - a.display.length)) {
+      out = out.split(m.display).join(m.token);
+    }
+    return out;
+  }
   function sendChat() {
-    const body = comment.trim();
+    const body = toMentionBody(comment).trim();
     if (!task || addComment.isPending || (!body && !chatFile)) return;
     setMention(null);
     addComment.mutate({ body, file: chatFile ?? undefined });
@@ -509,10 +529,15 @@ export function TaskDialog({
     if (!mention) return;
     const el = commentRef.current;
     const caret = el?.selectionStart ?? comment.length;
-    const token = `@[${u.name}](${u.userType}:${u.userId}) `;
-    const next = comment.slice(0, mention.start) + token + comment.slice(caret);
-    const pos = mention.start + token.length;
+    const display = `@${u.name}`;
+    const insert = `${display} `;
+    const token = `@[${u.name}](${u.userType}:${u.userId})`;
+    const next = comment.slice(0, mention.start) + insert + comment.slice(caret);
+    const pos = mention.start + insert.length;
     setComment(next);
+    setMentionTokens((prev) =>
+      prev.some((m) => m.display === display) ? prev : [...prev, { display, token }]
+    );
     setMention(null);
     requestAnimationFrame(() => {
       el?.focus();
