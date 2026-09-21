@@ -423,6 +423,8 @@ export interface TaskAttachment {
   size: number;
   contentType?: string | null;
   uploadedById?: string | null;
+  /** Uploader's display name, resolved live on read (may be null for old files). */
+  uploadedByName?: string | null;
   createdAt: string;
 }
 

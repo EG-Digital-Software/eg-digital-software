@@ -101,6 +101,43 @@ function shapeTask<T extends { labels: { label: unknown }[] }>(task: T) {
   return { ...task, labels: task.labels.map((l) => l.label), attachments, archive };
 }
 
+/**
+ * Resolve uploader ids to display names. Attachments only snapshot `uploadedById`
+ * (polymorphic across admin/employee/client), so we look the ids up live rather
+ * than storing a name column — no migration, works on existing files, and always
+ * reflects the current name. Ids are unique across the three user tables.
+ */
+async function resolveUploaderNames(ids: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  const map = new Map<string, string>();
+  if (unique.length === 0) return map;
+  const select = { id: true, firstName: true, lastName: true } as const;
+  const [admins, employees, clients] = await Promise.all([
+    prisma.adminUser.findMany({ where: { id: { in: unique } }, select }),
+    prisma.employeeUser.findMany({ where: { id: { in: unique } }, select }),
+    prisma.clientUser.findMany({ where: { id: { in: unique } }, select }),
+  ]);
+  for (const u of [...admins, ...employees, ...clients]) {
+    map.set(u.id, `${u.firstName} ${u.lastName}`.trim());
+  }
+  return map;
+}
+
+type ShapedFile = { uploadedById?: string | null; uploadedByName?: string | null };
+
+/** Stamp each attachment/archive file with its uploader's name, in place. */
+async function attachUploaderNames(tasks: Array<{ attachments: unknown[]; archive: unknown[] }>): Promise<void> {
+  const files: ShapedFile[] = [];
+  for (const t of tasks) {
+    for (const f of [...t.attachments, ...t.archive]) files.push(f as ShapedFile);
+  }
+  const ids = files.map((f) => f.uploadedById).filter((x): x is string => !!x);
+  const names = await resolveUploaderNames(ids);
+  for (const f of files) {
+    f.uploadedByName = f.uploadedById ? names.get(f.uploadedById) ?? null : null;
+  }
+}
+
 /** Resolve the internal Customer id from the public clientId (or 404). */
 export async function resolveCustomerId(clientId: string): Promise<string> {
   const customer = await prisma.customer.findUnique({
@@ -148,8 +185,10 @@ export async function getBoard(customerId: string) {
   const counter = await prisma.counter.findUnique({ where: { key: 'taskNumber' } });
   const nextTaskNumber = formatTaskNumber((counter?.value ?? 0) + 1);
 
+  const shapedBuckets = buckets.map((b) => ({ ...b, tasks: b.tasks.map(shapeTask) }));
+  await attachUploaderNames(shapedBuckets.flatMap((b) => b.tasks));
   return {
-    buckets: buckets.map((b) => ({ ...b, tasks: b.tasks.map(shapeTask) })),
+    buckets: shapedBuckets,
     labels,
     nextTaskNumber,
   };
@@ -307,7 +346,9 @@ export async function getTask(customerId: string, taskId: string) {
     include: taskInclude,
   });
   if (!task) throw ApiError.notFound('Task not found');
-  return shapeTask(task);
+  const shaped = shapeTask(task);
+  await attachUploaderNames([shaped]);
+  return shaped;
 }
 
 export async function updateTask(
@@ -833,7 +874,9 @@ export async function getEmployeeBoard(userId: string) {
     }
     byCustomer.get(t.customerId)!.tasks.push(shapeTask(t));
   }
-  return { buckets: [...byCustomer.values()], labels: [] };
+  const buckets = [...byCustomer.values()];
+  await attachUploaderNames(buckets.flatMap((b) => b.tasks) as Array<{ attachments: unknown[]; archive: unknown[] }>);
+  return { buckets, labels: [] };
 }
 
 /** Confirm the employee is assigned to the task, returning its customer id. */

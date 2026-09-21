@@ -46,7 +46,9 @@ export function formatPercent(value: number | null | undefined): string {
  */
 export function mediaUrl(path?: string | null): string | undefined {
   if (!path) return undefined;
-  if (/^https?:\/\//i.test(path)) return path;
+  // Absolute URLs, and local blob:/data: URLs (used for optimistic previews
+  // before an upload finishes) are already complete — return them untouched.
+  if (/^(https?:\/\/|blob:|data:)/i.test(path)) return path;
   const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
   const origin = apiBase.replace(/\/api\/?$/, '');
   return `${origin}${path.startsWith('/') ? '' : '/'}${path}`;

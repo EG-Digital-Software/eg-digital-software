@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   Check,
   Plus,
   Paperclip,
+  Smile,
   Maximize2,
   FileText,
   UserPlus,
@@ -28,6 +30,7 @@ import {
   Upload,
   Film,
   Image as ImageIcon,
+  Eye,
 } from 'lucide-react';
 import type {
   AssignableUser,
@@ -131,6 +134,17 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
   };
 }
 
+// What the in-app viewer can render inline; anything else falls back to a
+// "open in new tab" prompt so the user can still preview before downloading.
+function previewKind(name: string): 'image' | 'pdf' | 'video' | 'audio' | 'other' {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif'].includes(ext)) return 'image';
+  if (ext === 'pdf') return 'pdf';
+  if (['mp4', 'webm', 'ogv', 'mov', 'm4v'].includes(ext)) return 'video';
+  if (['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac'].includes(ext)) return 'audio';
+  return 'other';
+}
+
 export function TaskDialog({
   open,
   onClose,
@@ -179,6 +193,9 @@ export function TaskDialog({
   // `@[Name](TYPE:id)` is kept here and swapped back in on send — so the raw id
   // never appears in the textarea.
   const [mentionTokens, setMentionTokens] = useState<{ display: string; token: string }[]>([]);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  // Attachment being previewed in the viewer overlay (before downloading).
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
   const [showChat, setShowChat] = useState(true);
   const [showNotes, setShowNotes] = useState(false);
   const [chatFile, setChatFile] = useState<File | null>(null);
@@ -361,10 +378,44 @@ export function TaskDialog({
   });
   const uploadFile = useMutation({
     mutationFn: (file: File) => api.addAttachment(task!.id, file),
-    onSuccess: () => { invalidateTask(); invalidate(); toast.success('Attachment added'); },
-    onError: (e) => toast.error(apiErrorMessage(e)),
+    // Show the file in the list instantly with a local preview URL; the real
+    // record (with its stored URL) replaces it once the refetch lands.
+    onMutate: async (file) => {
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      if (prev && task) {
+        const optimistic: TaskAttachment = {
+          id: `temp-${Date.now()}`,
+          taskId: task.id,
+          kind: 'TASK',
+          fileName: file.name,
+          url: URL.createObjectURL(file),
+          size: file.size,
+          contentType: file.type,
+          uploadedById: meId ?? null,
+          uploadedByName: meName,
+          createdAt: new Date().toISOString(),
+        };
+        qc.setQueryData<Task>(taskKey, { ...prev, attachments: [...prev.attachments, optimistic] });
+      }
+      return { prev };
+    },
+    onError: (e, _f, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
+    onSuccess: () => toast.success('Attachment added'),
+    onSettled: () => { invalidateTask(); invalidate(); },
   });
-  const removeFile = useMutation({ mutationFn: (id: string) => api.deleteAttachment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
+  const removeFile = useMutation({
+    mutationFn: (id: string) => api.deleteAttachment(task!.id, id),
+    // Drop the row instantly; reconcile with the server in the background.
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      if (prev) qc.setQueryData<Task>(taskKey, { ...prev, attachments: prev.attachments.filter((f) => f.id !== id) });
+      return { prev };
+    },
+    onError: (e, _id, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
+    onSettled: () => { invalidateTask(); invalidate(); },
+  });
   const uploadArchive = useMutation({
     mutationFn: (file: File) => api.addArchive(task!.id, file),
     onSuccess: () => { invalidateTask(); invalidate(); toast.success('File archived'); },
@@ -544,6 +595,20 @@ export function TaskDialog({
       el?.setSelectionRange(pos, pos);
     });
   }
+  // Drop an emoji in at the caret (or the end) and keep focus where it lands.
+  function insertEmoji(emoji: string) {
+    const el = commentRef.current;
+    const start = el?.selectionStart ?? comment.length;
+    const end = el?.selectionEnd ?? comment.length;
+    const next = comment.slice(0, start) + emoji + comment.slice(end);
+    const pos = start + emoji.length;
+    setComment(next);
+    setEmojiOpen(false);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
+  }
   function submitCreate() {
     if (!draft.title.trim()) return toast.error('Title is required');
     create.mutate({
@@ -632,17 +697,19 @@ export function TaskDialog({
               <div className="flex items-center gap-1.5">
                 <div className="flex -space-x-2">
                   {draft.assignees.map((a) => (
-                    <span key={a.userId} className="group relative">
-                      <Avatar className="h-8 w-8 border-2 border-card">
-                        {a.avatarUrl && <AvatarImage src={a.avatarUrl} alt={a.name} />}
-                        <AvatarFallback className="text-[10px]">{initials(a.name)}</AvatarFallback>
-                      </Avatar>
-                      {!locked && (
-                        <button type="button" onClick={() => toggleAssignee(a)} className="absolute -right-1 -top-1 hidden rounded-full bg-card shadow group-hover:block">
-                          <X className="h-3 w-3 text-muted-foreground hover:text-rose-500" />
-                        </button>
-                      )}
-                    </span>
+                    <Tooltip key={a.userId} content={a.name} side="bottom">
+                      <span className="group relative">
+                        <Avatar className="h-8 w-8 border-2 border-card">
+                          {a.avatarUrl && <AvatarImage src={a.avatarUrl} alt={a.name} />}
+                          <AvatarFallback className="text-[10px]">{initials(a.name)}</AvatarFallback>
+                        </Avatar>
+                        {!locked && (
+                          <button type="button" onClick={() => toggleAssignee(a)} className="absolute -right-1 -top-1 hidden rounded-full bg-card shadow group-hover:block">
+                            <X className="h-3 w-3 text-muted-foreground hover:text-rose-500" />
+                          </button>
+                        )}
+                      </span>
+                    </Tooltip>
                   ))}
                 </div>
                 {!locked && (
@@ -840,9 +907,15 @@ export function TaskDialog({
                 {liveTask?.attachments.map((f) => (
                   <div key={f.id} className="group flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm">
                     <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate">{f.fileName}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate">{f.fileName}</span>
+                      {f.uploadedByName && (
+                        <span className="block truncate text-xs text-muted-foreground">Added by {f.uploadedByName}</span>
+                      )}
+                    </div>
                     <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                    <a href={mediaUrl(f.url)} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary"><Download className="h-4 w-4" /></a>
+                    <button type="button" onClick={() => setPreview({ url: mediaUrl(f.url) ?? '', name: f.fileName })} title="View" className="text-muted-foreground hover:text-primary"><Eye className="h-4 w-4" /></button>
+                    <a href={mediaUrl(f.url)} download={f.fileName} title="Download" className="text-muted-foreground hover:text-primary"><Download className="h-4 w-4" /></a>
                     <button type="button" onClick={() => removeFile.mutate(f.id)} className="opacity-0 transition group-hover:opacity-100"><X className="h-4 w-4 text-muted-foreground hover:text-rose-500" /></button>
                   </div>
                 ))}
@@ -1052,6 +1125,35 @@ export function TaskDialog({
                   >
                     <Paperclip className="h-5 w-5" />
                   </button>
+                  <div className="relative mb-0.5 flex">
+                    <button
+                      type="button"
+                      onClick={() => setEmojiOpen((v) => !v)}
+                      disabled={!task}
+                      title="Add an emoji"
+                      className="text-muted-foreground transition hover:text-primary disabled:text-muted-foreground/40"
+                    >
+                      <Smile className="h-5 w-5" />
+                    </button>
+                    {emojiOpen && (
+                      <>
+                        {/* Click-away layer closes the picker. */}
+                        <div className="fixed inset-0 z-20" onClick={() => setEmojiOpen(false)} />
+                        <div className="absolute bottom-full left-0 z-30 mb-2 overflow-hidden rounded-xl shadow-lg">
+                          <EmojiPicker
+                            onEmojiClick={(e) => insertEmoji(e.emoji)}
+                            emojiStyle={EmojiStyle.NATIVE}
+                            lazyLoadEmojis
+                            width={320}
+                            height={400}
+                            theme={Theme.AUTO}
+                            previewConfig={{ showPreview: false }}
+                            searchPlaceholder="Search emoji"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <Textarea
                     ref={commentRef}
                     value={comment}
@@ -1121,6 +1223,58 @@ export function TaskDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Attachment viewer — preview a file before downloading it. */}
+    {preview && (
+      <div
+        // The task dialog (Radix) marks the rest of the page inert with
+        // pointer-events:none while open; this viewer renders outside that
+        // portal, so re-enable clicks here or its buttons wouldn't respond.
+        className="pointer-events-auto fixed inset-0 z-[60] flex flex-col bg-black/80 p-4 animate-fade-in"
+        onClick={() => setPreview(null)}
+      >
+        <div className="mx-auto flex w-full max-w-5xl shrink-0 items-center gap-2 pb-3 text-white" onClick={(e) => e.stopPropagation()}>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{preview.name}</span>
+          <a
+            href={preview.url}
+            download={preview.name}
+            title="Download original"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
+          >
+            <Download className="h-4 w-4" />
+          </a>
+          <button
+            type="button"
+            onClick={() => setPreview(null)}
+            title="Close"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          {(() => {
+            const kind = previewKind(preview.name);
+            if (kind === 'image')
+              return <img src={preview.url} alt={preview.name} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />;
+            if (kind === 'pdf')
+              return <iframe src={preview.url} title={preview.name} className="h-full w-full rounded-lg bg-white shadow-2xl" />;
+            if (kind === 'video')
+              return <video src={preview.url} controls autoPlay className="max-h-full max-w-full rounded-lg shadow-2xl" />;
+            if (kind === 'audio')
+              return <audio src={preview.url} controls autoPlay className="w-full max-w-lg" />;
+            return (
+              <div className="rounded-xl bg-card p-8 text-center">
+                <p className="text-sm text-muted-foreground">This file type can't be previewed here.</p>
+                <a href={preview.url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-medium text-primary hover:underline">
+                  Open in a new tab
+                </a>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    )}
     </>
   );
 }
