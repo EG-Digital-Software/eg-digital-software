@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
@@ -632,6 +632,82 @@ export function TaskDialog({
   const noteEntries = (liveTask?.notes ?? []).filter((n) => (n.kind ?? 'NOTE') === 'NOTE');
   const accessEntries = (liveTask?.notes ?? []).filter((n) => n.kind === 'ACCESS_POINT');
 
+  // ── Per-tab "new activity" dots ─────────────────────────
+  // Each tab gets a signature from its live content. We remember, per user +
+  // task (localStorage), the signature last seen for each tab. When a tab's
+  // current signature differs from what this user last saw, a dot shows; opening
+  // the tab marks it seen and clears the dot — for that user only.
+  const signatures = useMemo<Record<string, string>>(() => {
+    const maxTs = (arr?: { createdAt?: string; updatedAt?: string }[]) =>
+      (arr ?? []).reduce((m, x) => {
+        const t = x.updatedAt ?? x.createdAt ?? '';
+        return t > m ? t : m;
+      }, '');
+    return {
+      attachments: `${liveTask?.attachments?.length ?? 0}:${maxTs(liveTask?.attachments)}`,
+      // status + decidedAt captures accept / reject / revoke / reopen; the id list
+      // captures new or removed approval requests.
+      approval: (liveTask?.approvals ?? [])
+        .map((a) => `${a.id}:${a.status}:${a.decidedAt ?? ''}`)
+        .join(','),
+      access: `${accessEntries.length}:${maxTs(accessEntries)}`,
+      archive: `${liveTask?.archive?.length ?? 0}:${maxTs(liveTask?.archive)}`,
+      // Notes live inline on the Task details tab; chat is the side panel.
+      notes: `${noteEntries.length}:${maxTs(noteEntries)}`,
+      chat: `${liveTask?.comments?.length ?? 0}:${maxTs(liveTask?.comments)}`,
+    };
+  }, [liveTask, noteEntries, accessEntries]);
+
+  const seenKey = `taskTabSeen:${meId ?? 'anon'}:${task?.id ?? 'new'}`;
+  const [seen, setSeen] = useState<Record<string, string>>({});
+  const seenLoaded = useRef(false);
+
+  // Load this user's saved "seen" state once; first-ever visit baselines the
+  // current signatures so nothing shows as new until real activity happens.
+  useEffect(() => {
+    if (seenLoaded.current || !isEdit || !task?.id) return;
+    seenLoaded.current = true;
+    try {
+      const raw = localStorage.getItem(seenKey);
+      if (raw) setSeen(JSON.parse(raw));
+      else {
+        setSeen(signatures);
+        localStorage.setItem(seenKey, JSON.stringify(signatures));
+      }
+    } catch {
+      /* localStorage unavailable — dots just won't persist */
+    }
+  }, [isEdit, task?.id, seenKey, signatures]);
+
+  // Whatever the user is currently looking at gets marked seen (its dot clears):
+  // the active tab — Notes live on the Task details tab — plus the chat panel
+  // when it's open. New activity while looking at it is auto-seen too.
+  useEffect(() => {
+    if (!seenLoaded.current) return;
+    const openKeys: string[] = [tab === 'details' ? 'notes' : tab];
+    if (showChat) openKeys.push('chat');
+    setSeen((s) => {
+      let changed = false;
+      const next = { ...s };
+      for (const k of openKeys) {
+        const sig = signatures[k];
+        if (sig !== undefined && next[k] !== sig) {
+          next[k] = sig;
+          changed = true;
+        }
+      }
+      if (!changed) return s;
+      try {
+        localStorage.setItem(seenKey, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, [tab, showChat, signatures, seenKey]);
+
+  const tabHasDot = (t: string) => seen[t] !== undefined && seen[t] !== signatures[t];
+
   return (
     <>
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -647,12 +723,15 @@ export function TaskDialog({
             type="button"
             onClick={() => setShowChat((s) => !s)}
             className={cn(
-              'mr-8 inline-flex h-8 w-8 items-center justify-center rounded-md transition',
+              'relative mr-8 inline-flex h-8 w-8 items-center justify-center rounded-md transition',
               showChat ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary'
             )}
             title="Toggle task chat"
           >
             <MessageSquareText className="h-4 w-4" />
+            {tabHasDot('chat') && (
+              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" aria-label="New chat activity" />
+            )}
           </button>
         </div>
 
@@ -744,19 +823,19 @@ export function TaskDialog({
 
             {/* Tabs */}
             <div className="mt-5 flex items-center gap-2">
-              <TabPill active={tab === 'details'} onClick={() => setTab('details')} icon={<Circle className="h-4 w-4" />}>Task details</TabPill>
+              <TabPill active={tab === 'details'} onClick={() => setTab('details')} icon={<Circle className="h-4 w-4" />} dot={tabHasDot('notes')}>Task details</TabPill>
               {isEdit && (
-                <TabPill active={tab === 'attachments'} onClick={() => setTab('attachments')} icon={<Paperclip className="h-4 w-4" />}>
+                <TabPill active={tab === 'attachments'} onClick={() => setTab('attachments')} icon={<Paperclip className="h-4 w-4" />} dot={tabHasDot('attachments')}>
                   Attachments{liveTask && liveTask.attachments.length > 0 ? ` (${liveTask.attachments.length})` : ''}
                 </TabPill>
               )}
               {isEdit && (
-                <TabPill active={tab === 'approval'} onClick={() => setTab('approval')} icon={<ShieldCheck className="h-4 w-4" />}>
+                <TabPill active={tab === 'approval'} onClick={() => setTab('approval')} icon={<ShieldCheck className="h-4 w-4" />} dot={tabHasDot('approval')}>
                   Approval{liveTask && liveTask.approvals.length > 0 ? ` (${liveTask.approvals.length})` : ''}
                 </TabPill>
               )}
               {isEdit && (
-                <TabPill active={tab === 'access'} onClick={() => setTab('access')} icon={<KeyRound className="h-4 w-4" />}>
+                <TabPill active={tab === 'access'} onClick={() => setTab('access')} icon={<KeyRound className="h-4 w-4" />} dot={tabHasDot('access')}>
                   Access Point{accessEntries.length > 0 ? ` (${accessEntries.length})` : ''}
                 </TabPill>
               )}
@@ -766,7 +845,7 @@ export function TaskDialog({
                 </TabPill>
               )}
               {isEdit && (
-                <TabPill active={tab === 'archive'} onClick={() => setTab('archive')} icon={<Archive className="h-4 w-4" />}>
+                <TabPill active={tab === 'archive'} onClick={() => setTab('archive')} icon={<Archive className="h-4 w-4" />} dot={tabHasDot('archive')}>
                   Archive{liveTask && liveTask.archive && liveTask.archive.length > 0 ? ` (${liveTask.archive.length})` : ''}
                 </TabPill>
               )}
@@ -1531,18 +1610,21 @@ function AccessPointPanel({
   );
 }
 
-function TabPill({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+function TabPill({ active, onClick, icon, children, dot }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode; dot?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition',
+        'relative inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition',
         active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-secondary text-muted-foreground hover:text-foreground'
       )}
     >
       {icon}
       {children}
+      {dot && (
+        <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" aria-label="New activity" />
+      )}
     </button>
   );
 }
