@@ -38,8 +38,8 @@ export default function EmployeeCustomersPage() {
       <PageHeader title="Customers" description="Customer directory (read-only)" icon={Users} iconTone="primary" />
 
       <Card>
-        <div className="border-b border-border p-4">
-          <div className="relative max-w-md">
+        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:max-w-md sm:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -57,7 +57,7 @@ export default function EmployeeCustomersPage() {
               setBusinessType(e.target.value);
               setPage(1);
             }}
-            className="sm:w-52"
+            className="w-full sm:ml-auto sm:w-52"
           >
             <option value="">All business types</option>
             {BUSINESS_TYPES.map((t) => (

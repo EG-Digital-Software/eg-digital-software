@@ -450,7 +450,11 @@ export default function CustomerDetailPage() {
       startImpersonation({
         user: session.user,
         accessToken: session.accessToken,
-        meta: { clientId: session.company.clientId, companyName: session.company.companyName },
+        meta: {
+          kind: 'client',
+          label: session.company.companyName || session.company.clientId,
+          returnTo: `/admin/customers/${session.company.clientId}`,
+        },
       });
       // Clear admin-scoped cache so the client portal fetches fresh as the client.
       qcRoot.clear();

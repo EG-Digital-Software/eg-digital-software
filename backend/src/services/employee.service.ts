@@ -2,6 +2,8 @@ import { Prisma, CustomerStatus, ProductStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import type { PageQuery } from '../utils/http.js';
 import { getLicences } from './dashboard.service.js';
+import { ApiError } from '../utils/ApiError.js';
+import { signImpersonationToken } from '../utils/tokens.js';
 
 /**
  * Employee = internal staff with read-only operational access (no financials,
@@ -78,6 +80,53 @@ export async function listCustomers(
     prisma.customer.count({ where }),
   ]);
   return { items, total };
+}
+
+/**
+ * Mint an impersonation session so an admin can open a team member's portal AS
+ * them — no password needed. The token carries the employee's own id as `sub`,
+ * so their assigned tasks show correctly and any action is attributed to that
+ * employee. Short-lived (2h) with no refresh counterpart: it simply expires, or
+ * the admin exits, and the admin's own session resumes.
+ */
+export async function impersonateEmployee(employeeId: string) {
+  const employee = await prisma.employeeUser.findUnique({
+    where: { id: employeeId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      avatarUrl: true,
+      isActive: true,
+      approvalStatus: true,
+    },
+  });
+  if (!employee) throw ApiError.notFound('Team member not found');
+  if (!employee.isActive || employee.approvalStatus !== 'APPROVED') {
+    throw ApiError.badRequest('This team member is inactive or not yet approved');
+  }
+
+  const accessToken = signImpersonationToken({
+    sub: employee.id,
+    role: 'EMPLOYEE',
+    email: employee.email,
+  });
+
+  const user = {
+    id: employee.id,
+    firstName: employee.firstName,
+    lastName: employee.lastName,
+    email: employee.email,
+    role: 'EMPLOYEE' as const,
+    avatarUrl: employee.avatarUrl ?? null,
+  };
+
+  return {
+    accessToken,
+    user,
+    employee: { id: employee.id, name: `${employee.firstName} ${employee.lastName}`.trim() },
+  };
 }
 
 export { getLicences };

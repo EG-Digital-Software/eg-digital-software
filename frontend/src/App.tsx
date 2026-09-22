@@ -18,6 +18,8 @@ const CustomersPage = lazy(() => import('@/pages/customers/CustomersPage'));
 const CustomerFormPage = lazy(() => import('@/pages/customers/CustomerFormPage'));
 const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPage'));
 const AdminTasksPage = lazy(() => import('@/pages/admin/AdminTasksPage'));
+const TeamDashboardPage = lazy(() => import('@/pages/admin/TeamDashboardPage'));
+const ReportPage = lazy(() => import('@/pages/admin/ReportPage'));
 const ProductsPage = lazy(() => import('@/pages/products/ProductsPage'));
 const BulkUploadPage = lazy(() => import('@/pages/products/BulkUploadPage'));
 const BillingPage = lazy(() => import('@/pages/billing/BillingPage'));
@@ -38,7 +40,6 @@ const ClientTasksPage = lazy(() => import('@/pages/client/ClientTasksPage'));
 const AccountPage = lazy(() => import('@/pages/account/AccountPage'));
 const EmployeeTasksPage = lazy(() => import('@/pages/employee/EmployeeTasksPage'));
 const EmployeeCustomersPage = lazy(() => import('@/pages/employee/EmployeeCustomersPage'));
-const EmployeeLicencesPage = lazy(() => import('@/pages/employee/EmployeeLicencesPage'));
 
 function Fallback() {
   return (
@@ -94,7 +95,6 @@ export default function App() {
                 <Route index element={<Navigate to="/employee/tasks" replace />} />
                 <Route path="tasks" element={<EmployeeTasksPage />} />
                 <Route path="customers" element={<EmployeeCustomersPage />} />
-                <Route path="licences" element={<EmployeeLicencesPage />} />
                 <Route path="account" element={<AccountPage />} />
               </Route>
             </Route>
@@ -104,6 +104,8 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
+                <Route path="team" element={<TeamDashboardPage />} />
+                <Route path="reports" element={<ReportPage />} />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="tasks" element={<AdminTasksPage />} />
                 <Route path="customers/new" element={<CustomerFormPage />} />

@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import * as approvalService from '../services/approval.service.js';
+import * as employeeService from '../services/employee.service.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
@@ -51,4 +52,10 @@ export const revealEmployeePassword = asyncHandler(async (req: Request, res: Res
 export const changeEmployeePassword = asyncHandler(async (req: Request, res: Response) => {
   const result = await approvalService.changeEmployeePassword(req.params.id, req.body.password);
   return ok(res, result, 'Password updated');
+});
+
+/** Mint a session for an admin to view/use a team member's portal as them. */
+export const impersonateEmployee = asyncHandler(async (req: Request, res: Response) => {
+  const session = await employeeService.impersonateEmployee(req.params.id);
+  return ok(res, session, 'Viewing team member portal');
 });

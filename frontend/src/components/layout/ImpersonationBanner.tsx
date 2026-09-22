@@ -17,20 +17,21 @@ export function ImpersonationBanner() {
   if (!impersonation) return null;
 
   const exit = () => {
-    const { clientId } = impersonation;
+    const { returnTo } = impersonation;
     stop();
-    // Drop any client-scoped data so the admin UI doesn't show stale queries.
+    // Drop any impersonated-scope data so the admin UI doesn't show stale queries.
     qc.clear();
-    navigate(`/admin/customers/${clientId}`, { replace: true });
+    navigate(returnTo, { replace: true });
   };
 
-  const label = impersonation.companyName || impersonation.clientId;
+  const label = impersonation.label || 'this account';
+  const mode = impersonation.kind === 'client' ? '— read-only' : '— as this team member';
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex h-10 items-center justify-center gap-3 bg-amber-500 px-4 text-sm font-medium text-amber-950 shadow">
       <span className="flex items-center gap-1.5">
         <Eye className="h-4 w-4" />
-        Viewing <strong className="font-semibold">{label}</strong>’s portal — read-only
+        Viewing <strong className="font-semibold">{label}</strong>’s portal {mode}
       </span>
       <button
         type="button"

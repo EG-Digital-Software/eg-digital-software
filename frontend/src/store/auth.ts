@@ -6,10 +6,14 @@ import type { User } from '@/types';
  * limit XSS exposure; the refresh token is an httpOnly cookie managed by the API.
  * A silent refresh on app load rehydrates the session.
  */
-/** Set while an admin is viewing a client's portal read-only. */
+/** Set while an admin is viewing another account's portal (client or team member). */
 export interface Impersonation {
-  clientId: string;
-  companyName: string | null;
+  /** Which portal is being viewed — drives the banner wording and access mode. */
+  kind: 'client' | 'employee';
+  /** Display name shown in the banner. */
+  label: string | null;
+  /** Admin route to return to when the admin exits the view. */
+  returnTo: string;
 }
 
 interface AuthState {

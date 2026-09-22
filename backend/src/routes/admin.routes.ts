@@ -36,6 +36,8 @@ router.patch(
   validate({ body: employeePasswordSchema }),
   approvals.changeEmployeePassword
 );
+// Open a team member's portal AS them (impersonation) without their password.
+router.post('/employees/:id/impersonate', approvals.impersonateEmployee);
 
 // Payment configuration (gateway keys, bank transfer details, card surcharge).
 router.get('/payment-settings', settings.getPayment);

@@ -3,7 +3,6 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   ListChecks,
   Users,
-  KeyRound,
   LogOut,
   User,
   Search,
@@ -20,6 +19,7 @@ import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
+import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 
 interface NavItem {
@@ -31,11 +31,11 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: '/employee/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/employee/customers', label: 'Customers', icon: Users },
-  { to: '/employee/licences', label: 'Licences', icon: KeyRound },
 ];
 
 export function EmployeeLayout() {
   const user = useAuth((s) => s.user);
+  const impersonating = useAuth((s) => !!s.impersonation);
   const logout = useLogout();
   const navigate = useNavigate();
   const location = useLocation();
@@ -135,11 +135,13 @@ export function EmployeeLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f5f7fa]">
+    <div className={cn('min-h-screen bg-[#f5f7fa]', impersonating && 'pt-10')}>
+      <ImpersonationBanner />
       {/* Desktop sidebar — slides out of view when collapsed */}
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card transition-transform duration-300 lg:block',
+          impersonating && 'top-10',
           collapsed && 'lg:-translate-x-full'
         )}
       >
@@ -166,7 +168,12 @@ export function EmployeeLayout() {
 
       <div className={cn('transition-[padding] duration-300', collapsed ? 'lg:pl-0' : 'lg:pl-72')}>
         {/* Top bar */}
-        <header className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-md">
+        <header
+          className={cn(
+            'sticky z-20 border-b border-border bg-card/85 backdrop-blur-md',
+            impersonating ? 'top-10' : 'top-0'
+          )}
+        >
           <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
             <button
               type="button"

@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
+  UsersRound,
+  BarChart3,
   Users,
   ListChecks,
   Receipt,
@@ -36,13 +38,14 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/team', label: 'Team Dashboard', icon: UsersRound },
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/admin/billing', label: 'Billing', icon: Receipt },
   { to: '/admin/products', label: 'Products', icon: Package },
   { to: '/admin/payments', label: 'Payments', icon: Wallet },
   { to: '/admin/approvals', label: 'Approvals', icon: ShieldCheck },
-  { to: '/admin/settings', label: 'Settings', icon: Settings },
+  { to: '/admin/reports', label: 'Report', icon: BarChart3 },
 ];
 
 export function AdminLayout() {
@@ -143,6 +146,17 @@ export function AdminLayout() {
         >
           <User className="h-[18px] w-[18px]" />
           My Account
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            navigate('/admin/settings');
+          }}
+          className="mt-1 flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <Settings className="h-[18px] w-[18px]" />
+          Settings
         </button>
         <button
           type="button"

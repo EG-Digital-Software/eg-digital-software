@@ -250,6 +250,13 @@ export const adminApi = {
   changeEmployeePassword: async (id: string, password: string) =>
     (await api.patch<ApiEnvelope<{ id: string }>>(`/admin/employees/${id}/password`, { password }))
       .data.data,
+  /** Mint a session to open this team member's portal as them (impersonation). */
+  impersonateEmployee: async (id: string) =>
+    (
+      await api.post<
+        ApiEnvelope<{ accessToken: string; user: User; employee: { id: string; name: string } }>
+      >(`/admin/employees/${id}/impersonate`)
+    ).data.data,
 };
 
 export interface PaymentRow {
