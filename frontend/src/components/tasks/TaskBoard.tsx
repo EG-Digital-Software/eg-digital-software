@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useAuth } from '@/store/auth';
 import {
   Rows3,
   CalendarDays,
@@ -12,8 +13,9 @@ import {
   Filter,
   X,
   ListChecks,
+  ChevronDown,
 } from 'lucide-react';
-import type { AssignableUser, Task, TaskBoard as Board, TaskPriority, TaskProgress } from '@/types';
+import type { AssignableUser, Task, TaskBucket, TaskBoard as Board, TaskPriority, TaskProgress } from '@/types';
 import type { TaskApi } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
 import { cn } from '@/lib/utils';
@@ -70,7 +72,19 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   const [activeGroup, setActiveGroup] = useState<string>('');
   const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string } | null>(null);
 
-  const boardQ = useQuery({ queryKey, queryFn: () => api.board() });
+  const meId = useAuth((s) => s.user?.id);
+  // Poll the board so another person's change surfaces here (and lights up the
+  // affected task row) without a manual refresh — paused while we're mutating.
+  const boardQ = useQuery({
+    queryKey,
+    queryFn: () => api.board(),
+    // Poll even when this window is in the background (and refresh on focus), so
+    // another person's change lights up the row/customer here without a reload.
+    refetchInterval: () => (qc.isMutating() === 0 ? 10000 : false),
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
   const usersQ = useQuery({ queryKey: ['tasks', scopeKey, 'users'], queryFn: () => api.assignableUsers() });
   const apptKey = ['tasks', scopeKey, 'appointments'];
   const apptQ = useQuery({ queryKey: apptKey, queryFn: () => api.listAppointments() });
@@ -121,6 +135,110 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   const board = boardQ.data;
   const users = usersQ.data ?? [];
 
+  // ── Per-task "new activity" highlight ───────────────────
+  // For each task: a signature of its activity (task creation + comments, notes,
+  // attachments, approval requests/decisions) and WHO did the most recent one.
+  // Every event carries an actor, so we can notify everyone except the person
+  // who made the change.
+  const taskMeta = useMemo<Record<string, { sig: string; lastActor: string | null }>>(() => {
+    const map: Record<string, { sig: string; lastActor: string | null }> = {};
+    for (const b of board?.buckets ?? []) {
+      for (const t of b.tasks) {
+        const events: { ts: string; actor: string | null }[] = [];
+        if (t.createdAt) events.push({ ts: t.createdAt, actor: t.createdById ?? null });
+        for (const c of t.comments ?? []) events.push({ ts: c.createdAt, actor: c.authorId });
+        for (const n of t.notes ?? []) events.push({ ts: n.createdAt, actor: n.authorId });
+        for (const a of t.attachments ?? []) events.push({ ts: a.createdAt, actor: a.uploadedById ?? null });
+        for (const ap of t.approvals ?? []) {
+          events.push({ ts: ap.createdAt, actor: ap.requestedById });
+          if (ap.decidedAt) events.push({ ts: ap.decidedAt, actor: ap.decidedById ?? null });
+        }
+        let last = events[0];
+        for (const e of events) if (e.ts > (last?.ts ?? '')) last = e;
+        // Approval statuses are folded in so reopen/decision also changes the sig.
+        const sig = `${events.length}:${last?.ts ?? ''}:${(t.approvals ?? []).map((a) => a.status).join(',')}`;
+        map[t.id] = { sig, lastActor: last?.actor ?? null };
+      }
+    }
+    return map;
+  }, [board]);
+
+  const rowSeenKey = `taskRowSeen:v2:${meId ?? 'anon'}:${scopeKey}`;
+  const [seenTasks, setSeenTasks] = useState<Record<string, string>>({});
+  const seenLoaded = useRef(false);
+  useEffect(() => {
+    if (seenLoaded.current || !board) return;
+    seenLoaded.current = true;
+    try {
+      const raw = localStorage.getItem(rowSeenKey);
+      if (raw) setSeenTasks(JSON.parse(raw));
+      else {
+        const base = Object.fromEntries(Object.entries(taskMeta).map(([id, m]) => [id, m.sig]));
+        setSeenTasks(base);
+        localStorage.setItem(rowSeenKey, JSON.stringify(base));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [board, rowSeenKey, taskMeta]);
+
+  // Opening a task (dialog) marks it seen for this user — on open and for any
+  // change that lands while it's open — so viewing it clears its highlight.
+  useEffect(() => {
+    const id = dialog?.taskId;
+    if (!seenLoaded.current || !id) return;
+    const sig = taskMeta[id]?.sig;
+    if (sig === undefined) return;
+    setSeenTasks((s) => {
+      if (s[id] === sig) return s;
+      const next = { ...s, [id]: sig };
+      try {
+        localStorage.setItem(rowSeenKey, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, [dialog?.taskId, taskMeta, rowSeenKey]);
+
+  // A task is highlighted for me when its activity changed since I last opened it
+  // AND I'm not the one who made that latest change.
+  const isTaskUpdated = (taskId: string) => {
+    if (!seenLoaded.current) return false;
+    const m = taskMeta[taskId];
+    if (!m) return false;
+    return seenTasks[taskId] !== m.sig && m.lastActor !== meId;
+  };
+  // Employee portal customer selector: a customer's box lights up when it has
+  // task activity the user hasn't looked at. VIEWING that customer (selecting it)
+  // clears its box — so it won't stay red once you've been through it. Individual
+  // task rows still clear only when each is opened.
+  const bucketAgg = (bucketId: string) =>
+    (board?.buckets.find((x) => x.id === bucketId)?.tasks ?? [])
+      .map((t) => `${t.id}:${taskMeta[t.id]?.sig ?? ''}`)
+      .join('|');
+  const boxSeenKey = `taskCustBoxSeen:v2:${meId ?? 'anon'}:${scopeKey}`;
+  const [seenBox, setSeenBox] = useState<Record<string, string>>({});
+  const boxSeenLoaded = useRef(false);
+  useEffect(() => {
+    if (boxSeenLoaded.current || !board) return;
+    boxSeenLoaded.current = true;
+    try {
+      const raw = localStorage.getItem(boxSeenKey);
+      if (raw) setSeenBox(JSON.parse(raw));
+      else {
+        const base = Object.fromEntries(board.buckets.map((b) => [b.id, bucketAgg(b.id)]));
+        setSeenBox(base);
+        localStorage.setItem(boxSeenKey, JSON.stringify(base));
+      }
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board, boxSeenKey]);
+  const bucketBoxRed = (bucketId: string) =>
+    boxSeenLoaded.current && seenBox[bucketId] !== undefined && seenBox[bucketId] !== bucketAgg(bucketId);
+
   // Apply filters to each bucket's task list.
   const filtered = useMemo<Board | undefined>(() => {
     if (!board) return undefined;
@@ -144,6 +262,27 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   }, [dialog, board]);
 
   const hasFilters = filters.search || filters.assignee || filters.priority || filters.progress || filters.labelId;
+
+  // Keep the customer currently being viewed marked seen (clears its box).
+  useEffect(() => {
+    if (!boxSeenLoaded.current || !filtered) return;
+    const group = filtered.buckets.some((b) => b.id === activeGroup)
+      ? activeGroup
+      : filtered.buckets[0]?.id ?? '';
+    if (!group) return;
+    const agg = bucketAgg(group);
+    setSeenBox((s) => {
+      if (s[group] === agg) return s;
+      const next = { ...s, [group]: agg };
+      try {
+        localStorage.setItem(boxSeenKey, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroup, filtered, taskMeta, boxSeenKey]);
 
   if (boardQ.isLoading) return <LoadingBlock label="Loading tasks…" />;
   if (boardQ.isError || !board || !filtered) return <ErrorState onRetry={() => boardQ.refetch()} />;
@@ -279,20 +418,13 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
       {groupTabs && board.buckets.length > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">Customer</span>
-          <Select
+          <GroupPicker
+            buckets={board.buckets}
+            filteredBuckets={filtered.buckets}
             value={effectiveGroup}
-            onChange={(e) => setActiveGroup(e.target.value)}
-            className="h-9 w-auto min-w-[16rem] max-w-full"
-          >
-            {board.buckets.map((b) => {
-              const shown = filtered.buckets.find((x) => x.id === b.id);
-              return (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({shown?.tasks.length ?? 0})
-                </option>
-              );
-            })}
-          </Select>
+            onSelect={setActiveGroup}
+            isRed={bucketBoxRed}
+          />
         </div>
       )}
 
@@ -304,6 +436,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
           onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
           onDeleteTask={(id) => delTask.mutate(id)}
           onToggleComplete={(t) => setProgress.mutate({ id: t.id, progress: t.progress === 'COMPLETED' ? 'NOT_STARTED' : 'COMPLETED' })}
+          isUpdated={isTaskUpdated}
         />
       )}
       {view === 'schedule' && (
@@ -407,3 +540,90 @@ function LabelManager({
   );
 }
 
+
+/**
+ * Employee portal customer selector. A custom dropdown (not a native <select>)
+ * so each customer row can carry its own red border when it has task activity
+ * the employee hasn't looked at yet — the trigger button shows the same outline
+ * plus a dot when any customer is flagged.
+ */
+function GroupPicker({
+  buckets,
+  filteredBuckets,
+  value,
+  onSelect,
+  isRed,
+}: {
+  buckets: TaskBucket[];
+  filteredBuckets: TaskBucket[];
+  value: string;
+  onSelect: (id: string) => void;
+  isRed: (id: string) => boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const current = buckets.find((b) => b.id === value);
+  const anyRed = buckets.some((b) => isRed(b.id));
+  const count = (id: string) => filteredBuckets.find((x) => x.id === id)?.tasks.length ?? 0;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          'flex h-9 min-w-[16rem] max-w-full items-center gap-2 rounded-lg border border-input bg-card px-3 text-sm shadow-sm transition hover:border-ring',
+          anyRed && 'border-rose-400 ring-1 ring-rose-300'
+        )}
+      >
+        <span className="flex-1 truncate text-left font-medium">
+          {current ? `${current.name} (${count(current.id)})` : 'Select customer'}
+        </span>
+        <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
+        {anyRed && (
+          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" aria-label="Customers with new activity" />
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 z-30 mt-1 max-h-72 w-[20rem] overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg">
+          {buckets.map((b) => {
+            const active = b.id === value;
+            const red = isRed(b.id);
+            return (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => {
+                  onSelect(b.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  'flex w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition',
+                  active ? 'border-transparent bg-secondary' : 'border-transparent hover:bg-secondary',
+                  // The specific customer with unseen activity keeps a red outline
+                  // even in the open list, so the employee sees exactly which one.
+                  red && 'border-rose-400 bg-rose-50/60 ring-1 ring-rose-300'
+                )}
+              >
+                <span className="truncate font-medium">
+                  {b.name} ({count(b.id)})
+                </span>
+                {red && <span className="h-2 w-2 shrink-0 rounded-full bg-rose-500" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -17,6 +17,7 @@ import { asyncHandler, ok } from '../utils/http.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
 import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
 import { runTokenCleanup } from '../services/housekeeping.service.js';
+import { taskActivityByCustomer } from '../services/task.service.js';
 
 const router = Router();
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
@@ -49,6 +50,13 @@ router.put(
   '/organisation',
   validate({ body: organisationSettingsSchema }),
   settings.updateOrganisation
+);
+
+// Latest task activity per customer — drives the "new activity" highlight on the
+// admin Tasks company picker.
+router.get(
+  '/tasks/activity',
+  asyncHandler(async (_req, res) => ok(res, await taskActivityByCustomer()))
 );
 
 // Single, global account manager shown to every client (set from Approvals).

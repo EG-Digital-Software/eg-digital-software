@@ -14,12 +14,15 @@ export function GridView({
   onOpenTask,
   onDeleteTask,
   onToggleComplete,
+  isUpdated,
 }: {
   buckets: TaskBucket[];
   readOnly?: boolean;
   onOpenTask: (task: Task) => void;
   onDeleteTask?: (taskId: string) => void;
   onToggleComplete?: (task: Task) => void;
+  /** True when this task has activity the current user hasn't opened yet. */
+  isUpdated?: (taskId: string) => boolean;
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'taskNumber', dir: 'asc' });
 
@@ -96,7 +99,15 @@ export function GridView({
             const PriorityIcon = PRIORITY_META[t.priority].icon;
             const done = t.progress === 'COMPLETED';
             return (
-              <TableRow key={t.id} className="cursor-pointer" onClick={() => onOpenTask(t)}>
+              <TableRow
+                key={t.id}
+                className={cn(
+                  'cursor-pointer',
+                  isUpdated?.(t.id) &&
+                    'bg-rose-500/10 ring-1 ring-inset ring-rose-300/60 backdrop-blur-[1px] hover:bg-rose-500/20'
+                )}
+                onClick={() => onOpenTask(t)}
+              >
                 <TableCell className="pr-0" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"

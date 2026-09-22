@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, ChevronDown, Building2, Check, ListChecks } from 'lucide-react';
-import { customerApi } from '@/api/resources';
+import { adminApi, customerApi } from '@/api/resources';
 import { adminTaskApi } from '@/api/tasks';
+import { useAuth } from '@/store/auth';
 import { customerName } from '@/lib/customer';
 import { cn, initials } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/misc';
@@ -30,6 +31,58 @@ export default function AdminTasksPage() {
     if (!selected && customers.length) setSelected(customers[0].clientId);
   }, [customers, selected]);
 
+  // ── "New activity" highlight per company ────────────────
+  // Latest task activity per customer (polled); compared against what this admin
+  // last saw for each company. A company with newer activity is flagged; opening
+  // its board marks it seen and clears the flag — per admin (localStorage).
+  const me = useAuth((s) => s.user);
+  const { data: activity } = useQuery({
+    queryKey: ['admin', 'task-activity'],
+    queryFn: () => adminApi.taskActivity(),
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: true,
+  });
+  const activityMap = useMemo(
+    () => Object.fromEntries((activity ?? []).map((a) => [a.clientId, a.lastActivity])),
+    [activity]
+  );
+  const seenKey = `taskCoSeen:${me?.id ?? 'anon'}`;
+  const [seen, setSeen] = useState<Record<string, string>>({});
+  const seenLoaded = useRef(false);
+  useEffect(() => {
+    if (seenLoaded.current || !activity) return;
+    seenLoaded.current = true;
+    try {
+      const raw = localStorage.getItem(seenKey);
+      if (raw) setSeen(JSON.parse(raw));
+      else {
+        setSeen(activityMap);
+        localStorage.setItem(seenKey, JSON.stringify(activityMap));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [activity, seenKey, activityMap]);
+  useEffect(() => {
+    if (!seenLoaded.current || !selected) return;
+    const la = activityMap[selected];
+    if (!la) return;
+    setSeen((s) => {
+      if (s[selected] === la) return s;
+      const next = { ...s, [selected]: la };
+      try {
+        localStorage.setItem(seenKey, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, [selected, activityMap, seenKey]);
+  const isUpdated = (clientId: string) => {
+    const la = activityMap[clientId];
+    return !!la && seen[clientId] !== undefined && seen[clientId] !== la;
+  };
+
   if (isLoading) return <LoadingBlock label="Loading customers…" />;
   if (isError) return <ErrorState onRetry={refetch} />;
   if (customers.length === 0) {
@@ -50,7 +103,7 @@ export default function AdminTasksPage() {
         description="Plan and track work for each customer."
         icon={ListChecks}
         iconTone="sky"
-        actions={<CustomerPicker customers={customers} selected={current.clientId} onSelect={setSelected} />}
+        actions={<CustomerPicker customers={customers} selected={current.clientId} onSelect={setSelected} isUpdated={isUpdated} />}
       />
       {current && <TaskBoard key={current.clientId} api={adminTaskApi(current.clientId)} scopeKey={current.clientId} customerName={customerName(current)} />}
     </div>
@@ -67,10 +120,12 @@ function CustomerPicker({
   customers,
   selected,
   onSelect,
+  isUpdated,
 }: {
   customers: PickerCustomer[];
   selected: string;
   onSelect: (clientId: string) => void;
+  isUpdated: (clientId: string) => boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -99,11 +154,14 @@ function CustomerPicker({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-10 min-w-[240px] items-center gap-2.5 rounded-lg border border-input bg-card px-3 text-sm shadow-sm transition hover:border-ring"
+        className="relative flex h-10 min-w-[240px] items-center gap-2.5 rounded-lg border border-input bg-card px-3 text-sm shadow-sm transition hover:border-ring"
       >
         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span className="flex-1 truncate text-left font-medium">{current ? customerName(current) : 'Select customer'}</span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
+        {customers.some((c) => isUpdated(c.clientId)) && (
+          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" aria-label="Companies with new activity" />
+        )}
       </button>
 
       {open && (
@@ -129,7 +187,9 @@ function CustomerPicker({
                   onClick={() => { onSelect(c.clientId); setOpen(false); setQ(''); }}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-secondary',
-                    active && 'bg-secondary'
+                    active && 'bg-secondary',
+                    // Light red highlight when this company has unseen task activity.
+                    !active && isUpdated(c.clientId) && 'bg-rose-50 hover:bg-rose-100'
                   )}
                 >
                   <Avatar className="h-7 w-7">
@@ -139,6 +199,9 @@ function CustomerPicker({
                     <div className="truncate font-medium">{customerName(c)}</div>
                     <div className="truncate text-xs text-muted-foreground">{c.clientId}</div>
                   </div>
+                  {isUpdated(c.clientId) && !active && (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-rose-500" aria-label="New activity" />
+                  )}
                   {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
                 </button>
               );

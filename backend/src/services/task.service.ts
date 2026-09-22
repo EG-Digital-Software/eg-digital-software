@@ -964,3 +964,27 @@ export async function listMentionableUsers(customerId: string, viewerRole: Role)
     ...clients.map((u) => shape(u, Role.CLIENT)),
   ];
 }
+
+/**
+ * Latest task activity per customer — the newest of any task update, comment,
+ * note, attachment or approval change on that customer's board. Powers the "this
+ * company has new activity" highlight on the admin Tasks picker. Read-only; one
+ * cheap correlated-subquery pass over customers that actually have tasks.
+ */
+export async function taskActivityByCustomer(): Promise<
+  { clientId: string; lastActivity: string }[]
+> {
+  const rows = await prisma.$queryRaw<{ clientId: string; lastActivity: Date }[]>`
+    SELECT c."clientId" AS "clientId",
+      GREATEST(
+        COALESCE((SELECT MAX(t."updatedAt") FROM "Task" t WHERE t."customerId" = c."id"), to_timestamp(0)),
+        COALESCE((SELECT MAX(x."createdAt") FROM "TaskComment" x JOIN "Task" t ON x."taskId" = t."id" WHERE t."customerId" = c."id"), to_timestamp(0)),
+        COALESCE((SELECT MAX(x."createdAt") FROM "TaskNote" x JOIN "Task" t ON x."taskId" = t."id" WHERE t."customerId" = c."id"), to_timestamp(0)),
+        COALESCE((SELECT MAX(x."createdAt") FROM "TaskAttachment" x JOIN "Task" t ON x."taskId" = t."id" WHERE t."customerId" = c."id"), to_timestamp(0)),
+        COALESCE((SELECT MAX(x."updatedAt") FROM "TaskApproval" x JOIN "Task" t ON x."taskId" = t."id" WHERE t."customerId" = c."id"), to_timestamp(0))
+      ) AS "lastActivity"
+    FROM "Customer" c
+    WHERE EXISTS (SELECT 1 FROM "Task" t WHERE t."customerId" = c."id")
+  `;
+  return rows.map((r) => ({ clientId: r.clientId, lastActivity: r.lastActivity.toISOString() }));
+}
