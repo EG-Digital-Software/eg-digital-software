@@ -25,13 +25,14 @@ import {
   Download,
   SquarePen,
 } from 'lucide-react';
-import { customerApi, productApi } from '@/api/resources';
+import { adminApi, customerApi, productApi } from '@/api/resources';
 import { useAuth } from '@/store/auth';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
 import type { Address, AgreementField, Customer, CustomerCredential, CustomerDocument, CustomerProduct } from '@/types';
 import AgreementFieldsDialog from './AgreementFieldsDialog';
+import { InvoiceForm } from '@/components/invoice/InvoiceForm';
 import { Input, Select } from '@/components/ui/input';
 import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -463,6 +464,26 @@ export default function CustomerDetailPage() {
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
+  // Team members available to be assigned as this client's account manager.
+  const { data: employees } = useQuery({
+    queryKey: ['employees', 'approved'],
+    queryFn: () => adminApi.registrations({ role: 'EMPLOYEE', status: 'APPROVED', pageSize: 100 }),
+  });
+
+  const assignManager = useMutation({
+    mutationFn: (accountManagerId: string) => customerApi.update(clientId!, { accountManagerId }),
+    onSuccess: () => {
+      toast.success('Account manager updated');
+      refetch();
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+
+  // Which detail tab is showing, and whether the Create Invoice dialog is open.
+  // Creating an invoice stays on this customer (a dialog), then lands on Invoices.
+  const [tab, setTab] = useState('overview');
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+
   if (isLoading) return <LoadingBlock label="Loading customer…" />;
   if (isError || !c) return <ErrorState onRetry={refetch} />;
 
@@ -498,7 +519,7 @@ export default function CustomerDetailPage() {
                   <Pencil className="h-4 w-4" /> Edit
                 </Link>
               </Button>
-              <Button onClick={() => navigate(`/admin/billing/new?clientId=${c.clientId}`)}>
+              <Button onClick={() => setInvoiceOpen(true)}>
                 <Receipt className="h-4 w-4" /> Create Invoice
               </Button>
             </>
@@ -560,6 +581,27 @@ export default function CustomerDetailPage() {
                 </span>
               )}
             </div>
+
+            {/* Account Manager — assign a team member to this specific client. */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                <Users className="h-3.5 w-3.5" /> Account Manager
+              </span>
+              <Select
+                value={c.accountManagerId ?? ''}
+                disabled={assignManager.isPending}
+                onChange={(e) => assignManager.mutate(e.target.value)}
+                className="h-9 w-full sm:w-64"
+              >
+                <option value="">Unassigned</option>
+                {employees?.items.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName}
+                    {emp.designation ? ` — ${emp.designation}` : ''}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
           {c.creditScore != null && (
             <div
@@ -585,7 +627,7 @@ export default function CustomerDetailPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="agreement">
@@ -788,7 +830,7 @@ export default function CustomerDetailPage() {
                     title="No invoices yet"
                     description="Create an invoice for this customer."
                     action={
-                      <Button onClick={() => navigate(`/admin/billing/new?clientId=${c.clientId}`)}>
+                      <Button onClick={() => setInvoiceOpen(true)}>
                         <Receipt className="h-4 w-4" /> Create Invoice
                       </Button>
                     }
@@ -836,6 +878,26 @@ export default function CustomerDetailPage() {
           <TaskBoard api={adminTaskApi(c.clientId)} scopeKey={c.clientId} customerName={customerName(c)} />
         </TabsContent>
       </Tabs>
+
+      {/* Create Invoice — opens over the customer, so the admin stays here. */}
+      <Dialog open={invoiceOpen} onOpenChange={setInvoiceOpen}>
+        <DialogContent size="xl" className="max-w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>Create Invoice</DialogTitle>
+            <DialogDescription>For {customerName(c)} ({c.clientId})</DialogDescription>
+          </DialogHeader>
+          <InvoiceForm
+            clientId={c.clientId}
+            lockCustomer
+            onCancel={() => setInvoiceOpen(false)}
+            onSuccess={() => {
+              setInvoiceOpen(false);
+              setTab('invoices');
+              refetch();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -157,7 +157,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
             {invoice.items?.map((it) => (
               <tr key={it.id} className="align-top">
                 <td className="py-3 pr-3">
-                  <p className="font-medium text-foreground">{it.description}</p>
+                  <p className="whitespace-pre-line font-medium text-foreground">{it.description}</p>
                   {it.sku && <p className="mt-0.5 text-xs text-muted-foreground">{it.sku}</p>}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">{it.quantity}</td>

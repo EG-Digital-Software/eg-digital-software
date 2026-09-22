@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, X, ShieldCheck, Search, RotateCcw, UserPlus, KeyRound, Eye, EyeOff, Copy, Users, Trash2, Pencil } from 'lucide-react';
+import { Check, X, ShieldCheck, Search, RotateCcw, UserPlus, KeyRound, Eye, EyeOff, Copy, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { adminApi, settingsApi, type PendingUser, type ApprovalStatus } from '@/api/resources';
+import { adminApi, type PendingUser, type ApprovalStatus } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, Pagination } from '@/components/shared/misc';
@@ -134,8 +134,6 @@ export default function ApprovalsPage() {
           </Button>
         }
       />
-
-      <GlobalAccountManagerCard />
 
       <Tabs
         value={tab}
@@ -415,68 +413,6 @@ export default function ApprovalsPage() {
       <EditEmployeeDialog user={editEmp} onOpenChange={(v) => !v && setEditEmp(null)} onDone={invalidate} />
       <ManageEmployeePasswordDialog user={managePw} onOpenChange={(v) => !v && setManagePw(null)} />
     </div>
-  );
-}
-
-/**
- * Single, global account manager shown to every client in their portal. Set
- * once here (not per-customer) — every customer shares the same manager.
- */
-function GlobalAccountManagerCard() {
-  const qc = useQueryClient();
-  const { data: setting } = useQuery({
-    queryKey: ['admin', 'account-manager'],
-    queryFn: settingsApi.getAccountManager,
-  });
-  const { data: emps } = useQuery({
-    queryKey: ['employees', 'approved'],
-    queryFn: () => adminApi.registrations({ role: 'EMPLOYEE', status: 'APPROVED', pageSize: 100 }),
-  });
-  const employees = emps?.items ?? [];
-  const currentId = setting?.employeeId ?? '';
-  const current = employees.find((e) => e.id === currentId) ?? null;
-
-  const save = useMutation({
-    mutationFn: (employeeId: string) => settingsApi.setAccountManager(employeeId || null),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'account-manager'] });
-      qc.invalidateQueries({ queryKey: ['client', 'profile'] });
-      toast.success('Account manager updated');
-    },
-    onError: (e) => toast.error(apiErrorMessage(e)),
-  });
-
-  return (
-    <Card>
-      <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Users className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-medium">Account Manager</p>
-            <p className="text-xs text-muted-foreground">
-              {current
-                ? `${current.firstName} ${current.lastName} · ${current.email}`
-                : 'Assign one team member — shown to every client in their portal'}
-            </p>
-          </div>
-        </div>
-        <Select
-          value={currentId}
-          disabled={save.isPending}
-          onChange={(e) => save.mutate(e.target.value)}
-          className="sm:w-64"
-        >
-          <option value="">— Not assigned —</option>
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.firstName} {emp.lastName}
-            </option>
-          ))}
-        </Select>
-      </div>
-    </Card>
   );
 }
 
