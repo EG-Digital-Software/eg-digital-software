@@ -909,9 +909,10 @@ export function TaskDialog({
                     <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
                       <span className="block truncate">{f.fileName}</span>
-                      {f.uploadedByName && (
-                        <span className="block truncate text-xs text-muted-foreground">Added by {f.uploadedByName}</span>
-                      )}
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {f.uploadedByName ? `Added by ${f.uploadedByName}` : 'Added'}
+                        {f.createdAt ? ` · ${formatDate(f.createdAt, 'dd MMM yyyy, h:mm a')}` : ''}
+                      </span>
                     </div>
                     <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
                     <button type="button" onClick={() => setPreview({ url: mediaUrl(f.url) ?? '', name: f.fileName })} title="View" className="text-muted-foreground hover:text-primary"><Eye className="h-4 w-4" /></button>
