@@ -59,4 +59,7 @@ export const listInvoiceQuerySchema = z.object({
   status: z.enum(INVOICE_STATUSES).optional().or(z.literal('')),
   filter: z.enum(['all', 'outstanding', 'paid', 'overdue', 'draft']).optional().or(z.literal('')),
   clientId: z.string().optional(),
+  // 'client' groups the Manage Billing list by customer (alphabetical) so an
+  // admin can review and manage each client's invoices together.
+  sort: z.enum(['client']).optional().or(z.literal('')),
 });

@@ -16,6 +16,8 @@ interface ListParams extends PageQuery {
   /** Billing tab: computed from balance + due date, not the stored status. */
   filter?: 'all' | 'outstanding' | 'paid' | 'overdue' | 'draft';
   clientId?: string;
+  /** 'client' groups the list by customer (alphabetical) for Manage Billing. */
+  sort?: 'client';
 }
 
 /** Statuses that can never carry a balance the customer still owes. */
@@ -71,10 +73,17 @@ export async function listInvoices(params: ListParams) {
 
   const where: Prisma.InvoiceWhereInput = and.length ? { AND: and } : {};
 
+  // Client-wise view keeps each customer's invoices together (alphabetical by
+  // company, newest invoice first within a client); default is newest-first.
+  const orderBy: Prisma.InvoiceOrderByWithRelationInput[] =
+    params.sort === 'client'
+      ? [{ customer: { companyName: 'asc' } }, { customer: { clientId: 'asc' } }, { invoiceDate: 'desc' }]
+      : [{ createdAt: 'desc' }];
+
   const [items, total] = await Promise.all([
     prisma.invoice.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       skip: params.skip,
       take: params.take,
       include: {

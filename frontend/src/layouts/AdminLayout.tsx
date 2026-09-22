@@ -41,7 +41,7 @@ const NAV: NavItem[] = [
   { to: '/admin/team', label: 'Team Dashboard', icon: UsersRound },
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/tasks', label: 'Tasks', icon: ListChecks },
-  { to: '/admin/billing', label: 'Billing', icon: Receipt },
+  { to: '/admin/billing', label: 'Manage Billing', icon: Receipt },
   { to: '/admin/products', label: 'Products', icon: Package },
   { to: '/admin/payments', label: 'Payments', icon: Wallet },
   { to: '/admin/approvals', label: 'Approvals', icon: ShieldCheck },

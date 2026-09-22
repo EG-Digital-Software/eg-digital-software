@@ -12,6 +12,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     status: (req.query.status as string | undefined) || undefined,
     filter: (req.query.filter as never) || undefined,
     clientId: req.query.clientId as string | undefined,
+    sort: (req.query.sort as never) || undefined,
   });
   return paginated(res, items, total, page);
 });

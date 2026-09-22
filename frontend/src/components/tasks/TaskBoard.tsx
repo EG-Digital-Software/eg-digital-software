@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  LayoutGrid,
   Rows3,
   CalendarDays,
   PieChart,
@@ -36,17 +35,15 @@ import {
   labelColor,
   LABEL_COLOR_TOKENS,
 } from '@/lib/tasks';
-import { BoardView } from './BoardView';
 import { GridView } from './GridView';
 import { ScheduleView } from './ScheduleView';
 import { ChartsView } from './ChartsView';
 import { TaskDialog } from './TaskDialog';
 
-type ViewKey = 'board' | 'grid' | 'schedule' | 'charts';
+type ViewKey = 'grid' | 'schedule' | 'charts';
 
 const VIEWS: { key: ViewKey; label: string; icon: React.ReactNode }[] = [
   { key: 'grid', label: 'Grid', icon: <Rows3 className="h-4 w-4" /> },
-  { key: 'board', label: 'Board', icon: <LayoutGrid className="h-4 w-4" /> },
   { key: 'schedule', label: 'Schedule', icon: <CalendarDays className="h-4 w-4" /> },
   { key: 'charts', label: 'Charts', icon: <PieChart className="h-4 w-4" /> },
 ];
@@ -93,9 +90,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
     onError: onErr,
   });
 
-  const addBucket = useMutation({ mutationFn: (name: string) => api.createBucket(name), onSuccess: invalidate, onError: onErr });
-  const renameBucket = useMutation({ mutationFn: (v: { id: string; name: string }) => api.updateBucket(v.id, { name: v.name }), onSuccess: invalidate, onError: onErr });
-  const delBucket = useMutation({ mutationFn: (id: string) => api.deleteBucket(id), onSuccess: invalidate, onError: onErr });
   const delTask = useMutation({ mutationFn: (id: string) => api.deleteTask(id), onSuccess: () => { invalidate(); toast.success('Task deleted'); }, onError: onErr });
   const setProgress = useMutation({
     mutationFn: (v: { id: string; progress: TaskProgress }) => api.setProgress(v.id, v.progress),
@@ -123,21 +117,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   });
   const createLabel = useMutation({ mutationFn: (v: { name: string; color: string }) => api.createLabel(v.name, v.color), onSuccess: invalidate, onError: onErr });
   const delLabel = useMutation({ mutationFn: (id: string) => api.deleteLabel(id), onSuccess: invalidate, onError: onErr });
-
-  const move = useMutation({
-    mutationFn: (v: { taskId: string; bucketId: string; index: number }) => api.moveTask(v.taskId, v.bucketId, v.index),
-    onMutate: async (v) => {
-      await qc.cancelQueries({ queryKey });
-      const prev = qc.getQueryData<Board>(queryKey);
-      if (prev) qc.setQueryData<Board>(queryKey, optimisticMove(prev, v.taskId, v.bucketId, v.index));
-      return { prev };
-    },
-    onError: (e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(queryKey, ctx.prev);
-      onErr(e);
-    },
-    onSettled: invalidate,
-  });
 
   const board = boardQ.data;
   const users = usersQ.data ?? [];
@@ -318,18 +297,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
       )}
 
       {/* Views */}
-      {view === 'board' && (
-        <BoardView
-          buckets={visibleBuckets}
-          readOnly={readOnly}
-          onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
-          onCreateTask={(bucketId) => setDialog({ mode: 'create', bucketId })}
-          onMoveTask={(taskId, bucketId, index) => move.mutate({ taskId, bucketId, index })}
-          onAddBucket={(name) => addBucket.mutate(name)}
-          onRenameBucket={(id, name) => renameBucket.mutate({ id, name })}
-          onDeleteBucket={(id) => delBucket.mutate(id)}
-        />
-      )}
       {view === 'grid' && (
         <GridView
           buckets={visibleBuckets}
@@ -440,24 +407,3 @@ function LabelManager({
   );
 }
 
-/** Pure helper: move a task within the board data for an optimistic update. */
-function optimisticMove(board: Board, taskId: string, targetBucketId: string, index: number): Board {
-  let moving: Task | undefined;
-  const stripped = board.buckets.map((b) => {
-    const idx = b.tasks.findIndex((t) => t.id === taskId);
-    if (idx === -1) return b;
-    moving = b.tasks[idx];
-    return { ...b, tasks: b.tasks.filter((t) => t.id !== taskId) };
-  });
-  if (!moving) return board;
-  const moved = { ...moving, bucketId: targetBucketId };
-  return {
-    ...board,
-    buckets: stripped.map((b) => {
-      if (b.id !== targetBucketId) return b;
-      const tasks = [...b.tasks];
-      tasks.splice(Math.max(0, Math.min(index, tasks.length)), 0, moved);
-      return { ...b, tasks };
-    }),
-  };
-}
