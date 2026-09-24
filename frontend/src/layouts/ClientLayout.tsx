@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Phone,
   PanelLeft,
+  Lock,
   type LucideProps,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -66,6 +67,9 @@ export function ClientLayout() {
   const manager = profile?.accountManager ?? null;
   const acctStatus = profile?.accountStatusEffective ?? profile?.accountStatus;
   const status = (acctStatus && ACCOUNT_STATUS[acctStatus]) ?? undefined;
+  // A suspended account loses access to Tasks — the nav item is locked and the
+  // page itself refuses to render the board (see ClientTasksPage).
+  const suspended = acctStatus === 'SUSPENDED';
 
   const handleLogout = async () => {
     await logout();
@@ -84,24 +88,41 @@ export function ClientLayout() {
 
       {/* Primary navigation */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
-        {NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            onClick={() => setOpen(false)}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-slate-600 hover:bg-secondary hover:text-foreground'
-              )
-            }
-          >
-            <item.icon className="h-[18px] w-[18px] shrink-0" />
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
+        {NAV.map((item) => {
+          const locked = suspended && item.to === '/client/tasks';
+          if (locked) {
+            return (
+              <div
+                key={item.to}
+                title="Tasks are locked while your account is suspended. Please contact your account manager."
+                aria-disabled="true"
+                className="flex cursor-not-allowed select-none items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-400"
+              >
+                <item.icon className="h-[18px] w-[18px] shrink-0" />
+                <span className="flex-1">{item.label}</span>
+                <Lock className="h-4 w-4 shrink-0" />
+              </div>
+            );
+          }
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-slate-600 hover:bg-secondary hover:text-foreground'
+                )
+              }
+            >
+              <item.icon className="h-[18px] w-[18px] shrink-0" />
+              <span>{item.label}</span>
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Account manager — shown when an admin has assigned one */}

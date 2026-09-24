@@ -384,6 +384,13 @@ export function InvoiceForm({
           {fields.map((field, index) => {
             const it = items?.[index];
             const amount = (Number(it?.unitPrice) || 0) * (Number(it?.quantity) || 0);
+            // The licence group backing this line (if a product was picked). When
+            // set, we hide the editable description and show a read-only SKU +
+            // agreed-price summary instead; the description still rides along in
+            // the form state (set by selectGroup), so the invoice is unaffected.
+            const selectedGroup = licenceGroups.find((g) =>
+              g.items.some((cp) => cp.product.id === it?.productId)
+            );
             return (
               <div
                 key={field.id}
@@ -410,14 +417,33 @@ export function InvoiceForm({
                         </option>
                       ))}
                     </Select>
-                    <Textarea
-                      className={cn(FILLED_CONTROL, 'min-h-[60px] resize-y')}
-                      rows={Math.max(2, (it?.description?.split('\n').length ?? 1))}
-                      placeholder="Description (one product per line)"
-                      {...register(`items.${index}.description`)}
-                    />
-                    {it?.sku && (
-                      <p className="mt-1 text-xs text-muted-foreground">Licence: {it.sku}</p>
+                    {selectedGroup ? (
+                      // Product picked — read-only SKU + agreed-price summary.
+                      <div className="mt-1.5 space-y-1 rounded-md border border-border bg-slate-50/60 p-2.5 text-xs text-muted-foreground">
+                        {selectedGroup.items.map((cp) => (
+                          <div key={cp.id} className="flex items-center justify-between gap-2">
+                            <span className="truncate">
+                              {cp.product.name}
+                              <span className="ml-1 text-muted-foreground/70">
+                                · SKU: {cp.product.sku || cp.product.productCode || '—'}
+                              </span>
+                            </span>
+                            <span className="shrink-0 tabular-nums font-medium text-foreground">
+                              {formatCurrency(Number(cp.price) || 0)}
+                            </span>
+                          </div>
+                        ))}
+                        {it?.sku && <div>Licence: {it.sku}</div>}
+                      </div>
+                    ) : (
+                      // No product picked (blank or manually-added line) — let the
+                      // admin type a description by hand.
+                      <Textarea
+                        className={cn(FILLED_CONTROL, 'min-h-[60px] resize-y')}
+                        rows={Math.max(2, it?.description?.split('\n').length ?? 1)}
+                        placeholder="Description (one product per line)"
+                        {...register(`items.${index}.description`)}
+                      />
                     )}
                   </Field>
                 </div>

@@ -103,8 +103,7 @@ export function GridView({
                 key={t.id}
                 className={cn(
                   'cursor-pointer',
-                  isUpdated?.(t.id) &&
-                    'bg-rose-500/10 ring-1 ring-inset ring-rose-300/60 backdrop-blur-[1px] hover:bg-rose-500/20'
+                  isUpdated?.(t.id) && 'task-row-active'
                 )}
                 onClick={() => onOpenTask(t)}
               >

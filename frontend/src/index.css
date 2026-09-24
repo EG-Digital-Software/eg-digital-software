@@ -236,3 +236,40 @@ h1, h2, h3, h4, h5, h6 {
 .animate-slide-up-lg { animation: eg-slide-up-lg 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 .stagger > * { animation-name: eg-slide-up-lg; }
+
+/* Task row with unseen activity — no fill, just a rose "marching ants" border
+   that keeps crawling around the row. Drawn on an ::after overlay that sits
+   ABOVE the cells (a plain positioned box, not the <tr> background) so no cell
+   fill can tint or clip a side — every side is the same crisp solid rose, only
+   the gaps between dashes are transparent. The border is four dashed strips
+   (top/bottom/left/right) via background layers; animating background-position
+   by exactly one dash-period makes the dashes travel endlessly, with top/right
+   going one way and bottom/left the other so the whole outline crawls clockwise. */
+.task-row-active {
+  position: relative;
+  /* Neutralise the row's own 1px bottom border so it can't add a stray line. */
+  border-color: transparent !important;
+  background-color: transparent !important; /* no fill, even on hover */
+}
+.task-row-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none; /* clicks still reach the row */
+  --d: rgb(244 63 94);  /* rose-500 — identical on all four sides */
+  background-image:
+    repeating-linear-gradient(90deg, var(--d) 0 7px, transparent 7px 14px),
+    repeating-linear-gradient(90deg, var(--d) 0 7px, transparent 7px 14px),
+    repeating-linear-gradient(0deg,  var(--d) 0 7px, transparent 7px 14px),
+    repeating-linear-gradient(0deg,  var(--d) 0 7px, transparent 7px 14px);
+  background-size: 14px 2px, 14px 2px, 2px 14px, 2px 14px;
+  background-position: 0 0, 0 100%, 0 0, 100% 0;
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  animation: eg-border-active 0.55s linear infinite;
+}
+@keyframes eg-border-active {
+  to {
+    background-position: 14px 0, -14px 100%, 0 -14px, 100% 14px;
+  }
+}

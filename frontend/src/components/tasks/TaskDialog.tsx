@@ -261,8 +261,22 @@ export function TaskDialog({
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const commentCount = liveTask?.comments.length ?? 0;
   useEffect(() => {
-    const el = chatScrollRef.current;
-    if (el && showChat) el.scrollTop = el.scrollHeight;
+    if (!showChat) return;
+    // Defer past paint so the newly-rendered messages (and their variable
+    // heights) are laid out before we measure — otherwise scrollHeight is read
+    // too early and the thread stays pinned to the top on open. Two frames:
+    // one for the layout commit, one after it settles.
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const el = chatScrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
   }, [commentCount, showChat, open]);
 
   const patch = useMutation({
@@ -684,8 +698,11 @@ export function TaskDialog({
   // when it's open. New activity while looking at it is auto-seen too.
   useEffect(() => {
     if (!seenLoaded.current) return;
+    // Chat is intentionally NOT auto-marked seen just because the panel is open
+    // (it opens by default) — that would clear the "new message" dot before the
+    // user ever notices it. Chat clears only on real interaction: sending a
+    // message or clicking into the chat panel. See markChatSeen below.
     const openKeys: string[] = [tab === 'details' ? 'notes' : tab];
-    if (showChat) openKeys.push('chat');
     setSeen((s) => {
       let changed = false;
       const next = { ...s };
@@ -704,9 +721,38 @@ export function TaskDialog({
       }
       return next;
     });
-  }, [tab, showChat, signatures, seenKey]);
+  }, [tab, signatures, seenKey]);
 
   const tabHasDot = (t: string) => seen[t] !== undefined && seen[t] !== signatures[t];
+
+  // Mark the chat as seen for this user — clears the red dot on the chat icon.
+  // Called on real interaction (sending a message, clicking into the panel),
+  // never merely because the panel is visible.
+  const markChatSeen = () => {
+    const sig = signatures.chat;
+    if (sig === undefined) return;
+    setSeen((s) => {
+      if (s.chat === sig) return s;
+      const next = { ...s, chat: sig };
+      try {
+        localStorage.setItem(seenKey, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  // You've obviously seen your own message: whenever the newest chat message is
+  // authored by the current user, clear the dot. This also fixes the sender
+  // seeing a dot after their optimistic message bumps the chat signature.
+  useEffect(() => {
+    if (!seenLoaded.current || !meId) return;
+    const comments = liveTask?.comments ?? [];
+    const last = comments[comments.length - 1];
+    if (last && last.authorId === meId) markChatSeen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signatures.chat, meId]);
 
   return (
     <>
@@ -721,7 +767,7 @@ export function TaskDialog({
           </span>
           <button
             type="button"
-            onClick={() => setShowChat((s) => !s)}
+            onClick={() => { markChatSeen(); setShowChat((s) => !s); }}
             className={cn(
               'relative mr-8 inline-flex h-8 w-8 items-center justify-center rounded-md transition',
               showChat ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary'
@@ -1078,9 +1124,27 @@ export function TaskDialog({
 
           {/* ── Right: task chat ──────────────────────── */}
           {chatVisible && (
-            <div className="flex max-h-[45vh] min-h-0 w-full shrink-0 flex-col border-t border-border bg-secondary/20 md:max-h-none md:w-[420px] md:border-l md:border-t-0">
+            <div
+              // Clicking anywhere in the chat column counts as reading it — clears
+              // the "new message" dot on the chat icon for this user.
+              onMouseDown={markChatSeen}
+              className="flex max-h-[45vh] min-h-0 w-full shrink-0 flex-col border-t border-border bg-secondary/20 md:max-h-none md:w-[420px] md:border-l md:border-t-0"
+            >
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Task Chat</h3>
+                <div className="flex items-center gap-1.5">
+                {/* Mark this chat as read — clears the red dot for this user. Only
+                    shown when there is unseen activity. */}
+                {tabHasDot('chat') && (
+                  <button
+                    type="button"
+                    onClick={markChatSeen}
+                    title="Mark chat as read"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition hover:bg-primary/10"
+                  >
+                    <Check className="h-3.5 w-3.5" /> Mark as read
+                  </button>
+                )}
                 {/* Download the chat — admin-only. Word (.doc) or PDF via print. */}
                 {isAdmin && task && liveTask && liveTask.comments.length > 0 && (
                   <DropdownMenu>
@@ -1110,6 +1174,7 @@ export function TaskDialog({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                </div>
               </div>
               <div ref={chatScrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
                 {!task && <p className="pt-8 text-center text-xs text-muted-foreground">Create the task first to start the conversation.</p>}
@@ -1131,22 +1196,39 @@ export function TaskDialog({
                             <p className="whitespace-pre-wrap break-words">{renderMessageBody(c.body, { meId })}</p>
                           </div>
                         )}
-                        {c.attachments?.map((f) => (
-                          <a
-                            key={f.id}
-                            href={mediaUrl(f.url)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={cn(
-                              'mt-1 flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-left text-xs shadow-sm transition hover:border-primary/40',
-                              mine && 'flex-row-reverse text-right'
-                            )}
-                          >
-                            <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                            <span className="min-w-0 flex-1 truncate font-medium">{f.fileName}</span>
-                            <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          </a>
-                        ))}
+                        {c.attachments?.map((f) => {
+                          const furl = mediaUrl(f.url) ?? '';
+                          return (
+                            <div
+                              key={f.id}
+                              className={cn(
+                                'mt-1 flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-left text-xs shadow-sm transition hover:border-primary/40',
+                                mine && 'flex-row-reverse text-right'
+                              )}
+                            >
+                              <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              <span className="min-w-0 flex-1 truncate font-medium">{f.fileName}</span>
+                              <button
+                                type="button"
+                                onClick={() => setPreview({ url: furl, name: f.fileName })}
+                                title={`View ${f.fileName}`}
+                                className="shrink-0 text-muted-foreground transition hover:text-primary"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
+                              <a
+                                href={furl}
+                                download={f.fileName}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`Download ${f.fileName}`}
+                                className="shrink-0 text-muted-foreground transition hover:text-primary"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
+                          );
+                        })}
                         {/* Deleting a chat message is admin-only — clients and
                             employees cannot delete any message, not even their own. */}
                         {isAdmin && (
@@ -1946,19 +2028,31 @@ function ApprovalPanel({
                               );
                             }
                             return (
-                              <a
+                              <div
                                 key={f.id}
-                                href={url}
-                                download={f.fileName}
-                                target="_blank"
-                                rel="noreferrer"
-                                title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
-                                className="group flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs transition hover:border-primary/40"
+                                className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs transition hover:border-primary/40"
                               >
                                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                                 <span className="max-w-[120px] truncate font-medium text-foreground">{f.fileName}</span>
-                                <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
-                              </a>
+                                <button
+                                  type="button"
+                                  onClick={() => setLightbox({ url, name: f.fileName })}
+                                  title={`View ${f.fileName}`}
+                                  className="shrink-0 text-muted-foreground transition hover:text-primary"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
+                                <a
+                                  href={url}
+                                  download={f.fileName}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
+                                  className="shrink-0 text-muted-foreground transition hover:text-primary"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
                             );
                           })}
                         </div>
@@ -2032,21 +2126,22 @@ function ApprovalPanel({
         </div>
       )}
 
-      {/* Image lightbox — full-screen preview; download gives the original file. */}
+      {/* Attachment viewer — full-screen preview for images, PDFs, video and
+          audio; download always gives the original file. */}
       {lightbox && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 animate-fade-in"
+          className="fixed inset-0 z-[60] flex flex-col bg-black/80 p-4 animate-fade-in"
           onClick={() => setLightbox(null)}
         >
-          <div className="absolute right-4 top-4 flex gap-2">
+          <div className="mx-auto flex w-full max-w-5xl shrink-0 items-center gap-2 pb-3 text-white" onClick={(e) => e.stopPropagation()}>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{lightbox.name}</span>
             <a
               href={lightbox.url}
               download={lightbox.name}
               target="_blank"
               rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
               title="Download original"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
             >
               <Download className="h-4 w-4" />
             </a>
@@ -2054,17 +2149,32 @@ function ApprovalPanel({
               type="button"
               onClick={() => setLightbox(null)}
               title="Close"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
-          <img
-            src={lightbox.url}
-            alt={lightbox.name}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
-          />
+          <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {(() => {
+              const kind = previewKind(lightbox.name);
+              if (kind === 'image')
+                return <img src={lightbox.url} alt={lightbox.name} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />;
+              if (kind === 'pdf')
+                return <iframe src={lightbox.url} title={lightbox.name} className="h-full w-full rounded-lg bg-white shadow-2xl" />;
+              if (kind === 'video')
+                return <video src={lightbox.url} controls autoPlay className="max-h-full max-w-full rounded-lg shadow-2xl" />;
+              if (kind === 'audio')
+                return <audio src={lightbox.url} controls autoPlay className="w-full max-w-lg" />;
+              return (
+                <div className="rounded-xl bg-card p-8 text-center">
+                  <p className="text-sm text-muted-foreground">This file type can't be previewed here.</p>
+                  <a href={lightbox.url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-medium text-primary hover:underline">
+                    Open in a new tab
+                  </a>
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
     </div>
