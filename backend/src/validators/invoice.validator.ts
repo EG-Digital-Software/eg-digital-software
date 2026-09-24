@@ -24,6 +24,19 @@ export const createInvoiceSchema = z.object({
   items: z.array(lineItemSchema).min(1, 'At least one line item is required'),
 });
 
+// Editing an existing invoice — same shape as create minus the customer (an
+// invoice can't be moved to another client) and minus the initial status.
+export const updateInvoiceSchema = z.object({
+  invoiceDate: z.coerce.date().optional(),
+  dueDate: z.coerce.date().optional(),
+  term: z.string().optional(),
+  customDays: z.coerce.number().int().positive().optional(),
+  reference: z.string().optional(),
+  discount: z.coerce.number().min(0).default(0),
+  notes: z.string().optional(),
+  items: z.array(lineItemSchema).min(1, 'At least one line item is required'),
+});
+
 export const updateInvoiceStatusSchema = z.object({
   status: z.enum([
     'DRAFT',

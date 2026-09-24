@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -10,6 +10,8 @@ import {
   Building2,
   Send,
   FileText,
+  Trash2,
+  Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { invoiceApi, paymentApi } from '@/api/resources';
@@ -62,8 +64,10 @@ function Detail({ label, value }: { label: string; value?: React.ReactNode }) {
 export default function InvoiceDetailPage() {
   const { id } = useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [confirmPaid, setConfirmPaid] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: invoice, isLoading, isError, refetch } = useQuery({
     queryKey: ['invoice', id],
@@ -89,6 +93,17 @@ export default function InvoiceDetailPage() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       toast.success('Payment recorded');
       setConfirmPaid(false);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const deleteInvoice = useMutation({
+    mutationFn: () => invoiceApi.remove(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success('Invoice deleted');
+      navigate('/admin/billing', { replace: true });
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
@@ -126,6 +141,11 @@ export default function InvoiceDetailPage() {
               <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="h-4 w-4" /> Print / PDF
               </Button>
+              <Button variant="outline" asChild>
+                <Link to={`/admin/billing/${invoice.id}/edit`}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Link>
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => setConfirmSend(true)}
@@ -138,6 +158,14 @@ export default function InvoiceDetailPage() {
                   <CheckCircle2 className="h-4 w-4" /> Mark as Paid
                 </Button>
               )}
+              <Button
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleteInvoice.isPending}
+              >
+                <Trash2 className="h-4 w-4" /> Delete
+              </Button>
             </>
           }
         />
@@ -243,6 +271,19 @@ export default function InvoiceDetailPage() {
         confirmLabel="Send invoice"
         loading={sendInvoice.isPending}
         onConfirm={() => sendInvoice.mutate()}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this invoice?"
+        description={`Permanently deletes ${invoice.invoiceNumber} and its line items${
+          invoice.payments?.length ? ' and recorded payments' : ''
+        }. This cannot be undone.`}
+        confirmLabel="Delete invoice"
+        destructive
+        loading={deleteInvoice.isPending}
+        onConfirm={() => deleteInvoice.mutate()}
       />
     </div>
   );

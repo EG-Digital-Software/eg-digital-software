@@ -396,9 +396,110 @@ export async function sendInvoiceEmail(id: string): Promise<{ recipients: string
   return { recipients };
 }
 
+type UpdateInput = {
+  invoiceDate?: Date;
+  dueDate?: Date;
+  term?: string;
+  customDays?: number;
+  reference?: string;
+  discount: number;
+  notes?: string;
+  items: CreateInput['items'];
+};
+
+/**
+ * Edit an existing invoice (admin only). Replaces its line items, recomputes the
+ * totals and refreshes the payment link/QR for the new amount. The customer and
+ * any recorded payments are left as-is — only the invoice's own fields change.
+ */
+export async function updateInvoice(id: string, input: UpdateInput) {
+  const existing = await prisma.invoice.findUnique({
+    where: { id },
+    include: { customer: true },
+  });
+  if (!existing) throw ApiError.notFound('Invoice not found');
+
+  const invoiceDate = input.invoiceDate ?? existing.invoiceDate;
+  const dueDate = resolveDueDate(invoiceDate, input.term, input.customDays, input.dueDate);
+  const totals = computeInvoiceTotals(input.items, input.discount);
+  // Keep the existing reference unless a new non-empty one is supplied.
+  const reference = input.reference?.trim() || existing.reference || undefined;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
+    await tx.invoice.update({
+      where: { id },
+      data: {
+        invoiceDate,
+        dueDate,
+        term: input.term,
+        customDays: input.customDays ?? null,
+        ...(reference ? { reference } : {}),
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        discount: totals.discount,
+        total: totals.total,
+        notes: input.notes,
+        items: {
+          create: input.items.map((it) => {
+            const line = computeLine(it);
+            return {
+              productId: it.productId ?? null,
+              sku: it.sku ?? null,
+              description: it.description,
+              quantity: it.quantity,
+              unitPrice: D(it.unitPrice),
+              taxRate: D(it.taxRate),
+              contractType: it.contractType ?? 'LOCKED',
+              gstType: it.gstType ?? 'EXCLUSIVE',
+              taxAmount: line.taxAmount,
+              lineTotal: line.lineTotal,
+            };
+          }),
+        },
+      },
+    });
+  });
+
+  // Refresh the pay link + QR for the (possibly changed) total.
+  const c = existing.customer;
+  const payment = await paymentProvider.createPayment({
+    invoiceId: id,
+    invoiceNumber: existing.invoiceNumber,
+    amount: totals.total.toString(),
+    currency: existing.currency,
+    customerEmail: c.billingEmail ?? c.contactEmail ?? undefined,
+    description: `Payment for ${existing.invoiceNumber}`,
+  });
+  const qr = await generateQrDataUrl(payment.paymentUrl);
+
+  return prisma.invoice.update({
+    where: { id },
+    data: { paymentUrl: payment.paymentUrl, paymentQrUrl: qr },
+    include: { items: true, customer: { include: { addresses: true } } },
+  });
+}
+
 export async function updateStatus(id: string, status: InvoiceStatus) {
   await prisma.invoice.findUniqueOrThrow({ where: { id } });
   return prisma.invoice.update({ where: { id }, data: { status } });
+}
+
+/**
+ * Permanently delete an invoice (admin only). Line items cascade automatically;
+ * any recorded payments are removed first in the same transaction (the Payment
+ * → Invoice relation has no cascade), so no orphan rows are left behind.
+ */
+export async function deleteInvoice(id: string): Promise<{ invoiceNumber: string }> {
+  const invoice = await prisma.invoice.findUniqueOrThrow({
+    where: { id },
+    select: { id: true, invoiceNumber: true },
+  });
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.deleteMany({ where: { invoiceId: id } });
+    await tx.invoice.delete({ where: { id } }); // items cascade
+  });
+  return { invoiceNumber: invoice.invoiceNumber };
 }
 
 /** Public, sanitised invoice for the (future) client pay page. */

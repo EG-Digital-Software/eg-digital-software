@@ -187,10 +187,14 @@ export const invoiceApi = {
     (await api.get<ApiEnvelope<{ reference: string }>>('/invoices/next-reference')).data.data.reference,
   create: async (body: unknown) =>
     (await api.post<ApiEnvelope<Invoice>>('/invoices', body)).data.data,
+  update: async (id: string, body: unknown) =>
+    (await api.put<ApiEnvelope<Invoice>>(`/invoices/${id}`, body)).data.data,
   updateStatus: async (id: string, status: string) =>
     (await api.put<ApiEnvelope<Invoice>>(`/invoices/${id}/status`, { status })).data.data,
   send: async (id: string) =>
     (await api.post<ApiEnvelope<{ recipients: string[] }>>(`/invoices/${id}/send`)).data.data,
+  remove: async (id: string) =>
+    (await api.delete<ApiEnvelope<{ id: string }>>(`/invoices/${id}`)).data.data,
 };
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

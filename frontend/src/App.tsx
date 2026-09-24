@@ -24,6 +24,7 @@ const ProductsPage = lazy(() => import('@/pages/products/ProductsPage'));
 const BulkUploadPage = lazy(() => import('@/pages/products/BulkUploadPage'));
 const BillingPage = lazy(() => import('@/pages/billing/BillingPage'));
 const CreateInvoicePage = lazy(() => import('@/pages/billing/CreateInvoicePage'));
+const EditInvoicePage = lazy(() => import('@/pages/billing/EditInvoicePage'));
 const InvoiceDetailPage = lazy(() => import('@/pages/billing/InvoiceDetailPage'));
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
 const SettingsPage = lazy(() => import('@/pages/misc/SettingsPage'));
@@ -115,6 +116,7 @@ export default function App() {
                 <Route path="products/bulk-upload" element={<BulkUploadPage />} />
                 <Route path="billing" element={<BillingPage />} />
                 <Route path="billing/new" element={<CreateInvoicePage />} />
+                <Route path="billing/:id/edit" element={<EditInvoicePage />} />
                 <Route path="billing/:id" element={<InvoiceDetailPage />} />
                 <Route path="payments" element={<PaymentsPage />} />
                 <Route path="approvals" element={<ApprovalsPage />} />

@@ -1,8 +1,10 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Receipt, AlertTriangle, Building2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Search, Receipt, AlertTriangle, Building2, Trash2 } from 'lucide-react';
 import { customerApi, invoiceApi } from '@/api/resources';
+import { apiErrorMessage } from '@/api/client';
 import type { Invoice } from '@/types';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, Pagination } from '@/components/shared/misc';
@@ -13,17 +15,31 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/misc';
 import { InvoiceBadge } from '@/components/shared/status';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
 
 
 export default function BillingPage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all');
   const [clientId, setClientId] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
   const debounced = useDebounce(search);
+
+  const deleteInvoice = useMutation({
+    mutationFn: (invId: string) => invoiceApi.remove(invId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      toast.success('Invoice deleted');
+      setDeleteTarget(null);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
 
   // Customer list that powers the client-wise filter dropdown.
   const { data: customers } = useQuery({
@@ -171,6 +187,7 @@ export default function BillingPage() {
                   <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -178,7 +195,7 @@ export default function BillingPage() {
                   <Fragment key={group.key}>
                     {/* Client header — groups this customer's invoices together. */}
                     <TableRow className="bg-secondary/40 hover:bg-secondary/40">
-                      <TableCell colSpan={7} className="py-2.5">
+                      <TableCell colSpan={8} className="py-2.5">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-2.5">
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -262,6 +279,19 @@ export default function BillingPage() {
                           <TableCell>
                             <InvoiceBadge status={inv.status} />
                           </TableCell>
+                          <TableCell className="text-right">
+                            <button
+                              type="button"
+                              title="Delete invoice"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget(inv);
+                              }}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -273,6 +303,19 @@ export default function BillingPage() {
           </>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Delete this invoice?"
+        description={`Permanently deletes ${deleteTarget?.invoiceNumber ?? ''} and its line items${
+          deleteTarget?.payments?.length ? ' and recorded payments' : ''
+        }. This cannot be undone.`}
+        confirmLabel="Delete invoice"
+        destructive
+        loading={deleteInvoice.isPending}
+        onConfirm={() => deleteTarget && deleteInvoice.mutate(deleteTarget.id)}
+      />
     </div>
   );
 }

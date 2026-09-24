@@ -5,6 +5,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
   createInvoiceSchema,
+  updateInvoiceSchema,
   updateInvoiceStatusSchema,
   listInvoiceQuerySchema,
 } from '../validators/invoice.validator.js';
@@ -18,6 +19,8 @@ router.get('/next-reference', ctrl.nextReference);
 router.get('/:id', ctrl.getOne);
 router.post('/', validate({ body: createInvoiceSchema }), ctrl.create);
 router.post('/:id/send', ctrl.send);
+router.put('/:id', validate({ body: updateInvoiceSchema }), ctrl.update);
 router.put('/:id/status', validate({ body: updateInvoiceStatusSchema }), ctrl.updateStatus);
+router.delete('/:id', ctrl.remove);
 
 export default router;

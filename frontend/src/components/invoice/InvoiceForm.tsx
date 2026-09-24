@@ -104,14 +104,34 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function fmtDay(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
 }
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** Billing period "08-Sep-2026 to 22-Sep-2026" from the invoice date + term. */
-function billingPeriod(invoiceDate?: string, term?: string, termManual?: string): string {
+/**
+ * Billing period + pro-ration for the invoice's issue date and term.
+ *
+ * Monthly (30-day) terms bill on the calendar month: the period runs from the
+ * invoice date to that month's last day, and the amount is pro-rated by the days
+ * that remain (e.g. issued on the 6th of a 30-day month → 25/30). Other terms
+ * run a full period of their own length from the invoice date (fraction 1).
+ */
+function computeProration(
+  invoiceDate?: string,
+  term?: string,
+  termManual?: string
+): { start: Date; end: Date; fraction: number; billedDays: number; periodDays: number } | null {
   const start = invoiceDate ? new Date(invoiceDate) : new Date();
-  if (isNaN(start.getTime())) return '';
-  const end = new Date(start.getTime() + termToDays(term, termManual) * 86_400_000);
-  return `${fmtDay(start)} to ${fmtDay(end)}`;
+  if (isNaN(start.getTime())) return null;
+  const days = termToDays(term, termManual);
+  if (days === 30) {
+    const dim = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    const billed = dim - start.getDate() + 1; // inclusive of the issue day
+    return { start, end, fraction: billed / dim, billedDays: billed, periodDays: dim };
+  }
+  const end = new Date(start.getTime() + Math.max(days, 0) * 86_400_000);
+  return { start, end, fraction: 1, billedDays: days, periodDays: days };
 }
+
 
 const FILLED_CONTROL = 'border-slate-200 bg-slate-50 shadow-none';
 
@@ -207,6 +227,7 @@ export function InvoiceForm({
     control,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -258,9 +279,21 @@ export function InvoiceForm({
     customers?.items.find((c) => c.clientId === fixedClientId)?.companyName ||
     fixedClientId;
 
-  // Billing period (invoice date → due date) — default text for any custom line
-  // the admin adds by hand.
-  const period = useMemo(() => billingPeriod(invoiceDate, term, termManual), [invoiceDate, term, termManual]);
+  // Billing period + pro-ration for the invoice's issue date and term. The line
+  // amount for a selected product is its agreed net × this fraction, so a
+  // mid-month monthly invoice bills only the days that remain (issue → month-end).
+  const proration = useMemo(
+    () => computeProration(invoiceDate, term, termManual),
+    [invoiceDate, term, termManual]
+  );
+  const fraction = proration?.fraction ?? 1;
+  const period = proration ? `${fmtDay(proration.start)} to ${fmtDay(proration.end)}` : '';
+
+  // Full agreed net for the licence group a product belongs to (before pro-rata).
+  const groupBaseFor = (productId?: string): number | null => {
+    const g = licenceGroups.find((x) => x.items.some((cp) => cp.product.id === productId));
+    return g ? g.items.reduce((s, cp) => s + productNet(cp), 0) : null;
+  };
 
   // Selecting a licence group fills the CURRENT line with the whole group as one
   // line — all its products share one licence key and the details are already
@@ -269,8 +302,11 @@ export function InvoiceForm({
     const g = licenceGroups.find((x) => x.key === groupKey);
     if (!g || !g.items.length) return;
     const rep = g.items[0];
-    // Each product's net = its agreed price × its own Unit/Days; the line total
-    // is the sum, so the per-product nets shown in the summary add up to Amount.
+    const grpTerm = g.items.find((cp) => cp.invoicingTerm)?.invoicingTerm;
+    // Pro-rate the agreed net by the days the invoice covers (see proration).
+    // Use the group's own term for the fraction so it's right even before the
+    // Term field re-renders.
+    const frac = computeProration(invoiceDate, grpTerm ?? term, termManual)?.fraction ?? 1;
     const base = g.items.reduce((s, cp) => s + productNet(cp), 0);
     update(index, {
       productId: rep.product.id,
@@ -278,18 +314,33 @@ export function InvoiceForm({
       sku: g.licenceKey || rep.product.sku || rep.product.productCode || '',
       description: g.items.map((cp) => cp.product.name).join('\n'),
       quantity: 1,
-      unitPrice: base,
+      unitPrice: round2(base * frac),
       taxRate: Number(rep.taxRate ?? 10) || 0,
       contractType: (rep.contractType === 'TRIAL' ? 'TRIAL' : 'LOCKED') as 'LOCKED' | 'TRIAL',
       gstType: (rep.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE',
     });
-    const grpTerm = g.items.find((cp) => cp.invoicingTerm)?.invoicingTerm;
     if (grpTerm) setValue('term', grpTerm);
   };
 
   useEffect(() => {
     if (fixedClientId) setValue('clientId', fixedClientId);
   }, [fixedClientId, setValue]);
+
+  // Keep product-backed line amounts in step with the invoice date/term: when
+  // either changes, re-pro-rate each selected product's agreed net.
+  useEffect(() => {
+    const its = getValues('items') ?? [];
+    its.forEach((it, i) => {
+      if (!it.productId) return;
+      const base = groupBaseFor(it.productId);
+      if (base == null) return;
+      const next = round2(base * fraction);
+      if (Math.abs((Number(it.unitPrice) || 0) - next) > 0.005) {
+        setValue(`items.${i}.unitPrice`, next, { shouldDirty: true });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fraction, licenceGroups]);
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -440,7 +491,8 @@ export function InvoiceForm({
                         )}
                         {selectedGroup.items.map((cp) => {
                           const units = productUnits(cp);
-                          const net = productNet(cp);
+                          // Net billed for this period = agreed net × pro-rata fraction.
+                          const net = productNet(cp) * fraction;
                           return (
                             <div
                               key={cp.id}
@@ -468,6 +520,19 @@ export function InvoiceForm({
                             </div>
                           );
                         })}
+                        {/* Billing period + pro-rata for this line. */}
+                        {proration && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-1.5">
+                            <span>
+                              Period: <span className="text-foreground">{period}</span>
+                            </span>
+                            {fraction < 1 && (
+                              <span className="font-medium text-amber-600">
+                                {proration.billedDays}/{proration.periodDays} days pro-rata
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       // No product picked (blank or manually-added line) — let the

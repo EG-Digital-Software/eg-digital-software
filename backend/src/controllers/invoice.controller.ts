@@ -39,6 +39,19 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, invoice, 'Invoice created', 201);
 });
 
+export const update = asyncHandler(async (req: Request, res: Response) => {
+  const invoice = await invoiceService.updateInvoice(req.params.id, req.body);
+  logActivity({
+    userId: req.user?.sub,
+    userType: req.user?.role,
+    action: ActivityAction.INVOICE_UPDATED,
+    entityType: 'Invoice',
+    entityId: invoice.id,
+    metadata: { invoiceNumber: invoice.invoiceNumber, total: invoice.total.toString(), edited: true },
+  });
+  return ok(res, invoice, 'Invoice updated');
+});
+
 export const updateStatus = asyncHandler(async (req: Request, res: Response) => {
   const invoice = await invoiceService.updateStatus(req.params.id, req.body.status);
   logActivity({
@@ -63,6 +76,19 @@ export const send = asyncHandler(async (req: Request, res: Response) => {
     metadata: { sentTo: recipients.join(', ') },
   });
   return ok(res, { recipients }, `Invoice sent to ${recipients.join(', ')}`);
+});
+
+export const remove = asyncHandler(async (req: Request, res: Response) => {
+  const { invoiceNumber } = await invoiceService.deleteInvoice(req.params.id);
+  logActivity({
+    userId: req.user?.sub,
+    userType: req.user?.role,
+    action: ActivityAction.INVOICE_UPDATED,
+    entityType: 'Invoice',
+    entityId: req.params.id,
+    metadata: { deleted: true, invoiceNumber },
+  });
+  return ok(res, { id: req.params.id }, `Invoice ${invoiceNumber} deleted`);
 });
 
 export const getPublic = asyncHandler(async (req: Request, res: Response) => {
