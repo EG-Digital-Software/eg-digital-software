@@ -992,7 +992,7 @@ export async function updateProductGroup(
     issueDate?: Date;
     expiryDate?: Date;
     status?: 'ACTIVE' | 'SUSPENDED';
-    products: Array<{ productId: string; price?: number }>;
+    products: Array<{ productId: string; price?: number; unitHoursEnabled?: boolean; unitHours?: number }>;
   }
 ) {
   const existing = await prisma.customer.findUnique({ where: { clientId } });
@@ -1025,13 +1025,16 @@ export async function updateProductGroup(
         const expiryDate =
           input.expiryDate !== undefined ? input.expiryDate : (cur?.expiryDate ?? null);
         const status = forcedStatus ?? (cur?.status as LicenceStatus) ?? computeLicenceStatus(expiryDate);
-        // Unit/Hours is shared across the group: apply the input's value to every
-        // product (falling back to the current row's value when not supplied).
-        const unitHoursEnabled = input.unitHoursEnabled ?? cur?.unitHoursEnabled ?? false;
+        // Qty/Hours is per product now: prefer the line's own value, then any
+        // shared value (legacy callers), then the current row's stored value.
+        const unitHoursEnabled =
+          p.unitHoursEnabled ?? input.unitHoursEnabled ?? cur?.unitHoursEnabled ?? false;
         const unitHours =
-          input.unitHours !== undefined
-            ? new Prisma.Decimal(input.unitHours)
-            : (cur?.unitHours ?? null);
+          p.unitHours !== undefined
+            ? new Prisma.Decimal(p.unitHours)
+            : input.unitHours !== undefined
+              ? new Prisma.Decimal(input.unitHours)
+              : (cur?.unitHours ?? null);
         const data = {
           price: new Prisma.Decimal(p.price ?? Number(cur?.price ?? 0)),
           contractType: input.contractType ?? cur?.contractType ?? 'LOCKED',

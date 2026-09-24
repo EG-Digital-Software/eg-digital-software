@@ -57,6 +57,15 @@ interface LicenceGroup {
   items: CustomerProduct[];
 }
 
+/** Per-product Unit/Days multiplier (1 when the product isn't unit-priced). */
+function productUnits(cp: CustomerProduct): number {
+  return cp.unitHoursEnabled ? Number(cp.unitHours) || 0 : 1;
+}
+/** Net line value for a product = agreed price × units. */
+function productNet(cp: CustomerProduct): number {
+  return (Number(cp.price) || 0) * productUnits(cp);
+}
+
 /** Days a term adds to the invoice date (mirrors backend resolveDueDate). */
 function termToDays(term?: string, termManual?: string): number {
   const parse = (s?: string) => {
@@ -260,9 +269,9 @@ export function InvoiceForm({
     const g = licenceGroups.find((x) => x.key === groupKey);
     if (!g || !g.items.length) return;
     const rep = g.items[0];
-    // Unit/Hours multiplier is shared across the group; agreed prices sum up.
-    const gu = rep.unitHoursEnabled ? Number(rep.unitHours) || 0 : 1;
-    const base = g.items.reduce((s, cp) => s + (Number(cp.price) || 0) * gu, 0);
+    // Each product's net = its agreed price × its own Unit/Days; the line total
+    // is the sum, so the per-product nets shown in the summary add up to Amount.
+    const base = g.items.reduce((s, cp) => s + productNet(cp), 0);
     update(index, {
       productId: rep.product.id,
       // Licence number rides along as the line's sku (shown on the invoice).
@@ -383,7 +392,10 @@ export function InvoiceForm({
         <div className="space-y-3">
           {fields.map((field, index) => {
             const it = items?.[index];
-            const amount = (Number(it?.unitPrice) || 0) * (Number(it?.quantity) || 0);
+            // Amount shown to the admin is GST-inclusive. When the line is marked
+            // Inclusive the unit price already carries GST; otherwise we add it on.
+            const gross = (Number(it?.unitPrice) || 0) * (Number(it?.quantity) || 0);
+            const amount = it?.gstType === 'INCLUSIVE' ? gross : gross * (1 + (Number(it?.taxRate) || 0) / 100);
             // The licence group backing this line (if a product was picked). When
             // set, we hide the editable description and show a read-only SKU +
             // agreed-price summary instead; the description still rides along in
@@ -418,22 +430,44 @@ export function InvoiceForm({
                       ))}
                     </Select>
                     {selectedGroup ? (
-                      // Product picked — read-only SKU + agreed-price summary.
-                      <div className="mt-1.5 space-y-1 rounded-md border border-border bg-slate-50/60 p-2.5 text-xs text-muted-foreground">
-                        {selectedGroup.items.map((cp) => (
-                          <div key={cp.id} className="flex items-center justify-between gap-2">
-                            <span className="truncate">
-                              {cp.product.name}
-                              <span className="ml-1 text-muted-foreground/70">
-                                · SKU: {cp.product.sku || cp.product.productCode || '—'}
-                              </span>
-                            </span>
-                            <span className="shrink-0 tabular-nums font-medium text-foreground">
-                              {formatCurrency(Number(cp.price) || 0)}
-                            </span>
+                      // Product picked — read-only summary: SKU, agreed price,
+                      // Unit/Days and Net (agreed price × units) per product.
+                      <div className="mt-1.5 space-y-1.5 rounded-md border border-border bg-slate-50/60 p-2.5 text-xs text-muted-foreground">
+                        {it?.sku && (
+                          <div className="border-b border-border/40 pb-1.5 font-medium text-foreground">
+                            Licence: {it.sku}
                           </div>
-                        ))}
-                        {it?.sku && <div>Licence: {it.sku}</div>}
+                        )}
+                        {selectedGroup.items.map((cp) => {
+                          const units = productUnits(cp);
+                          const net = productNet(cp);
+                          return (
+                            <div
+                              key={cp.id}
+                              className="space-y-1 border-b border-border/40 pb-1.5 last:border-0 last:pb-0"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="truncate font-medium text-foreground">{cp.product.name}</span>
+                                <span className="shrink-0 text-muted-foreground/70">
+                                  SKU: {cp.product.sku || cp.product.productCode || '—'}
+                                </span>
+                              </div>
+                              {/* Three evenly-aligned columns so Agreed / Unit-Days /
+                                  Net line up perfectly across every product. */}
+                              <div className="grid grid-cols-3 gap-3 tabular-nums">
+                                <span>
+                                  Agreed: <span className="text-foreground">{formatCurrency(Number(cp.price) || 0)}</span>
+                                </span>
+                                <span className="text-center">
+                                  Unit/Hours: <span className="text-foreground">{units}</span>
+                                </span>
+                                <span className="text-right">
+                                  Net: <span className="font-semibold text-primary">{formatCurrency(net)}</span>
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       // No product picked (blank or manually-added line) — let the
@@ -445,16 +479,6 @@ export function InvoiceForm({
                         {...register(`items.${index}.description`)}
                       />
                     )}
-                  </Field>
-                </div>
-                <div className="sm:col-span-2">
-                  <Field label="QTY/Days">
-                    <Input className={FILLED_CONTROL} {...numericField(register(`items.${index}.quantity`))} />
-                  </Field>
-                </div>
-                <div className="sm:col-span-2">
-                  <Field label="Unit Price">
-                    <Input className={FILLED_CONTROL} {...numericField(register(`items.${index}.unitPrice`), 'decimal')} />
                   </Field>
                 </div>
                 <div className="sm:col-span-2">
@@ -480,7 +504,7 @@ export function InvoiceForm({
                 </div>
                 <div className="flex items-end justify-between gap-2 sm:col-span-2">
                   <div>
-                    <Label className="text-xs font-medium text-muted-foreground">Amount</Label>
+                    <Label className="text-xs font-medium text-muted-foreground">Amount (incl. GST)</Label>
                     <p className="mt-1.5 text-sm font-semibold tabular-nums text-primary">{formatCurrency(amount)}</p>
                   </div>
                   <Button

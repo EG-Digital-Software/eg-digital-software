@@ -98,6 +98,10 @@ export const updateProductGroupSchema = z.object({
       z.object({
         productId: z.string().uuid(),
         price: z.coerce.number().min(0).optional(),
+        // Qty/Hours is now per product (defaults to 1); accepted per line so
+        // each product in the group can carry its own multiplier.
+        unitHoursEnabled: z.boolean().optional(),
+        unitHours: z.coerce.number().min(0).optional(),
       })
     )
     .min(1, 'Select at least one product')
