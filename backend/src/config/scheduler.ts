@@ -3,6 +3,7 @@ import { logger } from './logger.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
 import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
 import { runTokenCleanup } from '../services/housekeeping.service.js';
+import { runAdvanceBilling } from '../services/recurringBilling.service.js';
 
 /**
  * Registers scheduled jobs. Runs in the app process (fine for a single App
@@ -31,5 +32,15 @@ export function startScheduler() {
     runTokenCleanup().catch((err) => logger.error({ err }, 'Token cleanup failed'));
   });
 
-  logger.info('Scheduler started — token cleanup 03:00, invoice overdue sweep 07:30, licence reminders 08:00');
+  // Daily advance recurring billing at 06:00 — generates & emails invoices for
+  // licence groups whose next billing period has started (monthly on the 1st;
+  // other terms on their own cycle). Idempotent, so a missed day catches up.
+  cron.schedule('0 6 * * *', () => {
+    logger.info('⏰ Running daily advance billing');
+    runAdvanceBilling().catch((err) => logger.error({ err }, 'Advance billing job failed'));
+  });
+
+  logger.info(
+    'Scheduler started — token cleanup 03:00, advance billing 06:00, invoice overdue sweep 07:30, licence reminders 08:00'
+  );
 }

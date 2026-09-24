@@ -13,6 +13,7 @@ import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
 import { encryptSecret, decryptSecret } from '../utils/secretBox.js';
 import { reserveStock } from './product.service.js';
+import { billCustomerNow } from './recurringBilling.service.js';
 import { nextSequence, formatClientId, formatLicenceKey } from '../utils/sequence.js';
 import { computeLicenceStatus } from '../utils/licence.js';
 import { effectiveAccountStatus, dormancyCutoff } from '../utils/accountStatus.js';
@@ -485,6 +486,7 @@ type CreateInput = {
     unit?: string;
     unitHoursEnabled?: boolean;
     unitHours?: number;
+    advancePayment?: boolean;
     taxRate?: number;
     contractType?: 'LOCKED' | 'TRIAL';
     gstType?: 'INCLUSIVE' | 'EXCLUSIVE';
@@ -807,6 +809,11 @@ async function assignProducts(
         unit: ap.unit ?? null,
         unitHoursEnabled: ap.unitHoursEnabled ?? false,
         unitHours: ap.unitHours != null ? new Prisma.Decimal(ap.unitHours) : null,
+        advancePayment: ap.advancePayment ?? false,
+        // Advance billing starts from the assignment/issue date — the first
+        // period runs from here to its end (pro-rated for a mid-month monthly
+        // start). Null when advance billing is off.
+        nextInvoiceDate: ap.advancePayment ? (ap.issueDate ?? new Date()) : null,
         taxRate: new Prisma.Decimal(ap.taxRate ?? 0),
         contractType: ap.contractType ?? 'LOCKED',
         gstType: ap.gstType ?? 'EXCLUSIVE',
@@ -853,6 +860,8 @@ export async function assignProductToCustomer(
   const existing = await prisma.customer.findUnique({ where: { clientId } });
   if (!existing) throw ApiError.notFound('Customer not found');
   await prisma.$transaction((tx) => assignProducts(tx, existing.id, [ap]));
+  // Send the first advance invoice straight away if this assignment opted in.
+  await billCustomerNow(existing.id);
   return getCustomerByClientId(clientId);
 }
 
@@ -875,6 +884,8 @@ export async function assignProductsToCustomer(
     timeout: 20000,
     maxWait: 15000,
   });
+  // Send the first advance invoice straight away for any opted-in group.
+  await billCustomerNow(existing.id);
   return getCustomerByClientId(clientId);
 }
 
@@ -989,6 +1000,7 @@ export async function updateProductGroup(
     invoicingTerm?: string;
     unitHoursEnabled?: boolean;
     unitHours?: number;
+    advancePayment?: boolean;
     issueDate?: Date;
     expiryDate?: Date;
     status?: 'ACTIVE' | 'SUSPENDED';
@@ -1035,6 +1047,14 @@ export async function updateProductGroup(
             : input.unitHours !== undefined
               ? new Prisma.Decimal(input.unitHours)
               : (cur?.unitHours ?? null);
+        // Advance billing: preserve the running cursor when it's already on, set
+        // it from the issue date when turning on, clear it when turning off.
+        const advancePayment = input.advancePayment ?? cur?.advancePayment ?? false;
+        const nextInvoiceDate = advancePayment
+          ? cur?.advancePayment && cur?.nextInvoiceDate
+            ? cur.nextInvoiceDate
+            : issueDate
+          : null;
         const data = {
           price: new Prisma.Decimal(p.price ?? Number(cur?.price ?? 0)),
           contractType: input.contractType ?? cur?.contractType ?? 'LOCKED',
@@ -1043,6 +1063,8 @@ export async function updateProductGroup(
             input.invoicingTerm !== undefined ? input.invoicingTerm.trim() || null : (cur?.invoicingTerm ?? null),
           unitHoursEnabled,
           unitHours,
+          advancePayment,
+          nextInvoiceDate,
           issueDate,
           expiryDate,
           status,
@@ -1066,6 +1088,8 @@ export async function updateProductGroup(
     },
     { timeout: 20000, maxWait: 15000 }
   );
+  // If advance billing was just turned on (or is due), send the invoice now.
+  await billCustomerNow(existing.id);
   return getCustomerByClientId(clientId);
 }
 

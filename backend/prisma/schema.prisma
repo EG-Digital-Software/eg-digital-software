@@ -484,6 +484,15 @@ model CustomerProduct {
   /// Invoicing/payment term agreed when the product is assigned (e.g. "30 Days",
   /// "Due on Receipt"). Shown to the client in their portal's Invoicing Details.
   invoicingTerm String?
+  /// Advance recurring billing. When on, invoices auto-generate at the START of
+  /// each billing period (monthly on the 1st for monthly terms; every N days for
+  /// other terms), are emailed to the client and shown as payable in the portal.
+  /// Shared across a licence group.
+  advancePayment Boolean @default(false)
+  /// Start date of the next billing period to invoice — the advance-billing
+  /// driver. Set when advance billing is enabled; advanced past each generated
+  /// invoice's period. Null when advance billing is off.
+  nextInvoiceDate DateTime?
   /// Approval state for the product. Admin-assigned products are APPROVED
   /// immediately; products a client adds themselves start as PENDING and show
   /// "Pending" to the client until an admin approves them.
@@ -498,6 +507,7 @@ model CustomerProduct {
   @@index([productId])
   @@index([status])
   @@index([expiryDate])
+  @@index([nextInvoiceDate])
 }
 
 model Licence {

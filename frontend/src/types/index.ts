@@ -106,6 +106,8 @@ export interface CustomerProduct {
   /** Optional Unit/Hours multiplier (shared across a licence group). */
   unitHoursEnabled?: boolean;
   unitHours?: string | null;
+  /** Advance recurring billing — invoices auto-generate each period. */
+  advancePayment?: boolean;
   taxRate?: string | null;
   /** Contract term: 'LOCKED' (committed) or 'TRIAL' (evaluation). */
   contractType?: string | null;

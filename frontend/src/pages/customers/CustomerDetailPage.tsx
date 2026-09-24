@@ -1103,6 +1103,9 @@ function ProductsTab({ customer }: { customer: Customer }) {
   // Per-product Qty/Hours (productId -> string). Defaults to '1' when a product
   // is ticked; the net becomes agreed price × qty/hours (+ GST).
   const [units, setUnits] = useState<Record<string, string>>({});
+  // Advance recurring billing for this licence group. When on, invoices
+  // auto-generate at the start of each billing period and email to the client.
+  const [advancePay, setAdvancePay] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ key: string; items: CustomerProduct[] } | null>(null);
   const selectedIds = Object.keys(selected);
@@ -1151,6 +1154,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
         contractType: form.contractType,
         gstType: form.gstType,
         invoicingTerm: form.invoicingTerm,
+        advancePayment: advancePay,
       };
       if (form.taxRate !== '') shared.taxRate = Number(form.taxRate);
       if (form.issueDate) shared.issueDate = form.issueDate;
@@ -1172,6 +1176,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       setForm({ ...EMPTY_ASSIGN });
       setSelected({});
       setUnits({});
+      setAdvancePay(false);
       setAdding(false);
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
@@ -1195,6 +1200,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
         contractType: form.contractType,
         gstType: form.gstType,
         invoicingTerm: form.invoicingTerm,
+        advancePayment: advancePay,
       };
       if (form.licence.trim()) body.licenceKey = form.licence.trim();
       if (form.issueDate) body.issueDate = form.issueDate;
@@ -1207,6 +1213,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       setForm({ ...EMPTY_ASSIGN });
       setSelected({});
       setUnits({});
+      setAdvancePay(false);
       setEditingKey(null);
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
@@ -1223,6 +1230,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
     setUnits(
       Object.fromEntries(group.items.map((cp) => [cp.product.id, String(cpUnits(cp) || 1)]))
     );
+    setAdvancePay(rep.advancePayment ?? false);
     setForm({
       productId: '',
       price: '',
@@ -1241,6 +1249,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
     setForm({ ...EMPTY_ASSIGN });
     setSelected({});
     setUnits({});
+    setAdvancePay(false);
   }
   const toggleProduct = (id: string) => {
     const picked = id in selected;
@@ -1409,6 +1418,23 @@ function ProductsTab({ customer }: { customer: Customer }) {
                 <Input type="date" value={form.expiryDate} onChange={(e) => set('expiryDate', e.target.value)} />
               </Field>
             </div>
+            {/* Advance recurring billing toggle. */}
+            <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-input bg-secondary/20 p-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                checked={advancePay}
+                onChange={(e) => setAdvancePay(e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium">Advance payment (auto recurring invoices)</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Invoices generate automatically at the start of each billing period and email to the client.
+                  Monthly terms bill on the 1st (first invoice pro-rated from the issue date); other terms bill on
+                  their own cycle. The first invoice is sent immediately on assignment.
+                </span>
+              </span>
+            </label>
             <div className="mt-3 flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={cancelForm}>
                 Cancel
@@ -1604,6 +1630,7 @@ function LicenceGroupDetailsDialog({
               <Detail label="Status" value={<span className="capitalize">{(rep.status ?? 'ACTIVE').replace(/_/g, ' ').toLowerCase()}</span>} />
               <Detail label="Contract" value={<span className="capitalize">{(rep.contractType ?? 'LOCKED').toLowerCase()}</span>} />
               <Detail label="GST" value={<span className="capitalize">{(rep.gstType ?? 'EXCLUSIVE').toLowerCase()}</span>} />
+              <Detail label="Advance billing" value={rep.advancePayment ? 'On (auto recurring)' : 'Off'} />
               <Detail label="Issued" value={formatDate(rep.issueDate)} />
               <Detail label="Expiry" value={formatDate(rep.expiryDate)} />
               <Detail label="Days Left" value={String(daysLeftFromToday(rep.expiryDate))} />
