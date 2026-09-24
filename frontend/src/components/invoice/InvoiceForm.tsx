@@ -488,7 +488,24 @@ export function InvoiceForm({
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground hover:text-destructive"
-                    onClick={() => fields.length > 1 && remove(index)}
+                    onClick={() => {
+                      // With several lines, drop this row. On the only remaining
+                      // line we keep the required minimum but clear it back to a
+                      // blank line — so the picked product, SKU and price are
+                      // removed and the dropdown resets.
+                      if (fields.length > 1) remove(index);
+                      else
+                        update(index, {
+                          productId: undefined,
+                          sku: undefined,
+                          description: '',
+                          quantity: 1,
+                          unitPrice: 0,
+                          taxRate: 10,
+                          contractType: 'LOCKED',
+                          gstType: 'EXCLUSIVE',
+                        });
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
