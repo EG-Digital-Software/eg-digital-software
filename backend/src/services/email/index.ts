@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
-import { env } from '../../config/env.js';
+import { env, isProd } from '../../config/env.js';
+import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../config/logger.js';
 
 /**
@@ -159,32 +160,72 @@ class UnconfiguredProvider implements EmailProvider {
   }
 }
 
+/**
+ * Why the configured provider cannot actually deliver, or null when it can.
+ *
+ * A misconfigured provider used to degrade quietly to the console one, which made
+ * "Send invoice" report success and mark the invoice SENT while nothing was ever
+ * emailed. The reason is kept so the send path can fail loudly instead.
+ */
+let undeliverableReason: string | null = null;
+
 function build(): EmailProvider {
   switch (env.EMAIL_PROVIDER) {
     case 'console':
+      // Deliberate in development. In production it means no email was ever
+      // configured, which must not look like a successful send.
+      if (isProd) {
+        undeliverableReason =
+          'EMAIL_PROVIDER is "console", which only logs. Set EMAIL_PROVIDER=brevo with EMAIL_API_KEY (or =smtp with SMTP_HOST/USER/PASS).';
+      }
       return new ConsoleProvider();
     case 'brevo':
-      // API key not in yet? Don't crash — log to console so the flow works
-      // end-to-end until the key is dropped into env.
       if (!env.EMAIL_API_KEY) {
-        logger.warn('EMAIL_PROVIDER=brevo but EMAIL_API_KEY is unset — falling back to console');
+        undeliverableReason = 'EMAIL_PROVIDER=brevo but EMAIL_API_KEY is not set.';
+        logger.warn('EMAIL_PROVIDER=brevo but EMAIL_API_KEY is unset — email cannot be delivered');
         return new ConsoleProvider();
       }
       return new BrevoApiProvider(env.EMAIL_API_KEY);
     case 'smtp':
-      // Credentials not in yet? Don't crash — log to console so the flow works
-      // end-to-end until the mailbox details are dropped into env.
       if (!env.SMTP_HOST) {
-        logger.warn('EMAIL_PROVIDER=smtp but SMTP_HOST is unset — falling back to console');
+        undeliverableReason = 'EMAIL_PROVIDER=smtp but SMTP_HOST is not set.';
+        logger.warn('EMAIL_PROVIDER=smtp but SMTP_HOST is unset — email cannot be delivered');
         return new ConsoleProvider();
       }
       return new SmtpProvider();
     default:
+      undeliverableReason = `EMAIL_PROVIDER="${env.EMAIL_PROVIDER}" is not a provider this build knows (console, brevo, smtp).`;
       return new UnconfiguredProvider(env.EMAIL_PROVIDER);
   }
 }
 
 export const emailProvider = build();
+
+/** Whether email can actually leave the building, and why not when it cannot. */
+export function emailStatus(): {
+  provider: string;
+  canDeliver: boolean;
+  reason: string | null;
+  from: string;
+} {
+  return {
+    provider: env.EMAIL_PROVIDER,
+    canDeliver: undeliverableReason === null,
+    reason: undeliverableReason,
+    from: fromHeader(),
+  };
+}
+
+// Say it once at boot, so the App Service log stream shows the truth rather than
+// leaving a silent misconfiguration to be discovered by a customer not replying.
+if (undeliverableReason) {
+  logger.error(
+    { provider: env.EMAIL_PROVIDER, reason: undeliverableReason },
+    '✉️  Email is NOT deliverable — invoices and notifications will fail to send'
+  );
+} else {
+  logger.info({ provider: env.EMAIL_PROVIDER, from: fromHeader() }, '✉️  Email provider ready');
+}
 
 /** Fire-and-forget send — never breaks the primary flow (used by notifications). */
 export function sendEmail(msg: EmailMessage): void {
@@ -194,7 +235,28 @@ export function sendEmail(msg: EmailMessage): void {
 /**
  * Awaitable send — resolves on success, throws on failure. Use this when the
  * caller (e.g. an admin clicking "Send invoice") needs to report the outcome.
+ *
+ * Refuses outright when the provider cannot deliver, so a misconfiguration
+ * surfaces as a visible failure instead of an invoice quietly marked as sent.
  */
 export async function deliverEmail(msg: EmailMessage): Promise<void> {
-  await emailProvider.send(msg);
+  if (undeliverableReason) {
+    // ApiError, not a plain Error: the handler echoes an ApiError's message to the
+    // caller, while a plain one becomes an opaque "Internal server error" in
+    // production — which is how this failure stayed invisible in the first place.
+    throw ApiError.internal(`Email is not configured, so nothing was sent. ${undeliverableReason}`);
+  }
+  try {
+    await emailProvider.send(msg);
+  } catch (err) {
+    // Same reasoning: a provider's own error (a rejected key, a blocked IP, a
+    // refused recipient) is a plain Error, so it would reach the admin as an
+    // opaque 500. Log it with context and pass the provider's own words on.
+    const detail = err instanceof Error ? err.message : String(err);
+    logger.error(
+      { err, to: msg.to, cc: msg.cc, provider: env.EMAIL_PROVIDER },
+      'Email delivery failed'
+    );
+    throw ApiError.badGateway(`The email provider rejected the message: ${detail}`);
+  }
 }

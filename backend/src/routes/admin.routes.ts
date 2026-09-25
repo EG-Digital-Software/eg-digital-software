@@ -41,6 +41,9 @@ router.patch(
 router.post('/employees/:id/impersonate', approvals.impersonateEmployee);
 
 // Payment configuration (gateway keys, bank transfer details, card surcharge).
+// Diagnostics — is outgoing email actually configured?
+router.get('/email-status', settings.getEmailStatus);
+
 router.get('/payment-settings', settings.getPayment);
 router.put('/payment-settings', validate({ body: paymentSettingsSchema }), settings.updatePayment);
 

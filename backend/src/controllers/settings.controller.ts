@@ -1,6 +1,17 @@
 import type { Request, Response } from 'express';
 import * as settingsService from '../services/settings.service.js';
 import { asyncHandler, ok } from '../utils/http.js';
+import { emailStatus } from '../services/email/index.js';
+
+/**
+ * Whether outgoing email is actually deliverable, and why not when it is not.
+ * Exposes no credentials — only the provider name, the From header and the
+ * misconfiguration reason — so an admin can see at a glance why an invoice never
+ * reached a customer instead of having to read the App Service log stream.
+ */
+export const getEmailStatus = asyncHandler(async (_req: Request, res: Response) => {
+  return ok(res, emailStatus());
+});
 
 export const getPayment = asyncHandler(async (_req: Request, res: Response) => {
   return ok(res, await settingsService.getPaymentSettings());
