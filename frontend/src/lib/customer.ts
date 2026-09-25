@@ -35,22 +35,59 @@ export function businessTypesLabel(value?: string | null): string {
 }
 
 /**
- * Default invoice payment terms offered on the customer form. The code is
- * stored; the label is what the operator sees. Keep in step with the
+ * The payment terms offered on the customer and invoice forms. The term is the
+ * payment window only — how long the client has to pay — so the list is just the
+ * two windows the business grants. What gets billed, and when the next invoice is
+ * raised, is the invoice's Next Billing Date instead (see lib/proration).
+ *
+ * The code is stored; the label is what the operator sees. Keep in step with the
  * `invoiceTerm` enum in backend/src/validators/customer.validator.ts.
  */
 export const INVOICE_TERMS = [
   { value: 'DUE_ON_RECEIPT', label: 'Due on receipt' },
   { value: 'NET_7', label: 'Net 7 days' },
-  { value: 'NET_14', label: 'Net 14 days' },
-  { value: 'NET_30', label: 'Net 30 days' },
-  { value: 'NET_45', label: 'Net 45 days' },
-  { value: 'NET_60', label: 'Net 60 days' },
-  { value: 'NET_90', label: 'Net 90 days' },
 ] as const;
 
+/**
+ * Terms that were offered before the payment window and the billing cycle were
+ * split apart. Nothing writes these any more, but invoices and product
+ * assignments already carry them, so they still need a label — and the forms
+ * still offer the stored one so opening an old record never silently rewrites
+ * its term.
+ */
+const LEGACY_TERM_LABELS: Record<string, string> = {
+  NET_14: 'Net 14 days',
+  NET_30: 'Net 30 days',
+  NET_45: 'Net 45 days',
+  NET_60: 'Net 60 days',
+  NET_90: 'Net 90 days',
+  'Due on Receipt': 'Due on receipt',
+  '7 Days': 'Net 7 days',
+  '14 Days': 'Net 14 days',
+  '15 Days': 'Net 15 days',
+  '30 Days': 'Net 30 days',
+  '60 Days': 'Net 60 days',
+  '90 Days': 'Net 90 days',
+};
+
 export function invoiceTermLabel(value?: string | null): string {
-  return INVOICE_TERMS.find((t) => t.value === value)?.label ?? value ?? '';
+  if (!value) return '';
+  return (
+    INVOICE_TERMS.find((t) => t.value === value)?.label ?? LEGACY_TERM_LABELS[value] ?? value
+  );
+}
+
+/**
+ * The INVOICE_TERMS code a stored term maps onto, so a product assignment saved
+ * as "Due on Receipt" or "7 Days" selects the matching option instead of showing
+ * up as an extra one. Returns the term unchanged when it has no equivalent.
+ */
+export function normalizeInvoiceTerm(value?: string | null): string {
+  if (!value) return '';
+  if (INVOICE_TERMS.some((t) => t.value === value)) return value;
+  if (value === 'Due on Receipt') return 'DUE_ON_RECEIPT';
+  if (value === '7 Days') return 'NET_7';
+  return value;
 }
 
 /**

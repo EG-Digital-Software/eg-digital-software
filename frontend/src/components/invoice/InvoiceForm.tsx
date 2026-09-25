@@ -16,9 +16,12 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
 import { formatCurrency, cn } from '@/lib/utils';
 import { numericField } from '@/lib/input';
-import { INVOICE_TERMS } from '@/lib/customer';
+import { INVOICE_TERMS, invoiceTermLabel, normalizeInvoiceTerm } from '@/lib/customer';
 import {
   computeProration,
+  computeDueDate,
+  defaultNextBillingDate,
+  termToDays,
   round2,
   fmtDay,
   toDateInput,
@@ -33,13 +36,16 @@ const schema = z
   .object({
     clientId: z.string().min(1, 'Select a customer'),
     invoiceDate: z.string().optional(),
-    // Not user-editable — auto-filled on submit with the billing period's end
-    // (calendar month-end for monthly terms) so it tracks the invoice date/term.
+    // Not user-editable — auto-filled on submit from the invoice date + the
+    // term's payment window.
     dueDate: z.string().optional(),
-    // A preset code (INVOICE_TERMS), a customer's saved term, or the sentinel
-    // 'MANUAL' — in which case the typed term lives in termManual until submit.
+    // The payment window only (INVOICE_TERMS, or a legacy term already stored on
+    // the selected product's assignment).
     term: z.string().optional(),
-    termManual: z.string().optional(),
+    // When the next invoice is raised. Auto-filled with the 1st of the month
+    // after the invoice date, and editable — it drives the billing period and
+    // the pro-rated line amounts.
+    nextBillingDate: z.string().optional(),
     discount: z.coerce.number().min(0).default(0),
     notes: z.string().optional(),
     items: z
@@ -56,10 +62,6 @@ const schema = z
         })
       )
       .min(1),
-  })
-  .refine((v) => v.term !== 'MANUAL' || !!v.termManual?.trim(), {
-    message: 'Enter the payment term',
-    path: ['termManual'],
   });
 type FormValues = z.infer<typeof schema>;
 
@@ -163,7 +165,7 @@ export function InvoiceForm({
     resolver: zodResolver(schema),
     defaultValues: {
       clientId: fixedClientId,
-      term: 'NET_30',
+      term: 'NET_7',
       discount: 0,
       items: [
         { description: '', quantity: 1, unitPrice: 0, taxRate: 10, contractType: 'LOCKED', gstType: 'EXCLUSIVE' },
@@ -175,8 +177,8 @@ export function InvoiceForm({
   const items = watch('items');
   const discount = watch('discount');
   const term = watch('term');
-  const termManual = watch('termManual');
   const invoiceDate = watch('invoiceDate');
+  const nextBillingDate = watch('nextBillingDate');
 
   // The selected customer's full record — carries their product assignments
   // (price, tax, GST/contract type and the agreed invoicing term per product).
@@ -200,15 +202,27 @@ export function InvoiceForm({
     customers?.items.find((c) => c.clientId === fixedClientId)?.companyName ||
     fixedClientId;
 
-  // Billing period + pro-ration for the invoice's issue date and term. The line
-  // amount for a selected product is its agreed net × this fraction, so a
-  // mid-month monthly invoice bills only the days that remain (issue → month-end).
+  // Billing period + pro-ration, driven by the next billing date (NOT the term).
+  // A product line bills its agreed net × this fraction, so an invoice issued
+  // mid-month covers only the days up to the next billing date.
   const proration = useMemo(
-    () => computeProration(invoiceDate, term, termManual),
-    [invoiceDate, term, termManual]
+    () => computeProration(invoiceDate, nextBillingDate),
+    [invoiceDate, nextBillingDate]
   );
   const fraction = proration?.fraction ?? 1;
   const period = proration ? `${fmtDay(proration.start)} to ${fmtDay(proration.end)}` : '';
+
+  // The due date is the term's payment window from the invoice date — the only
+  // thing the term decides.
+  const due = useMemo(() => computeDueDate(invoiceDate, term), [invoiceDate, term]);
+
+  // Keep the next billing date auto-filled for the chosen invoice date. Only
+  // fills a blank field, so an admin's own override is never overwritten.
+  useEffect(() => {
+    if (nextBillingDate) return;
+    const next = defaultNextBillingDate(invoiceDate);
+    if (next) setValue('nextBillingDate', toDateInput(next));
+  }, [invoiceDate, nextBillingDate, setValue]);
 
   // Full agreed net for the licence group a product belongs to (before pro-rata).
   const groupBaseFor = (productId?: string): number | null => {
@@ -224,10 +238,9 @@ export function InvoiceForm({
     if (!g || !g.items.length) return;
     const rep = g.items[0];
     const grpTerm = g.items.find((cp) => cp.invoicingTerm)?.invoicingTerm;
-    // Pro-rate the agreed net by the days the invoice covers (see proration).
-    // Use the group's own term for the fraction so it's right even before the
-    // Term field re-renders.
-    const frac = computeProration(invoiceDate, grpTerm ?? term, termManual)?.fraction ?? 1;
+    // Pro-rate the agreed net by the days this invoice covers. The fraction comes
+    // from the billing period, so picking a product no longer depends on the term.
+    const frac = fraction;
     const base = licenceGroupNet(g);
     update(index, {
       productId: rep.product.id,
@@ -240,7 +253,7 @@ export function InvoiceForm({
       contractType: (rep.contractType === 'TRIAL' ? 'TRIAL' : 'LOCKED') as 'LOCKED' | 'TRIAL',
       gstType: (rep.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE',
     });
-    if (grpTerm) setValue('term', grpTerm);
+    if (grpTerm) setValue('term', normalizeInvoiceTerm(grpTerm));
   };
 
   useEffect(() => {
@@ -295,13 +308,12 @@ export function InvoiceForm({
 
   return (
     <form
-      onSubmit={handleSubmit(({ termManual: tm, ...v }) =>
+      onSubmit={handleSubmit((v) =>
         mutation.mutate({
           ...v,
-          term: v.term === 'MANUAL' ? tm?.trim() || undefined : v.term,
-          // Auto-filled due date = billing period end; local parts (not
-          // toISOString) so a UTC+ timezone can't shift month-end back a day.
-          dueDate: proration ? toDateInput(proration.end) : undefined,
+          // Auto-filled due date = invoice date + the term's payment window.
+          // Local parts (not toISOString) so a UTC+ timezone can't shift the day.
+          dueDate: due ? toDateInput(due) : undefined,
         })
       )}
       className="space-y-6"
@@ -327,34 +339,39 @@ export function InvoiceForm({
           <Field label="Invoice Date">
             <Input className={FILLED_CONTROL} type="date" {...register('invoiceDate')} />
           </Field>
-          <Field label="Term" hint="Auto-set from the selected product's agreed invoicing term">
+          <Field label="Term" hint="How long the client has to pay">
             <Select className={FILLED_CONTROL} {...register('term')}>
               {INVOICE_TERMS.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
                 </option>
               ))}
-              {term && term !== 'MANUAL' && !INVOICE_TERMS.some((t) => t.value === term) && (
-                <option value={term}>{term}</option>
+              {/* A term already stored on the selected product's assignment that
+                  is no longer offered — keep it selectable so picking that
+                  product never silently rewrites its agreed term. */}
+              {term && !INVOICE_TERMS.some((t) => t.value === term) && (
+                <option value={term}>{invoiceTermLabel(term)}</option>
               )}
-              <option value="MANUAL">Enter manually…</option>
             </Select>
           </Field>
-          {term === 'MANUAL' && (
-            <Field label="Term (manual)" error={errors.termManual?.message} hint="e.g. Net 21 days or 50% upfront">
-              <Input className={FILLED_CONTROL} placeholder="e.g. Net 21 days" maxLength={60} {...register('termManual')} />
-            </Field>
-          )}
           <Field label="Due Date">
-            {/* Auto-filled (read-only) with the billing period's end — the last
-                day of the calendar month for monthly terms. Moves with the
-                invoice date / term. */}
+            {/* Auto-filled (read-only) = invoice date + the term's payment
+                window. Moves with the invoice date and term. */}
             <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-muted-foreground">
-              {proration ? fmtDay(proration.end) : '—'}
+              {due ? fmtDay(due) : '—'}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Pay within {termToDays(term)} day{termToDays(term) === 1 ? '' : 's'} of the invoice date
+            </p>
+          </Field>
+          <Field label="Next Billing Date">
+            {/* Drives the billing period and the pro-rated line amounts.
+                Auto-filled with the 1st of the next month; editable. */}
+            <Input className={FILLED_CONTROL} type="date" {...register('nextBillingDate')} />
             {proration && (
               <p className="text-xs text-muted-foreground">
-                Billing period: {fmtDay(proration.start)} to {fmtDay(proration.end)}
+                Billing period: {fmtDay(proration.start)} to {fmtDay(proration.end)} (
+                {proration.billedDays}/{proration.periodDays} days)
               </p>
             )}
           </Field>

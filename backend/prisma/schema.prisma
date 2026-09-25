@@ -261,7 +261,7 @@ model Customer {
   // ── Company Information ────────────────────────────────
   /// ISO-3166 alpha-2 country the business is registered in. Drives which
   /// company identifiers the form collects (ABN/ACN for AU, CRN/VAT for GB, …).
-  registrationCountry String?       @default("AU")
+  registrationCountry String?  @default("AU")
   /// Country-specific registration/tax identifiers, keyed by field (e.g.
   /// { abn, acn } for AU, { companyNumber, vat } for GB). See lib/company.ts.
   companyIdentifiers  Json?
@@ -304,17 +304,17 @@ model Customer {
   /// Credit score as reported by the bureau (0–1200).
   creditScore                 Int?
 
-  reference     String?
-  status        CustomerStatus        @default(ACTIVE)
+  reference        String?
+  status           CustomerStatus        @default(ACTIVE)
   /// Manual account-standing override. Left at ACTIVE, the effective standing is
   /// auto-derived from invoice activity (see CustomerAccountStatus).
-  accountStatus CustomerAccountStatus @default(ACTIVE)
+  accountStatus    CustomerAccountStatus @default(ACTIVE)
   /// Team member (EmployeeUser) an admin assigns as this client's account
   /// manager — shown to the client in their portal. Optional.
   accountManagerId String?
-  accountManager   EmployeeUser? @relation("CustomerAccountManager", fields: [accountManagerId], references: [id])
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  accountManager   EmployeeUser?         @relation("CustomerAccountManager", fields: [accountManagerId], references: [id])
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   addresses        Address[]
   customerProducts CustomerProduct[]
@@ -338,8 +338,8 @@ model Customer {
 /// section of the customer form). Stored raw — no compression, no size cap — so
 /// the original downloads intact.
 model CustomerDocument {
-  id           String   @id @default(uuid())
-  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid())
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   customerId   String
   fileName     String
   url          String
@@ -349,7 +349,7 @@ model CustomerDocument {
   /// client to fill + sign) → SUBMITTED (client returned the signed copy, awaiting
   /// admin approval) → APPROVED (admin signed off, client can download the final
   /// PDF). Legacy rows may still read PENDING; the UI treats that as AWAITING_CLIENT.
-  status       String   @default("AWAITING_CLIENT")
+  status       String    @default("AWAITING_CLIENT")
   /// Editable regions the admin marks on the (usually flat) PDF for the client to
   /// fill: an array of { id, kind: 'text'|'signature', label, page, xPct, yPct,
   /// wPct, hPct } with coordinates as page fractions (top-left origin).
@@ -362,7 +362,7 @@ model CustomerDocument {
   approvedAt   DateTime?
   approvedById String?
   uploadedById String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@index([customerId])
 }
@@ -457,49 +457,49 @@ model Product {
 }
 
 model CustomerProduct {
-  id         String        @id @default(uuid())
-  customer   Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  customerId String
-  product    Product       @relation(fields: [productId], references: [id])
-  productId  String
-  price      Decimal       @default(0) @db.Decimal(12, 2)
+  id               String        @id @default(uuid())
+  customer         Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId       String
+  product          Product       @relation(fields: [productId], references: [id])
+  productId        String
+  price            Decimal       @default(0) @db.Decimal(12, 2)
   /// Per-customer agreed price entered when the product is assigned (products no
   /// longer carry their own price).
-  unit       String?
+  unit             String?
   /// Optional Unit/Hours multiplier. When enabled, the total is agreed price ×
   /// unitHours (+ GST); when disabled it is the agreed price as-is. Shared across
   /// a licence group.
-  unitHoursEnabled Boolean  @default(false)
-  unitHours        Decimal? @db.Decimal(12, 2)
-  taxRate    Decimal       @default(0) @db.Decimal(5, 2)
-  issueDate  DateTime      @default(now())
-  expiryDate DateTime?
-  status     LicenceStatus @default(ACTIVE)
+  unitHoursEnabled Boolean       @default(false)
+  unitHours        Decimal?      @db.Decimal(12, 2)
+  taxRate          Decimal       @default(0) @db.Decimal(5, 2)
+  issueDate        DateTime      @default(now())
+  expiryDate       DateTime?
+  status           LicenceStatus @default(ACTIVE)
   /// Contract type chosen when the product is assigned: LOCKED (committed term)
   /// or TRIAL (evaluation period).
-  contractType String     @default("LOCKED")
+  contractType     String        @default("LOCKED")
   /// Whether the agreed price is GST-INCLUSIVE (price already contains GST) or
   /// GST-EXCLUSIVE (GST added on top). Drives the total-amount calculation.
-  gstType      String     @default("EXCLUSIVE")
+  gstType          String        @default("EXCLUSIVE")
   /// Invoicing/payment term agreed when the product is assigned (e.g. "30 Days",
   /// "Due on Receipt"). Shown to the client in their portal's Invoicing Details.
-  invoicingTerm String?
+  invoicingTerm    String?
   /// Advance recurring billing. When on, invoices auto-generate at the START of
   /// each billing period (monthly on the 1st for monthly terms; every N days for
   /// other terms), are emailed to the client and shown as payable in the portal.
   /// Shared across a licence group.
-  advancePayment Boolean @default(false)
+  advancePayment   Boolean       @default(false)
   /// Start date of the next billing period to invoice — the advance-billing
   /// driver. Set when advance billing is enabled; advanced past each generated
   /// invoice's period. Null when advance billing is off.
-  nextInvoiceDate DateTime?
+  nextInvoiceDate  DateTime?
   /// Approval state for the product. Admin-assigned products are APPROVED
   /// immediately; products a client adds themselves start as PENDING and show
   /// "Pending" to the client until an admin approves them.
-  approvalStatus String     @default("APPROVED")
-  notes      String?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  approvalStatus   String        @default("APPROVED")
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   licence Licence?
 
@@ -528,29 +528,37 @@ model Licence {
 // ─── Billing ──────────────────────────────────────────────
 
 model Invoice {
-  id            String        @id @default(uuid())
-  invoiceNumber String        @unique
-  customer      Customer      @relation(fields: [customerId], references: [id])
-  customerId    String
-  invoiceDate   DateTime      @default(now())
-  dueDate       DateTime
-  term          String? // e.g. "30 Days", "Due on Receipt", "Custom"
-  customDays    Int?
+  id              String        @id @default(uuid())
+  invoiceNumber   String        @unique
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  customerId      String
+  invoiceDate     DateTime      @default(now())
+  /// Invoice date + the term's payment window — when payment is due.
+  dueDate         DateTime
+  /// The payment window only: how long the client has to pay (DUE_ON_RECEIPT,
+  /// NET_7; older invoices may carry longer terms). It does NOT decide what is
+  /// billed — nextBillingDate does.
+  term            String?
+  /// Start of the next billing period — when the following invoice is raised.
+  /// Drives this invoice's billing period and pro-rated line amounts. Null on
+  /// invoices raised before the payment term and billing cycle were split apart.
+  nextBillingDate DateTime?
+  customDays      Int?
   // Auto-generated, globally unique reference (e.g. EGD-REF-2026-00001). An
   // admin may override it, but it can never collide with another invoice.
-  reference     String?       @unique
-  subtotal      Decimal       @default(0) @db.Decimal(12, 2)
-  tax           Decimal       @default(0) @db.Decimal(12, 2)
-  discount      Decimal       @default(0) @db.Decimal(12, 2)
-  total         Decimal       @default(0) @db.Decimal(12, 2)
-  amountPaid    Decimal       @default(0) @db.Decimal(12, 2)
-  currency      String        @default("AUD")
-  status        InvoiceStatus @default(DRAFT)
-  paymentUrl    String?
-  paymentQrUrl  String?
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  reference       String?       @unique
+  subtotal        Decimal       @default(0) @db.Decimal(12, 2)
+  tax             Decimal       @default(0) @db.Decimal(12, 2)
+  discount        Decimal       @default(0) @db.Decimal(12, 2)
+  total           Decimal       @default(0) @db.Decimal(12, 2)
+  amountPaid      Decimal       @default(0) @db.Decimal(12, 2)
+  currency        String        @default("AUD")
+  status          InvoiceStatus @default(DRAFT)
+  paymentUrl      String?
+  paymentQrUrl    String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   items    InvoiceItem[]
   payments Payment[]
@@ -562,23 +570,23 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String   @id @default(uuid())
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoiceId   String
-  product     Product? @relation(fields: [productId], references: [id])
-  productId   String?
-  sku         String?
-  description String
-  quantity    Int      @default(1)
-  unitPrice   Decimal  @default(0) @db.Decimal(12, 2)
-  taxRate     Decimal  @default(0) @db.Decimal(5, 2)
-  taxAmount   Decimal  @default(0) @db.Decimal(12, 2)
-  lineTotal   Decimal  @default(0) @db.Decimal(12, 2)
+  id           String   @id @default(uuid())
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId    String
+  product      Product? @relation(fields: [productId], references: [id])
+  productId    String?
+  sku          String?
+  description  String
+  quantity     Int      @default(1)
+  unitPrice    Decimal  @default(0) @db.Decimal(12, 2)
+  taxRate      Decimal  @default(0) @db.Decimal(5, 2)
+  taxAmount    Decimal  @default(0) @db.Decimal(12, 2)
+  lineTotal    Decimal  @default(0) @db.Decimal(12, 2)
   /// Contract term for this line: LOCKED (committed) or TRIAL (evaluation).
-  contractType String  @default("LOCKED")
+  contractType String   @default("LOCKED")
   /// Whether unitPrice is GST-INCLUSIVE (price contains GST) or EXCLUSIVE (GST
   /// added on top). Drives this line's tax split and total.
-  gstType      String  @default("EXCLUSIVE")
+  gstType      String   @default("EXCLUSIVE")
 
   @@index([invoiceId])
 }
@@ -693,32 +701,32 @@ model TaskLabel {
 }
 
 model Task {
-  id          String       @id @default(uuid())
+  id                    String       @id @default(uuid())
   /// Human-readable unique identifier (TSK-EGD-5000, TSK-EGD-5001, …). Auto
   /// generated from the `taskNumber` counter; the uuid above stays the PK so
   /// child rows (assignees/labels/checklist/comments/attachments) keep working.
-  taskNumber  String       @unique
-  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  customerId  String
-  bucket      TaskBucket   @relation(fields: [bucketId], references: [id], onDelete: Cascade)
-  bucketId    String
-  title       String
-  description String?
+  taskNumber            String       @unique
+  customer              Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId            String
+  bucket                TaskBucket   @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+  bucketId              String
+  title                 String
+  description           String?
   /// Display name of whoever last wrote the notes, and when — shown in the
   /// "Full Notes" popup so everyone can see who authored the description.
   descriptionAuthorName String?
   descriptionUpdatedAt  DateTime?
-  progress    TaskProgress @default(NOT_STARTED)
-  priority    TaskPriority @default(MEDIUM)
-  startDate   DateTime?
-  dueDate     DateTime?
+  progress              TaskProgress @default(NOT_STARTED)
+  priority              TaskPriority @default(MEDIUM)
+  startDate             DateTime?
+  dueDate               DateTime?
   /// Position within the bucket (0-based, ascending).
-  order       Int          @default(0)
-  completedAt DateTime?
+  order                 Int          @default(0)
+  completedAt           DateTime?
   /// AdminUser id that created the task (for the activity trail).
-  createdById String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdById           String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   assignees   TaskAssignee[]
   labels      TaskLabelLink[]
@@ -814,12 +822,12 @@ model TaskComment {
 }
 
 model TaskAttachment {
-  id           String   @id @default(uuid())
-  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id           String        @id @default(uuid())
+  task         Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
   taskId       String
   /// Set when the file was sent inside a chat message; null for task-level
   /// (Attachments tab) uploads. Deleting the message removes its files.
-  comment      TaskComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  comment      TaskComment?  @relation(fields: [commentId], references: [id], onDelete: Cascade)
   commentId    String?
   /// Set when the file was uploaded with an approval request; null otherwise.
   /// Kept out of the task-level Attachments tab so it stays scoped to the request.
@@ -829,13 +837,13 @@ model TaskAttachment {
   /// chat/approval files), ARCHIVE = the Archive tab (admin-managed media the
   /// client/team can only view). Kept a plain string like TaskNote.kind so no
   /// enum migration is needed.
-  kind         String   @default("TASK")
+  kind         String        @default("TASK")
   fileName     String
   url          String
   size         Int
   contentType  String?
   uploadedById String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime      @default(now())
 
   @@index([taskId])
   @@index([taskId, kind])
@@ -869,7 +877,7 @@ model TaskApproval {
 
   /// Images/files uploaded with the request. Stored raw (no compression) so the
   /// customer can download them at their original size and pixels.
-  attachments     TaskAttachment[]
+  attachments TaskAttachment[]
 
   @@index([taskId])
 }

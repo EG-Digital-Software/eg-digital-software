@@ -1389,14 +1389,20 @@ function ProductsTab({ customer }: { customer: Customer }) {
                 </Select>
               </Field>
               <Field label="Invoicing Term">
+                {/* The payment window only — how long the client has to pay an
+                    invoice. Billing frequency is not set here: advance billing
+                    runs on calendar months and each invoice carries its own Next
+                    Billing Date. A term already saved on this assignment that is
+                    no longer offered stays selectable so opening the form never
+                    silently rewrites it. */}
                 <Select value={form.invoicingTerm} onChange={(e) => set('invoicingTerm', e.target.value)}>
                   <option value="">—</option>
                   <option value="Due on Receipt">Due on Receipt</option>
                   <option value="7 Days">7 Days</option>
-                  <option value="14 Days">14 Days</option>
-                  <option value="30 Days">30 Days</option>
-                  <option value="60 Days">60 Days</option>
-                  <option value="90 Days">90 Days</option>
+                  {form.invoicingTerm &&
+                    !['', 'Due on Receipt', '7 Days'].includes(form.invoicingTerm) && (
+                      <option value={form.invoicingTerm}>{form.invoicingTerm}</option>
+                    )}
                 </Select>
               </Field>
               <Field label="Total Amount">

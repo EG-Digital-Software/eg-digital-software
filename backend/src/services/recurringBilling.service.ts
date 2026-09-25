@@ -7,47 +7,20 @@ import { createInvoice, sendInvoiceEmail } from './invoice.service.js';
  * Advance recurring billing.
  *
  * A licence group opted into advance payment is invoiced at the START of each
- * billing period. Monthly (30-day) terms bill on calendar months anchored to
- * the 1st — the first invoice after a mid-month start is pro-rated by the days
- * left in that month; every later invoice is a full month. Other terms bill on
- * rolling periods of their own length (e.g. 90 days), starting from the assign
- * date — each period is full, so no pro-ration.
+ * billing period. Billing runs on calendar months anchored to the 1st: the first
+ * invoice after a mid-month start is pro-rated by the days left in that month,
+ * and every later invoice is a full month.
  *
- * `nextInvoiceDate` on the CustomerProduct is the driver: it holds the start of
- * the next period to bill. After each invoice it advances past that period, so
+ * The payment term is NOT part of this — it only sets how long the client has to
+ * pay each invoice (see resolveDueDate in invoice.service). The billing cycle is
+ * carried by dates: `nextInvoiceDate` on the CustomerProduct is the driver, and
+ * each generated invoice records the start of the following period as its own
+ * `nextBillingDate`. After each invoice the cursor advances past that period, so
  * re-runs never double-bill and a lapsed scheduler catches up one period a loop.
+ *
+ * Advance billing is opted into per licence group (`advancePayment` plus a
+ * `nextInvoiceDate` cursor); nothing about the term decides whether it recurs.
  */
-
-// ── Term → billing shape ────────────────────────────────────
-/** Days a term spans (mirrors resolveDueDate in invoice.service). */
-function termToDays(term?: string | null): number {
-  const t = (term ?? '').trim();
-  const map: Record<string, number> = {
-    DUE_ON_RECEIPT: 0,
-    'Due on Receipt': 0,
-    NET_7: 7,
-    '7 Days': 7,
-    NET_14: 14,
-    '14 Days': 14,
-    '15 Days': 15,
-    NET_30: 30,
-    '30 Days': 30,
-    NET_45: 45,
-    NET_60: 60,
-    NET_90: 90,
-  };
-  if (t in map) return map[t];
-  const m = /(\d+)/.exec(t);
-  return m ? parseInt(m[1], 10) : 30;
-}
-/** 30-day/monthly terms bill on calendar months (anchored to the 1st). */
-function isMonthlyTerm(term?: string | null): boolean {
-  return termToDays(term) === 30;
-}
-/** A recurring term produces repeating invoices; one-off terms (Due on Receipt) don't. */
-function isRecurringTerm(term?: string | null): boolean {
-  return termToDays(term) > 0;
-}
 
 // ── Date helpers (calendar, local server time) ──────────────
 function startOfDay(d: Date): Date {
@@ -59,11 +32,6 @@ function endOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
-}
-function addDays(d: Date, n: number): Date {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return startOfDay(x);
 }
 function daysInMonth(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
@@ -89,17 +57,21 @@ interface Period {
   nextStart: Date;
 }
 
-/** The billing period that begins at `periodStart` for the given term. */
-function computePeriod(term: string | null | undefined, periodStart: Date): Period {
+/**
+ * The calendar-month billing period that begins at `periodStart`. A period that
+ * starts mid-month runs to that month's end and is pro-rated by the days it
+ * covers; a period starting on the 1st is a full month (fraction 1).
+ */
+function computePeriod(periodStart: Date): Period {
   const start = startOfDay(periodStart);
-  if (isMonthlyTerm(term)) {
-    const dim = daysInMonth(start);
-    const end = lastDayOfMonth(start);
-    const billedDays = dim - start.getDate() + 1; // inclusive
-    return { start, end, fraction: billedDays / dim, nextStart: firstOfNextMonth(start) };
-  }
-  const n = termToDays(term) || 30;
-  return { start, end: addDays(start, n - 1), fraction: 1, nextStart: addDays(start, n) };
+  const dim = daysInMonth(start);
+  const billedDays = dim - start.getDate() + 1; // inclusive of the start day
+  return {
+    start,
+    end: lastDayOfMonth(start),
+    fraction: billedDays / dim,
+    nextStart: firstOfNextMonth(start),
+  };
 }
 
 // ── Grouping ────────────────────────────────────────────────
@@ -117,11 +89,13 @@ function groupKey(cp: CpWithRels): string {
  */
 async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
   let made = 0;
-  // The whole group shares nextInvoiceDate/term (mirrored on assignment).
+  // The whole group shares nextInvoiceDate/term (mirrored on assignment). The
+  // cursor alone decides whether this group recurs — the term is just the payment
+  // window passed through to each invoice.
   let cursor = group[0]?.nextInvoiceDate;
   const term = group[0]?.invoicingTerm ?? null;
   const clientId = group[0]?.customer.clientId;
-  if (!cursor || !clientId || !isRecurringTerm(term)) return 0;
+  if (!cursor || !clientId) return 0;
 
   const today = endOfDay(asOf);
   // Stop once the period start passes the licence expiry, if any.
@@ -134,7 +108,7 @@ async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
       cursor = null;
       break;
     }
-    const period = computePeriod(term, cursor);
+    const period = computePeriod(cursor);
 
     const items = group.map((cp) => {
       const units = cp.unitHoursEnabled ? Number(cp.unitHours) || 0 : 1;
@@ -152,11 +126,12 @@ async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
       };
     });
 
-    // Advance billing: dated at the period start, due on receipt.
+    // Dated at the period start, carrying the next period's start as its billing
+    // cycle. The due date is left to the term's payment window (resolveDueDate).
     const invoice = await createInvoice({
       clientId,
       invoiceDate: period.start,
-      dueDate: period.start,
+      nextBillingDate: period.nextStart,
       term: term ?? undefined,
       discount: 0,
       status: 'SENT',

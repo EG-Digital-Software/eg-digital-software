@@ -206,6 +206,10 @@ export default function InvoiceDetailPage() {
             <Detail label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
             <Detail label="Due Date" value={formatDate(invoice.dueDate)} />
             <Detail label="Term" value={invoiceTermLabel(invoice.term)} />
+            <Detail
+              label="Next Billing Date"
+              value={invoice.nextBillingDate ? formatDate(invoice.nextBillingDate) : '—'}
+            />
             <Detail label="Reference" value={invoice.reference} />
           </div>
 

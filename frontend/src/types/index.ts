@@ -295,8 +295,16 @@ export interface Invoice {
   id: string;
   invoiceNumber: string;
   invoiceDate: string;
+  /** Invoice date + the term's payment window — when payment is due. */
   dueDate: string;
+  /** The payment window only (e.g. DUE_ON_RECEIPT, NET_7), not the billing cycle. */
   term?: string | null;
+  /**
+   * When the next invoice is raised. Drives this invoice's billing period and
+   * pro-rated line amounts. Null on invoices raised before the payment term and
+   * the billing cycle were split apart.
+   */
+  nextBillingDate?: string | null;
   reference?: string | null;
   subtotal: string;
   tax: string;

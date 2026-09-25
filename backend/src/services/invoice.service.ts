@@ -163,50 +163,55 @@ export async function previewNextInvoiceReference(): Promise<string> {
   return formatInvoiceReference((counter?.value ?? 0) + 1);
 }
 
+/**
+ * The due date: invoice date + the term's payment window. The term decides only
+ * how long the client has to pay — never what is billed or when the next invoice
+ * is raised (that is nextBillingDate). Mirrors termToDays in the frontend's
+ * lib/proration so both sides agree on the day.
+ *
+ * Only two terms are offered now, but invoices and product assignments written
+ * before the split still carry longer ones, so those keep resolving to their own
+ * length instead of silently becoming net 7.
+ */
 function resolveDueDate(invoiceDate: Date, term?: string, customDays?: number, dueDate?: Date): Date {
   if (dueDate) return dueDate;
   const base = new Date(invoiceDate);
   const add = (days: number) => new Date(base.getTime() + days * 86_400_000);
-  switch (term) {
-    // Customer invoice-term codes (mirrors INVOICE_TERMS on the frontend).
+  switch ((term ?? '').trim()) {
+    case '':
     case 'DUE_ON_RECEIPT':
-      return base;
-    case 'NET_7':
-      return add(7);
-    case 'NET_14':
-      return add(14);
-    case 'NET_30':
-      return add(30);
-    case 'NET_45':
-      return add(45);
-    case 'NET_60':
-      return add(60);
-    case 'NET_90':
-      return add(90);
-    // Legacy strings from older invoices.
     case 'Due on Receipt':
       return base;
+    case 'NET_7':
     case '7 Days':
       return add(7);
-    case '15 Days':
-      return add(15);
-    case '30 Days':
-      return add(30);
     case 'Custom':
-      return add(customDays ?? 30);
+      return add(customDays ?? 0);
     default: {
-      // Manually-entered terms (e.g. "Net 21 days") — use the first number found.
+      // Legacy terms (NET_30, "90 Days", a hand-typed "Net 21 days"…).
       const m = /(\d+)/.exec(term ?? '');
-      return add(m ? parseInt(m[1], 10) : 30);
+      return add(m ? parseInt(m[1], 10) : 0);
     }
   }
+}
+
+/**
+ * Default next billing date for monthly billing: the 1st of the month after the
+ * invoice date. Used when a caller does not supply one, so every invoice carries
+ * the billing cycle it belongs to.
+ */
+function defaultNextBillingDate(invoiceDate: Date): Date {
+  return new Date(invoiceDate.getFullYear(), invoiceDate.getMonth() + 1, 1);
 }
 
 type CreateInput = {
   clientId: string;
   invoiceDate?: Date;
   dueDate?: Date;
+  /** The payment window only — how long the client has to pay. */
   term?: string;
+  /** Start of the next billing period; defaults to the 1st of the next month. */
+  nextBillingDate?: Date;
   customDays?: number;
   reference?: string;
   discount: number;
@@ -230,6 +235,7 @@ export async function createInvoice(input: CreateInput) {
 
   const invoiceDate = input.invoiceDate ?? new Date();
   const dueDate = resolveDueDate(invoiceDate, input.term, input.customDays, input.dueDate);
+  const nextBillingDate = input.nextBillingDate ?? defaultNextBillingDate(invoiceDate);
   const totals = computeInvoiceTotals(input.items, input.discount);
 
   const invoice = await prisma.$transaction(async (tx) => {
@@ -252,6 +258,7 @@ export async function createInvoice(input: CreateInput) {
         invoiceDate,
         dueDate,
         term: input.term,
+        nextBillingDate,
         customDays: input.customDays,
         reference,
         subtotal: totals.subtotal,
@@ -399,7 +406,10 @@ export async function sendInvoiceEmail(id: string): Promise<{ recipients: string
 type UpdateInput = {
   invoiceDate?: Date;
   dueDate?: Date;
+  /** The payment window only — how long the client has to pay. */
   term?: string;
+  /** Start of the next billing period; defaults to the 1st of the next month. */
+  nextBillingDate?: Date;
   customDays?: number;
   reference?: string;
   discount: number;
@@ -421,6 +431,10 @@ export async function updateInvoice(id: string, input: UpdateInput) {
 
   const invoiceDate = input.invoiceDate ?? existing.invoiceDate;
   const dueDate = resolveDueDate(invoiceDate, input.term, input.customDays, input.dueDate);
+  // Keep whatever the invoice already had when the caller sends nothing, so an
+  // update never quietly moves the billing cycle.
+  const nextBillingDate =
+    input.nextBillingDate ?? existing.nextBillingDate ?? defaultNextBillingDate(invoiceDate);
   const totals = computeInvoiceTotals(input.items, input.discount);
   // Keep the existing reference unless a new non-empty one is supplied.
   const reference = input.reference?.trim() || existing.reference || undefined;
@@ -433,6 +447,7 @@ export async function updateInvoice(id: string, input: UpdateInput) {
         invoiceDate,
         dueDate,
         term: input.term,
+        nextBillingDate,
         customDays: input.customDays ?? null,
         ...(reference ? { reference } : {}),
         subtotal: totals.subtotal,

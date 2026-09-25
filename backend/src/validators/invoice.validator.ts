@@ -15,7 +15,10 @@ export const createInvoiceSchema = z.object({
   clientId: z.string().min(1, 'Customer is required'),
   invoiceDate: z.coerce.date().optional(),
   dueDate: z.coerce.date().optional(),
+  // The payment window only: how long the client has to pay.
   term: z.string().optional(),
+  // Start of the next billing period — drives the billing period and pro-rata.
+  nextBillingDate: z.coerce.date().optional(),
   customDays: z.coerce.number().int().positive().optional(),
   reference: z.string().optional(),
   discount: z.coerce.number().min(0).default(0),
@@ -29,7 +32,10 @@ export const createInvoiceSchema = z.object({
 export const updateInvoiceSchema = z.object({
   invoiceDate: z.coerce.date().optional(),
   dueDate: z.coerce.date().optional(),
+  // The payment window only: how long the client has to pay.
   term: z.string().optional(),
+  // Start of the next billing period — drives the billing period and pro-rata.
+  nextBillingDate: z.coerce.date().optional(),
   customDays: z.coerce.number().int().positive().optional(),
   reference: z.string().optional(),
   discount: z.coerce.number().min(0).default(0),

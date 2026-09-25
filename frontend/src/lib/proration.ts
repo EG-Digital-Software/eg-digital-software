@@ -3,7 +3,17 @@ import type { CustomerProduct } from '@/types';
 /**
  * Shared billing-period + pro-ration helpers for the invoice create and edit
  * forms, so both compute an invoice's billing period and line amounts exactly
- * the same way. Mirrors the backend's resolveDueDate term handling.
+ * the same way.
+ *
+ * Two independent dates come off an invoice, and they must not be conflated:
+ *
+ *   * **Term** is the payment window only — how long the client has to pay.
+ *     Due on receipt = the invoice date itself; Net 7 = seven days later.
+ *     It never affects what is billed. Mirrors the backend's resolveDueDate.
+ *   * **Next billing date** is when the following invoice is raised, and it is
+ *     what drives the billing period and pro-rata. Monthly billing puts it on
+ *     the 1st of the next month, so an invoice issued mid-month covers only the
+ *     days that remain (issue day → next billing date, exclusive).
  */
 
 /** Per-product Unit/Hours multiplier (1 when the product isn't unit-priced). */
@@ -64,37 +74,69 @@ export function toDateInput(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Days a term adds to the invoice date (mirrors backend resolveDueDate). */
-export function termToDays(term?: string, termManual?: string): number {
-  const parse = (s?: string) => {
-    const m = /(\d+)/.exec(s ?? '');
-    return m ? parseInt(m[1], 10) : 30;
-  };
-  switch (term) {
+/**
+ * Days the term gives the client to pay, counted from the invoice date. Only two
+ * terms are offered now (due on receipt, net 7), but invoices and product
+ * assignments written before that still carry longer terms, so those keep
+ * resolving to their own length rather than silently becoming net 7.
+ */
+export function termToDays(term?: string | null): number {
+  switch ((term ?? '').trim()) {
+    case '':
     case 'DUE_ON_RECEIPT':
     case 'Due on Receipt':
       return 0;
     case 'NET_7':
     case '7 Days':
       return 7;
-    case 'NET_14':
-      return 14;
-    case '15 Days':
-      return 15;
-    case 'NET_30':
-    case '30 Days':
-      return 30;
-    case 'NET_45':
-      return 45;
-    case 'NET_60':
-      return 60;
-    case 'NET_90':
-      return 90;
-    case 'MANUAL':
-      return parse(termManual);
-    default:
-      return parse(term);
+    default: {
+      // Legacy terms (NET_30, "90 Days", a hand-typed "Net 21 days"…).
+      const m = /(\d+)/.exec(term ?? '');
+      return m ? parseInt(m[1], 10) : 0;
+    }
   }
+}
+
+/** Days in the calendar month `d` falls in. */
+function daysInMonth(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+}
+
+/** A date shifted by whole days, with the time cleared. */
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  return x;
+}
+
+/** Parse a "YYYY-MM-DD" form value as a local date (never UTC). */
+export function parseDateInput(value?: string | null): Date | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  const d = m
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    : new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * The due date: invoice date + the term's payment window. This is the only thing
+ * the term decides — it is independent of the billing period.
+ */
+export function computeDueDate(invoiceDate?: string, term?: string | null): Date | null {
+  const start = parseDateInput(invoiceDate) ?? new Date();
+  if (isNaN(start.getTime())) return null;
+  return addDays(start, termToDays(term));
+}
+
+/**
+ * Default next billing date for monthly billing: the 1st of the month after the
+ * invoice date. This is the old 30-day term's month-end logic, expressed as the
+ * day the next invoice is raised rather than as a payment term.
+ */
+export function defaultNextBillingDate(invoiceDate?: string): Date | null {
+  const start = parseDateInput(invoiceDate) ?? new Date();
+  if (isNaN(start.getTime())) return null;
+  return new Date(start.getFullYear(), start.getMonth() + 1, 1);
 }
 
 export interface Proration {
@@ -106,27 +148,31 @@ export interface Proration {
 }
 
 /**
- * Billing period + pro-ration for the invoice's issue date and term.
+ * Billing period + pro-ration for an invoice.
  *
- * Monthly (30-day) terms bill on the calendar month: the period runs from the
- * invoice date to that month's last day, and the amount is pro-rated by the days
- * that remain (e.g. issued on the 6th of a 30-day month → 25/30). Other terms
- * run a full period of their own length from the invoice date (fraction 1).
+ * The period runs from the invoice date up to (but not including) the next
+ * billing date, and the fraction is those days over a full month — so an invoice
+ * issued on the 12th of a 31-day month with the next billing on the 1st bills
+ * 20/31 of the agreed monthly price. A next billing date pushed further out
+ * bills proportionally more, which is what an admin overriding it intends.
  */
-export function computeProration(
-  invoiceDate?: string,
-  term?: string,
-  termManual?: string
-): Proration | null {
-  const start = invoiceDate ? new Date(invoiceDate) : new Date();
+export function computeProration(invoiceDate?: string, nextBillingDate?: string): Proration | null {
+  const start = parseDateInput(invoiceDate) ?? new Date();
   if (isNaN(start.getTime())) return null;
-  const days = termToDays(term, termManual);
-  if (days === 30) {
-    const dim = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
-    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-    const billed = dim - start.getDate() + 1; // inclusive of the issue day
-    return { start, end, fraction: billed / dim, billedDays: billed, periodDays: dim };
+  const next = parseDateInput(nextBillingDate) ?? defaultNextBillingDate(invoiceDate);
+  if (!next) return null;
+  const periodDays = daysInMonth(start);
+  const billedDays = Math.round((next.getTime() - start.getTime()) / 86_400_000);
+  // A next billing date on or before the invoice date bills nothing.
+  if (billedDays <= 0) {
+    return { start, end: start, fraction: 0, billedDays: 0, periodDays };
   }
-  const end = new Date(start.getTime() + Math.max(days, 0) * 86_400_000);
-  return { start, end, fraction: 1, billedDays: days, periodDays: days };
+  return {
+    start,
+    // The period's last day — the day before the next invoice is raised.
+    end: addDays(next, -1),
+    fraction: billedDays / periodDays,
+    billedDays,
+    periodDays,
+  };
 }
