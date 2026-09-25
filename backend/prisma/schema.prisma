@@ -912,3 +912,21 @@ model AppointmentAttendee {
 
   @@index([appointmentId])
 }
+
+/// Per-viewer "already seen" marker that drives the red change-dots across the
+/// app. `sectionKey` names a tab, an in-page section or a single row (e.g.
+/// "admin/customers", "customer:<id>/documents", "admin/customers/row:<id>").
+/// `seenSig` is an opaque signature the client last acknowledged for that key —
+/// typically a count + latest-updatedAt fingerprint. A dot shows whenever the
+/// section's current signature differs from the stored one; opening the section
+/// re-acknowledges it. Scoped by `userId` (the JWT subject), like Notification.
+model SectionSeen {
+  id         String   @id @default(uuid())
+  userId     String
+  sectionKey String
+  seenSig    String
+  seenAt     DateTime @default(now()) @updatedAt
+
+  @@unique([userId, sectionKey])
+  @@index([userId])
+}

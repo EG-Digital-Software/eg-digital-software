@@ -16,7 +16,8 @@ import type { ComponentType } from 'react';
 import { useAuth } from '@/store/auth';
 import { useLogout } from '@/hooks/useSession';
 import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
-import { useTabAlerts } from '@/hooks/useTabAlerts';
+import { useChangeDots } from '@/hooks/useChangeDots';
+import { ChangeDot } from '@/components/ui/ChangeDot';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
@@ -44,7 +45,7 @@ export function EmployeeLayout() {
   const location = useLocation();
   const [open, setOpen] = useState(false); // mobile drawer
   const { collapsed, toggle } = useSidebarCollapse(); // desktop slide in/out
-  const { hasAlert } = useTabAlerts(NAV_ROUTES);
+  const { isTabNew } = useChangeDots(NAV_ROUTES);
 
   const handleLogout = async () => {
     await logout();
@@ -79,12 +80,7 @@ export function EmployeeLayout() {
           >
             <item.icon className="h-[18px] w-[18px] shrink-0" />
             <span className="flex-1">{item.label}</span>
-            {hasAlert(item.to) && (
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full bg-destructive"
-                aria-label="New updates"
-              />
-            )}
+            <ChangeDot show={isTabNew(item.to)} />
           </NavLink>
         ))}
       </nav>

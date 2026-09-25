@@ -25,6 +25,12 @@ import {
 import { BUSINESS_TYPES, businessTypesLabel, customerName } from '@/lib/customer';
 import { Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName } from '@/lib/countries';
+import { useChangeDots } from '@/hooks/useChangeDots';
+import { ChangeDot, rowSignature } from '@/components/ui/ChangeDot';
+
+/** Stable per-row key + signature for the change-dot. */
+const rowKey = (c: Customer) => `admin/customers/row:${c.id}`;
+const rowSig = (c: Customer) => rowSignature(c as unknown as Record<string, unknown>, ['updatedAt', 'createdAt']);
 
 const ACCOUNT_STATUS: Record<
   NonNullable<Customer['accountStatusEffective']>,
@@ -57,6 +63,11 @@ function location(c: Customer) {
 export default function CustomersPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { isNew, markSeen } = useChangeDots();
+  const openCustomer = (c: Customer) => {
+    markSeen(rowKey(c), rowSig(c)); // clear this row's dot on open
+    navigate(`/admin/customers/${c.clientId}`);
+  };
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ACTIVE');
@@ -232,11 +243,14 @@ export default function CustomersPage() {
                     <TableRow
                       key={c.id}
                       className="cursor-pointer"
-                      onClick={() => navigate(`/admin/customers/${c.clientId}`)}
+                      onClick={() => openCustomer(c)}
                     >
                       <TableCell>
-                        <span className="inline-flex rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
-                          {c.clientId}
+                        <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
+                            {c.clientId}
+                          </span>
+                          <ChangeDot show={isNew(rowKey(c), rowSig(c))} />
                         </span>
                       </TableCell>
                       <TableCell className="text-sm">
@@ -291,7 +305,7 @@ export default function CustomersPage() {
                             <MoreHorizontal className="h-4 w-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}`)}>
+                            <DropdownMenuItem onClick={() => openCustomer(c)}>
                               <Eye /> View
                             </DropdownMenuItem>
                             <DropdownMenuItem

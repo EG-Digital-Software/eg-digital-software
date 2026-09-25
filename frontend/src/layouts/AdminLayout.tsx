@@ -25,7 +25,8 @@ import { useAuth } from '@/store/auth';
 import { adminApi } from '@/api/resources';
 import { useLogout } from '@/hooks/useSession';
 import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
-import { useTabAlerts } from '@/hooks/useTabAlerts';
+import { useChangeDots } from '@/hooks/useChangeDots';
+import { ChangeDot } from '@/components/ui/ChangeDot';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
@@ -63,7 +64,7 @@ export function AdminLayout() {
     queryFn: adminApi.pendingCount,
     refetchInterval: 60_000,
   });
-  const { hasAlert } = useTabAlerts(NAV_ROUTES);
+  const { isTabNew } = useChangeDots(NAV_ROUTES);
 
   const handleLogout = async () => {
     await logout();
@@ -104,12 +105,7 @@ export function AdminLayout() {
                 {pending}
               </span>
             ) : (
-              hasAlert(item.to) && (
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full bg-destructive"
-                  aria-label="New updates"
-                />
-              )
+              <ChangeDot show={isTabNew(item.to)} />
             )}
           </NavLink>
         ))}

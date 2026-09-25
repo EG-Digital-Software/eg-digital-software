@@ -178,6 +178,7 @@ export interface Customer {
   /** Standing resolved for display: pinned override, else derived from activity. */
   accountStatusEffective?: AccountStatus;
   createdAt: string;
+  updatedAt?: string;
   addresses?: Address[];
   directors?: Director[];
   itContacts?: ItContact[];
