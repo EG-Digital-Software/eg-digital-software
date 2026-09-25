@@ -186,7 +186,20 @@ export async function getInvoice(customerId: string, invoiceId: string) {
 
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
-    include: { items: true, payments: true, customer: { include: { addresses: true } } },
+    include: {
+      // The invoice template shows each line's product and its details.
+      items: { include: { product: true } },
+      payments: true,
+      customer: {
+        include: {
+          addresses: true,
+          // The template breaks each line down per product exactly as the create
+          // and edit forms do — agreed price, Unit/Hours and net per product —
+          // and those live on the customer's product assignments.
+          customerProducts: { include: { product: true, licence: true } },
+        },
+      },
+    },
   });
   if (!invoice) throw ApiError.notFound('Invoice not found');
   return invoice;

@@ -270,6 +270,13 @@ export interface CustomerCredential {
 export interface InvoiceItem {
   id: string;
   productId?: string | null;
+  /**
+   * The product this line bills, when it came from a product assignment. Included
+   * on a single-invoice fetch so the invoice template can show the product and
+   * its details rather than only the typed description.
+   */
+  product?: Product | null;
+  /** Licence number for the line (a licence group's key), shown on the invoice. */
   sku?: string | null;
   description: string;
   quantity: number;

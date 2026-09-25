@@ -107,7 +107,20 @@ export async function getInvoice(id: string) {
   await ensurePayable(id);
   return prisma.invoice.findUniqueOrThrow({
     where: { id },
-    include: { items: true, payments: true, customer: { include: { addresses: true } } },
+    include: {
+      // The invoice template shows each line's product and its details.
+      items: { include: { product: true } },
+      payments: true,
+      customer: {
+        include: {
+          addresses: true,
+          // The template breaks each line down per product exactly as the create
+          // and edit forms do — agreed price, Unit/Hours and net per product —
+          // and those live on the customer's product assignments.
+          customerProducts: { include: { product: true, licence: true } },
+        },
+      },
+    },
   });
 }
 
@@ -323,7 +336,10 @@ export async function createInvoice(input: CreateInput) {
   return prisma.invoice.update({
     where: { id: invoice.id },
     data: { paymentUrl: payment.paymentUrl, paymentQrUrl: qr },
-    include: { items: true, customer: { include: { addresses: true } } },
+    include: {
+      items: { include: { product: true } },
+      customer: { include: { addresses: true } },
+    },
   });
 }
 
@@ -491,7 +507,10 @@ export async function updateInvoice(id: string, input: UpdateInput) {
   return prisma.invoice.update({
     where: { id },
     data: { paymentUrl: payment.paymentUrl, paymentQrUrl: qr },
-    include: { items: true, customer: { include: { addresses: true } } },
+    include: {
+      items: { include: { product: true } },
+      customer: { include: { addresses: true } },
+    },
   });
 }
 

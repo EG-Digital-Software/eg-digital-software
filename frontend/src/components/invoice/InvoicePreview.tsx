@@ -2,17 +2,36 @@ import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { brand } from '@/config/brand';
 import { Logo } from '@/components/layout/Logo';
-import type { Invoice } from '@/types';
+import type { Invoice, InvoiceItem } from '@/types';
 import { InvoiceBadge } from '@/components/shared/status';
 import { settingsApi } from '@/api/resources';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { formatAbn } from '@/lib/customer';
+import { formatAbn, invoiceTermLabel } from '@/lib/customer';
+import {
+  computeProration,
+  fmtDay,
+  buildLicenceGroups,
+  findLicenceGroup,
+  licenceGroupNet,
+  productUnits,
+  productNet,
+  round2,
+  type LicenceGroup,
+} from '@/lib/proration';
 import { formatPhone } from '@/components/shared/PhoneInput';
 
 /**
- * Premium tax-invoice layout — modelled on the EG Digital / Xero reference and
- * tuned for web, print (A4) and PDF export. Print styling is handled via the
- * `print:` utilities and @page in index.css.
+ * Tax-invoice layout, tuned for web, print (A4) and PDF export. Print styling is
+ * handled via the `print:` utilities and @page in index.css.
+ *
+ * A dark hero carries the three facts that decide whether an invoice gets paid —
+ * the amount, the day it is due and the day the next one arrives — so none of
+ * them has to be hunted for. Everything that follows sits on white: the parties,
+ * then the lines (product, SKU, qty/hours, agreed price, GST basis, amount), the
+ * totals, and every payment method the business accepts.
+ *
+ * The brand navy-to-green gradient is the only decoration; structure comes from
+ * spacing and hairline rules so the sheet still reads as a financial document.
  */
 export function InvoicePreview({ invoice }: { invoice: Invoice }) {
   const c = invoice.customer;
@@ -47,6 +66,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
     disputeWindowDays: org?.disputeWindowDays ?? brand.seller.disputeWindowDays,
   };
 
+  const { navy, green } = brand.colors;
   const total = Number(invoice.total);
   const paid = Number(invoice.amountPaid);
   const amountDue = Math.max(total - paid, 0);
@@ -56,264 +76,511 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
   const gstRate = invoice.items?.[0]?.taxRate ? Number(invoice.items[0].taxRate) : 10;
   const payUrl = invoice.paymentUrl ?? undefined;
 
-  return (
-    <div className="invoice-sheet mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-white shadow-card print:rounded-none print:border-0 print:shadow-none">
-      {/* Top accent hairline */}
-      <div
-        className="h-1.5 w-full"
-        style={{ background: `linear-gradient(90deg, ${brand.colors.navy}, ${brand.colors.green})` }}
-      />
+  // The service period this invoice covers: the invoice date up to the day before
+  // the next billing date. Invoices raised before the billing cycle was split out
+  // of the term carry no next billing date, so this falls back to the monthly
+  // default (see lib/proration).
+  const period = computeProration(
+    invoice.invoiceDate?.slice(0, 10),
+    invoice.nextBillingDate?.slice(0, 10) ?? undefined
+  );
 
-      <div className="p-8 sm:p-10">
-        {/* Header */}
+  // The customer's product assignments, grouped by licence key — the same source
+  // the create and edit forms read, so a line breaks down into exactly the
+  // products (with agreed price and Unit/Hours) that were selected on it.
+  const licenceGroups = buildLicenceGroups(c?.customerProducts);
+
+  const hasBank = !!pay?.bankTransferEnabled && !!(pay.accountNumber || pay.bsb);
+  const hasUpi = !!pay?.upiEnabled && !!pay.upiId;
+  const cardsOn = !pay || pay.cardPaymentsEnabled;
+
+  return (
+    <div className="invoice-sheet mx-auto w-full max-w-3xl overflow-hidden rounded-[20px] bg-white shadow-[0_18px_50px_-24px_rgba(11,34,59,0.35)] ring-1 ring-black/5 print:rounded-none print:shadow-none print:ring-0">
+      {/* ── Hero: identity + the three facts that get an invoice paid ── */}
+      <div
+        className="relative overflow-hidden px-8 pb-8 pt-9 text-white sm:px-11"
+        style={{
+          background: `radial-gradient(120% 140% at 100% 0%, ${green}38 0%, transparent 55%), ${navy}`,
+          printColorAdjust: 'exact',
+          WebkitPrintColorAdjust: 'exact',
+        }}
+      >
         <div className="flex items-start justify-between gap-6">
           <div>
-            <h1
-              className="text-[26px] font-bold leading-none tracking-tight"
-              style={{ color: brand.colors.navy }}
-            >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/50">
               Tax Invoice
-            </h1>
-            <div className="mt-2">
-              <InvoiceBadge status={invoice.status} />
-            </div>
-          </div>
-          <div className="text-right">
-            <Logo className="text-2xl" />
-          </div>
-        </div>
-
-        {/* Parties */}
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div className="text-[13px] leading-relaxed">
-            <p className="font-semibold text-foreground">{customerName}</p>
-            {c?.abn && <p className="text-muted-foreground">ABN {formatAbn(c.abn)}</p>}
-            {customerEmail && <p className="text-muted-foreground">{customerEmail}</p>}
-            {c?.contactMobile && (
-              <p className="text-muted-foreground">{formatPhone(c.contactMobile, c.contactMobileCountry)}</p>
+            </p>
+            <p className="mt-2 font-mono text-[19px] font-bold leading-none tracking-tight">
+              {invoice.invoiceNumber}
+            </p>
+            {invoice.reference && (
+              <p className="mt-1.5 text-[11px] text-white/50">Ref {invoice.reference}</p>
             )}
-            {c?.clientId && <p className="mt-1 text-xs text-muted-foreground">Client {c.clientId}</p>}
           </div>
-          <div className="text-[13px] leading-relaxed sm:text-right">
-            <p className="font-semibold text-foreground">{seller.legalName}</p>
-            {seller.addressLines.map((line) => (
-              <p key={line} className="text-muted-foreground">
-                {line}
-              </p>
-            ))}
-            <p className="text-muted-foreground">ABN {formatAbn(seller.abn) || seller.abn}</p>
+          <div className="flex flex-col items-end gap-2.5">
+            <div className="rounded-xl bg-white px-3 py-2 shadow-sm">
+              <Logo className="text-xl" />
+            </div>
+            <InvoiceBadge status={invoice.status} />
           </div>
         </div>
 
-        {/* Key figures strip */}
-        <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-6 sm:grid-cols-5">
-          <Figure label="Amount due">
-            <span className="text-xl font-bold tabular-nums" style={{ color: brand.colors.navy }}>
+        {/* The money row. Amount due is deliberately the largest thing on the page. */}
+        <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
+              Amount due ({invoice.currency})
+            </p>
+            <p className="mt-1.5 text-[42px] font-bold leading-none tracking-tight tabular-nums">
               {formatCurrency(amountDue)}
-            </span>
-          </Figure>
-          <Figure label="Due date">
-            <span className="text-xl font-bold tabular-nums" style={{ color: brand.colors.navy }}>
-              {formatDate(invoice.dueDate)}
-            </span>
-          </Figure>
-          <Figure label="Issue date">
-            <span className="text-sm font-medium">{formatDate(invoice.invoiceDate)}</span>
-          </Figure>
-          <Figure label="Invoice number">
-            <span className="font-mono text-sm font-medium">{invoice.invoiceNumber}</span>
-          </Figure>
-          <Figure label="Reference">
-            <span className="text-sm font-medium">{invoice.reference || '—'}</span>
-          </Figure>
+            </p>
+          </div>
+          <div className="flex gap-8 sm:gap-10">
+            <HeroFact label="Due date" value={formatDate(invoice.dueDate)}>
+              {invoice.term ? invoiceTermLabel(invoice.term) : undefined}
+            </HeroFact>
+            <HeroFact
+              label="Next billing"
+              value={invoice.nextBillingDate ? formatDate(invoice.nextBillingDate) : '—'}
+            >
+              {period ? `${period.billedDays} of ${period.periodDays} days` : undefined}
+            </HeroFact>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-8 py-9 sm:px-11">
+        {/* ── Parties ── */}
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
+          <div className="text-[12.5px] leading-relaxed text-muted-foreground">
+            <Eyebrow>Bill to</Eyebrow>
+            <p className="text-[15px] font-semibold text-foreground">{customerName}</p>
+            {c?.abn && <p>ABN {formatAbn(c.abn)}</p>}
+            {customerEmail && <p>{customerEmail}</p>}
+            {c?.contactMobile && <p>{formatPhone(c.contactMobile, c.contactMobileCountry)}</p>}
+            {c?.clientId && <p className="mt-1 text-muted-foreground/70">Client {c.clientId}</p>}
+          </div>
+          <div className="text-[12.5px] leading-relaxed text-muted-foreground sm:text-right">
+            <Eyebrow>From</Eyebrow>
+            <p className="text-[15px] font-semibold text-foreground">{seller.legalName}</p>
+            {seller.addressLines.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+            <p>ABN {formatAbn(seller.abn) || seller.abn}</p>
+            <p className="mt-1 text-muted-foreground/70">Issued {formatDate(invoice.invoiceDate)}</p>
+          </div>
         </div>
 
-        {/* Pay online */}
-        {payUrl && (
-          <a
-            href={payUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-5 inline-flex text-sm font-semibold text-[#2563eb] hover:underline print:no-underline"
+        {/* ── Billing period — scopes the lines below ── */}
+        {period && (
+          <div
+            className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-4 py-3 text-[12px]"
+            style={{ background: `${navy}0a` }}
           >
-            View and pay online
-          </a>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+              Billing period
+            </span>
+            <span className="font-semibold tabular-nums text-foreground">
+              {fmtDay(period.start)} – {fmtDay(period.end)}
+            </span>
+            <span className="text-muted-foreground/50">·</span>
+            <span className="tabular-nums text-muted-foreground">
+              {period.billedDays} of {period.periodDays} days billed
+            </span>
+          </div>
         )}
 
-        {/* Line items */}
-        <table className="mt-6 w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-              <th className="py-2.5 pr-3 text-left font-semibold">Description</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Quantity</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Price</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Tax</th>
-              <th className="px-3 py-2.5 text-center font-semibold">Contract</th>
-              <th className="px-3 py-2.5 text-center font-semibold">GST</th>
-              <th className="py-2.5 pl-3 text-right font-semibold">Amount</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {invoice.items?.map((it) => (
-              <tr key={it.id} className="align-top">
-                <td className="py-3 pr-3">
-                  <p className="whitespace-pre-line font-medium text-foreground">{it.description}</p>
-                  {it.sku && <p className="mt-0.5 text-xs text-muted-foreground">{it.sku}</p>}
-                </td>
-                <td className="px-3 py-3 text-right tabular-nums">{it.quantity}</td>
-                <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(it.unitPrice)}</td>
-                <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
-                  {Number(it.taxRate) ? `${Number(it.taxRate)}%` : '—'}
-                </td>
-                <td className="px-3 py-3 text-center capitalize">{(it.contractType ?? 'LOCKED').toLowerCase()}</td>
-                <td className="px-3 py-3 text-center capitalize">{(it.gstType ?? 'EXCLUSIVE').toLowerCase()}</td>
-                <td className="py-3 pl-3 text-right font-medium tabular-nums">
-                  {formatCurrency(it.lineTotal)}
-                </td>
+        {/* ── Line items ── */}
+        <div className="mt-6 overflow-x-auto">
+          <table className="w-full min-w-[34rem] text-[13px]">
+            <thead>
+              <tr className="text-[9.5px] uppercase tracking-[0.1em] text-white">
+                <Th className="rounded-l-lg pl-3.5 text-left" navy={navy}>
+                  Product
+                </Th>
+                <Th className="text-left" navy={navy}>
+                  SKU
+                </Th>
+                <Th className="text-right" navy={navy}>
+                  Qty / Hours
+                </Th>
+                <Th className="text-right" navy={navy}>
+                  Agreed price
+                </Th>
+                <Th className="text-center" navy={navy}>
+                  GST
+                </Th>
+                <Th className="rounded-r-lg pr-3.5 text-right" navy={navy}>
+                  Amount
+                </Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {invoice.items?.map((it, lineIndex) => (
+                <LineRows
+                  key={it.id}
+                  item={it}
+                  group={groupForItem(licenceGroups, it)}
+                  first={lineIndex === 0}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-        {/* Payment + totals */}
-        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
-          {/* Left — pay online + bank transfer */}
-          <div className="space-y-5">
-            {invoice.paymentQrUrl && (
-              <div className="flex items-start gap-4">
-                {payUrl ? (
-                  <a href={payUrl} target="_blank" rel="noreferrer" title="Open secure payment page">
-                    <img
-                      src={invoice.paymentQrUrl}
-                      alt="Scan to pay"
-                      className="h-24 w-24 rounded-lg border border-border transition-shadow hover:shadow-md"
-                    />
-                  </a>
-                ) : (
-                  <img
-                    src={invoice.paymentQrUrl}
-                    alt="Scan to pay"
-                    className="h-24 w-24 rounded-lg border border-border"
-                  />
-                )}
-                <div>
-                  {payUrl ? (
-                    <a
-                      href={payUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm font-semibold text-[#2563eb] hover:underline print:no-underline"
-                    >
-                      View and pay online
-                    </a>
-                  ) : (
-                    <p className="text-sm font-semibold text-foreground">Scan to pay</p>
-                  )}
-                  <p className="mt-0.5 text-xs text-muted-foreground">Scan the QR or tap a card to pay</p>
-                  {(!pay || pay.cardPaymentsEnabled) && (
-                    <div className="mt-3">
-                      <CardMarks href={payUrl} />
-                    </div>
-                  )}
-                  {pay && pay.cardSurchargePct > 0 && (
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      A {pay.cardSurchargePct}% surcharge applies to card payments.
-                    </p>
-                  )}
-                </div>
-              </div>
+        {/* ── Totals ── */}
+        <div className="mt-7 flex justify-end">
+          <dl className="w-full space-y-2 text-[13px] sm:w-[19.5rem]">
+            <Row label="Subtotal" value={formatCurrency(invoice.subtotal)} />
+            {Number(invoice.tax) > 0 && (
+              <Row label={`GST ${gstRate}%`} value={formatCurrency(invoice.tax)} muted />
             )}
-
-            {pay?.upiEnabled && pay.upiId && (
-              <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Pay by UPI / Google Pay
-                </p>
-                <dl className="mt-1.5 space-y-0.5 text-xs">
-                  <BankRow label="UPI ID" value={pay.upiId} />
-                  <BankRow label="Reference" value={invoice.invoiceNumber} />
-                </dl>
-              </div>
+            {Number(invoice.discount) > 0 && (
+              <Row label="Discount" value={`- ${formatCurrency(invoice.discount)}`} muted />
             )}
+            <div className="flex items-center justify-between border-t border-border pt-2.5 text-[15px] font-semibold">
+              <span>Total</span>
+              <span className="tabular-nums">{formatCurrency(invoice.total)}</span>
+            </div>
+            {paid > 0 && <Row label="Amount paid" value={`- ${formatCurrency(paid)}`} muted />}
+            <div
+              className="flex items-center justify-between rounded-xl px-4 py-3 text-white"
+              style={{ background: navy, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+            >
+              <span className="text-[12px] font-semibold uppercase tracking-wide text-white/70">
+                Amount due
+              </span>
+              <span className="text-[20px] font-bold tabular-nums">{formatCurrency(amountDue)}</span>
+            </div>
+          </dl>
+        </div>
 
-            {pay?.bankTransferEnabled && (pay.accountNumber || pay.bsb) && (
-              <div className="rounded-lg border border-border bg-secondary/30 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Or pay by bank transfer
-                </p>
-
-                <dl className="mt-1.5 space-y-0.5 text-xs">
-                  {pay.accountName && <BankRow label="Account name" value={pay.accountName} />}
-                  {pay.bankName && <BankRow label="Bank" value={pay.bankName} />}
-                  {pay.bsb && <BankRow label="BSB" value={pay.bsb} />}
-                  {pay.accountNumber && <BankRow label="Account no." value={pay.accountNumber} />}
-                  <BankRow label="Reference" value={invoice.invoiceNumber} />
-                </dl>
-              </div>
-            )}
+        {/* ── How to pay — every method the business accepts ── */}
+        <div className="mt-9">
+          <div className="flex items-center gap-3">
+            <Eyebrow className="mb-0">How to pay</Eyebrow>
+            <span className="h-px flex-1" style={{ background: `${navy}1a` }} />
           </div>
 
-          {/* Right — totals */}
-          <div className="sm:pl-6">
-            <dl className="space-y-2 text-sm">
-              <Row label="Subtotal" value={formatCurrency(invoice.subtotal)} />
-              {Number(invoice.tax) > 0 && (
-                <Row
-                  label={`GST ${gstRate}%`}
-                  value={formatCurrency(invoice.tax)}
-                  muted
-                />
-              )}
-              {Number(invoice.discount) > 0 && (
-                <Row label="Discount" value={`- ${formatCurrency(invoice.discount)}`} muted />
-              )}
-              <div className="flex items-center justify-between border-t border-border pt-3 text-[15px] font-semibold">
-                <span>Total</span>
-                <span className="tabular-nums">{formatCurrency(invoice.total)}</span>
-              </div>
-              {paid > 0 && (
-                <Row label="Amount paid" value={`- ${formatCurrency(paid)}`} muted />
-              )}
-              <div
-                className="mt-1 flex items-center justify-between rounded-lg px-3 py-2.5"
-                style={{ background: `${brand.colors.navy}0a` }}
-              >
-                <span className="text-sm font-semibold">Amount due ({invoice.currency})</span>
-                <span
-                  className="text-lg font-bold tabular-nums"
-                  style={{ color: brand.colors.navy }}
-                >
-                  {formatCurrency(amountDue)}
-                </span>
-              </div>
-            </dl>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {(payUrl || invoice.paymentQrUrl || cardsOn) && (
+              <PayCard title="Pay online" accent={green}>
+                <div className="flex items-start gap-3.5">
+                  {invoice.paymentQrUrl &&
+                    (payUrl ? (
+                      <a href={payUrl} target="_blank" rel="noreferrer" title="Open secure payment page">
+                        <img
+                          src={invoice.paymentQrUrl}
+                          alt="Scan to pay"
+                          className="h-[82px] w-[82px] rounded-lg bg-white ring-1 ring-black/10 transition-shadow hover:shadow-md"
+                        />
+                      </a>
+                    ) : (
+                      <img
+                        src={invoice.paymentQrUrl}
+                        alt="Scan to pay"
+                        className="h-[82px] w-[82px] rounded-lg bg-white ring-1 ring-black/10"
+                      />
+                    ))}
+                  <div className="min-w-0">
+                    {payUrl ? (
+                      <a
+                        href={payUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[12.5px] font-semibold text-[#2563eb] hover:underline print:no-underline"
+                      >
+                        View and pay online
+                      </a>
+                    ) : (
+                      <p className="text-[12.5px] font-semibold text-foreground">Scan to pay</p>
+                    )}
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Scan the QR or tap a card
+                    </p>
+                    {cardsOn && (
+                      <div className="mt-2.5">
+                        <CardMarks href={payUrl} />
+                      </div>
+                    )}
+                    {pay && pay.cardSurchargePct > 0 && (
+                      <p className="mt-2 text-[10px] text-muted-foreground">
+                        {pay.cardSurchargePct}% surcharge on card payments.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </PayCard>
+            )}
+
+            {hasUpi && (
+              <PayCard title="UPI / Google Pay" accent={green}>
+                <dl className="space-y-1 text-[12px]">
+                  <BankRow label="UPI ID" value={pay!.upiId!} />
+                  <BankRow label="Reference" value={invoice.invoiceNumber} />
+                </dl>
+              </PayCard>
+            )}
+
+            {hasBank && (
+              <PayCard title="Bank transfer" accent={green}>
+                <dl className="space-y-1 text-[12px]">
+                  {pay!.accountName && <BankRow label="Account name" value={pay!.accountName} />}
+                  {pay!.bankName && <BankRow label="Bank" value={pay!.bankName} />}
+                  {pay!.bsb && <BankRow label="BSB" value={pay!.bsb} />}
+                  {pay!.accountNumber && <BankRow label="Account no." value={pay!.accountNumber} />}
+                  <BankRow label="Reference" value={invoice.invoiceNumber} />
+                </dl>
+              </PayCard>
+            )}
           </div>
         </div>
 
-        {/* Notes */}
+        {/* ── Notes ── */}
         {pay?.payInstructions && (
-          <p className="mt-8 border-t border-border pt-5 text-xs leading-relaxed text-muted-foreground">
-            {pay.payInstructions}
-          </p>
+          <p className="mt-7 text-[11.5px] leading-relaxed text-muted-foreground">{pay.payInstructions}</p>
         )}
         {invoice.notes && (
-          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{invoice.notes}</p>
+          <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground">{invoice.notes}</p>
         )}
-        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-          Note — For any dispute on this invoice, please reach us at{' '}
+        <p className="mt-6 border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
+          For any dispute on this invoice, please reach us at{' '}
           <span className="font-medium text-foreground">{seller.billingEmail}</span> within{' '}
           {seller.disputeWindowDays} days.
         </p>
       </div>
+
+      {/* Bottom brand rule */}
+      <div
+        className="h-1.5 w-full"
+        style={{
+          background: `linear-gradient(90deg, ${navy}, ${green})`,
+          printColorAdjust: 'exact',
+          WebkitPrintColorAdjust: 'exact',
+        }}
+      />
     </div>
   );
 }
 
-function Figure({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * The licence group an invoice line bills.
+ *
+ * A line carries its licence number as its sku, which is how the forms identify a
+ * group, so match on that first and fall back to the representative product the
+ * line was built from.
+ */
+function groupForItem(groups: LicenceGroup[], item: InvoiceItem): LicenceGroup | undefined {
+  if (item.sku) {
+    const byLicence = groups.find((g) => g.licenceKey && g.licenceKey === item.sku);
+    if (byLicence) return byLicence;
+  }
+  return findLicenceGroup(groups, item.productId);
+}
+
+/**
+ * The rows one invoice line produces.
+ *
+ * A line can bill a whole licence group, so it expands into one row per product —
+ * the same breakdown the create and edit forms show while the invoice is being
+ * built: each product's name, its SKU, its Unit/Hours, its agreed price and the
+ * net it contributes.
+ *
+ * Each product's share of the line comes from its own agreed net, and the last row
+ * absorbs the rounding, so the rows always add up to exactly what the line bills —
+ * even if an agreed price has been changed on the assignment since the invoice was
+ * issued. A line with no resolvable group (a manually typed one) stays a single
+ * row built from what the line itself stores.
+ */
+function LineRows({
+  item,
+  group,
+  first,
+}: {
+  item: InvoiceItem;
+  group?: LicenceGroup;
+  first: boolean;
+}) {
+  const gst = (
+    <>
+      <p className="font-medium tabular-nums text-foreground">
+        {Number(item.taxRate) ? `${Number(item.taxRate)}%` : '—'}
+      </p>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        {item.gstType === 'INCLUSIVE' ? 'Inclusive' : 'Exclusive'}
+      </p>
+    </>
+  );
+  const topRule = first ? '' : 'border-t border-border';
+
+  // No assignment behind this line — show what the line itself holds.
+  if (!group || group.items.length === 0) {
+    const names = (item.description ?? '')
+      .split('\n')
+      .map((n) => n.trim())
+      .filter(Boolean);
+    return (
+      <tr className={`align-top ${topRule}`}>
+        <td className="py-3.5 pl-3.5 pr-3">
+          <p className="font-semibold leading-snug text-foreground">
+            {names[0] || item.product?.name || '—'}
+          </p>
+          {names.slice(1).map((n, i) => (
+            <p key={`${n}-${i}`} className="leading-snug text-muted-foreground">
+              {n}
+            </p>
+          ))}
+        </td>
+        <td className="px-3 py-3.5">
+          <Sku>{item.product?.sku || item.product?.productCode || item.sku}</Sku>
+        </td>
+        <td className="px-3 py-3.5 text-right font-medium tabular-nums">{item.quantity}</td>
+        <td className="px-3 py-3.5 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>
+        <td className="px-3 py-3.5 text-center">{gst}</td>
+        <td className="py-3.5 pl-3 pr-3.5 text-right font-semibold tabular-nums text-foreground">
+          {formatCurrency(item.lineTotal)}
+        </td>
+      </tr>
+    );
+  }
+
+  const lineTotal = Number(item.lineTotal) || 0;
+  const base = licenceGroupNet(group);
+  const products = group.items;
+  // Split the line across its products by each one's agreed net, then give the
+  // rounding remainder to the last row so the column still sums to the line.
+  const amounts = products.map((cp, i) =>
+    i === products.length - 1
+      ? 0
+      : round2(base > 0 ? (lineTotal * productNet(cp)) / base : lineTotal / products.length)
+  );
+  amounts[products.length - 1] = round2(lineTotal - amounts.reduce((s, n) => s + n, 0));
+
+  return (
+    <>
+      {/* Group header — the licence these products share, and the line's terms. */}
+      <tr className={topRule}>
+        <td colSpan={6} className="pb-1.5 pl-3.5 pr-3.5 pt-3.5">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px]">
+            {group.licenceKey && (
+              <>
+                <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+                  Licence
+                </span>
+                <span className="font-mono font-semibold text-foreground">{group.licenceKey}</span>
+              </>
+            )}
+            {products.length > 1 && (
+              <span className="text-muted-foreground">
+                {group.licenceKey && <span className="mr-2.5 text-muted-foreground/40">·</span>}
+                {products.length} products
+              </span>
+            )}
+            {item.contractType === 'TRIAL' && (
+              <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-amber-700">
+                Trial
+              </span>
+            )}
+          </div>
+        </td>
+      </tr>
+      {products.map((cp, i) => (
+        <tr key={cp.id} className="align-top">
+          <td className="pb-3 pl-3.5 pr-3">
+            <p className="font-semibold leading-snug text-foreground">{cp.product.name}</p>
+            {cp.unit && <p className="text-[10.5px] text-muted-foreground">per {cp.unit}</p>}
+          </td>
+          <td className="px-3 pb-3">
+            <Sku>{cp.product.sku || cp.product.productCode}</Sku>
+          </td>
+          <td className="px-3 pb-3 text-right font-medium tabular-nums">{productUnits(cp)}</td>
+          <td className="px-3 pb-3 text-right tabular-nums">{formatCurrency(Number(cp.price) || 0)}</td>
+          <td className="px-3 pb-3 text-center">{i === 0 ? gst : null}</td>
+          <td className="pb-3 pl-3 pr-3.5 text-right font-semibold tabular-nums text-foreground">
+            {formatCurrency(amounts[i])}
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
+/** A product code in the SKU column. */
+function Sku({ children }: { children?: string | null }) {
+  return <span className="font-mono text-[11.5px] text-muted-foreground">{children || '—'}</span>;
+}
+
+/** A table heading cell on the navy header band. */
+function Th({
+  children,
+  className,
+  navy,
+}: {
+  children: ReactNode;
+  className?: string;
+  navy: string;
+}) {
+  return (
+    <th
+      className={`px-3 py-2.5 font-semibold ${className ?? ''}`}
+      style={{ background: navy, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+    >
+      {children}
+    </th>
+  );
+}
+
+/** A supporting fact beside the amount in the hero. */
+function HeroFact({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value: string;
+  children?: string;
+}) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1">{children}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">{label}</p>
+      <p className="mt-1.5 text-[15px] font-semibold tabular-nums">{value}</p>
+      {children && <p className="mt-0.5 text-[10.5px] text-white/50">{children}</p>}
+    </div>
+  );
+}
+
+function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <p
+      className={`text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70 ${
+        className ?? 'mb-1.5'
+      }`}
+    >
+      {children}
+    </p>
+  );
+}
+
+/** One payment method, as a soft card with an accent edge. */
+function PayCard({
+  title,
+  accent,
+  children,
+}: {
+  title: string;
+  accent: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-secondary/25 p-4">
+      <div className="mb-2.5 flex items-center gap-2">
+        <span
+          className="h-3.5 w-1 rounded-full"
+          style={{ background: accent, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+        />
+        <p className="text-[11.5px] font-semibold text-foreground">{title}</p>
+      </div>
+      {children}
     </div>
   );
 }
