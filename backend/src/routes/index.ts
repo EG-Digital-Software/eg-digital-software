@@ -10,7 +10,6 @@ import supplierRoutes from './supplier.routes.js';
 import employeeRoutes from './employee.routes.js';
 import adminRoutes from './admin.routes.js';
 import notificationRoutes from './notification.routes.js';
-import sectionSeenRoutes from './sectionSeen.routes.js';
 import geoRoutes from './geo.routes.js';
 import abnRoutes from './abn.routes.js';
 
@@ -29,7 +28,6 @@ router.use('/supplier', supplierRoutes);
 router.use('/employee', employeeRoutes);
 router.use('/admin', adminRoutes);
 router.use('/notifications', notificationRoutes);
-router.use('/section-seen', sectionSeenRoutes);
 router.use('/geo', geoRoutes);
 router.use('/abn', abnRoutes);
 

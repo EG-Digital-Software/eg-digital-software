@@ -25,8 +25,6 @@ import { useAuth } from '@/store/auth';
 import { adminApi } from '@/api/resources';
 import { useLogout } from '@/hooks/useSession';
 import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
-import { useChangeDots } from '@/hooks/useChangeDots';
-import { ChangeDot } from '@/components/ui/ChangeDot';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
@@ -50,8 +48,6 @@ const NAV: NavItem[] = [
   { to: '/admin/reports', label: 'Report', icon: BarChart3 },
 ];
 
-const NAV_ROUTES = NAV.map((n) => n.to);
-
 export function AdminLayout() {
   const user = useAuth((s) => s.user);
   const logout = useLogout();
@@ -64,7 +60,6 @@ export function AdminLayout() {
     queryFn: adminApi.pendingCount,
     refetchInterval: 60_000,
   });
-  const { isTabNew } = useChangeDots(NAV_ROUTES);
 
   const handleLogout = async () => {
     await logout();
@@ -100,12 +95,10 @@ export function AdminLayout() {
           >
             <item.icon className="h-[18px] w-[18px] shrink-0" />
             <span className="flex-1">{item.label}</span>
-            {item.to === '/admin/approvals' && !!pending && pending > 0 ? (
+            {item.to === '/admin/approvals' && !!pending && pending > 0 && (
               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold text-destructive-foreground">
                 {pending}
               </span>
-            ) : (
-              <ChangeDot show={isTabNew(item.to)} />
             )}
           </NavLink>
         ))}
