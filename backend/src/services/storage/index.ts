@@ -4,6 +4,14 @@ import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 
+// Origins allowed to fetch() blob bytes cross-origin. Direct <a href> downloads
+// are not CORS-checked, but reading a blob with fetch (e.g. rendering an
+// agreement PDF in a dialog) is — without these rules Azure returns no
+// Access-Control-Allow-Origin and the browser reports "Failed to fetch".
+const blobCorsOrigins = env.CORS_ORIGIN.split(',')
+  .map((o) => o.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
 /**
  * File-storage abstraction. Local disk in development, Azure Blob Storage in
  * production. Production must not assume a local filesystem — App Service
@@ -38,13 +46,51 @@ class LocalStorage implements StorageProvider {
 }
 
 class AzureBlobStorage implements StorageProvider {
+  private service: BlobServiceClient;
   private container: ContainerClient;
   private ready?: Promise<void>;
+  private corsReady?: Promise<void>;
 
   constructor(connectionString: string, containerName: string) {
-    this.container = BlobServiceClient.fromConnectionString(connectionString).getContainerClient(
-      containerName
-    );
+    this.service = BlobServiceClient.fromConnectionString(connectionString);
+    this.container = this.service.getContainerClient(containerName);
+    // Apply CORS at boot so blobs are fetchable before the first upload.
+    void this.ensureCors();
+  }
+
+  /**
+   * Allow the frontend origin(s) to fetch() blob bytes. Azure Blob Storage ships
+   * with no CORS rules, so a cross-origin fetch (rendering a PDF in a dialog)
+   * fails even though the container is publicly readable. Set once, best-effort:
+   * a permission failure here must not break uploads. Existing rules are kept.
+   */
+  private ensureCors(): Promise<void> {
+    this.corsReady ??= (async () => {
+      if (blobCorsOrigins.length === 0) return;
+      try {
+        const props = await this.service.getProperties();
+        const existing = props.cors ?? [];
+        const covered = existing.some((r) => {
+          const origins = r.allowedOrigins.split(',').map((o) => o.trim().replace(/\/$/, ''));
+          return origins.includes('*') || blobCorsOrigins.every((o) => origins.includes(o));
+        });
+        if (covered) return;
+        existing.push({
+          allowedOrigins: blobCorsOrigins.join(','),
+          allowedMethods: 'GET,HEAD,OPTIONS',
+          allowedHeaders: '*',
+          exposedHeaders: '*',
+          maxAgeInSeconds: 3600,
+        });
+        await this.service.setProperties({ cors: existing });
+      } catch (err) {
+        logger.warn(
+          { err },
+          'Could not configure blob CORS rules — cross-origin document fetches may fail. Add a CORS rule for the frontend origin on the storage account.'
+        );
+      }
+    })();
+    return this.corsReady;
   }
 
   /**
@@ -69,6 +115,7 @@ class AzureBlobStorage implements StorageProvider {
 
   async save(key: string, data: Buffer, contentType?: string): Promise<string> {
     await this.ensureContainer();
+    void this.ensureCors();
     const blob = this.container.getBlockBlobClient(key);
     await blob.uploadData(data, {
       blobHTTPHeaders: {
