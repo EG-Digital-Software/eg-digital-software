@@ -16,6 +16,7 @@ import type { ComponentType } from 'react';
 import { useAuth } from '@/store/auth';
 import { useLogout } from '@/hooks/useSession';
 import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
+import { useTabAlerts } from '@/hooks/useTabAlerts';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
@@ -33,6 +34,8 @@ const NAV: NavItem[] = [
   { to: '/employee/customers', label: 'Customers', icon: Users },
 ];
 
+const NAV_ROUTES = NAV.map((n) => n.to);
+
 export function EmployeeLayout() {
   const user = useAuth((s) => s.user);
   const impersonating = useAuth((s) => !!s.impersonation);
@@ -41,6 +44,7 @@ export function EmployeeLayout() {
   const location = useLocation();
   const [open, setOpen] = useState(false); // mobile drawer
   const { collapsed, toggle } = useSidebarCollapse(); // desktop slide in/out
+  const { hasAlert } = useTabAlerts(NAV_ROUTES);
 
   const handleLogout = async () => {
     await logout();
@@ -74,7 +78,13 @@ export function EmployeeLayout() {
             }
           >
             <item.icon className="h-[18px] w-[18px] shrink-0" />
-            <span>{item.label}</span>
+            <span className="flex-1">{item.label}</span>
+            {hasAlert(item.to) && (
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full bg-destructive"
+                aria-label="New updates"
+              />
+            )}
           </NavLink>
         ))}
       </nav>
