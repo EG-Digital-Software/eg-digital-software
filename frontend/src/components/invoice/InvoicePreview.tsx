@@ -24,14 +24,14 @@ import { formatPhone } from '@/components/shared/PhoneInput';
  * Tax-invoice layout, tuned for web, print (A4) and PDF export. Print styling is
  * handled via the `print:` utilities and @page in index.css.
  *
- * A dark hero carries the three facts that decide whether an invoice gets paid —
- * the amount, the day it is due and the day the next one arrives — so none of
- * them has to be hunted for. Everything that follows sits on white: the parties,
- * then the lines (product, SKU, qty/hours, agreed price, GST basis, amount), the
- * totals, and every payment method the business accepts.
+ * Every section is a soft tinted panel, so the sheet stays light throughout —
+ * nothing is reversed out of a dark block, which keeps it cheap to print and easy
+ * to read. Hierarchy comes from one accent (the brand navy), panel tints and type
+ * size: the amount due sits in its own panel beside the customer as the largest
+ * figure on the page, with the due date and payment term under it.
  *
- * The brand navy-to-green gradient is the only decoration; structure comes from
- * spacing and hairline rules so the sheet still reads as a financial document.
+ * Lines break down per product — product, SKU, qty/hours, agreed price, its own
+ * GST basis and amount — read from the snapshot the invoice was issued with.
  */
 export function InvoicePreview({ invoice }: { invoice: Invoice }) {
   const c = invoice.customer;
@@ -67,6 +67,11 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
   };
 
   const { navy, green } = brand.colors;
+  // Borders pick up the brand colours at low alpha, so the panels read as one
+  // family instead of neutral grey boxes. Navy for structure, green for payment.
+  const edge = `${navy}2e`;
+  const edgeSoft = `${navy}1f`;
+  const edgeStrong = `${navy}47`;
   const total = Number(invoice.total);
   const paid = Number(invoice.amountPaid);
   const amountDue = Math.max(total - paid, 0);
@@ -85,9 +90,8 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
     invoice.nextBillingDate?.slice(0, 10) ?? undefined
   );
 
-  // The customer's product assignments, grouped by licence key — the same source
-  // the create and edit forms read, so a line breaks down into exactly the
-  // products (with agreed price and Unit/Hours) that were selected on it.
+  // The customer's product assignments, grouped by licence key — used only for
+  // invoices issued before lines carried their own per-product snapshot.
   const licenceGroups = buildLicenceGroups(c?.customerProducts);
 
   const hasBank = !!pay?.bankTransferEnabled && !!(pay.accountNumber || pay.bsb);
@@ -95,270 +99,265 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
   const cardsOn = !pay || pay.cardPaymentsEnabled;
 
   return (
-    <div className="invoice-sheet mx-auto w-full max-w-3xl overflow-hidden rounded-[20px] bg-white shadow-[0_18px_50px_-24px_rgba(11,34,59,0.35)] ring-1 ring-black/5 print:rounded-none print:shadow-none print:ring-0">
-      {/* ── Hero: identity + the three facts that get an invoice paid ── */}
-      <div
-        className="relative overflow-hidden px-8 pb-8 pt-9 text-white sm:px-11"
-        style={{
-          background: `radial-gradient(120% 140% at 100% 0%, ${green}38 0%, transparent 55%), ${navy}`,
-          printColorAdjust: 'exact',
-          WebkitPrintColorAdjust: 'exact',
-        }}
-      >
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/50">
+    <div
+      className="invoice-sheet mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border bg-white shadow-card print:rounded-none print:shadow-none"
+      style={{ borderColor: edge, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+    >
+      <div className="px-7 py-8 sm:px-10 sm:py-10">
+        {/* ── Header ── */}
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3.5">
+            <Logo className="text-2xl" />
+          </div>
+          <div className="sm:text-right">
+            <p
+              className="text-[13px] font-bold uppercase tracking-[0.22em]"
+              style={{ color: navy }}
+            >
               Tax Invoice
             </p>
-            <p className="mt-2 font-mono text-[19px] font-bold leading-none tracking-tight">
+            <p className="mt-1 font-mono text-[15px] font-semibold text-foreground">
               {invoice.invoiceNumber}
             </p>
-            {invoice.reference && (
-              <p className="mt-1.5 text-[11px] text-white/50">Ref {invoice.reference}</p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-2.5">
-            <div className="rounded-xl bg-white px-3 py-2 shadow-sm">
-              <Logo className="text-xl" />
+            <div className="mt-2 sm:flex sm:justify-end">
+              <InvoiceBadge status={invoice.status} />
             </div>
-            <InvoiceBadge status={invoice.status} />
           </div>
         </div>
 
-        {/* The money row. Amount due is deliberately the largest thing on the page. */}
-        <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
-              Amount due ({invoice.currency})
-            </p>
-            <p className="mt-1.5 text-[42px] font-bold leading-none tracking-tight tabular-nums">
+        {/* ── Bill to · Amount due ── */}
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-5">
+          <Panel className="sm:col-span-3" border={edgeSoft}>
+            <PanelLabel>Bill to</PanelLabel>
+            <p className="text-[15px] font-semibold text-foreground">{customerName}</p>
+            <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
+              {c?.abn && <p>ABN {formatAbn(c.abn)}</p>}
+              {customerEmail && <p>{customerEmail}</p>}
+              {c?.contactMobile && <p>{formatPhone(c.contactMobile, c.contactMobileCountry)}</p>}
+              {c?.clientId && <p className="mt-0.5 text-muted-foreground/70">Client {c.clientId}</p>}
+            </div>
+          </Panel>
+
+          <Panel className="sm:col-span-2" tint={`${navy}0d`} border={edgeStrong}>
+            <PanelLabel>Amount due ({invoice.currency})</PanelLabel>
+            {/* The largest figure on the page, by design. */}
+            <p
+              className="text-[30px] font-bold leading-none tracking-tight tabular-nums"
+              style={{ color: navy }}
+            >
               {formatCurrency(amountDue)}
             </p>
-          </div>
-          <div className="flex gap-8 sm:gap-10">
-            <HeroFact label="Due date" value={formatDate(invoice.dueDate)}>
-              {invoice.term ? invoiceTermLabel(invoice.term) : undefined}
-            </HeroFact>
-            <HeroFact
-              label="Next billing"
-              value={invoice.nextBillingDate ? formatDate(invoice.nextBillingDate) : '—'}
-            >
-              {period ? `${period.billedDays} of ${period.periodDays} days` : undefined}
-            </HeroFact>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-8 py-9 sm:px-11">
-        {/* ── Parties ── */}
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
-          <div className="text-[12.5px] leading-relaxed text-muted-foreground">
-            <Eyebrow>Bill to</Eyebrow>
-            <p className="text-[15px] font-semibold text-foreground">{customerName}</p>
-            {c?.abn && <p>ABN {formatAbn(c.abn)}</p>}
-            {customerEmail && <p>{customerEmail}</p>}
-            {c?.contactMobile && <p>{formatPhone(c.contactMobile, c.contactMobileCountry)}</p>}
-            {c?.clientId && <p className="mt-1 text-muted-foreground/70">Client {c.clientId}</p>}
-          </div>
-          <div className="text-[12.5px] leading-relaxed text-muted-foreground sm:text-right">
-            <Eyebrow>From</Eyebrow>
-            <p className="text-[15px] font-semibold text-foreground">{seller.legalName}</p>
-            {seller.addressLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-            <p>ABN {formatAbn(seller.abn) || seller.abn}</p>
-            <p className="mt-1 text-muted-foreground/70">Issued {formatDate(invoice.invoiceDate)}</p>
-          </div>
+            <p className="mt-2.5 text-[12.5px] text-muted-foreground">
+              Due <span className="font-semibold text-foreground">{formatDate(invoice.dueDate)}</span>
+            </p>
+            {invoice.term && (
+              <p className="text-[12px] text-muted-foreground">{invoiceTermLabel(invoice.term)}</p>
+            )}
+          </Panel>
         </div>
 
-        {/* ── Billing period — scopes the lines below ── */}
-        {period && (
-          <div
-            className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-4 py-3 text-[12px]"
-            style={{ background: `${navy}0a` }}
-          >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-              Billing period
-            </span>
-            <span className="font-semibold tabular-nums text-foreground">
-              {fmtDay(period.start)} – {fmtDay(period.end)}
-            </span>
-            <span className="text-muted-foreground/50">·</span>
-            <span className="tabular-nums text-muted-foreground">
-              {period.billedDays} of {period.periodDays} days billed
-            </span>
-          </div>
-        )}
+        {/* ── Issuer · billing cycle ── */}
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-5">
+          <Panel className="sm:col-span-2" border={edgeSoft}>
+            <PanelLabel>From</PanelLabel>
+            <p className="text-[13px] font-semibold text-foreground">{seller.legalName}</p>
+            <div className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+              {seller.addressLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+              <p>ABN {formatAbn(seller.abn) || seller.abn}</p>
+            </div>
+          </Panel>
+
+          <Panel className="sm:col-span-3" border={edgeSoft}>
+            <PanelLabel>Billing cycle</PanelLabel>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[12.5px]">
+              <Fact label="Issue date">{formatDate(invoice.invoiceDate)}</Fact>
+              <Fact label="Reference">{invoice.reference || '—'}</Fact>
+              <Fact label="Billing period">
+                {period ? `${fmtDay(period.start)} – ${fmtDay(period.end)}` : '—'}
+              </Fact>
+              <Fact label="Days billed">
+                {period ? `${period.billedDays} of ${period.periodDays}` : '—'}
+              </Fact>
+              <Fact label="Next billing date" accent={navy}>
+                {invoice.nextBillingDate ? formatDate(invoice.nextBillingDate) : '—'}
+              </Fact>
+            </dl>
+          </Panel>
+        </div>
 
         {/* ── Line items ── */}
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-[13px]">
-            <thead>
-              <tr className="text-[9.5px] uppercase tracking-[0.1em] text-white">
-                <Th className="rounded-l-lg pl-3.5 text-left" navy={navy}>
-                  Product
-                </Th>
-                <Th className="text-left" navy={navy}>
-                  SKU
-                </Th>
-                <Th className="text-right" navy={navy}>
-                  Qty / Hours
-                </Th>
-                <Th className="text-right" navy={navy}>
-                  Agreed price
-                </Th>
-                <Th className="text-center" navy={navy}>
-                  GST
-                </Th>
-                <Th className="rounded-r-lg pr-3.5 text-right" navy={navy}>
-                  Amount
-                </Th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.items?.map((it, lineIndex) => (
-                <LineRows
-                  key={it.id}
-                  item={it}
-                  group={groupForItem(licenceGroups, it)}
-                  first={lineIndex === 0}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── Totals ── */}
-        <div className="mt-7 flex justify-end">
-          <dl className="w-full space-y-2 text-[13px] sm:w-[19.5rem]">
-            <Row label="Subtotal" value={formatCurrency(invoice.subtotal)} />
-            {Number(invoice.tax) > 0 && (
-              <Row label={`GST ${gstRate}%`} value={formatCurrency(invoice.tax)} muted />
-            )}
-            {Number(invoice.discount) > 0 && (
-              <Row label="Discount" value={`- ${formatCurrency(invoice.discount)}`} muted />
-            )}
-            <div className="flex items-center justify-between border-t border-border pt-2.5 text-[15px] font-semibold">
-              <span>Total</span>
-              <span className="tabular-nums">{formatCurrency(invoice.total)}</span>
-            </div>
-            {paid > 0 && <Row label="Amount paid" value={`- ${formatCurrency(paid)}`} muted />}
-            <div
-              className="flex items-center justify-between rounded-xl px-4 py-3 text-white"
-              style={{ background: navy, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
-            >
-              <span className="text-[12px] font-semibold uppercase tracking-wide text-white/70">
-                Amount due
-              </span>
-              <span className="text-[20px] font-bold tabular-nums">{formatCurrency(amountDue)}</span>
-            </div>
-          </dl>
-        </div>
-
-        {/* ── How to pay — every method the business accepts ── */}
-        <div className="mt-9">
-          <div className="flex items-center gap-3">
-            <Eyebrow className="mb-0">How to pay</Eyebrow>
-            <span className="h-px flex-1" style={{ background: `${navy}1a` }} />
+        <div
+          className="mt-4 overflow-hidden rounded-xl border"
+          style={{ borderColor: edge, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[34rem] text-[13px]">
+              <thead>
+                <tr
+                  className="border-b text-[9.5px] uppercase tracking-[0.1em]"
+                  style={{
+                    background: `${navy}0f`,
+                    borderColor: edge,
+                    color: navy,
+                    printColorAdjust: 'exact',
+                    WebkitPrintColorAdjust: 'exact',
+                  }}
+                >
+                  <th className="py-2.5 pl-4 pr-3 text-left font-semibold">Product</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">SKU</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">Qty / Hours</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">Agreed price</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">GST</th>
+                  <th className="py-2.5 pl-3 pr-4 text-right font-semibold">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: edgeSoft }}>
+                {invoice.items?.map((it) => (
+                  <LineRows key={it.id} item={it} group={groupForItem(licenceGroups, it)} />
+                ))}
+              </tbody>
+            </table>
           </div>
+        </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {(payUrl || invoice.paymentQrUrl || cardsOn) && (
-              <PayCard title="Pay online" accent={green}>
-                <div className="flex items-start gap-3.5">
-                  {invoice.paymentQrUrl &&
-                    (payUrl ? (
-                      <a href={payUrl} target="_blank" rel="noreferrer" title="Open secure payment page">
+        {/* ── How to pay · totals ───────────────────────────────
+            Side by side: the payment methods fill the width the totals column
+            leaves over, so nothing sits in dead space below. */}
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-5">
+          <div className="sm:col-span-3">
+            <PanelLabel className="mb-2">How to pay</PanelLabel>
+            <div className="space-y-3">
+              {(payUrl || invoice.paymentQrUrl || cardsOn) && (
+                <PayCard title="Pay online" accent={green} border={`${green}52`}>
+                  <div className="flex items-start gap-3.5">
+                    {invoice.paymentQrUrl &&
+                      (payUrl ? (
+                        <a href={payUrl} target="_blank" rel="noreferrer" title="Open secure payment page">
+                          <img
+                            src={invoice.paymentQrUrl}
+                            alt="Scan to pay"
+                            className="h-[78px] w-[78px] rounded-lg bg-white ring-1 ring-black/10 transition-shadow hover:shadow-md"
+                          />
+                        </a>
+                      ) : (
                         <img
                           src={invoice.paymentQrUrl}
                           alt="Scan to pay"
-                          className="h-[82px] w-[82px] rounded-lg bg-white ring-1 ring-black/10 transition-shadow hover:shadow-md"
+                          className="h-[78px] w-[78px] rounded-lg bg-white ring-1 ring-black/10"
                         />
-                      </a>
-                    ) : (
-                      <img
-                        src={invoice.paymentQrUrl}
-                        alt="Scan to pay"
-                        className="h-[82px] w-[82px] rounded-lg bg-white ring-1 ring-black/10"
-                      />
-                    ))}
-                  <div className="min-w-0">
-                    {payUrl ? (
-                      <a
-                        href={payUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[12.5px] font-semibold text-[#2563eb] hover:underline print:no-underline"
-                      >
-                        View and pay online
-                      </a>
-                    ) : (
-                      <p className="text-[12.5px] font-semibold text-foreground">Scan to pay</p>
-                    )}
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Scan the QR or tap a card
-                    </p>
-                    {cardsOn && (
-                      <div className="mt-2.5">
-                        <CardMarks href={payUrl} />
-                      </div>
-                    )}
-                    {pay && pay.cardSurchargePct > 0 && (
-                      <p className="mt-2 text-[10px] text-muted-foreground">
-                        {pay.cardSurchargePct}% surcharge on card payments.
-                      </p>
-                    )}
+                      ))}
+                    <div className="min-w-0">
+                      {payUrl ? (
+                        <a
+                          href={payUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[12.5px] font-semibold text-[#2563eb] hover:underline print:no-underline"
+                        >
+                          View and pay online
+                        </a>
+                      ) : (
+                        <p className="text-[12.5px] font-semibold text-foreground">Scan to pay</p>
+                      )}
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">Scan the QR or tap a card</p>
+                      {cardsOn && (
+                        <div className="mt-2.5">
+                          <CardMarks href={payUrl} />
+                        </div>
+                      )}
+                      {pay && pay.cardSurchargePct > 0 && (
+                        <p className="mt-2 text-[10px] text-muted-foreground">
+                          {pay.cardSurchargePct}% surcharge on card payments.
+                        </p>
+                      )}
+                    </div>
                   </div>
+                </PayCard>
+              )}
+
+              {/* Short detail cards pair up so the column does not run long. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {hasUpi && (
+                  <PayCard title="UPI / Google Pay" accent={green} border={`${green}52`}>
+                    <dl className="space-y-1 text-[12px]">
+                      <BankRow label="UPI ID" value={pay!.upiId!} />
+                      <BankRow label="Reference" value={invoice.invoiceNumber} />
+                    </dl>
+                  </PayCard>
+                )}
+
+                {hasBank && (
+                  <PayCard title="Bank transfer" accent={green} border={`${green}52`}>
+                    <dl className="space-y-1 text-[12px]">
+                      {pay!.accountName && <BankRow label="Account name" value={pay!.accountName} />}
+                      {pay!.bankName && <BankRow label="Bank" value={pay!.bankName} />}
+                      {pay!.bsb && <BankRow label="BSB" value={pay!.bsb} />}
+                      {pay!.accountNumber && <BankRow label="Account no." value={pay!.accountNumber} />}
+                      <BankRow label="Reference" value={invoice.invoiceNumber} />
+                    </dl>
+                  </PayCard>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <Panel border={edgeSoft}>
+              <dl className="space-y-2 text-[13px]">
+                <Row label="Subtotal" value={formatCurrency(invoice.subtotal)} />
+                {Number(invoice.tax) > 0 && (
+                  <Row label={`GST ${gstRate}%`} value={formatCurrency(invoice.tax)} muted />
+                )}
+                {Number(invoice.discount) > 0 && (
+                  <Row label="Discount" value={`- ${formatCurrency(invoice.discount)}`} muted />
+                )}
+                <div
+                  className="flex items-center justify-between border-t pt-2.5 text-[14px] font-semibold"
+                  style={{ borderColor: edge }}
+                >
+                  <span>Total</span>
+                  <span className="tabular-nums">{formatCurrency(invoice.total)}</span>
                 </div>
-              </PayCard>
-            )}
-
-            {hasUpi && (
-              <PayCard title="UPI / Google Pay" accent={green}>
-                <dl className="space-y-1 text-[12px]">
-                  <BankRow label="UPI ID" value={pay!.upiId!} />
-                  <BankRow label="Reference" value={invoice.invoiceNumber} />
-                </dl>
-              </PayCard>
-            )}
-
-            {hasBank && (
-              <PayCard title="Bank transfer" accent={green}>
-                <dl className="space-y-1 text-[12px]">
-                  {pay!.accountName && <BankRow label="Account name" value={pay!.accountName} />}
-                  {pay!.bankName && <BankRow label="Bank" value={pay!.bankName} />}
-                  {pay!.bsb && <BankRow label="BSB" value={pay!.bsb} />}
-                  {pay!.accountNumber && <BankRow label="Account no." value={pay!.accountNumber} />}
-                  <BankRow label="Reference" value={invoice.invoiceNumber} />
-                </dl>
-              </PayCard>
-            )}
+                {paid > 0 && <Row label="Amount paid" value={`- ${formatCurrency(paid)}`} muted />}
+                <div
+                  className="flex items-center justify-between rounded-lg border px-3 py-2.5"
+                  style={{
+                    background: `${navy}0d`,
+                    borderColor: edgeStrong,
+                    printColorAdjust: 'exact',
+                    WebkitPrintColorAdjust: 'exact',
+                  }}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Amount due
+                  </span>
+                  <span className="text-[18px] font-bold tabular-nums" style={{ color: navy }}>
+                    {formatCurrency(amountDue)}
+                  </span>
+                </div>
+              </dl>
+            </Panel>
           </div>
         </div>
 
         {/* ── Notes ── */}
         {pay?.payInstructions && (
-          <p className="mt-7 text-[11.5px] leading-relaxed text-muted-foreground">{pay.payInstructions}</p>
+          <p className="mt-6 text-[11.5px] leading-relaxed text-muted-foreground">{pay.payInstructions}</p>
         )}
         {invoice.notes && (
           <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground">{invoice.notes}</p>
         )}
-        <p className="mt-6 border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
+        <p
+          className="mt-5 border-t pt-4 text-[11px] leading-relaxed text-muted-foreground"
+          style={{ borderColor: edgeSoft }}
+        >
           For any dispute on this invoice, please reach us at{' '}
           <span className="font-medium text-foreground">{seller.billingEmail}</span> within{' '}
           {seller.disputeWindowDays} days.
         </p>
       </div>
-
-      {/* Bottom brand rule */}
-      <div
-        className="h-1.5 w-full"
-        style={{
-          background: `linear-gradient(90deg, ${navy}, ${green})`,
-          printColorAdjust: 'exact',
-          WebkitPrintColorAdjust: 'exact',
-        }}
-      />
     </div>
   );
 }
@@ -378,12 +377,25 @@ function groupForItem(groups: LicenceGroup[], item: InvoiceItem): LicenceGroup |
   return findLicenceGroup(groups, item.productId);
 }
 
+interface ProductRow {
+  key: string;
+  name: string;
+  sku?: string | null;
+  unit?: string | null;
+  units: number;
+  agreedPrice: number;
+  /** This product's own GST rate and basis, falling back to the line's. */
+  taxRate: number;
+  inclusive: boolean;
+  amount: number;
+}
+
 /**
  * The rows one invoice line produces.
  *
  * A line can bill a whole licence group, so it expands into one row per product —
  * the same breakdown the create and edit forms show while the invoice is being
- * built: each product's name, its SKU, its Unit/Hours, its agreed price and the
+ * built: each product's name, SKU, Unit/Hours, agreed price, its own GST and the
  * net it contributes.
  *
  * The values come from the line's own snapshot (`item.products`), taken when the
@@ -393,39 +405,10 @@ function groupForItem(groups: LicenceGroup[], item: InvoiceItem): LicenceGroup |
  * historical line. A line with neither (a manually typed one) stays a single row
  * built from what the line itself stores.
  */
-interface ProductRow {
-  key: string;
-  name: string;
-  sku?: string | null;
-  unit?: string | null;
-  units: number;
-  agreedPrice: number;
-  amount: number;
-}
+function LineRows({ item, group }: { item: InvoiceItem; group?: LicenceGroup }) {
+  const lineRate = Number(item.taxRate) || 0;
+  const lineInclusive = item.gstType === 'INCLUSIVE';
 
-function LineRows({
-  item,
-  group,
-  first,
-}: {
-  item: InvoiceItem;
-  group?: LicenceGroup;
-  first: boolean;
-}) {
-  const gst = (
-    <>
-      <p className="font-medium tabular-nums text-foreground">
-        {Number(item.taxRate) ? `${Number(item.taxRate)}%` : '—'}
-      </p>
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        {item.gstType === 'INCLUSIVE' ? 'Inclusive' : 'Exclusive'}
-      </p>
-    </>
-  );
-  const topRule = first ? '' : 'border-t border-border';
-
-  // Prefer the snapshot the invoice was issued with; otherwise read the
-  // customer's current assignments (invoices predating the snapshot).
   const snapshot = item.products ?? [];
   const rows: ProductRow[] = snapshot.length
     ? snapshot.map((p) => ({
@@ -435,9 +418,11 @@ function LineRows({
         unit: p.unit,
         units: p.unitHours != null ? Number(p.unitHours) || 0 : 1,
         agreedPrice: Number(p.agreedPrice) || 0,
+        taxRate: p.taxRate != null ? Number(p.taxRate) || 0 : lineRate,
+        inclusive: p.gstType ? p.gstType === 'INCLUSIVE' : lineInclusive,
         amount: Number(p.amount) || 0,
       }))
-    : buildFromAssignments(item, group);
+    : buildFromAssignments(item, group, lineRate, lineInclusive);
   const licenceKey = item.sku || group?.licenceKey || '';
 
   // Nothing identifiable behind this line — show what the line itself holds.
@@ -447,8 +432,8 @@ function LineRows({
       .map((n) => n.trim())
       .filter(Boolean);
     return (
-      <tr className={`align-top ${topRule}`}>
-        <td className="py-3.5 pl-3.5 pr-3">
+      <tr className="align-top">
+        <td className="py-3.5 pl-4 pr-3">
           <p className="font-semibold leading-snug text-foreground">
             {names[0] || item.product?.name || '—'}
           </p>
@@ -463,8 +448,10 @@ function LineRows({
         </td>
         <td className="px-3 py-3.5 text-right font-medium tabular-nums">{item.quantity}</td>
         <td className="px-3 py-3.5 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>
-        <td className="px-3 py-3.5 text-center">{gst}</td>
-        <td className="py-3.5 pl-3 pr-3.5 text-right font-semibold tabular-nums text-foreground">
+        <td className="px-3 py-3.5 text-center">
+          <GstCell rate={lineRate} inclusive={lineInclusive} />
+        </td>
+        <td className="py-3.5 pl-3 pr-4 text-right font-semibold tabular-nums text-foreground">
           {formatCurrency(item.lineTotal)}
         </td>
       </tr>
@@ -473,35 +460,31 @@ function LineRows({
 
   return (
     <>
-      {/* Group header — the licence these products share, and the line's terms. */}
-      <tr className={topRule}>
-        <td colSpan={6} className="pb-1.5 pl-3.5 pr-3.5 pt-3.5">
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px]">
-            {licenceKey && (
-              <>
-                <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
-                  Licence
+      {/* The licence these products share, and the line's contract term. */}
+      {(licenceKey || item.contractType === 'TRIAL') && (
+        <tr>
+          <td colSpan={6} className="pb-1 pl-4 pr-4 pt-3">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px]">
+              {licenceKey && (
+                <>
+                  <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+                    Licence
+                  </span>
+                  <span className="font-mono font-semibold text-foreground">{licenceKey}</span>
+                </>
+              )}
+              {item.contractType === 'TRIAL' && (
+                <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-amber-700">
+                  Trial
                 </span>
-                <span className="font-mono font-semibold text-foreground">{licenceKey}</span>
-              </>
-            )}
-            {rows.length > 1 && (
-              <span className="text-muted-foreground">
-                {licenceKey && <span className="mr-2.5 text-muted-foreground/40">·</span>}
-                {rows.length} products
-              </span>
-            )}
-            {item.contractType === 'TRIAL' && (
-              <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-amber-700">
-                Trial
-              </span>
-            )}
-          </div>
-        </td>
-      </tr>
-      {rows.map((r, i) => (
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+      {rows.map((r) => (
         <tr key={r.key} className="align-top">
-          <td className="pb-3 pl-3.5 pr-3">
+          <td className="pb-3 pl-4 pr-3">
             <p className="font-semibold leading-snug text-foreground">{r.name}</p>
             {r.unit && <p className="text-[10.5px] text-muted-foreground">per {r.unit}</p>}
           </td>
@@ -510,8 +493,10 @@ function LineRows({
           </td>
           <td className="px-3 pb-3 text-right font-medium tabular-nums">{r.units}</td>
           <td className="px-3 pb-3 text-right tabular-nums">{formatCurrency(r.agreedPrice)}</td>
-          <td className="px-3 pb-3 text-center">{i === 0 ? gst : null}</td>
-          <td className="pb-3 pl-3 pr-3.5 text-right font-semibold tabular-nums text-foreground">
+          <td className="px-3 pb-3 text-center">
+            <GstCell rate={r.taxRate} inclusive={r.inclusive} />
+          </td>
+          <td className="pb-3 pl-3 pr-4 text-right font-semibold tabular-nums text-foreground">
             {formatCurrency(r.amount)}
           </td>
         </tr>
@@ -526,7 +511,12 @@ function LineRows({
  * the line by its agreed net, and the last row absorbs the rounding, so the rows
  * still sum to exactly what the line bills.
  */
-function buildFromAssignments(item: InvoiceItem, group?: LicenceGroup): ProductRow[] {
+function buildFromAssignments(
+  item: InvoiceItem,
+  group: LicenceGroup | undefined,
+  lineRate: number,
+  lineInclusive: boolean
+): ProductRow[] {
   if (!group || group.items.length === 0) return [];
   const lineTotal = Number(item.lineTotal) || 0;
   const base = licenceGroupNet(group);
@@ -545,8 +535,22 @@ function buildFromAssignments(item: InvoiceItem, group?: LicenceGroup): ProductR
     unit: cp.unit,
     units: productUnits(cp),
     agreedPrice: Number(cp.price) || 0,
+    taxRate: cp.taxRate != null ? Number(cp.taxRate) || 0 : lineRate,
+    inclusive: cp.gstType ? cp.gstType === 'INCLUSIVE' : lineInclusive,
     amount: amounts[i],
   }));
+}
+
+/** A product's GST: its rate, and whether its price already contains it. */
+function GstCell({ rate, inclusive }: { rate: number; inclusive: boolean }) {
+  return (
+    <>
+      <p className="font-medium tabular-nums text-foreground">{rate ? `${rate}%` : '—'}</p>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        {inclusive ? 'Inclusive' : 'Exclusive'}
+      </p>
+    </>
+  );
 }
 
 /** A product code in the SKU column. */
@@ -554,46 +558,34 @@ function Sku({ children }: { children?: string | null }) {
   return <span className="font-mono text-[11.5px] text-muted-foreground">{children || '—'}</span>;
 }
 
-/** A table heading cell on the navy header band. */
-function Th({
+/** A soft tinted section panel — the sheet's only structural device. */
+function Panel({
   children,
   className,
-  navy,
+  tint,
+  border,
 }: {
   children: ReactNode;
   className?: string;
-  navy: string;
+  tint?: string;
+  border?: string;
 }) {
   return (
-    <th
-      className={`px-3 py-2.5 font-semibold ${className ?? ''}`}
-      style={{ background: navy, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+    <div
+      className={`rounded-xl border p-4 ${className ?? ''}`}
+      style={{
+        background: tint ?? 'rgb(248 250 252)',
+        borderColor: border,
+        printColorAdjust: 'exact',
+        WebkitPrintColorAdjust: 'exact',
+      }}
     >
       {children}
-    </th>
-  );
-}
-
-/** A supporting fact beside the amount in the hero. */
-function HeroFact({
-  label,
-  value,
-  children,
-}: {
-  label: string;
-  value: string;
-  children?: string;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">{label}</p>
-      <p className="mt-1.5 text-[15px] font-semibold tabular-nums">{value}</p>
-      {children && <p className="mt-0.5 text-[10.5px] text-white/50">{children}</p>}
     </div>
   );
 }
 
-function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
+function PanelLabel({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <p
       className={`text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70 ${
@@ -605,18 +597,46 @@ function Eyebrow({ children, className }: { children: ReactNode; className?: str
   );
 }
 
+/** A labelled fact inside the billing-cycle panel. */
+function Fact({
+  label,
+  children,
+  accent,
+}: {
+  label: string;
+  children: ReactNode;
+  accent?: string;
+}) {
+  return (
+    <div>
+      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{label}</dt>
+      <dd
+        className="font-semibold tabular-nums text-foreground"
+        style={accent ? { color: accent } : undefined}
+      >
+        {children}
+      </dd>
+    </div>
+  );
+}
+
 /** One payment method, as a soft card with an accent edge. */
 function PayCard({
   title,
   accent,
+  border,
   children,
 }: {
   title: string;
   accent: string;
+  border?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-secondary/25 p-4">
+    <div
+      className="rounded-xl border bg-slate-50 p-4"
+      style={{ borderColor: border, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+    >
       <div className="mb-2.5 flex items-center gap-2">
         <span
           className="h-3.5 w-1 rounded-full"

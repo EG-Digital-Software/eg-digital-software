@@ -253,6 +253,8 @@ type Assignment = {
   unit: string | null;
   unitHoursEnabled: boolean;
   unitHours: Prisma.Decimal | null;
+  taxRate: Prisma.Decimal | null;
+  gstType: string | null;
   product: { name: string; sku: string | null; productCode: string };
   licence: { licenceKey: string } | null;
 };
@@ -271,6 +273,8 @@ async function loadAssignments(customerId: string): Promise<Assignment[]> {
       unit: true,
       unitHoursEnabled: true,
       unitHours: true,
+      taxRate: true,
+      gstType: true,
       product: { select: { name: true, sku: true, productCode: true } },
       licence: { select: { licenceKey: true } },
     },
@@ -332,6 +336,9 @@ function snapshotLineProducts(
     unit: a.unit,
     agreedPrice: round2(D(a.price ?? 0)),
     unitHours: a.unitHoursEnabled ? round2(D(a.unitHours ?? 0)) : null,
+    // Each assignment agrees its own GST, so the invoice can state it per product.
+    taxRate: a.taxRate != null ? round2(D(a.taxRate)) : null,
+    gstType: a.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : a.gstType === 'EXCLUSIVE' ? 'EXCLUSIVE' : null,
     amount: amounts[i],
     position: i,
   }));

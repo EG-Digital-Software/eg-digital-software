@@ -284,6 +284,10 @@ export interface InvoiceItemProduct {
   agreedPrice: string;
   /** The Unit/Hours multiplier at issue time; null when not unit-priced. */
   unitHours?: string | null;
+  /** This product's own GST rate at issue time; null falls back to the line's. */
+  taxRate?: string | null;
+  /** 'INCLUSIVE' or 'EXCLUSIVE' for this product; null falls back to the line's. */
+  gstType?: string | null;
   /** This product's share of the line's total, GST inclusive. */
   amount: string;
   position: number;

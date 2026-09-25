@@ -620,6 +620,12 @@ model InvoiceItemProduct {
   agreedPrice Decimal     @default(0) @db.Decimal(12, 2)
   /// The Unit/Hours multiplier at issue time (null when not unit-priced).
   unitHours   Decimal?    @db.Decimal(12, 2)
+  /// The GST rate agreed for this product at issue time. Null on rows written
+  /// before per-product GST was captured — those fall back to the line's rate.
+  taxRate     Decimal?    @db.Decimal(5, 2)
+  /// Whether this product's agreed price is GST-INCLUSIVE or GST-EXCLUSIVE at
+  /// issue time. Null falls back to the line's basis.
+  gstType     String?
   /// This product's share of the line's total, GST inclusive. The shares of a
   /// line always sum to its lineTotal.
   amount      Decimal     @default(0) @db.Decimal(12, 2)
