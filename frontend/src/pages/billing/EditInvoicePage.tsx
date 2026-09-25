@@ -6,8 +6,9 @@ import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2, Receipt, Package, FileText, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { invoiceApi } from '@/api/resources';
+import { customerApi, invoiceApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
+import type { CustomerProduct } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -16,9 +17,19 @@ import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
 import { formatCurrency, cn } from '@/lib/utils';
 import { numericField } from '@/lib/input';
 import { INVOICE_TERMS } from '@/lib/customer';
+import { computeProration, productNet, round2, fmtDay } from '@/lib/proration';
+
+/** A licence group = all products that share one licence key (one selectable row). */
+interface LicenceGroup {
+  key: string;
+  licenceKey: string;
+  items: CustomerProduct[];
+}
 
 const schema = z.object({
   invoiceDate: z.string().optional(),
+  // Not user-editable — auto-filled on submit with the billing period's end
+  // (calendar month-end for monthly terms) so it tracks the invoice date/term.
   dueDate: z.string().optional(),
   term: z.string().optional(),
   reference: z.string().optional(),
@@ -42,6 +53,10 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const FILLED = 'border-slate-200 bg-slate-50 shadow-none';
+
+/** A Date → "YYYY-MM-DD" using local parts, so it matches the displayed day. */
+const toDateInput = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
@@ -81,7 +96,6 @@ export default function EditInvoicePage() {
     if (!invoice) return;
     reset({
       invoiceDate: invoice.invoiceDate ? invoice.invoiceDate.slice(0, 10) : '',
-      dueDate: invoice.dueDate ? invoice.dueDate.slice(0, 10) : '',
       term: invoice.term ?? '',
       reference: invoice.reference ?? '',
       discount: Number(invoice.discount) || 0,
@@ -102,12 +116,61 @@ export default function EditInvoicePage() {
   const items = watch('items');
   const discount = watch('discount');
   const term = watch('term');
+  const invoiceDate = watch('invoiceDate');
+
+  // The invoice's customer — carries their product assignments (agreed price,
+  // tax, GST/contract type and unit multipliers) so product-backed lines can be
+  // re-pro-rated when the billing period (invoice date/term) changes, exactly
+  // like the create form.
+  const clientId = invoice?.customer?.clientId;
+  const { data: selectedCustomer } = useQuery({
+    queryKey: ['customer', clientId],
+    queryFn: () => customerApi.get(clientId!),
+    enabled: !!clientId,
+  });
+
+  // Group the customer's assigned products by licence key — each group is one
+  // billable "row" (all its products share one licence key).
+  const licenceGroups = useMemo<LicenceGroup[]>(() => {
+    const map = new Map<string, LicenceGroup>();
+    for (const cp of selectedCustomer?.customerProducts ?? []) {
+      const licenceKey = cp.licence?.licenceKey ?? '';
+      const key = licenceKey || cp.id; // products without a licence stand alone
+      if (!map.has(key)) map.set(key, { key, licenceKey, items: [] });
+      map.get(key)!.items.push(cp);
+    }
+    return [...map.values()];
+  }, [selectedCustomer]);
+
+  // Full agreed net for the licence group a product belongs to (before pro-rata).
+  const groupBaseFor = (productId?: string): number | null => {
+    const g = licenceGroups.find((x) => x.items.some((cp) => cp.product.id === productId));
+    return g ? g.items.reduce((s, cp) => s + productNet(cp), 0) : null;
+  };
+
+  // Billing period + pro-ration for the invoice's issue date and term. The due
+  // date is derived from the term (mirrors the backend + create form), and each
+  // product-backed line bills its agreed net × this fraction.
+  const proration = useMemo(() => computeProration(invoiceDate, term), [invoiceDate, term]);
+  const fraction = proration?.fraction ?? 1;
+
+  // The unit price a line actually bills. For a product-backed line it's the
+  // group's agreed net × the current pro-rata fraction — derived live from the
+  // invoice date/term, so the amount reflects instantly (no effect/setValue lag).
+  // Manual lines keep their typed price.
+  const effectiveUnitPrice = (it?: FormValues['items'][number]): number => {
+    if (it?.productId) {
+      const base = groupBaseFor(it.productId);
+      if (base != null) return round2(base * fraction);
+    }
+    return Number(it?.unitPrice) || 0;
+  };
 
   const totals = useMemo(() => {
     let subtotal = 0;
     let tax = 0;
     for (const it of items ?? []) {
-      const gross = (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0);
+      const gross = effectiveUnitPrice(it) * (Number(it.quantity) || 0);
       const rate = (Number(it.taxRate) || 0) / 100;
       if (it.gstType === 'INCLUSIVE') {
         const net = gross / (1 + rate);
@@ -120,7 +183,9 @@ export default function EditInvoicePage() {
     }
     const disc = Number(discount) || 0;
     return { subtotal, tax, total: Math.max(0, subtotal + tax - disc) };
-  }, [items, discount]);
+    // effectiveUnitPrice closes over fraction + licenceGroups (both listed).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, discount, fraction, licenceGroups]);
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) => invoiceApi.update(id!, values),
@@ -138,7 +203,19 @@ export default function EditInvoicePage() {
   if (isError || !invoice) return <ErrorState onRetry={refetch} />;
 
   return (
-    <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="w-full space-y-6">
+    <form
+      onSubmit={handleSubmit((v) =>
+        mutation.mutate({
+          ...v,
+          // Auto-filled due date (billing period end); local parts (not
+          // toISOString) so a UTC+ timezone can't shift month-end back a day.
+          dueDate: proration ? toDateInput(proration.end) : undefined,
+          // Persist the same pro-rated price the summary shows for product lines.
+          items: v.items.map((it) => ({ ...it, unitPrice: effectiveUnitPrice(it) })),
+        })
+      )}
+      className="w-full space-y-6"
+    >
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
         <div className="flex items-center gap-3 border-b border-border/60 bg-secondary/30 px-5 py-4 sm:px-6">
           <Button variant="ghost" size="icon" asChild>
@@ -167,9 +244,6 @@ export default function EditInvoicePage() {
           <Field label="Invoice Date">
             <Input className={FILLED} type="date" {...register('invoiceDate')} />
           </Field>
-          <Field label="Due Date">
-            <Input className={FILLED} type="date" {...register('dueDate')} />
-          </Field>
           <Field label="Term">
             <Select className={FILLED} {...register('term')}>
               <option value="">—</option>
@@ -180,6 +254,19 @@ export default function EditInvoicePage() {
               ))}
               {term && !INVOICE_TERMS.some((t) => t.value === term) && <option value={term}>{term}</option>}
             </Select>
+          </Field>
+          <Field label="Due Date">
+            {/* Auto-filled (read-only) with the billing period's end — the last
+                day of the calendar month for monthly terms. Change the invoice
+                date or term and it moves on its own. */}
+            <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-muted-foreground">
+              {proration ? fmtDay(proration.end) : '—'}
+            </div>
+            {proration && (
+              <p className="text-xs text-muted-foreground">
+                Billing period: {fmtDay(proration.start)} to {fmtDay(proration.end)}
+              </p>
+            )}
           </Field>
           <Field label="Reference">
             <Input className={FILLED} {...register('reference')} />
@@ -209,7 +296,12 @@ export default function EditInvoicePage() {
         <CardContent className="space-y-3 pt-6">
           {fields.map((field, index) => {
             const it = items?.[index];
-            const gross = (Number(it?.unitPrice) || 0) * (Number(it?.quantity) || 0);
+            // Product-backed lines bill a pro-rated price derived from the
+            // invoice date/term — shown read-only so it always matches the
+            // summary; manual lines stay editable.
+            const isProduct = !!it?.productId && groupBaseFor(it.productId) != null;
+            const unitPrice = effectiveUnitPrice(it);
+            const gross = unitPrice * (Number(it?.quantity) || 0);
             const amount = it?.gstType === 'INCLUSIVE' ? gross : gross * (1 + (Number(it?.taxRate) || 0) / 100);
             return (
               <div key={field.id} className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-slate-50/50 p-4 sm:grid-cols-12">
@@ -229,7 +321,13 @@ export default function EditInvoicePage() {
                 </div>
                 <div className="sm:col-span-2">
                   <Field label="Unit Price">
-                    <Input className={FILLED} {...numericField(register(`items.${index}.unitPrice`), 'decimal')} />
+                    {isProduct ? (
+                      <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-muted-foreground">
+                        {formatCurrency(unitPrice)}
+                      </div>
+                    ) : (
+                      <Input className={FILLED} {...numericField(register(`items.${index}.unitPrice`), 'decimal')} />
+                    )}
                   </Field>
                 </div>
                 <div className="sm:col-span-2">
