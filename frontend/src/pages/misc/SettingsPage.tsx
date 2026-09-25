@@ -233,7 +233,7 @@ export default function SettingsPage() {
         description="Where customers reach you about invoices and support"
       >
         <Field label="Billing Email" error={errors.billingEmail?.message}>
-          <Input type="email" placeholder="billing@egdigital.com.au" {...register('billingEmail')} />
+          <Input type="email" placeholder="connect@egdigital.com.au" {...register('billingEmail')} />
         </Field>
         <Field label="Support Email" error={errors.supportEmail?.message}>
           <Input type="email" placeholder="support@egdigital.com.au" {...register('supportEmail')} />

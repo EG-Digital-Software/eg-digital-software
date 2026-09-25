@@ -37,7 +37,7 @@ const schema = z.object({
   EMAIL_API_KEY: z.string().optional(),
   // The visible sender. For best inbox delivery this should be a real, hosted
   // mailbox on a domain with SPF + DKIM + DMARC (e.g. the admin's address).
-  EMAIL_FROM: z.string().default('no-reply@egdigital.com.au'),
+  EMAIL_FROM: z.string().default('connect@egdigital.com.au'),
   EMAIL_FROM_NAME: z.string().default('EG Digital'),
   // Where replies go if it differs from EMAIL_FROM (e.g. a no-reply sender).
   EMAIL_REPLY_TO: z.string().optional(),

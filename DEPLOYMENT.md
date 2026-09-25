@@ -262,7 +262,75 @@ SMTP_SECURE=false                      # 587=STARTTLS(false), 465=SSL(true)
 SMTP_USER=<brevo smtp login>           # jaise 9a1b2c@smtp-brevo.com — EMAIL_FROM se alag hota hai
 SMTP_PASS=<brevo smtp key>             # account password NAHI
 ```
-> `EMAIL_PROVIDER=smtp` hai par `SMTP_HOST` blank hai to app crash nahi hoga — console par log karega.
+> ⚠️ `EMAIL_PROVIDER=smtp` par `SMTP_HOST` blank ho (ya `EMAIL_PROVIDER` bilkul set
+> na ho, jo `console` ho jaata hai) — production me app **send karne se mana kar
+> degi**: admin ko exact reason wala error dikhega aur invoice `SENT` mark nahi
+> hogi. Pehle ye chup-chaap console par log karke "sent" bol deta tha, isliye mail
+> kahin nahi jaati thi aur pata bhi nahi chalta tha.
+>
+> Kabhi bhi check karna ho: **`GET /api/admin/email-status`** (admin token ke saath)
+> → `{ provider, canDeliver, reason, from }`. Boot par bhi ek line log hoti hai.
+
+### 8.1 Microsoft 365 / Outlook mailbox se bhejna
+
+Brevo ki jagah seedha **Outlook (Microsoft 365) mailbox** se bhejna ho — jaise
+`connect@egdigital.com.au` — to method hai **client SMTP submission**. Ye external
+recipients (customers) ko bhi bhej sakta hai, aur Azure App Service se bhi chalta
+hai (Microsoft third-party hosted app ko explicitly support karta hai).
+
+**App Service env variables:**
+```
+APP_URL=https://<aapka web domain>
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=connect@egdigital.com.au
+EMAIL_FROM_NAME=EG Digital
+EMAIL_REPLY_TO=connect@egdigital.com.au
+SMTP_HOST=smtp.office365.com     # DNS name — IP address kabhi nahi
+SMTP_PORT=587                    # 465 NAHI (TLS version support nahi karta);
+                                 # 25 Azure App Service par blocked hai
+SMTP_SECURE=false                # 587 par STARTTLS upgrade hota hai
+SMTP_USER=connect@egdigital.com.au
+SMTP_PASS=<us mailbox ka password / app password>
+```
+
+**Microsoft side par 3 cheezein zaroori hain:**
+
+1. **Mailbox licensed ho.** `connect@egdigital.com.au` ek asli licensed M365
+   mailbox hona chahiye (shared mailbox / alias se client submission nahi hota).
+
+2. **"Authenticated SMTP" us mailbox par ON karein.** Microsoft January 2020 ke
+   baad bane tenants me SMTP AUTH **default se OFF** rakhta hai — yahi sabse
+   common wajah hai ki credentials sahi hote hue bhi login fail hota hai.
+   - Microsoft 365 admin center → **Users → Active users** → mailbox → **Mail**
+     tab → **Manage email apps** → **Authenticated SMTP** tick karein.
+   - Ya Exchange Online PowerShell:
+     `Set-CASMailbox -Identity connect@egdigital.com.au -SmtpClientAuthenticationDisabled $false`
+
+3. **Entra ID "security defaults" OFF hon.** Client SMTP submission basic auth
+   use karta hai, jo security defaults ke saath compatible nahi hai. (Isse
+   hataane ke bajaye conditional access se tighten karna behtar hai.)
+
+**Agar `SMTP_USER` aur `EMAIL_FROM` alag hain** to us sign-in account ko mailbox
+par **Send As** permission chahiye, warna bounce aayega:
+`5.7.60 SMTP; Client doesn't have permissions to send as this sender.`
+
+**Limits (client SMTP submission):** 10,000 recipients/din, **30 messages/minute**.
+Invoice + reminder volume ke liye kaafi hai.
+
+**SPF / DKIM / DMARC** `egdigital.com.au` par set hon, warna mail spam me jaayegi.
+M365 ke liye SPF me `include:spf.protection.outlook.com` hona chahiye.
+
+> ⏳ **Timeline — ye jaan lena zaroori hai.** Microsoft client SMTP submission ka
+> **basic auth retire kar raha hai**: December 2026 tak waisa hi chalega, uske baad
+> existing tenants me **default se disable** ho jayega, aur 2027 ki second half me
+> dobara enable karne ka option bhi hat jayega. Yaani Outlook SMTP abhi kaam karega
+> par ye **long-term solution nahi hai**.
+>
+> Uske baad ke options: **OAuth 2.0 SMTP**, **Azure Communication Services Email**
+> (internal + external), ya Graph API. Microsoft ka *High Volume Email*
+> (`smtp-hve.office365.com`) **sirf internal recipients** ke liye hai — customers ko
+> invoice bhejne ke kaam nahi aayega. Brevo API route (`EMAIL_PROVIDER=brevo`) is
+> deprecation se bilkul affected nahi hai.
 
 > ⚠️ `EMAIL_FROM` ka domain **wahi** ho jo Brevo par verify kiya hai. Brevo
 > un-verified domain se bhejne se mana kar deta hai — mail chupchaap fail hogi

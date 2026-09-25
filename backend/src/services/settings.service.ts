@@ -144,7 +144,7 @@ const ORG_DEFAULTS: OrganisationSettings = {
   state: 'VIC',
   postcode: '3066',
   country: 'Australia',
-  billingEmail: 'billing@egdigital.com.au',
+  billingEmail: 'connect@egdigital.com.au',
   supportEmail: '',
   phone: '',
   phoneCountry: 'AU',
