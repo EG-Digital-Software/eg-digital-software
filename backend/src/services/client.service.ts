@@ -188,7 +188,10 @@ export async function getInvoice(customerId: string, invoiceId: string) {
     where: { id: invoiceId },
     include: {
       // The invoice template shows each line's product and its details.
-      items: { include: { product: true } },
+      items: {
+        // products = the per-product snapshot taken when the invoice was issued.
+        include: { product: true, products: { orderBy: { position: 'asc' } } },
+      },
       payments: true,
       customer: {
         include: {

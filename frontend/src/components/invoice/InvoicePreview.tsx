@@ -386,12 +386,23 @@ function groupForItem(groups: LicenceGroup[], item: InvoiceItem): LicenceGroup |
  * built: each product's name, its SKU, its Unit/Hours, its agreed price and the
  * net it contributes.
  *
- * Each product's share of the line comes from its own agreed net, and the last row
- * absorbs the rounding, so the rows always add up to exactly what the line bills —
- * even if an agreed price has been changed on the assignment since the invoice was
- * issued. A line with no resolvable group (a manually typed one) stays a single
- * row built from what the line itself stores.
+ * The values come from the line's own snapshot (`item.products`), taken when the
+ * invoice was issued, so a later change to an agreed price cannot rewrite a sent
+ * invoice. Invoices issued before that snapshot existed have none, and fall back
+ * to the customer's current assignments — the best available reading of a
+ * historical line. A line with neither (a manually typed one) stays a single row
+ * built from what the line itself stores.
  */
+interface ProductRow {
+  key: string;
+  name: string;
+  sku?: string | null;
+  unit?: string | null;
+  units: number;
+  agreedPrice: number;
+  amount: number;
+}
+
 function LineRows({
   item,
   group,
@@ -413,8 +424,24 @@ function LineRows({
   );
   const topRule = first ? '' : 'border-t border-border';
 
-  // No assignment behind this line — show what the line itself holds.
-  if (!group || group.items.length === 0) {
+  // Prefer the snapshot the invoice was issued with; otherwise read the
+  // customer's current assignments (invoices predating the snapshot).
+  const snapshot = item.products ?? [];
+  const rows: ProductRow[] = snapshot.length
+    ? snapshot.map((p) => ({
+        key: p.id,
+        name: p.name,
+        sku: p.sku,
+        unit: p.unit,
+        units: p.unitHours != null ? Number(p.unitHours) || 0 : 1,
+        agreedPrice: Number(p.agreedPrice) || 0,
+        amount: Number(p.amount) || 0,
+      }))
+    : buildFromAssignments(item, group);
+  const licenceKey = item.sku || group?.licenceKey || '';
+
+  // Nothing identifiable behind this line — show what the line itself holds.
+  if (rows.length === 0) {
     const names = (item.description ?? '')
       .split('\n')
       .map((n) => n.trim())
@@ -444,36 +471,24 @@ function LineRows({
     );
   }
 
-  const lineTotal = Number(item.lineTotal) || 0;
-  const base = licenceGroupNet(group);
-  const products = group.items;
-  // Split the line across its products by each one's agreed net, then give the
-  // rounding remainder to the last row so the column still sums to the line.
-  const amounts = products.map((cp, i) =>
-    i === products.length - 1
-      ? 0
-      : round2(base > 0 ? (lineTotal * productNet(cp)) / base : lineTotal / products.length)
-  );
-  amounts[products.length - 1] = round2(lineTotal - amounts.reduce((s, n) => s + n, 0));
-
   return (
     <>
       {/* Group header — the licence these products share, and the line's terms. */}
       <tr className={topRule}>
         <td colSpan={6} className="pb-1.5 pl-3.5 pr-3.5 pt-3.5">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px]">
-            {group.licenceKey && (
+            {licenceKey && (
               <>
                 <span className="font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
                   Licence
                 </span>
-                <span className="font-mono font-semibold text-foreground">{group.licenceKey}</span>
+                <span className="font-mono font-semibold text-foreground">{licenceKey}</span>
               </>
             )}
-            {products.length > 1 && (
+            {rows.length > 1 && (
               <span className="text-muted-foreground">
-                {group.licenceKey && <span className="mr-2.5 text-muted-foreground/40">·</span>}
-                {products.length} products
+                {licenceKey && <span className="mr-2.5 text-muted-foreground/40">·</span>}
+                {rows.length} products
               </span>
             )}
             {item.contractType === 'TRIAL' && (
@@ -484,25 +499,54 @@ function LineRows({
           </div>
         </td>
       </tr>
-      {products.map((cp, i) => (
-        <tr key={cp.id} className="align-top">
+      {rows.map((r, i) => (
+        <tr key={r.key} className="align-top">
           <td className="pb-3 pl-3.5 pr-3">
-            <p className="font-semibold leading-snug text-foreground">{cp.product.name}</p>
-            {cp.unit && <p className="text-[10.5px] text-muted-foreground">per {cp.unit}</p>}
+            <p className="font-semibold leading-snug text-foreground">{r.name}</p>
+            {r.unit && <p className="text-[10.5px] text-muted-foreground">per {r.unit}</p>}
           </td>
           <td className="px-3 pb-3">
-            <Sku>{cp.product.sku || cp.product.productCode}</Sku>
+            <Sku>{r.sku}</Sku>
           </td>
-          <td className="px-3 pb-3 text-right font-medium tabular-nums">{productUnits(cp)}</td>
-          <td className="px-3 pb-3 text-right tabular-nums">{formatCurrency(Number(cp.price) || 0)}</td>
+          <td className="px-3 pb-3 text-right font-medium tabular-nums">{r.units}</td>
+          <td className="px-3 pb-3 text-right tabular-nums">{formatCurrency(r.agreedPrice)}</td>
           <td className="px-3 pb-3 text-center">{i === 0 ? gst : null}</td>
           <td className="pb-3 pl-3 pr-3.5 text-right font-semibold tabular-nums text-foreground">
-            {formatCurrency(amounts[i])}
+            {formatCurrency(r.amount)}
           </td>
         </tr>
       ))}
     </>
   );
+}
+
+/**
+ * Rows derived from the customer's current product assignments, for an invoice
+ * issued before lines carried their own snapshot. Each product takes a share of
+ * the line by its agreed net, and the last row absorbs the rounding, so the rows
+ * still sum to exactly what the line bills.
+ */
+function buildFromAssignments(item: InvoiceItem, group?: LicenceGroup): ProductRow[] {
+  if (!group || group.items.length === 0) return [];
+  const lineTotal = Number(item.lineTotal) || 0;
+  const base = licenceGroupNet(group);
+  const products = group.items;
+  const amounts = products.map((cp, i) =>
+    i === products.length - 1
+      ? 0
+      : round2(base > 0 ? (lineTotal * productNet(cp)) / base : lineTotal / products.length)
+  );
+  amounts[products.length - 1] = round2(lineTotal - amounts.reduce((s, n) => s + n, 0));
+
+  return products.map((cp, i) => ({
+    key: cp.id,
+    name: cp.product.name,
+    sku: cp.product.sku || cp.product.productCode,
+    unit: cp.unit,
+    units: productUnits(cp),
+    agreedPrice: Number(cp.price) || 0,
+    amount: amounts[i],
+  }));
 }
 
 /** A product code in the SKU column. */

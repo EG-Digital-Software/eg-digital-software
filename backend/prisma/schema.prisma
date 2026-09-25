@@ -447,8 +447,9 @@ model Product {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  customerProducts CustomerProduct[]
-  invoiceItems     InvoiceItem[]
+  customerProducts    CustomerProduct[]
+  invoiceItems        InvoiceItem[]
+  invoiceItemProducts InvoiceItemProduct[]
 
   @@index([status])
   @@index([name])
@@ -588,7 +589,45 @@ model InvoiceItem {
   /// added on top). Drives this line's tax split and total.
   gstType      String   @default("EXCLUSIVE")
 
+  /// Per-product snapshot of what this line bills (see InvoiceItemProduct).
+  products InvoiceItemProduct[]
+
   @@index([invoiceId])
+}
+
+/// One product's share of an invoice line, captured when the invoice is issued.
+///
+/// A line can bill a whole licence group, so the breakdown the invoice shows is
+/// per product, not per line. These rows are a SNAPSHOT: the product's name, SKU,
+/// unit and agreed commercials are copied in at issue time, so changing an agreed
+/// price on the customer's assignment later never rewrites an invoice that has
+/// already gone out. Lines with no product assignment behind them have no rows,
+/// and invoices issued before this existed have none either — both fall back to
+/// what the line itself stores.
+model InvoiceItemProduct {
+  id          String      @id @default(uuid())
+  item        InvoiceItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId      String
+  /// Kept for reporting; the display values are the snapshot fields below, so a
+  /// renamed or deleted product cannot change a historical invoice.
+  product     Product?    @relation(fields: [productId], references: [id])
+  productId   String?
+  name        String
+  sku         String?
+  /// The unit the agreed price is per (e.g. "user", "mailbox").
+  unit        String?
+  /// The agreed price per unit at issue time.
+  agreedPrice Decimal     @default(0) @db.Decimal(12, 2)
+  /// The Unit/Hours multiplier at issue time (null when not unit-priced).
+  unitHours   Decimal?    @db.Decimal(12, 2)
+  /// This product's share of the line's total, GST inclusive. The shares of a
+  /// line always sum to its lineTotal.
+  amount      Decimal     @default(0) @db.Decimal(12, 2)
+  /// Display order within the line.
+  position    Int         @default(0)
+
+  @@index([itemId])
+  @@index([productId])
 }
 
 model Payment {

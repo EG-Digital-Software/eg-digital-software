@@ -267,9 +267,37 @@ export interface CustomerCredential {
   createdAt: string;
 }
 
+/**
+ * One product's share of an invoice line, captured when the invoice was issued.
+ * A line can bill a whole licence group, so the breakdown is per product — and
+ * these values are a snapshot, so changing an agreed price on the customer's
+ * assignment later never rewrites an invoice that has already gone out.
+ */
+export interface InvoiceItemProduct {
+  id: string;
+  productId?: string | null;
+  name: string;
+  sku?: string | null;
+  /** The unit the agreed price is per (e.g. "user", "mailbox"). */
+  unit?: string | null;
+  /** The agreed price per unit at issue time. */
+  agreedPrice: string;
+  /** The Unit/Hours multiplier at issue time; null when not unit-priced. */
+  unitHours?: string | null;
+  /** This product's share of the line's total, GST inclusive. */
+  amount: string;
+  position: number;
+}
+
 export interface InvoiceItem {
   id: string;
   productId?: string | null;
+  /**
+   * Per-product snapshot of what this line bills, in display order. Empty on a
+   * manually typed line and on invoices issued before the snapshot existed —
+   * both render from what the line itself stores.
+   */
+  products?: InvoiceItemProduct[];
   /**
    * The product this line bills, when it came from a product assignment. Included
    * on a single-invoice fetch so the invoice template can show the product and

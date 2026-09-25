@@ -2,7 +2,7 @@ import { Prisma, InvoiceStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
-import { computeInvoiceTotals, computeLine, D } from '../utils/money.js';
+import { computeInvoiceTotals, computeLine, D, round2, type Money } from '../utils/money.js';
 import { nextSequence, formatInvoiceNumber, formatInvoiceReference } from '../utils/sequence.js';
 import { paymentProvider, generateQrDataUrl } from './payments/index.js';
 import { notify } from './notification.service.js';
@@ -109,7 +109,10 @@ export async function getInvoice(id: string) {
     where: { id },
     include: {
       // The invoice template shows each line's product and its details.
-      items: { include: { product: true } },
+      items: {
+        // products = the per-product snapshot taken when the invoice was issued.
+        include: { product: true, products: { orderBy: { position: 'asc' } } },
+      },
       payments: true,
       customer: {
         include: {
@@ -242,6 +245,98 @@ type CreateInput = {
   }>;
 };
 
+/** A customer's product assignment, with what the snapshot needs off it. */
+type Assignment = {
+  id: string;
+  productId: string;
+  price: Prisma.Decimal;
+  unit: string | null;
+  unitHoursEnabled: boolean;
+  unitHours: Prisma.Decimal | null;
+  product: { name: string; sku: string | null; productCode: string };
+  licence: { licenceKey: string } | null;
+};
+
+/**
+ * The customer's product assignments, needed to snapshot what each line bills.
+ * Fetched once per invoice write.
+ */
+async function loadAssignments(customerId: string): Promise<Assignment[]> {
+  return prisma.customerProduct.findMany({
+    where: { customerId },
+    select: {
+      id: true,
+      productId: true,
+      price: true,
+      unit: true,
+      unitHoursEnabled: true,
+      unitHours: true,
+      product: { select: { name: true, sku: true, productCode: true } },
+      licence: { select: { licenceKey: true } },
+    },
+  }) as unknown as Promise<Assignment[]>;
+}
+
+/** The Unit/Hours multiplier on an assignment (1 when it is not unit-priced). */
+const assignmentUnits = (a: Assignment): Money => (a.unitHoursEnabled ? D(a.unitHours ?? 0) : D(1));
+/** An assignment's agreed net: agreed price x Unit/Hours. */
+const assignmentNet = (a: Assignment): Money => D(a.price ?? 0).mul(assignmentUnits(a));
+
+/**
+ * The per-product snapshot rows for one line.
+ *
+ * A line can bill a whole licence group, so it is split across that group's
+ * products by each one's agreed net (price x Unit/Hours), with the last row
+ * absorbing the rounding so the shares always sum to the line's total. The
+ * product's name, SKU, unit and agreed commercials are copied in, so a later
+ * change to the assignment cannot rewrite an invoice that has gone out.
+ *
+ * Returns an empty array for a line with no assignment behind it (a manually
+ * typed one) — such a line renders from what it stores itself.
+ */
+function snapshotLineProducts(
+  assignments: Assignment[],
+  item: { productId?: string | null; sku?: string | null },
+  lineTotal: Money
+) {
+  // A line carries its licence number as its sku, which is how a group is
+  // identified; fall back to the representative product it was built from.
+  let group = item.sku
+    ? assignments.filter((a) => a.licence?.licenceKey && a.licence.licenceKey === item.sku)
+    : [];
+  if (!group.length && item.productId) {
+    const rep = assignments.find((a) => a.productId === item.productId);
+    if (rep) {
+      const key = rep.licence?.licenceKey;
+      group = key ? assignments.filter((a) => a.licence?.licenceKey === key) : [rep];
+    }
+  }
+  if (!group.length) return [];
+
+  const nets = group.map(assignmentNet);
+  const base = nets.reduce((sum, n) => sum.add(n), D(0));
+  const last = group.length - 1;
+  const amounts: Money[] = group.map((_, i) =>
+    i === last
+      ? D(0)
+      : base.gt(0)
+        ? round2(lineTotal.mul(nets[i]).div(base))
+        : round2(lineTotal.div(group.length))
+  );
+  amounts[last] = round2(lineTotal.sub(amounts.reduce((sum, n) => sum.add(n), D(0))));
+
+  return group.map((a, i) => ({
+    productId: a.productId,
+    name: a.product.name,
+    sku: a.product.sku || a.product.productCode || null,
+    unit: a.unit,
+    agreedPrice: round2(D(a.price ?? 0)),
+    unitHours: a.unitHoursEnabled ? round2(D(a.unitHours ?? 0)) : null,
+    amount: amounts[i],
+    position: i,
+  }));
+}
+
 export async function createInvoice(input: CreateInput) {
   const customer = await prisma.customer.findUnique({ where: { clientId: input.clientId } });
   if (!customer) throw ApiError.notFound('Customer not found');
@@ -250,6 +345,7 @@ export async function createInvoice(input: CreateInput) {
   const dueDate = resolveDueDate(invoiceDate, input.term, input.customDays, input.dueDate);
   const nextBillingDate = input.nextBillingDate ?? defaultNextBillingDate(invoiceDate);
   const totals = computeInvoiceTotals(input.items, input.discount);
+  const assignments = await loadAssignments(customer.id);
 
   const invoice = await prisma.$transaction(async (tx) => {
     const invoiceNumber = formatInvoiceNumber(
@@ -295,6 +391,9 @@ export async function createInvoice(input: CreateInput) {
               gstType: it.gstType ?? 'EXCLUSIVE',
               taxAmount: line.taxAmount,
               lineTotal: line.lineTotal,
+              products: {
+                create: snapshotLineProducts(assignments, it, line.lineTotal),
+              },
             };
           }),
         },
@@ -337,7 +436,10 @@ export async function createInvoice(input: CreateInput) {
     where: { id: invoice.id },
     data: { paymentUrl: payment.paymentUrl, paymentQrUrl: qr },
     include: {
-      items: { include: { product: true } },
+      items: {
+        // products = the per-product snapshot taken when the invoice was issued.
+        include: { product: true, products: { orderBy: { position: 'asc' } } },
+      },
       customer: { include: { addresses: true } },
     },
   });
@@ -454,8 +556,12 @@ export async function updateInvoice(id: string, input: UpdateInput) {
   const totals = computeInvoiceTotals(input.items, input.discount);
   // Keep the existing reference unless a new non-empty one is supplied.
   const reference = input.reference?.trim() || existing.reference || undefined;
+  // The lines are replaced below, so their per-product snapshot is rebuilt too —
+  // an edit re-states what the invoice bills as of the edit.
+  const assignments = await loadAssignments(existing.customerId);
 
   await prisma.$transaction(async (tx) => {
+    // Cascades to each line's InvoiceItemProduct snapshot rows.
     await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
     await tx.invoice.update({
       where: { id },
@@ -485,6 +591,9 @@ export async function updateInvoice(id: string, input: UpdateInput) {
               gstType: it.gstType ?? 'EXCLUSIVE',
               taxAmount: line.taxAmount,
               lineTotal: line.lineTotal,
+              products: {
+                create: snapshotLineProducts(assignments, it, line.lineTotal),
+              },
             };
           }),
         },
@@ -508,7 +617,10 @@ export async function updateInvoice(id: string, input: UpdateInput) {
     where: { id },
     data: { paymentUrl: payment.paymentUrl, paymentQrUrl: qr },
     include: {
-      items: { include: { product: true } },
+      items: {
+        // products = the per-product snapshot taken when the invoice was issued.
+        include: { product: true, products: { orderBy: { position: 'asc' } } },
+      },
       customer: { include: { addresses: true } },
     },
   });
