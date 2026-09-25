@@ -8,7 +8,7 @@ import { ArrowLeft, Plus, Trash2, Receipt, Package, FileText, CheckCircle } from
 import { toast } from 'sonner';
 import { customerApi, invoiceApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
-import type { CustomerProduct } from '@/types';
+import { LineItemProduct } from '@/components/invoice/LineItemProduct';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -17,14 +17,16 @@ import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
 import { formatCurrency, cn } from '@/lib/utils';
 import { numericField } from '@/lib/input';
 import { INVOICE_TERMS } from '@/lib/customer';
-import { computeProration, productNet, round2, fmtDay, toDateInput } from '@/lib/proration';
-
-/** A licence group = all products that share one licence key (one selectable row). */
-interface LicenceGroup {
-  key: string;
-  licenceKey: string;
-  items: CustomerProduct[];
-}
+import {
+  computeProration,
+  round2,
+  fmtDay,
+  toDateInput,
+  buildLicenceGroups,
+  findLicenceGroup,
+  licenceGroupNet,
+  type LicenceGroup,
+} from '@/lib/proration';
 
 const schema = z.object({
   invoiceDate: z.string().optional(),
@@ -80,12 +82,13 @@ export default function EditInvoicePage() {
     control,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { discount: 0, items: [] },
   });
-  const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+  const { fields, append, remove, update } = useFieldArray({ control, name: 'items' });
 
   // Prefill once the invoice loads.
   useEffect(() => {
@@ -127,21 +130,41 @@ export default function EditInvoicePage() {
 
   // Group the customer's assigned products by licence key — each group is one
   // billable "row" (all its products share one licence key).
-  const licenceGroups = useMemo<LicenceGroup[]>(() => {
-    const map = new Map<string, LicenceGroup>();
-    for (const cp of selectedCustomer?.customerProducts ?? []) {
-      const licenceKey = cp.licence?.licenceKey ?? '';
-      const key = licenceKey || cp.id; // products without a licence stand alone
-      if (!map.has(key)) map.set(key, { key, licenceKey, items: [] });
-      map.get(key)!.items.push(cp);
-    }
-    return [...map.values()];
-  }, [selectedCustomer]);
+  const licenceGroups = useMemo<LicenceGroup[]>(
+    () => buildLicenceGroups(selectedCustomer?.customerProducts),
+    [selectedCustomer]
+  );
 
   // Full agreed net for the licence group a product belongs to (before pro-rata).
-  const groupBaseFor = (productId?: string): number | null => {
-    const g = licenceGroups.find((x) => x.items.some((cp) => cp.product.id === productId));
-    return g ? g.items.reduce((s, cp) => s + productNet(cp), 0) : null;
+  const groupBaseFor = (productId?: string | null): number | null => {
+    const g = findLicenceGroup(licenceGroups, productId);
+    return g ? licenceGroupNet(g) : null;
+  };
+
+  // Picking a licence group fills this line with the whole group as one row —
+  // all its products share one licence key and their price/tax/GST were agreed
+  // at assignment time. Same behaviour as the create form.
+  const selectGroup = (index: number, groupKey: string) => {
+    const g = licenceGroups.find((x) => x.key === groupKey);
+    if (!g || !g.items.length) return;
+    const rep = g.items[0];
+    const grpTerm = g.items.find((cp) => cp.invoicingTerm)?.invoicingTerm;
+    // Pro-rate on the group's own term so the amount is right even before the
+    // Term field re-renders.
+    const frac = computeProration(invoiceDate, grpTerm ?? term)?.fraction ?? 1;
+    const base = licenceGroupNet(g);
+    update(index, {
+      productId: rep.product.id,
+      // Licence number rides along as the line's sku (shown on the invoice).
+      sku: g.licenceKey || rep.product.sku || rep.product.productCode || '',
+      description: g.items.map((cp) => cp.product.name).join('\n'),
+      quantity: 1,
+      unitPrice: round2(base * frac),
+      taxRate: Number(rep.taxRate ?? 10) || 0,
+      contractType: (rep.contractType === 'TRIAL' ? 'TRIAL' : 'LOCKED') as 'LOCKED' | 'TRIAL',
+      gstType: (rep.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE',
+    });
+    if (grpTerm) setValue('term', grpTerm);
   };
 
   // Billing period + pro-ration for the invoice's issue date and term. The due
@@ -207,7 +230,14 @@ export default function EditInvoicePage() {
           // toISOString) so a UTC+ timezone can't shift month-end back a day.
           dueDate: proration ? toDateInput(proration.end) : undefined,
           // Persist the same pro-rated price the summary shows for product lines.
-          items: v.items.map((it) => ({ ...it, unitPrice: effectiveUnitPrice(it) })),
+          // productId/sku are null on a manual line, which the API's line-item
+          // schema (optional, not nullable) rejects — send them omitted instead.
+          items: v.items.map((it) => ({
+            ...it,
+            productId: it.productId ?? undefined,
+            sku: it.sku ?? undefined,
+            unitPrice: effectiveUnitPrice(it),
+          })),
         })
       )}
       className="w-full space-y-6"
@@ -302,11 +332,26 @@ export default function EditInvoicePage() {
             return (
               <div key={field.id} className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-slate-50/50 p-4 sm:grid-cols-12">
                 <div className="sm:col-span-4">
-                  <Field label="Description" error={errors.items?.[index]?.description?.message}>
-                    <Textarea
-                      className={cn(FILLED, 'min-h-[60px] resize-y')}
-                      rows={Math.max(2, it?.description?.split('\n').length ?? 1)}
-                      {...register(`items.${index}.description`)}
+                  <Field label="Product" error={errors.items?.[index]?.description?.message}>
+                    {/* Product-backed line → read-only licence/SKU/agreed-price
+                        summary, exactly as on the create form. A manual line
+                        keeps its editable description. */}
+                    <LineItemProduct
+                      groups={licenceGroups}
+                      productId={it?.productId}
+                      sku={it?.sku}
+                      fraction={fraction}
+                      hasCustomer={!!clientId}
+                      controlClassName={FILLED}
+                      onSelectGroup={(groupKey) => selectGroup(index, groupKey)}
+                      fallback={
+                        <Textarea
+                          className={cn(FILLED, 'min-h-[60px] resize-y')}
+                          rows={Math.max(2, it?.description?.split('\n').length ?? 1)}
+                          placeholder="Description (one product per line)"
+                          {...register(`items.${index}.description`)}
+                        />
+                      }
                     />
                   </Field>
                 </div>
@@ -357,7 +402,23 @@ export default function EditInvoicePage() {
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground hover:text-destructive"
-                    onClick={() => fields.length > 1 && remove(index)}
+                    onClick={() => {
+                      // With several lines, drop this row. On the only remaining
+                      // line keep the required minimum but clear it back to a
+                      // blank line, so a picked product/licence can be removed.
+                      if (fields.length > 1) remove(index);
+                      else
+                        update(index, {
+                          productId: null,
+                          sku: null,
+                          description: '',
+                          quantity: 1,
+                          unitPrice: 0,
+                          taxRate: 10,
+                          contractType: 'LOCKED',
+                          gstType: 'EXCLUSIVE',
+                        });
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

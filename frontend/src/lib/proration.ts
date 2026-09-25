@@ -16,6 +16,40 @@ export function productNet(cp: CustomerProduct): number {
   return (Number(cp.price) || 0) * productUnits(cp);
 }
 
+/** A licence group = all products that share one licence key — one "row" in the
+ *  customer's Products & Licences table, and one selectable invoice line. */
+export interface LicenceGroup {
+  key: string;
+  licenceKey: string;
+  items: CustomerProduct[];
+}
+
+/** Group a customer's assigned products by licence key. Products without a
+ *  licence stand alone under their own assignment id. */
+export function buildLicenceGroups(customerProducts?: CustomerProduct[]): LicenceGroup[] {
+  const map = new Map<string, LicenceGroup>();
+  for (const cp of customerProducts ?? []) {
+    const licenceKey = cp.licence?.licenceKey ?? '';
+    const key = licenceKey || cp.id;
+    if (!map.has(key)) map.set(key, { key, licenceKey, items: [] });
+    map.get(key)!.items.push(cp);
+  }
+  return [...map.values()];
+}
+
+/** The licence group a line's product belongs to, if any. */
+export function findLicenceGroup(
+  groups: LicenceGroup[],
+  productId?: string | null
+): LicenceGroup | undefined {
+  return productId ? groups.find((g) => g.items.some((cp) => cp.product.id === productId)) : undefined;
+}
+
+/** Full agreed net for a licence group (all its products, before pro-rata). */
+export function licenceGroupNet(group: LicenceGroup): number {
+  return group.items.reduce((sum, cp) => sum + productNet(cp), 0);
+}
+
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

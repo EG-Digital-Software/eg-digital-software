@@ -7,7 +7,7 @@ import { Plus, Trash2, Receipt, Package, FileText, CheckCircle } from 'lucide-re
 import { toast } from 'sonner';
 import { customerApi, invoiceApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
-import type { CustomerProduct, Invoice } from '@/types';
+import type { Invoice } from '@/types';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,17 @@ import { Spinner } from '@/components/shared/states';
 import { formatCurrency, cn } from '@/lib/utils';
 import { numericField } from '@/lib/input';
 import { INVOICE_TERMS } from '@/lib/customer';
-import { computeProration, productUnits, productNet, round2, fmtDay, toDateInput } from '@/lib/proration';
+import {
+  computeProration,
+  round2,
+  fmtDay,
+  toDateInput,
+  buildLicenceGroups,
+  findLicenceGroup,
+  licenceGroupNet,
+  type LicenceGroup,
+} from '@/lib/proration';
+import { LineItemProduct } from '@/components/invoice/LineItemProduct';
 
 const schema = z
   .object({
@@ -52,14 +62,6 @@ const schema = z
     path: ['termManual'],
   });
 type FormValues = z.infer<typeof schema>;
-
-/** A licence group = all products that share one licence key (one "row" in the
- *  customer's Products & Licences table). */
-interface LicenceGroup {
-  key: string;
-  licenceKey: string;
-  items: CustomerProduct[];
-}
 
 const FILLED_CONTROL = 'border-slate-200 bg-slate-50 shadow-none';
 
@@ -187,19 +189,10 @@ export function InvoiceForm({
   // Group this client's assigned products by licence key — each licence group is
   // one selectable "row" (all its products share one licence key), exactly like
   // the customer's Products & Licences table.
-  const licenceGroups = useMemo<LicenceGroup[]>(() => {
-    const map = new Map<string, LicenceGroup>();
-    for (const cp of selectedCustomer?.customerProducts ?? []) {
-      const licenceKey = cp.licence?.licenceKey ?? '';
-      const key = licenceKey || cp.id; // products without a licence stand alone
-      if (!map.has(key)) map.set(key, { key, licenceKey, items: [] });
-      map.get(key)!.items.push(cp);
-    }
-    return [...map.values()];
-  }, [selectedCustomer]);
-  // Which licence group a line currently belongs to (by its productId).
-  const groupKeyForProduct = (productId?: string) =>
-    licenceGroups.find((g) => g.items.some((cp) => cp.product.id === productId))?.key ?? '';
+  const licenceGroups = useMemo<LicenceGroup[]>(
+    () => buildLicenceGroups(selectedCustomer?.customerProducts),
+    [selectedCustomer]
+  );
 
   const lockedName =
     selectedCustomer?.companyName ||
@@ -219,8 +212,8 @@ export function InvoiceForm({
 
   // Full agreed net for the licence group a product belongs to (before pro-rata).
   const groupBaseFor = (productId?: string): number | null => {
-    const g = licenceGroups.find((x) => x.items.some((cp) => cp.product.id === productId));
-    return g ? g.items.reduce((s, cp) => s + productNet(cp), 0) : null;
+    const g = findLicenceGroup(licenceGroups, productId);
+    return g ? licenceGroupNet(g) : null;
   };
 
   // Selecting a licence group fills the CURRENT line with the whole group as one
@@ -235,7 +228,7 @@ export function InvoiceForm({
     // Use the group's own term for the fraction so it's right even before the
     // Term field re-renders.
     const frac = computeProration(invoiceDate, grpTerm ?? term, termManual)?.fraction ?? 1;
-    const base = g.items.reduce((s, cp) => s + productNet(cp), 0);
+    const base = licenceGroupNet(g);
     update(index, {
       productId: rep.product.id,
       // Licence number rides along as the line's sku (shown on the invoice).
@@ -394,13 +387,6 @@ export function InvoiceForm({
             // Inclusive the unit price already carries GST; otherwise we add it on.
             const gross = (Number(it?.unitPrice) || 0) * (Number(it?.quantity) || 0);
             const amount = it?.gstType === 'INCLUSIVE' ? gross : gross * (1 + (Number(it?.taxRate) || 0) / 100);
-            // The licence group backing this line (if a product was picked). When
-            // set, we hide the editable description and show a read-only SKU +
-            // agreed-price summary instead; the description still rides along in
-            // the form state (set by selectGroup), so the invoice is unaffected.
-            const selectedGroup = licenceGroups.find((g) =>
-              g.items.some((cp) => cp.product.id === it?.productId)
-            );
             return (
               <div
                 key={field.id}
@@ -408,76 +394,27 @@ export function InvoiceForm({
               >
                 <div className="sm:col-span-4">
                   <Field label="Product" error={errors.items?.[index]?.description?.message}>
-                    <Select
-                      className={FILLED_CONTROL}
-                      value={groupKeyForProduct(it?.productId)}
-                      onChange={(e) => selectGroup(index, e.target.value)}
-                    >
-                      <option value="">
-                        {selectedClientId
-                          ? licenceGroups.length
-                            ? 'Select licence / products…'
-                            : 'No products assigned to this client'
-                          : 'Select a customer first…'}
-                      </option>
-                      {licenceGroups.map((g) => (
-                        <option key={g.key} value={g.key}>
-                          {g.items.map((cp) => cp.product.name).join(' + ')}
-                          {g.licenceKey ? ` · ${g.licenceKey}` : ''}
-                        </option>
-                      ))}
-                    </Select>
-                    {selectedGroup ? (
-                      // Product picked — read-only summary: SKU, agreed price,
-                      // Unit/Days and Net (agreed price × units) per product.
-                      <div className="mt-1.5 space-y-1.5 rounded-md border border-border bg-slate-50/60 p-2.5 text-xs text-muted-foreground">
-                        {it?.sku && (
-                          <div className="border-b border-border/40 pb-1.5 font-medium text-foreground">
-                            Licence: {it.sku}
-                          </div>
-                        )}
-                        {selectedGroup.items.map((cp) => {
-                          const units = productUnits(cp);
-                          // Net billed for this period = agreed net × pro-rata fraction.
-                          const net = productNet(cp) * fraction;
-                          return (
-                            <div
-                              key={cp.id}
-                              className="space-y-1 border-b border-border/40 pb-1.5 last:border-0 last:pb-0"
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="truncate font-medium text-foreground">{cp.product.name}</span>
-                                <span className="shrink-0 text-muted-foreground/70">
-                                  SKU: {cp.product.sku || cp.product.productCode || '—'}
-                                </span>
-                              </div>
-                              {/* Three evenly-aligned columns so Agreed / Unit-Days /
-                                  Net line up perfectly across every product. */}
-                              <div className="grid grid-cols-3 gap-3 tabular-nums">
-                                <span>
-                                  Agreed: <span className="text-foreground">{formatCurrency(Number(cp.price) || 0)}</span>
-                                </span>
-                                <span className="text-center">
-                                  Unit/Hours: <span className="text-foreground">{units}</span>
-                                </span>
-                                <span className="text-right">
-                                  Net: <span className="font-semibold text-primary">{formatCurrency(net)}</span>
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      // No product picked (blank or manually-added line) — let the
-                      // admin type a description by hand.
-                      <Textarea
-                        className={cn(FILLED_CONTROL, 'min-h-[60px] resize-y')}
-                        rows={Math.max(2, it?.description?.split('\n').length ?? 1)}
-                        placeholder="Description (one product per line)"
-                        {...register(`items.${index}.description`)}
-                      />
-                    )}
+                    {/* Product picked → read-only licence/SKU/agreed-price summary;
+                        otherwise an editable description. The description still
+                        rides along in form state (set by selectGroup), so the
+                        invoice itself is unaffected either way. */}
+                    <LineItemProduct
+                      groups={licenceGroups}
+                      productId={it?.productId}
+                      sku={it?.sku}
+                      fraction={fraction}
+                      hasCustomer={!!selectedClientId}
+                      controlClassName={FILLED_CONTROL}
+                      onSelectGroup={(groupKey) => selectGroup(index, groupKey)}
+                      fallback={
+                        <Textarea
+                          className={cn(FILLED_CONTROL, 'min-h-[60px] resize-y')}
+                          rows={Math.max(2, it?.description?.split('\n').length ?? 1)}
+                          placeholder="Description (one product per line)"
+                          {...register(`items.${index}.description`)}
+                        />
+                      }
+                    />
                   </Field>
                 </div>
                 <div className="sm:col-span-2">
