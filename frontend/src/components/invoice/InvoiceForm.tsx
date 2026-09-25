@@ -17,12 +17,15 @@ import { Spinner } from '@/components/shared/states';
 import { formatCurrency, cn } from '@/lib/utils';
 import { numericField } from '@/lib/input';
 import { INVOICE_TERMS } from '@/lib/customer';
-import { computeProration, productUnits, productNet, round2, fmtDay } from '@/lib/proration';
+import { computeProration, productUnits, productNet, round2, fmtDay, toDateInput } from '@/lib/proration';
 
 const schema = z
   .object({
     clientId: z.string().min(1, 'Select a customer'),
     invoiceDate: z.string().optional(),
+    // Not user-editable — auto-filled on submit with the billing period's end
+    // (calendar month-end for monthly terms) so it tracks the invoice date/term.
+    dueDate: z.string().optional(),
     // A preset code (INVOICE_TERMS), a customer's saved term, or the sentinel
     // 'MANUAL' — in which case the typed term lives in termManual until submit.
     term: z.string().optional(),
@@ -300,7 +303,13 @@ export function InvoiceForm({
   return (
     <form
       onSubmit={handleSubmit(({ termManual: tm, ...v }) =>
-        mutation.mutate({ ...v, term: v.term === 'MANUAL' ? tm?.trim() || undefined : v.term })
+        mutation.mutate({
+          ...v,
+          term: v.term === 'MANUAL' ? tm?.trim() || undefined : v.term,
+          // Auto-filled due date = billing period end; local parts (not
+          // toISOString) so a UTC+ timezone can't shift month-end back a day.
+          dueDate: proration ? toDateInput(proration.end) : undefined,
+        })
       )}
       className="space-y-6"
     >
@@ -343,6 +352,19 @@ export function InvoiceForm({
               <Input className={FILLED_CONTROL} placeholder="e.g. Net 21 days" maxLength={60} {...register('termManual')} />
             </Field>
           )}
+          <Field label="Due Date">
+            {/* Auto-filled (read-only) with the billing period's end — the last
+                day of the calendar month for monthly terms. Moves with the
+                invoice date / term. */}
+            <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-muted-foreground">
+              {proration ? fmtDay(proration.end) : '—'}
+            </div>
+            {proration && (
+              <p className="text-xs text-muted-foreground">
+                Billing period: {fmtDay(proration.start)} to {fmtDay(proration.end)}
+              </p>
+            )}
+          </Field>
           <Field label="Reference" hint="Auto-generated — assigned when the invoice is created">
             <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-muted-foreground">
               {nextReference ?? 'Auto-generated'}

@@ -17,7 +17,7 @@ import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
 import { formatCurrency, cn } from '@/lib/utils';
 import { numericField } from '@/lib/input';
 import { INVOICE_TERMS } from '@/lib/customer';
-import { computeProration, productNet, round2, fmtDay } from '@/lib/proration';
+import { computeProration, productNet, round2, fmtDay, toDateInput } from '@/lib/proration';
 
 /** A licence group = all products that share one licence key (one selectable row). */
 interface LicenceGroup {
@@ -53,10 +53,6 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const FILLED = 'border-slate-200 bg-slate-50 shadow-none';
-
-/** A Date → "YYYY-MM-DD" using local parts, so it matches the displayed day. */
-const toDateInput = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (

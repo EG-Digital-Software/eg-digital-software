@@ -24,6 +24,12 @@ export function fmtDay(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
 }
 
+/** A Date → "YYYY-MM-DD" from local parts, so it matches the displayed day
+ *  (toISOString would shift month-end back a day in a UTC+ timezone). */
+export function toDateInput(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Days a term adds to the invoice date (mirrors backend resolveDueDate). */
 export function termToDays(term?: string, termManual?: string): number {
   const parse = (s?: string) => {
