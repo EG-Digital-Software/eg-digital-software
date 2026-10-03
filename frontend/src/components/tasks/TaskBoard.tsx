@@ -105,30 +105,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   });
 
   const delTask = useMutation({ mutationFn: (id: string) => api.deleteTask(id), onSuccess: () => { invalidate(); toast.success('Task deleted'); }, onError: onErr });
-  const setProgress = useMutation({
-    mutationFn: (v: { id: string; progress: TaskProgress }) => api.setProgress(v.id, v.progress),
-    // Optimistic: flip the checkbox instantly instead of waiting for the round-trip.
-    onMutate: async (v) => {
-      await qc.cancelQueries({ queryKey });
-      const prev = qc.getQueryData<Board>(queryKey);
-      if (prev) {
-        const completedAt = v.progress === 'COMPLETED' ? new Date().toISOString() : null;
-        qc.setQueryData<Board>(queryKey, {
-          ...prev,
-          buckets: prev.buckets.map((b) => ({
-            ...b,
-            tasks: b.tasks.map((t) => (t.id === v.id ? { ...t, progress: v.progress, completedAt } : t)),
-          })),
-        });
-      }
-      return { prev };
-    },
-    onError: (e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(queryKey, ctx.prev);
-      onErr(e);
-    },
-    onSettled: invalidate,
-  });
   const createLabel = useMutation({ mutationFn: (v: { name: string; color: string }) => api.createLabel(v.name, v.color), onSuccess: invalidate, onError: onErr });
   const delLabel = useMutation({ mutationFn: (id: string) => api.deleteLabel(id), onSuccess: invalidate, onError: onErr });
 
@@ -435,7 +411,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
           readOnly={readOnly}
           onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
           onDeleteTask={(id) => delTask.mutate(id)}
-          onToggleComplete={(t) => setProgress.mutate({ id: t.id, progress: t.progress === 'COMPLETED' ? 'NOT_STARTED' : 'COMPLETED' })}
           isUpdated={isTaskUpdated}
         />
       )}

@@ -712,6 +712,10 @@ export interface ApprovalRequester {
  */
 type ApprovalFile = { originalname: string; buffer: Buffer; mimetype: string; size: number };
 
+/** How long after a rejection the team may resubmit (kept in sync with the frontend). */
+const RESUBMIT_WINDOW_HOURS = 48;
+const RESUBMIT_WINDOW_MS = RESUBMIT_WINDOW_HOURS * 60 * 60 * 1000;
+
 export async function createApproval(
   customerId: string,
   taskId: string,
@@ -751,6 +755,12 @@ export async function resubmitApproval(
   const latest = root.resubmissions[0] ?? root;
   if (latest.status !== 'REJECTED') {
     throw ApiError.badRequest('Only a rejected approval request can be resubmitted');
+  }
+  // The team has a fixed window after the rejection to resubmit; after that
+  // the request stays closed.
+  const rejectedAt = latest.decidedAt ?? latest.updatedAt;
+  if (Date.now() > rejectedAt.getTime() + RESUBMIT_WINDOW_MS) {
+    throw ApiError.badRequest(`The ${RESUBMIT_WINDOW_HOURS}-hour resubmission window for this request has closed`);
   }
   return insertApproval(taskId, requester, input, files, root.id);
 }

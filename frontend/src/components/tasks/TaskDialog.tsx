@@ -34,6 +34,7 @@ import {
   Film,
   Image as ImageIcon,
   Eye,
+  Hourglass,
 } from 'lucide-react';
 import type {
   AssignableUser,
@@ -1877,6 +1878,21 @@ const APPROVAL_META: Record<TaskApprovalStatus, { label: string; icon: typeof Cl
   REJECTED: { label: 'Rejected', icon: XCircle, badge: 'bg-rose-100 text-rose-700', dot: 'text-rose-500' },
 };
 
+/** How long after a rejection the team may resubmit (kept in sync with the backend). */
+const RESUBMIT_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+/** When the resubmission window of a rejected entry closes (ms since epoch). */
+function resubmitDeadline(a: TaskApproval): number {
+  return new Date(a.decidedAt ?? a.updatedAt).getTime() + RESUBMIT_WINDOW_MS;
+}
+
+function formatTimeLeft(ms: number): string {
+  const mins = Math.max(0, Math.ceil(ms / 60000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 function ApprovalStatusBadge({ status }: { status: TaskApprovalStatus }) {
   const m = APPROVAL_META[status];
   const Icon = m.icon;
@@ -1948,13 +1964,20 @@ function ApprovalPanel({
     childrenOf.set(a.parentId, [...(childrenOf.get(a.parentId) ?? []), a]);
   }
   for (const list of childrenOf.values()) list.sort((x, y) => x.createdAt.localeCompare(y.createdAt));
-  // Dropdown state per request; unset = open only while a resubmission awaits a decision.
+  // Dropdown state per request; unset = open only while the latest entry awaits a decision or a resubmission.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Inline resubmit form, opened from the latest rejected entry of a request.
   const [resubmitFor, setResubmitFor] = useState<string | null>(null);
   const [reSubject, setReSubject] = useState('');
   const [reMessage, setReMessage] = useState('');
   const [reFiles, setReFiles] = useState<File[]>([]);
+  // Ticks every 30s so the resubmission countdown stays current and the panel
+  // closes on its own once the window runs out.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const openResubmit = (root: TaskApproval) => {
     setResubmitFor(root.id);
@@ -1976,8 +1999,9 @@ function ApprovalPanel({
   };
   // One register row. `sub` is the resubmission number (null for the original
   // request); `resubmitRoot` is set on the latest rejected entry so the team can
-  // resubmit from it.
-  const renderRow = (a: TaskApproval, sub: number | null, resubmitRoot: TaskApproval | null) => {
+  // resubmit from it; `deadline` is set on the latest rejected entry so everyone
+  // sees how long the resubmission window has left.
+  const renderRow = (a: TaskApproval, sub: number | null, resubmitRoot: TaskApproval | null, deadline: number | null) => {
     const pending = a.status === 'PENDING';
     const busy = deciding === a.id;
     return (
@@ -2098,6 +2122,19 @@ function ApprovalPanel({
               )}
               {/* The team can answer a rejection with a resubmission;
                   the rejected entry itself stays untouched. */}
+              {deadline !== null && (
+                <div
+                  className={cn(
+                    'inline-flex items-center gap-1 text-[11px] font-medium',
+                    deadline > now ? 'text-amber-600' : 'text-muted-foreground'
+                  )}
+                >
+                  <Hourglass className="h-3 w-3" />
+                  {deadline > now
+                    ? `Resubmit within ${formatTimeLeft(deadline - now)}`
+                    : 'Resubmission window closed'}
+                </div>
+              )}
               {resubmitRoot && resubmitFor !== resubmitRoot.id && (
                 <div>
                   <button
@@ -2196,11 +2233,15 @@ function ApprovalPanel({
               {roots.map((root) => {
                 const subs = childrenOf.get(root.id) ?? [];
                 const latest = subs[subs.length - 1] ?? root;
-                const open = expanded[root.id] ?? latest.status === 'PENDING';
-                const canResubmit = canSubmit && latest.status === 'REJECTED';
+                const deadline = latest.status === 'REJECTED' ? resubmitDeadline(latest) : null;
+                const windowOpen = deadline !== null && now < deadline;
+                // Open while something needs attention: a pending decision or a running resubmission countdown.
+                const open = expanded[root.id] ?? (latest.status === 'PENDING' || windowOpen);
+                const canResubmit = canSubmit && windowOpen;
+                const rowDeadline = (a: TaskApproval) => (a.id === latest.id ? deadline : null);
                 return (
                   <Fragment key={root.id}>
-                    {renderRow(root, null, canResubmit && latest.id === root.id ? root : null)}
+                    {renderRow(root, null, canResubmit && latest.id === root.id ? root : null, rowDeadline(root))}
                     {subs.length > 0 && (
                       <tr className="border-b border-border/60">
                         <td colSpan={5} className="px-2 py-1.5">
@@ -2216,8 +2257,8 @@ function ApprovalPanel({
                         </td>
                       </tr>
                     )}
-                    {open && subs.map((sub, i) => renderRow(sub, i + 1, canResubmit && latest.id === sub.id ? root : null))}
-                    {resubmitFor === root.id && (
+                    {open && subs.map((sub, i) => renderRow(sub, i + 1, canResubmit && latest.id === sub.id ? root : null, rowDeadline(sub)))}
+                    {resubmitFor === root.id && canResubmit && (
                       <tr className="border-b border-border/60 bg-secondary/30">
                         <td colSpan={5} className="px-2 py-3 pl-8">
                           <div className="max-w-xl space-y-2">

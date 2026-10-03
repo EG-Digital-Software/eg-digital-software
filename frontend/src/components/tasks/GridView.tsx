@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowUpDown, Pencil, Trash2, Eye, Check } from 'lucide-react';
+import { ArrowUpDown, Pencil, Trash2, Eye } from 'lucide-react';
 import type { Task, TaskBucket } from '@/types';
 import { cn, formatDate, initials } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,14 +13,12 @@ export function GridView({
   readOnly = false,
   onOpenTask,
   onDeleteTask,
-  onToggleComplete,
   isUpdated,
 }: {
   buckets: TaskBucket[];
   readOnly?: boolean;
   onOpenTask: (task: Task) => void;
   onDeleteTask?: (taskId: string) => void;
-  onToggleComplete?: (task: Task) => void;
   /** True when this task has activity the current user hasn't opened yet. */
   isUpdated?: (taskId: string) => boolean;
 }) {
@@ -98,27 +96,24 @@ export function GridView({
             const ProgressIcon = PROGRESS_META[t.progress].icon;
             const PriorityIcon = PRIORITY_META[t.priority].icon;
             const done = t.progress === 'COMPLETED';
+            const updated = isUpdated?.(t.id) ?? false;
             return (
               <TableRow
                 key={t.id}
                 className={cn(
                   'cursor-pointer',
-                  isUpdated?.(t.id) && 'task-row-active'
+                  updated && 'task-row-active'
                 )}
                 onClick={() => onOpenTask(t)}
               >
-                <TableCell className="pr-0" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    onClick={() => onToggleComplete?.(t)}
-                    title={done ? 'Mark as not started' : 'Mark as completed'}
-                    className={cn(
-                      'flex h-5 w-5 items-center justify-center rounded-full border-2 transition',
-                      done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-muted-foreground/40 hover:border-emerald-500'
-                    )}
-                  >
-                    {done && <Check className="h-3 w-3" />}
-                  </button>
+                <TableCell className="pr-0">
+                  {/* Red dot = activity on this task the current user hasn't opened yet. */}
+                  {updated && (
+                    <span title="New activity" className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="font-medium tabular-nums">{t.taskNumber}</TableCell>
                 <TableCell className="font-medium">
