@@ -39,5 +39,7 @@ router.post('/tasks/tasks/:taskId/attachments', upload.single('file'), ctrl.empl
 router.delete('/tasks/tasks/:taskId/attachments/:attachmentId', ctrl.employeeDeleteAttachment);
 // Raise an approval request (subject/message + optional files). Deciding stays admin/customer-only.
 router.post('/tasks/tasks/:taskId/approvals', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.employeeSubmitApproval);
+// Resubmit a rejected request — nests a new request under the rejected one.
+router.post('/tasks/tasks/:taskId/approvals/:approvalId/resubmit', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.employeeResubmitApproval);
 
 export default router;

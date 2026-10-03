@@ -68,6 +68,8 @@ export function buildTaskRouter(readOnly = false): Router {
   // Approvals — admins and the customer submit requests and decide them; the
   // decision itself is role-gated inside the controller (team members view only).
   router.post('/tasks/:taskId/approvals', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.submitApproval);
+  // Resubmit a rejected request — nests a new request under it (admin-only, enforced in the controller).
+  router.post('/tasks/:taskId/approvals/:approvalId/resubmit', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.resubmitApproval);
   router.patch('/tasks/:taskId/approvals/:approvalId', validate({ body: decideApprovalSchema }), ctrl.decideApproval);
   // Re-open a decided approval (admin-only, enforced in the controller).
   router.post('/tasks/:taskId/approvals/:approvalId/reopen', ctrl.reopenApproval);

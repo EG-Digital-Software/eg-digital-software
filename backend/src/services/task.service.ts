@@ -710,17 +710,62 @@ export interface ApprovalRequester {
  * uploaded images/files are stored raw (no compression) and scoped to the
  * request so the customer can download them at their original size.
  */
+type ApprovalFile = { originalname: string; buffer: Buffer; mimetype: string; size: number };
+
 export async function createApproval(
   customerId: string,
   taskId: string,
   requester: ApprovalRequester,
   input: { subject: string; message: string },
-  files?: { originalname: string; buffer: Buffer; mimetype: string; size: number }[]
+  files?: ApprovalFile[]
 ) {
   await ensureTask(customerId, taskId);
+  return insertApproval(taskId, requester, input, files);
+}
+
+/**
+ * Resubmit a rejected approval request. The rejected request is left exactly as
+ * it was; the resubmission is a new PENDING request nested under it (parentId)
+ * that the customer approves or rejects on its own. Allowed only while the
+ * latest submission in the chain — the original or its newest resubmission —
+ * is REJECTED, so there is never more than one open resubmission.
+ */
+export async function resubmitApproval(
+  customerId: string,
+  taskId: string,
+  approvalId: string,
+  requester: ApprovalRequester,
+  input: { subject: string; message: string },
+  files?: ApprovalFile[]
+) {
+  await ensureTask(customerId, taskId);
+  const target = await prisma.taskApproval.findFirst({ where: { id: approvalId, taskId } });
+  if (!target) throw ApiError.notFound('Approval request not found');
+  // Resubmissions always hang off the top-level request, keeping one level.
+  const rootId = target.parentId ?? target.id;
+  const root = await prisma.taskApproval.findFirst({
+    where: { id: rootId, taskId },
+    include: { resubmissions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+  });
+  if (!root) throw ApiError.notFound('Approval request not found');
+  const latest = root.resubmissions[0] ?? root;
+  if (latest.status !== 'REJECTED') {
+    throw ApiError.badRequest('Only a rejected approval request can be resubmitted');
+  }
+  return insertApproval(taskId, requester, input, files, root.id);
+}
+
+async function insertApproval(
+  taskId: string,
+  requester: ApprovalRequester,
+  input: { subject: string; message: string },
+  files?: ApprovalFile[],
+  parentId?: string
+) {
   const approval = await prisma.taskApproval.create({
     data: {
       taskId,
+      parentId: parentId ?? null,
       subject: input.subject,
       message: input.message,
       requestedById: requester.id,
@@ -805,14 +850,16 @@ export async function deleteApproval(customerId: string, taskId: string, approva
   await ensureTask(customerId, taskId);
   const approval = await prisma.taskApproval.findFirst({
     where: { id: approvalId, taskId },
-    include: { attachments: true },
+    include: { attachments: true, resubmissions: { include: { attachments: true } } },
   });
   if (!approval) throw ApiError.notFound('Approval request not found');
+  // Deleting a request also removes its resubmissions (FK cascade).
   await prisma.taskApproval.delete({ where: { id: approvalId } });
   // Purge the uploaded files from storage too — best-effort, so a storage
   // hiccup never leaves the request half-deleted.
+  const files = [...approval.attachments, ...approval.resubmissions.flatMap((r) => r.attachments)];
   await Promise.all(
-    approval.attachments.map((f) =>
+    files.map((f) =>
       storage.remove(f.url).catch((err) => logger.warn({ err, url: f.url }, 'Failed to remove approval attachment from storage'))
     )
   );

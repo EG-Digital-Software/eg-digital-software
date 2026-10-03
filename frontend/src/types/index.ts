@@ -504,6 +504,8 @@ export interface TaskApproval {
   updatedAt: string;
   /** Images/files uploaded with the request; downloadable at original size. */
   attachments?: TaskAttachment[];
+  /** Set on a resubmission: the rejected top-level request it answers. */
+  parentId?: string | null;
 }
 
 export interface Task {

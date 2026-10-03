@@ -236,6 +236,29 @@ export const submitApproval = asyncHandler(async (req: Request, res: Response) =
   return ok(res, approval, 'Approval requested', 201);
 });
 
+export const resubmitApproval = asyncHandler(async (req: Request, res: Response) => {
+  // Same gate as raising a request: the customer reviews, the team resubmits.
+  if (req.user!.role !== 'SUPER_ADMIN') {
+    throw ApiError.forbidden('Only an admin can resubmit an approval request');
+  }
+  const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
+  const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+  const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : undefined;
+  if (!subject && !message && !(files && files.length)) {
+    throw ApiError.badRequest('Add a subject, a message, or a file');
+  }
+  const customerId = await resolve(req);
+  const approval = await taskService.resubmitApproval(
+    customerId,
+    req.params.taskId,
+    req.params.approvalId,
+    await author(req),
+    { subject, message },
+    files
+  );
+  return ok(res, approval, 'Resubmitted for approval', 201);
+});
+
 export const decideApproval = asyncHandler(async (req: Request, res: Response) => {
   if (!CAN_DECIDE.includes(req.user!.role)) {
     throw ApiError.forbidden('You are not allowed to approve or reject requests');

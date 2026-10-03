@@ -171,3 +171,24 @@ export const employeeSubmitApproval = asyncHandler(async (req: Request, res: Res
   );
   return ok(res, approval, 'Approval requested', 201);
 });
+
+// Employees resubmit a rejected request on tasks they're assigned to. The
+// rejected request is kept as-is; the resubmission nests under it.
+export const employeeResubmitApproval = asyncHandler(async (req: Request, res: Response) => {
+  const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
+  const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+  const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : undefined;
+  if (!subject && !message && !(files && files.length)) {
+    throw ApiError.badRequest('Add a subject, a message, or a file');
+  }
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  const approval = await taskService.resubmitApproval(
+    customerId,
+    req.params.taskId,
+    req.params.approvalId,
+    await employeeAuthor(req),
+    { subject, message },
+    files
+  );
+  return ok(res, approval, 'Resubmitted for approval', 201);
+});

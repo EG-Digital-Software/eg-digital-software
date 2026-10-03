@@ -139,6 +139,19 @@ export function taskApi(base: string) {
         message: body.message,
       }));
     },
+    // Resubmit a rejected request: a new pending request nested under it. The
+    // rejected request itself is left unchanged.
+    resubmitApproval: (taskId: string, approvalId: string, body: { subject: string; message: string; files?: File[] }) => {
+      const url = `${base}/tasks/${taskId}/approvals/${approvalId}/resubmit`;
+      if (body.files && body.files.length) {
+        const form = new FormData();
+        form.append('subject', body.subject);
+        form.append('message', body.message);
+        body.files.forEach((f) => form.append('files', f));
+        return unwrap<TaskApproval>(api.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' } }));
+      }
+      return unwrap<TaskApproval>(api.post(url, { subject: body.subject, message: body.message }));
+    },
     decideApproval: (
       taskId: string,
       approvalId: string,

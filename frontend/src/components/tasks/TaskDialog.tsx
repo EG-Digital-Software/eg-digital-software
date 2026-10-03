@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
@@ -23,6 +23,9 @@ import {
   XCircle,
   Trash2,
   RotateCcw,
+  ChevronDown,
+  ChevronRight,
+  CornerDownRight,
   Pencil,
   KeyRound,
   Archive,
@@ -446,6 +449,12 @@ export function TaskDialog({
     onSuccess: () => { invalidateTask(); invalidate(); setApprovalSubject(''); setApprovalMessage(''); setApprovalFiles([]); toast.success('Approval requested'); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
+  const resubmitApproval = useMutation({
+    mutationFn: (v: { id: string; subject: string; message: string; files: File[] }) =>
+      api.resubmitApproval(task!.id, v.id, { subject: v.subject, message: v.message, files: v.files }),
+    onSuccess: () => { invalidateTask(); invalidate(); toast.success('Resubmitted for approval'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
   const decideApproval = useMutation({
     mutationFn: (v: { id: string; status: 'APPROVED' | 'REJECTED'; feedback?: string | null }) =>
       api.decideApproval(task!.id, v.id, { status: v.status, feedback: v.feedback }),
@@ -478,7 +487,7 @@ export function TaskDialog({
       await qc.cancelQueries({ queryKey: taskKey });
       const prev = qc.getQueryData<Task>(taskKey);
       if (prev) {
-        qc.setQueryData<Task>(taskKey, { ...prev, approvals: prev.approvals.filter((a) => a.id !== id) });
+        qc.setQueryData<Task>(taskKey, { ...prev, approvals: prev.approvals.filter((a) => a.id !== id && a.parentId !== id) });
       }
       return { prev };
     },
@@ -877,7 +886,7 @@ export function TaskDialog({
               )}
               {isEdit && (
                 <TabPill active={tab === 'approval'} onClick={() => setTab('approval')} icon={<ShieldCheck className="h-4 w-4" />} dot={tabHasDot('approval')}>
-                  Approval{liveTask && liveTask.approvals.length > 0 ? ` (${liveTask.approvals.length})` : ''}
+                  Approval{liveTask && liveTask.approvals.some((a) => !a.parentId) ? ` (${liveTask.approvals.filter((a) => !a.parentId).length})` : ''}
                 </TabPill>
               )}
               {isEdit && (
@@ -1079,6 +1088,8 @@ export function TaskDialog({
                 deciding={decideApproval.isPending ? decideApproval.variables?.id : undefined}
                 onRemove={(id) => removeApproval.mutate(id)}
                 onReopen={(id) => reopenApproval.mutate(id)}
+                onResubmit={(id, v) => resubmitApproval.mutateAsync({ id, ...v })}
+                resubmitting={resubmitApproval.isPending}
               />
             ) : tab === 'access' ? (
               /* Access Point tab — a register: Written by (auto) · Subject · Notes.
@@ -1901,6 +1912,8 @@ function ApprovalPanel({
   deciding,
   onRemove,
   onReopen,
+  onResubmit,
+  resubmitting,
 }: {
   approvals: TaskApproval[];
   canApprove: boolean;
@@ -1921,8 +1934,202 @@ function ApprovalPanel({
   deciding?: string;
   onRemove: (id: string) => void;
   onReopen: (id: string) => void;
+  onResubmit: (id: string, v: { subject: string; message: string; files: File[] }) => Promise<unknown>;
+  resubmitting: boolean;
 }) {
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
+  // Resubmissions nest under the request they answer (parentId). The API sends
+  // one flat list, so group it here: top-level requests newest first, each one's
+  // resubmissions oldest first (#1, #2, …).
+  const roots = approvals.filter((a) => !a.parentId);
+  const childrenOf = new Map<string, TaskApproval[]>();
+  for (const a of approvals) {
+    if (!a.parentId) continue;
+    childrenOf.set(a.parentId, [...(childrenOf.get(a.parentId) ?? []), a]);
+  }
+  for (const list of childrenOf.values()) list.sort((x, y) => x.createdAt.localeCompare(y.createdAt));
+  // Dropdown state per request; unset = open only while a resubmission awaits a decision.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Inline resubmit form, opened from the latest rejected entry of a request.
+  const [resubmitFor, setResubmitFor] = useState<string | null>(null);
+  const [reSubject, setReSubject] = useState('');
+  const [reMessage, setReMessage] = useState('');
+  const [reFiles, setReFiles] = useState<File[]>([]);
+
+  const openResubmit = (root: TaskApproval) => {
+    setResubmitFor(root.id);
+    setReSubject(root.subject);
+    setReMessage('');
+    setReFiles([]);
+  };
+  const sendResubmit = async (rootId: string) => {
+    const subject = reSubject.trim();
+    const message = reMessage.trim();
+    if ((!subject && !message && reFiles.length === 0) || resubmitting) return;
+    try {
+      await onResubmit(rootId, { subject, message, files: reFiles });
+      setResubmitFor(null);
+      setExpanded((e) => ({ ...e, [rootId]: true }));
+    } catch {
+      // The mutation already toasts the error; keep the form so nothing is lost.
+    }
+  };
+  // One register row. `sub` is the resubmission number (null for the original
+  // request); `resubmitRoot` is set on the latest rejected entry so the team can
+  // resubmit from it.
+  const renderRow = (a: TaskApproval, sub: number | null, resubmitRoot: TaskApproval | null) => {
+    const pending = a.status === 'PENDING';
+    const busy = deciding === a.id;
+    return (
+      <tr key={a.id} className={cn('border-b border-border/60 align-top', sub !== null && 'bg-secondary/20')}>
+        <td className={cn('whitespace-nowrap px-2 py-3 text-xs text-muted-foreground', sub !== null && 'pl-8')}>
+          {sub !== null && (
+            <div className="mb-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+              <CornerDownRight className="h-3 w-3" /> Resubmission #{sub}
+            </div>
+          )}
+          <div>{formatDate(a.createdAt, 'dd MMM yyyy, h:mm a')}</div>
+          <div className="mt-0.5 text-[11px]">by {a.requestedByName}</div>
+        </td>
+        <td className="px-2 py-3 font-medium">{a.subject}</td>
+        <td className="px-2 py-3 text-muted-foreground">
+          <p className="max-w-[360px] whitespace-pre-wrap break-words">{a.message}</p>
+          {a.attachments && a.attachments.length > 0 && (
+            <div className="mt-2 flex max-w-[360px] flex-wrap gap-2">
+              {a.attachments.map((f) => {
+                const url = mediaUrl(f.url) ?? '';
+                const isImage = (f.contentType ?? '').startsWith('image/');
+                if (isImage) {
+                  return (
+                    <div key={f.id} className="group relative">
+                      <button
+                        type="button"
+                        onClick={() => setLightbox({ url, name: f.fileName })}
+                        title={`Preview ${f.fileName}`}
+                        className="block overflow-hidden rounded-lg border border-border transition hover:border-primary/40"
+                      >
+                        <img src={url} alt={f.fileName} className="h-16 w-16 object-cover" />
+                      </button>
+                      <a
+                        href={url}
+                        download={f.fileName}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
+                        className="absolute right-1 top-1 rounded-md bg-card/90 p-1 text-muted-foreground opacity-0 shadow-sm transition hover:text-primary group-hover:opacity-100"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
+                  );
+                }
+                return (
+                  <div
+                    key={f.id}
+                    className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs transition hover:border-primary/40"
+                  >
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="max-w-[120px] truncate font-medium text-foreground">{f.fileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => setLightbox({ url, name: f.fileName })}
+                      title={`View ${f.fileName}`}
+                      className="shrink-0 text-muted-foreground transition hover:text-primary"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </button>
+                    <a
+                      href={url}
+                      download={f.fileName}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
+                      className="shrink-0 text-muted-foreground transition hover:text-primary"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </td>
+        <td className="px-2 py-3">
+          {pending ? (
+            canApprove ? (
+              <div className="space-y-1.5">
+                <div className="flex gap-1.5">
+                  <Button type="button" size="sm" disabled={busy} onClick={() => onDecide(a.id, 'APPROVED')}>
+                    <Check className="h-4 w-4" /> Approve
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onDecide(a.id, 'REJECTED')}>
+                    <X className="h-4 w-4" /> Reject
+                  </Button>
+                </div>
+                <Input
+                  value={feedbackDraft[a.id] ?? ''}
+                  placeholder="Feedback (optional)"
+                  className="h-8 text-xs"
+                  onChange={(e) => onFeedbackChange(a.id, e.target.value)}
+                />
+              </div>
+            ) : (
+              <ApprovalStatusBadge status={a.status} />
+            )
+          ) : (
+            <div className="space-y-1">
+              <ApprovalStatusBadge status={a.status} />
+              {a.decidedByName && (
+                <div className="text-[11px] text-muted-foreground">
+                  by {a.decidedByName}
+                  {a.decidedAt ? ` · ${formatDate(a.decidedAt, 'dd MMM')}` : ''}
+                </div>
+              )}
+              {/* Admin can re-open a wrong decision (e.g. a client
+                  approved/rejected by mistake) to decide again. */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => onReopen(a.id)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary transition hover:underline"
+                >
+                  <RotateCcw className="h-3 w-3" /> Re-open
+                </button>
+              )}
+              {/* The team can answer a rejection with a resubmission;
+                  the rejected entry itself stays untouched. */}
+              {resubmitRoot && resubmitFor !== resubmitRoot.id && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => openResubmit(resubmitRoot)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-primary transition hover:underline"
+                  >
+                    <Send className="h-3 w-3" /> Resubmit
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </td>
+        <td className="px-2 py-3 text-muted-foreground">
+          <div className="flex items-start gap-1.5">
+            <p className="max-w-[300px] flex-1 whitespace-pre-wrap break-words">{a.feedback || '—'}</p>
+            {isAdmin && (
+              <button
+                type="button"
+                title="Delete approval request"
+                onClick={() => onRemove(a.id)}
+                className="shrink-0 text-muted-foreground transition hover:text-rose-500"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
   return (
     <div className="mt-5 space-y-5">
       {/* Submit a request — admins and employees. The customer just reviews & decides. */}
@@ -1986,139 +2193,85 @@ function ApprovalPanel({
               </tr>
             </thead>
             <tbody>
-              {approvals.map((a) => {
-                const pending = a.status === 'PENDING';
-                const busy = deciding === a.id;
+              {roots.map((root) => {
+                const subs = childrenOf.get(root.id) ?? [];
+                const latest = subs[subs.length - 1] ?? root;
+                const open = expanded[root.id] ?? latest.status === 'PENDING';
+                const canResubmit = canSubmit && latest.status === 'REJECTED';
                 return (
-                  <tr key={a.id} className="border-b border-border/60 align-top">
-                    <td className="whitespace-nowrap px-2 py-3 text-xs text-muted-foreground">
-                      {formatDate(a.createdAt, 'dd MMM yyyy, h:mm a')}
-                      <div className="mt-0.5 text-[11px]">by {a.requestedByName}</div>
-                    </td>
-                    <td className="px-2 py-3 font-medium">{a.subject}</td>
-                    <td className="px-2 py-3 text-muted-foreground">
-                      <p className="max-w-[360px] whitespace-pre-wrap break-words">{a.message}</p>
-                      {a.attachments && a.attachments.length > 0 && (
-                        <div className="mt-2 flex max-w-[360px] flex-wrap gap-2">
-                          {a.attachments.map((f) => {
-                            const url = mediaUrl(f.url) ?? '';
-                            const isImage = (f.contentType ?? '').startsWith('image/');
-                            if (isImage) {
-                              return (
-                                <div key={f.id} className="group relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => setLightbox({ url, name: f.fileName })}
-                                    title={`Preview ${f.fileName}`}
-                                    className="block overflow-hidden rounded-lg border border-border transition hover:border-primary/40"
-                                  >
-                                    <img src={url} alt={f.fileName} className="h-16 w-16 object-cover" />
-                                  </button>
-                                  <a
-                                    href={url}
-                                    download={f.fileName}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
-                                    className="absolute right-1 top-1 rounded-md bg-card/90 p-1 text-muted-foreground opacity-0 shadow-sm transition hover:text-primary group-hover:opacity-100"
-                                  >
-                                    <Download className="h-3.5 w-3.5" />
-                                  </a>
-                                </div>
-                              );
-                            }
-                            return (
-                              <div
-                                key={f.id}
-                                className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs transition hover:border-primary/40"
-                              >
-                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                <span className="max-w-[120px] truncate font-medium text-foreground">{f.fileName}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setLightbox({ url, name: f.fileName })}
-                                  title={`View ${f.fileName}`}
-                                  className="shrink-0 text-muted-foreground transition hover:text-primary"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                </button>
-                                <a
-                                  href={url}
-                                  download={f.fileName}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
-                                  className="shrink-0 text-muted-foreground transition hover:text-primary"
-                                >
-                                  <Download className="h-3.5 w-3.5" />
-                                </a>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-3">
-                      {pending ? (
-                        canApprove ? (
-                          <div className="space-y-1.5">
-                            <div className="flex gap-1.5">
-                              <Button type="button" size="sm" disabled={busy} onClick={() => onDecide(a.id, 'APPROVED')}>
-                                <Check className="h-4 w-4" /> Approve
-                              </Button>
-                              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onDecide(a.id, 'REJECTED')}>
-                                <X className="h-4 w-4" /> Reject
-                              </Button>
-                            </div>
-                            <Input
-                              value={feedbackDraft[a.id] ?? ''}
-                              placeholder="Feedback (optional)"
-                              className="h-8 text-xs"
-                              onChange={(e) => onFeedbackChange(a.id, e.target.value)}
-                            />
-                          </div>
-                        ) : (
-                          <ApprovalStatusBadge status={a.status} />
-                        )
-                      ) : (
-                        <div className="space-y-1">
-                          <ApprovalStatusBadge status={a.status} />
-                          {a.decidedByName && (
-                            <div className="text-[11px] text-muted-foreground">
-                              by {a.decidedByName}
-                              {a.decidedAt ? ` · ${formatDate(a.decidedAt, 'dd MMM')}` : ''}
-                            </div>
-                          )}
-                          {/* Admin can re-open a wrong decision (e.g. a client
-                              approved/rejected by mistake) to decide again. */}
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => onReopen(a.id)}
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary transition hover:underline"
-                            >
-                              <RotateCcw className="h-3 w-3" /> Re-open
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-3 text-muted-foreground">
-                      <div className="flex items-start gap-1.5">
-                        <p className="max-w-[300px] flex-1 whitespace-pre-wrap break-words">{a.feedback || '—'}</p>
-                        {isAdmin && (
+                  <Fragment key={root.id}>
+                    {renderRow(root, null, canResubmit && latest.id === root.id ? root : null)}
+                    {subs.length > 0 && (
+                      <tr className="border-b border-border/60">
+                        <td colSpan={5} className="px-2 py-1.5">
                           <button
                             type="button"
-                            title="Delete approval request"
-                            onClick={() => onRemove(a.id)}
-                            className="shrink-0 text-muted-foreground transition hover:text-rose-500"
+                            onClick={() => setExpanded((e) => ({ ...e, [root.id]: !open }))}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary transition hover:underline"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            Resubmissions ({subs.length})
+                            <ApprovalStatusBadge status={latest.status} />
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                        </td>
+                      </tr>
+                    )}
+                    {open && subs.map((sub, i) => renderRow(sub, i + 1, canResubmit && latest.id === sub.id ? root : null))}
+                    {resubmitFor === root.id && (
+                      <tr className="border-b border-border/60 bg-secondary/30">
+                        <td colSpan={5} className="px-2 py-3 pl-8">
+                          <div className="max-w-xl space-y-2">
+                            <h4 className="text-sm font-semibold">Resubmit for approval</h4>
+                            <Input value={reSubject} placeholder="Subject" maxLength={200} onChange={(e) => setReSubject(e.target.value)} />
+                            <Textarea
+                              value={reMessage}
+                              placeholder="What changed since the rejection?"
+                              className="min-h-[72px]"
+                              onChange={(e) => setReMessage(e.target.value)}
+                            />
+                            {reFiles.length > 0 && (
+                              <div className="space-y-1.5">
+                                {reFiles.map((f, i) => (
+                                  <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
+                                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                    <span className="min-w-0 flex-1 truncate font-medium">{f.name}</span>
+                                    <span className="shrink-0 text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                                    <button type="button" onClick={() => setReFiles((p) => p.filter((_, j) => j !== i))} className="shrink-0 text-muted-foreground hover:text-rose-500">
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary hover:text-primary">
+                                <Paperclip className="h-4 w-4" /> Attach image / file
+                                <input
+                                  type="file"
+                                  multiple
+                                  className="hidden"
+                                  onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) setReFiles((p) => [...p, ...fs]); e.target.value = ''; }}
+                                />
+                              </label>
+                              <div className="flex gap-1.5">
+                                <Button type="button" size="sm" variant="outline" onClick={() => setResubmitFor(null)} disabled={resubmitting}>
+                                  Cancel
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => void sendResubmit(root.id)}
+                                  disabled={resubmitting || (!reSubject.trim() && !reMessage.trim() && reFiles.length === 0)}
+                                >
+                                  <Send className="mr-1.5 h-4 w-4" /> {resubmitting ? 'Sending…' : 'Resubmit'}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>

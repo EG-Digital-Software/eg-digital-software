@@ -924,7 +924,15 @@ model TaskApproval {
   /// customer can download them at their original size and pixels.
   attachments TaskAttachment[]
 
+  /// Set on a resubmission: the original (rejected) request it answers. The
+  /// original is never changed; resubmissions nest under it. Always points at
+  /// the top-level request, so a chain stays one level deep.
+  parent        TaskApproval?  @relation("ApprovalResubmissions", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId      String?
+  resubmissions TaskApproval[] @relation("ApprovalResubmissions")
+
   @@index([taskId])
+  @@index([parentId])
 }
 
 /// A meeting/appointment booked from the task Schedule calendar. An ICS invite
