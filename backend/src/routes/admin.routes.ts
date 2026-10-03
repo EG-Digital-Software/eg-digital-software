@@ -17,7 +17,7 @@ import { asyncHandler, ok } from '../utils/http.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
 import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
 import { runTokenCleanup } from '../services/housekeeping.service.js';
-import { taskActivityByCustomer } from '../services/task.service.js';
+import { taskActivityByCustomer, taskActivityByTask } from '../services/task.service.js';
 
 const router = Router();
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
@@ -60,6 +60,12 @@ router.put(
 router.get(
   '/tasks/activity',
   asyncHandler(async (_req, res) => ok(res, await taskActivityByCustomer()))
+);
+// Per-task activity across all customers — drives the admin sidebar Tasks dot
+// and the per-company dot on the Tasks picker.
+router.get(
+  '/tasks/activity/tasks',
+  asyncHandler(async (_req, res) => ok(res, await taskActivityByTask()))
 );
 
 // Single, global account manager shown to every client (set from Approvals).

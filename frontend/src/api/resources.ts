@@ -1,4 +1,5 @@
 import { api } from './client';
+import type { ActivityTask } from '@/lib/taskSeen';
 import type {
   AgreementField,
   ApiEnvelope,
@@ -254,10 +255,9 @@ export const adminApi = {
   changeEmployeePassword: async (id: string, password: string) =>
     (await api.patch<ApiEnvelope<{ id: string }>>(`/admin/employees/${id}/password`, { password }))
       .data.data,
-  /** Latest task activity per customer — for the Tasks picker "new activity" flag. */
-  taskActivity: async () =>
-    (await api.get<ApiEnvelope<{ clientId: string; lastActivity: string }[]>>('/admin/tasks/activity'))
-      .data.data,
+  /** Per-task activity across all customers — for the sidebar/picker "new activity" dots. */
+  taskActivityByTask: async () =>
+    (await api.get<ApiEnvelope<(ActivityTask & { clientId: string })[]>>('/admin/tasks/activity/tasks')).data.data,
   /** Mint a session to open this team member's portal as them (impersonation). */
   impersonateEmployee: async (id: string) =>
     (

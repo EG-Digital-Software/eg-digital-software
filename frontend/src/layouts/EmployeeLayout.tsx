@@ -19,6 +19,9 @@ import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
+import { NewActivityDot } from '@/components/tasks/NewActivityDot';
+import { employeeTaskApi } from '@/api/tasks';
+import { useBoardHasNewActivity } from '@/lib/taskSeen';
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 
@@ -27,6 +30,8 @@ interface NavItem {
   label: string;
   icon: ComponentType<LucideProps>;
 }
+
+const TASK_API = employeeTaskApi();
 
 const NAV: NavItem[] = [
   { to: '/employee/tasks', label: 'Tasks', icon: ListChecks },
@@ -41,6 +46,8 @@ export function EmployeeLayout() {
   const location = useLocation();
   const [open, setOpen] = useState(false); // mobile drawer
   const { collapsed, toggle } = useSidebarCollapse(); // desktop slide in/out
+  // Red dot on Tasks while any assigned task has activity this user hasn't opened.
+  const tasksDot = useBoardHasNewActivity(TASK_API, 'employee');
 
   const handleLogout = async () => {
     await logout();
@@ -74,7 +81,8 @@ export function EmployeeLayout() {
             }
           >
             <item.icon className="h-[18px] w-[18px] shrink-0" />
-            <span>{item.label}</span>
+            <span className="flex-1">{item.label}</span>
+            {item.to === '/employee/tasks' && tasksDot && <NewActivityDot />}
           </NavLink>
         ))}
       </nav>

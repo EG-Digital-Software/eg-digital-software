@@ -29,6 +29,9 @@ import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
+import { NewActivityDot } from '@/components/tasks/NewActivityDot';
+import { clientTaskApi } from '@/api/tasks';
+import { useBoardHasNewActivity } from '@/lib/taskSeen';
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 
@@ -45,6 +48,8 @@ const ACCOUNT_STATUS: Record<string, { label: string; dot: string; text: string;
   DORMANT: { label: 'Dormant', dot: 'bg-amber-500', text: 'text-amber-600', ring: 'bg-amber-500/15' },
   SUSPENDED: { label: 'Suspended', dot: 'bg-rose-500', text: 'text-rose-600', ring: 'bg-rose-500/15' },
 };
+
+const TASK_API = clientTaskApi();
 
 const NAV: NavItem[] = [
   { to: '/client/dashboard', label: 'Dashboard', icon: Home },
@@ -70,6 +75,8 @@ export function ClientLayout() {
   // A suspended account loses access to Tasks — the nav item is locked and the
   // page itself refuses to render the board (see ClientTasksPage).
   const suspended = acctStatus === 'SUSPENDED';
+  // Red dot on Tasks while any task has activity this user hasn't opened.
+  const tasksDot = useBoardHasNewActivity(TASK_API, 'client', !!profile && !suspended);
 
   const handleLogout = async () => {
     await logout();
@@ -119,7 +126,8 @@ export function ClientLayout() {
               }
             >
               <item.icon className="h-[18px] w-[18px] shrink-0" />
-              <span>{item.label}</span>
+              <span className="flex-1">{item.label}</span>
+              {item.to === '/client/tasks' && tasksDot && <NewActivityDot />}
             </NavLink>
           );
         })}

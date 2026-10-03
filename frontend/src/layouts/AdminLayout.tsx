@@ -28,6 +28,8 @@ import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { initials, cn, mediaUrl } from '@/lib/utils';
 import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
+import { NewActivityDot } from '@/components/tasks/NewActivityDot';
+import { useAdminTaskActivity } from '@/lib/taskSeen';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 
 interface NavItem {
@@ -60,6 +62,8 @@ export function AdminLayout() {
     queryFn: adminApi.pendingCount,
     refetchInterval: 60_000,
   });
+  // Red dot on Tasks while any task (any company) has activity this admin hasn't opened.
+  const tasksDot = useAdminTaskActivity().any;
 
   const handleLogout = async () => {
     await logout();
@@ -95,6 +99,7 @@ export function AdminLayout() {
           >
             <item.icon className="h-[18px] w-[18px] shrink-0" />
             <span className="flex-1">{item.label}</span>
+            {item.to === '/admin/tasks' && tasksDot && <NewActivityDot />}
             {item.to === '/admin/approvals' && !!pending && pending > 0 && (
               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold text-destructive-foreground">
                 {pending}

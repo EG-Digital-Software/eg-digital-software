@@ -1023,6 +1023,36 @@ export async function listMentionableUsers(customerId: string, viewerRole: Role)
 }
 
 /**
+ * Per-task activity across every customer — just the timestamps and actors the
+ * frontend folds into its "new activity" signature (same fields, filters and
+ * order as the board's taskInclude), so the admin sidebar can flag any task the
+ * admin hasn't opened yet without loading every board. Read-only.
+ */
+export async function taskActivityByTask() {
+  const tasks = await prisma.task.findMany({
+    select: {
+      id: true,
+      createdAt: true,
+      createdById: true,
+      customer: { select: { clientId: true } },
+      comments: { orderBy: { createdAt: 'asc' }, select: { createdAt: true, authorId: true } },
+      notes: { orderBy: { createdAt: 'asc' }, select: { createdAt: true, authorId: true } },
+      // Task-level, non-archive files only — what the board lists as attachments.
+      attachments: {
+        where: { approvalId: null, kind: { not: 'ARCHIVE' } },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true, uploadedById: true },
+      },
+      approvals: {
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, requestedById: true, decidedAt: true, decidedById: true, status: true },
+      },
+    },
+  });
+  return tasks.map(({ customer, ...t }) => ({ ...t, clientId: customer.clientId }));
+}
+
+/**
  * Latest task activity per customer — the newest of any task update, comment,
  * note, attachment or approval change on that customer's board. Powers the "this
  * company has new activity" highlight on the admin Tasks picker. Read-only; one

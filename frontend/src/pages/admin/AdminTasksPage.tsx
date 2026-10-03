@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, ChevronDown, Building2, Check, ListChecks } from 'lucide-react';
-import { adminApi, customerApi } from '@/api/resources';
+import { customerApi } from '@/api/resources';
 import { adminTaskApi } from '@/api/tasks';
-import { useAuth } from '@/store/auth';
 import { customerName } from '@/lib/customer';
 import { cn, initials } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/misc';
@@ -11,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { LoadingBlock, ErrorState, EmptyState } from '@/components/shared/states';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
+import { useAdminTaskActivity } from '@/lib/taskSeen';
 
 /**
  * Header-level Task workspace. Tasks live per-customer, so this page lets the
@@ -32,56 +32,9 @@ export default function AdminTasksPage() {
   }, [customers, selected]);
 
   // ── "New activity" highlight per company ────────────────
-  // Latest task activity per customer (polled); compared against what this admin
-  // last saw for each company. A company with newer activity is flagged; opening
-  // its board marks it seen and clears the flag — per admin (localStorage).
-  const me = useAuth((s) => s.user);
-  const { data: activity } = useQuery({
-    queryKey: ['admin', 'task-activity'],
-    queryFn: () => adminApi.taskActivity(),
-    refetchInterval: 20_000,
-    refetchIntervalInBackground: true,
-  });
-  const activityMap = useMemo(
-    () => Object.fromEntries((activity ?? []).map((a) => [a.clientId, a.lastActivity])),
-    [activity]
-  );
-  const seenKey = `taskCoSeen:${me?.id ?? 'anon'}`;
-  const [seen, setSeen] = useState<Record<string, string>>({});
-  const seenLoaded = useRef(false);
-  useEffect(() => {
-    if (seenLoaded.current || !activity) return;
-    seenLoaded.current = true;
-    try {
-      const raw = localStorage.getItem(seenKey);
-      if (raw) setSeen(JSON.parse(raw));
-      else {
-        setSeen(activityMap);
-        localStorage.setItem(seenKey, JSON.stringify(activityMap));
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [activity, seenKey, activityMap]);
-  useEffect(() => {
-    if (!seenLoaded.current || !selected) return;
-    const la = activityMap[selected];
-    if (!la) return;
-    setSeen((s) => {
-      if (s[selected] === la) return s;
-      const next = { ...s, [selected]: la };
-      try {
-        localStorage.setItem(seenKey, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, [selected, activityMap, seenKey]);
-  const isUpdated = (clientId: string) => {
-    const la = activityMap[clientId];
-    return !!la && seen[clientId] !== undefined && seen[clientId] !== la;
-  };
+  // A company is flagged while any of its tasks has activity this admin hasn't
+  // opened (whoever made it); it clears once every flagged task is opened.
+  const { companyHasNew: isUpdated } = useAdminTaskActivity();
 
   if (isLoading) return <LoadingBlock label="Loading customers…" />;
   if (isError) return <ErrorState onRetry={refetch} />;

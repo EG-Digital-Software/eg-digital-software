@@ -5,6 +5,7 @@ import { cn, formatDate, initials } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 import { PRIORITY_META, PROGRESS_META, dueState, DUE_META } from '@/lib/tasks';
+import { NewActivityDot } from './NewActivityDot';
 
 type SortKey = 'taskNumber' | 'title' | 'progress' | 'priority' | 'startDate' | 'dueDate';
 
@@ -108,12 +109,7 @@ export function GridView({
               >
                 <TableCell className="pr-0">
                   {/* Red dot = activity on this task the current user hasn't opened yet. */}
-                  {updated && (
-                    <span title="New activity" className="relative flex h-2.5 w-2.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
-                    </span>
-                  )}
+                  {updated && <NewActivityDot />}
                 </TableCell>
                 <TableCell className="font-medium tabular-nums">{t.taskNumber}</TableCell>
                 <TableCell className="font-medium">

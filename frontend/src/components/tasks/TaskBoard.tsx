@@ -37,6 +37,7 @@ import {
   labelColor,
   LABEL_COLOR_TOKENS,
 } from '@/lib/tasks';
+import { isTaskUnseen, taskActivityMeta, taskRowSeenKey, writeSeen } from '@/lib/taskSeen';
 import { GridView } from './GridView';
 import { ScheduleView } from './ScheduleView';
 import { ChartsView } from './ChartsView';
@@ -112,34 +113,10 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   const users = usersQ.data ?? [];
 
   // ── Per-task "new activity" highlight ───────────────────
-  // For each task: a signature of its activity (task creation + comments, notes,
-  // attachments, approval requests/decisions) and WHO did the most recent one.
-  // Every event carries an actor, so we can notify everyone except the person
-  // who made the change.
-  const taskMeta = useMemo<Record<string, { sig: string; lastActor: string | null }>>(() => {
-    const map: Record<string, { sig: string; lastActor: string | null }> = {};
-    for (const b of board?.buckets ?? []) {
-      for (const t of b.tasks) {
-        const events: { ts: string; actor: string | null }[] = [];
-        if (t.createdAt) events.push({ ts: t.createdAt, actor: t.createdById ?? null });
-        for (const c of t.comments ?? []) events.push({ ts: c.createdAt, actor: c.authorId });
-        for (const n of t.notes ?? []) events.push({ ts: n.createdAt, actor: n.authorId });
-        for (const a of t.attachments ?? []) events.push({ ts: a.createdAt, actor: a.uploadedById ?? null });
-        for (const ap of t.approvals ?? []) {
-          events.push({ ts: ap.createdAt, actor: ap.requestedById });
-          if (ap.decidedAt) events.push({ ts: ap.decidedAt, actor: ap.decidedById ?? null });
-        }
-        let last = events[0];
-        for (const e of events) if (e.ts > (last?.ts ?? '')) last = e;
-        // Approval statuses are folded in so reopen/decision also changes the sig.
-        const sig = `${events.length}:${last?.ts ?? ''}:${(t.approvals ?? []).map((a) => a.status).join(',')}`;
-        map[t.id] = { sig, lastActor: last?.actor ?? null };
-      }
-    }
-    return map;
-  }, [board]);
+  // Activity signature + latest actor per task (see taskActivityMeta).
+  const taskMeta = useMemo(() => taskActivityMeta((board?.buckets ?? []).flatMap((b) => b.tasks)), [board]);
 
-  const rowSeenKey = `taskRowSeen:v2:${meId ?? 'anon'}:${scopeKey}`;
+  const rowSeenKey = taskRowSeenKey(meId, scopeKey);
   const [seenTasks, setSeenTasks] = useState<Record<string, string>>({});
   const seenLoaded = useRef(false);
   useEffect(() => {
@@ -148,15 +125,12 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
     try {
       const raw = localStorage.getItem(rowSeenKey);
       if (raw) setSeenTasks(JSON.parse(raw));
-      else {
-        const base = Object.fromEntries(Object.entries(taskMeta).map(([id, m]) => [id, m.sig]));
-        setSeenTasks(base);
-        localStorage.setItem(rowSeenKey, JSON.stringify(base));
-      }
+      // No map yet = nothing opened on this board, so every task with someone
+      // else's activity shows as new until it's opened.
     } catch {
       /* ignore */
     }
-  }, [board, rowSeenKey, taskMeta]);
+  }, [board, rowSeenKey]);
 
   // Opening a task (dialog) marks it seen for this user — on open and for any
   // change that lands while it's open — so viewing it clears its highlight.
@@ -168,11 +142,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
     setSeenTasks((s) => {
       if (s[id] === sig) return s;
       const next = { ...s, [id]: sig };
-      try {
-        localStorage.setItem(rowSeenKey, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
+      writeSeen(rowSeenKey, next);
       return next;
     });
   }, [dialog?.taskId, taskMeta, rowSeenKey]);
@@ -183,37 +153,12 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
     if (!seenLoaded.current) return false;
     const m = taskMeta[taskId];
     if (!m) return false;
-    return seenTasks[taskId] !== m.sig && m.lastActor !== meId;
+    return isTaskUnseen(taskId, m, seenTasks, meId);
   };
-  // Employee portal customer selector: a customer's box lights up when it has
-  // task activity the user hasn't looked at. VIEWING that customer (selecting it)
-  // clears its box — so it won't stay red once you've been through it. Individual
-  // task rows still clear only when each is opened.
-  const bucketAgg = (bucketId: string) =>
-    (board?.buckets.find((x) => x.id === bucketId)?.tasks ?? [])
-      .map((t) => `${t.id}:${taskMeta[t.id]?.sig ?? ''}`)
-      .join('|');
-  const boxSeenKey = `taskCustBoxSeen:v2:${meId ?? 'anon'}:${scopeKey}`;
-  const [seenBox, setSeenBox] = useState<Record<string, string>>({});
-  const boxSeenLoaded = useRef(false);
-  useEffect(() => {
-    if (boxSeenLoaded.current || !board) return;
-    boxSeenLoaded.current = true;
-    try {
-      const raw = localStorage.getItem(boxSeenKey);
-      if (raw) setSeenBox(JSON.parse(raw));
-      else {
-        const base = Object.fromEntries(board.buckets.map((b) => [b.id, bucketAgg(b.id)]));
-        setSeenBox(base);
-        localStorage.setItem(boxSeenKey, JSON.stringify(base));
-      }
-    } catch {
-      /* ignore */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, boxSeenKey]);
+  // Employee portal customer selector: a customer's box stays red while any of
+  // its tasks has activity the user hasn't opened — same rule as the rows.
   const bucketBoxRed = (bucketId: string) =>
-    boxSeenLoaded.current && seenBox[bucketId] !== undefined && seenBox[bucketId] !== bucketAgg(bucketId);
+    (board?.buckets.find((x) => x.id === bucketId)?.tasks ?? []).some((t) => isTaskUpdated(t.id));
 
   // Apply filters to each bucket's task list.
   const filtered = useMemo<Board | undefined>(() => {
@@ -239,26 +184,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
 
   const hasFilters = filters.search || filters.assignee || filters.priority || filters.progress || filters.labelId;
 
-  // Keep the customer currently being viewed marked seen (clears its box).
-  useEffect(() => {
-    if (!boxSeenLoaded.current || !filtered) return;
-    const group = filtered.buckets.some((b) => b.id === activeGroup)
-      ? activeGroup
-      : filtered.buckets[0]?.id ?? '';
-    if (!group) return;
-    const agg = bucketAgg(group);
-    setSeenBox((s) => {
-      if (s[group] === agg) return s;
-      const next = { ...s, [group]: agg };
-      try {
-        localStorage.setItem(boxSeenKey, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeGroup, filtered, taskMeta, boxSeenKey]);
 
   if (boardQ.isLoading) return <LoadingBlock label="Loading tasks…" />;
   if (boardQ.isError || !board || !filtered) return <ErrorState onRetry={() => boardQ.refetch()} />;
