@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import { env } from './env.js';
 import { logger } from './logger.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
 import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
@@ -11,6 +12,11 @@ import { runAdvanceBilling } from '../services/recurringBilling.service.js';
  * lock or move to an external scheduler (e.g. Azure Functions timer trigger).
  */
 export function startScheduler() {
+  if (!env.SCHEDULER_ENABLED) {
+    logger.warn('Scheduler disabled (SCHEDULER_ENABLED=false) — no cron jobs registered');
+    return;
+  }
+
   // Daily licence-expiry reminders at 08:00 (server timezone).
   cron.schedule('0 8 * * *', () => {
     logger.info('⏰ Running daily licence reminders');

@@ -56,6 +56,14 @@ const schema = z.object({
 
   APP_URL: z.string().default('http://localhost:5173'),
 
+  // Cron jobs (billing, overdue sweep, reminders, token cleanup) write to the
+  // database. Local dev shares the production DB, so set this to false locally
+  // or a dev server would bill/sweep alongside the live one.
+  SCHEDULER_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v.toLowerCase() !== 'false' && v !== '0'),
+
   // ── Geocoding (address auto-fill) ──────────────────────
   // z.coerce.boolean() would read the string "false" as true — parse explicitly.
   GEOCODING_ENABLED: z
