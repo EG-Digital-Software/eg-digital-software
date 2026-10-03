@@ -14,6 +14,10 @@ export const createProductSchema = z.object({
   totalStock: z.coerce.number().int().min(0).default(0),
   lowStockThreshold: z.coerce.number().int().min(0).default(10),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
+  priceMode: z.enum(['AUTOMATIC', 'MANUAL']).default('AUTOMATIC'),
+  // MANUAL products only; null clears them when a product switches to AUTOMATIC.
+  billingPeriod: z.enum(['MONTHLY', 'ANNUALLY']).nullable().optional(),
+  contractTerm: z.enum(['CONTRACTUAL', 'PERMANENT']).nullable().optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

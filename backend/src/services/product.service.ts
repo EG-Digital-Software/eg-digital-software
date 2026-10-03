@@ -102,6 +102,9 @@ export async function createProduct(data: {
   totalStock: number;
   lowStockThreshold: number;
   status: ProductStatus;
+  priceMode: string;
+  billingPeriod?: string | null;
+  contractTerm?: string | null;
 }) {
   // Auto-generate the SKU when the admin didn't supply one.
   const sku = data.sku?.trim() || formatSku(await nextSequence(prisma, 'sku'));
@@ -125,6 +128,9 @@ export async function createProduct(data: {
           availableStock: data.totalStock,
           lowStockThreshold: data.lowStockThreshold,
           status: data.status,
+          priceMode: data.priceMode,
+          billingPeriod: data.billingPeriod ?? null,
+          contractTerm: data.contractTerm ?? null,
         },
       });
     } catch (e) {
@@ -143,7 +149,7 @@ export async function updateProduct(id: string, data: Record<string, unknown>) {
   if (!existing) throw ApiError.notFound('Product not found');
 
   const patch: Prisma.ProductUpdateInput = {};
-  const assignable = ['sku', 'type', 'name', 'description', 'unit', 'category', 'status', 'productCode'] as const;
+  const assignable = ['sku', 'type', 'name', 'description', 'unit', 'category', 'status', 'priceMode', 'billingPeriod', 'contractTerm', 'productCode'] as const;
   for (const key of assignable) {
     if (data[key] !== undefined) (patch as Record<string, unknown>)[key] = data[key];
   }

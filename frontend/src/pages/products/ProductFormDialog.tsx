@@ -11,24 +11,34 @@ import type { Product } from '@/types';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input, Select, Textarea } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
 import { titleCaseField } from '@/lib/input';
-import { cn } from '@/lib/utils';
 
-const schema = z.object({
-  name: z.string().min(1, 'Required'),
-  type: z.string().optional(),
-  category: z.string().optional(),
-  description: z.string().optional(),
-  unit: z.string().optional(),
-  pricePerQty: z.coerce.number().min(0, 'Cannot be negative'),
-  taxRate: z.coerce.number().min(0).max(100, 'Must be between 0 and 100'),
-  totalStock: z.coerce.number().int().min(0, 'Cannot be negative'),
-  lowStockThreshold: z.coerce.number().int().min(0, 'Cannot be negative'),
-  status: z.enum(['ACTIVE', 'INACTIVE']),
-});
+const schema = z
+  .object({
+    name: z.string().min(1, 'Required'),
+    type: z.string().optional(),
+    category: z.string().optional(),
+    description: z.string().optional(),
+    unit: z.string().optional(),
+    pricePerQty: z.coerce.number().min(0, 'Cannot be negative'),
+    taxRate: z.coerce.number().min(0).max(100, 'Must be between 0 and 100'),
+    totalStock: z.coerce.number().int().min(0, 'Cannot be negative'),
+    lowStockThreshold: z.coerce.number().int().min(0, 'Cannot be negative'),
+    status: z.enum(['ACTIVE', 'INACTIVE']),
+    priceMode: z.enum(['AUTOMATIC', 'MANUAL']),
+    billingPeriod: z.enum(['MONTHLY', 'ANNUALLY']).or(z.literal('')),
+    contractTerm: z.enum(['CONTRACTUAL', 'PERMANENT']).or(z.literal('')),
+  })
+  // A MANUAL product carries its own price, billing period and contract term.
+  .superRefine((v, ctx) => {
+    if (v.priceMode !== 'MANUAL') return;
+    if (!(v.pricePerQty > 0)) ctx.addIssue({ code: 'custom', path: ['pricePerQty'], message: 'Enter a price' });
+    if (!v.billingPeriod) ctx.addIssue({ code: 'custom', path: ['billingPeriod'], message: 'Required' });
+    if (!v.contractTerm) ctx.addIssue({ code: 'custom', path: ['contractTerm'], message: 'Required' });
+  });
 type FormValues = z.infer<typeof schema>;
 
 const FILLED_CONTROL = 'border-slate-200 bg-slate-50 shadow-none';
@@ -96,11 +106,15 @@ export function ProductFormDialog({
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       status: 'ACTIVE',
+      priceMode: 'AUTOMATIC',
+      billingPeriod: '',
+      contractTerm: '',
       taxRate: 10,
       pricePerQty: 0,
       totalStock: 0,
@@ -124,6 +138,9 @@ export function ProductFormDialog({
               totalStock: product.totalStock,
               lowStockThreshold: product.lowStockThreshold,
               status: product.status,
+              priceMode: product.priceMode ?? 'AUTOMATIC',
+              billingPeriod: product.billingPeriod ?? '',
+              contractTerm: product.contractTerm ?? '',
             }
           : {
               name: '',
@@ -136,6 +153,9 @@ export function ProductFormDialog({
               totalStock: 0,
               lowStockThreshold: 10,
               status: 'ACTIVE',
+              priceMode: 'AUTOMATIC',
+              billingPeriod: '',
+              contractTerm: '',
             }
       );
     }
@@ -157,13 +177,19 @@ export function ProductFormDialog({
   });
   const codeDisplay = isEdit ? product?.productCode ?? '—' : nextCode ?? 'Generating…';
 
+  const isManual = watch('priceMode') === 'MANUAL';
+
   const mutation = useMutation({
     mutationFn: (values: FormValues) => {
-      // Pricing now lives on each customer assignment; inventory is unlimited so
-      // products never go out of stock. Force those on every save.
+      // AUTOMATIC products are priced on each customer assignment; MANUAL ones
+      // carry their own price, billing period and contract term. Inventory is
+      // unlimited so products never go out of stock. Force those on every save.
+      const manual = values.priceMode === 'MANUAL';
       const payload = {
         ...values,
-        pricePerQty: 0,
+        pricePerQty: manual ? values.pricePerQty : 0,
+        billingPeriod: manual ? values.billingPeriod || null : null,
+        contractTerm: manual ? values.contractTerm || null : null,
         taxRate: 0,
         unit: values.unit?.trim() || 'unit',
         totalStock: 1_000_000,
@@ -214,16 +240,48 @@ export function ProductFormDialog({
                   <option value="INACTIVE">Inactive</option>
                 </Select>
               </Field>
-            </div>
-            <div className="mt-4">
-              <Field label="Description">
-                <Textarea className={cn(FILLED_CONTROL, "min-h-[80px]")} {...register('description')} placeholder="Optional description" />
+              <Field label="Product Price">
+                <Select className={FILLED_CONTROL} {...register('priceMode')}>
+                  <option value="AUTOMATIC">Automatic</option>
+                  <option value="MANUAL">Manual</option>
+                </Select>
               </Field>
+              {isManual && (
+                <>
+                  <Field label="Price" error={errors.pricePerQty?.message}>
+                    <Input
+                      className={FILLED_CONTROL}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      {...register('pricePerQty')}
+                      placeholder="0.00"
+                    />
+                  </Field>
+                  <Field label="Billing" error={errors.billingPeriod?.message}>
+                    <Select className={FILLED_CONTROL} {...register('billingPeriod')}>
+                      <option value="">Select…</option>
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="ANNUALLY">Annually</option>
+                    </Select>
+                  </Field>
+                  <Field label="Term" error={errors.contractTerm?.message}>
+                    <Select className={FILLED_CONTROL} {...register('contractTerm')}>
+                      <option value="">Select…</option>
+                      <option value="CONTRACTUAL">Contractual</option>
+                      <option value="PERMANENT">Permanent</option>
+                    </Select>
+                  </Field>
+                </>
+              )}
             </div>
           </Section>
 
           <p className="text-xs text-muted-foreground">
-            Pricing is set per customer when the product is assigned. Inventory is unlimited — products never go out of stock.
+            {isManual
+              ? 'This product carries its own price.'
+              : 'Pricing is set per customer when the product is assigned.'}{' '}
+            Inventory is unlimited — products never go out of stock.
           </p>
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -254,14 +254,31 @@ export async function listProducts(
   return params.status ? mapped.filter((r) => r.status === params.status) : mapped;
 }
 
-/** Active product catalogue a client can choose from when adding a product. */
+/**
+ * Active product catalogue a client can choose from when adding a product.
+ * MANUAL products carry their own price, so it is shown with them; AUTOMATIC
+ * products are priced by the admin on approval, so no price is exposed.
+ */
 export async function listAvailableProducts() {
   const products = await prisma.product.findMany({
     where: { status: 'ACTIVE' },
-    select: { id: true, name: true, productCode: true, sku: true },
+    select: {
+      id: true,
+      name: true,
+      productCode: true,
+      sku: true,
+      priceMode: true,
+      pricePerQty: true,
+      billingPeriod: true,
+      contractTerm: true,
+    },
     orderBy: { name: 'asc' },
   });
-  return products;
+  return products.map(({ pricePerQty, billingPeriod, contractTerm, ...p }) =>
+    p.priceMode === 'MANUAL'
+      ? { ...p, price: pricePerQty.toString(), billingPeriod, contractTerm }
+      : { ...p, price: null, billingPeriod: null, contractTerm: null }
+  );
 }
 
 /**

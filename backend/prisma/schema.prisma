@@ -442,6 +442,14 @@ model Product {
   reservedStock     Int           @default(0)
   lowStockThreshold Int           @default(10)
   status            ProductStatus @default(ACTIVE)
+  /// How the product is priced. AUTOMATIC: the price is entered per customer when
+  /// the product is assigned. MANUAL: the product carries its own price
+  /// (pricePerQty), billing period and contract term.
+  priceMode         String        @default("AUTOMATIC")
+  /// MANUAL products only: MONTHLY or ANNUALLY. Null for AUTOMATIC.
+  billingPeriod     String?
+  /// MANUAL products only: CONTRACTUAL or PERMANENT. Null for AUTOMATIC.
+  contractTerm      String?
   supplier          SupplierUser? @relation("SuppliedProducts", fields: [supplierId], references: [id])
   supplierId        String?
   createdAt         DateTime      @default(now())

@@ -37,6 +37,11 @@ export interface AvailableProduct {
   name: string;
   productCode: string;
   sku?: string | null;
+  priceMode: 'AUTOMATIC' | 'MANUAL';
+  /** MANUAL products only; null when the admin prices it on approval. */
+  price: string | null;
+  billingPeriod: 'MONTHLY' | 'ANNUALLY' | null;
+  contractTerm: 'CONTRACTUAL' | 'PERMANENT' | null;
 }
 
 interface ListEnvelope<T> extends ApiEnvelope<T[]> {

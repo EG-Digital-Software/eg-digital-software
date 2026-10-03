@@ -68,6 +68,9 @@ export interface Product {
   reservedStock: number;
   lowStockThreshold: number;
   status: 'ACTIVE' | 'INACTIVE';
+  priceMode?: 'AUTOMATIC' | 'MANUAL';
+  billingPeriod?: 'MONTHLY' | 'ANNUALLY' | null;
+  contractTerm?: 'CONTRACTUAL' | 'PERMANENT' | null;
   createdAt: string;
 }
 

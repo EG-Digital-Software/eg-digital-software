@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { KeyRound, Search, Plus, Eye } from 'lucide-react';
-import { clientApi, type ClientProduct } from '@/api/client-portal';
+import { clientApi, type AvailableProduct, type ClientProduct } from '@/api/client-portal';
 import { apiErrorMessage } from '@/api/client';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader } from '@/components/shared/misc';
@@ -26,6 +26,12 @@ const STATUSES = [
   { value: 'SUSPENDED', label: 'Suspended' },
 ];
 
+/** "$120.00 / month" for a MANUAL product's own price. */
+function manualPriceLabel(p: AvailableProduct) {
+  const per = p.billingPeriod === 'ANNUALLY' ? ' / year' : p.billingPeriod === 'MONTHLY' ? ' / month' : '';
+  return `${formatCurrency(p.price)}${per}`;
+}
+
 export default function ClientLicencesPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -45,6 +51,7 @@ export default function ClientLicencesPage() {
     queryFn: clientApi.availableProducts,
     enabled: addOpen,
   });
+  const selectedProduct = available?.find((p) => p.id === selected);
   const addMut = useMutation({
     mutationFn: () => clientApi.addProduct(selected),
     onSuccess: () => {
@@ -229,9 +236,25 @@ export default function ClientLicencesPage() {
             <Select value={selected} onChange={(e) => setSelected(e.target.value)}>
               <option value="">Select a product…</option>
               {available?.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p.id} value={p.id}>
+                  {p.priceMode === 'MANUAL' ? `${p.name} — ${manualPriceLabel(p)}` : p.name}
+                </option>
               ))}
             </Select>
+            {selectedProduct?.priceMode === 'MANUAL' && (
+              <div className="space-y-1 rounded-md border border-border bg-secondary/30 px-3 py-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Price</span>
+                  <span className="font-medium tabular-nums">{manualPriceLabel(selectedProduct)}</span>
+                </div>
+                {selectedProduct.contractTerm && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Term</span>
+                    <span className="capitalize">{selectedProduct.contractTerm.toLowerCase()}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter className="pt-2">
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
