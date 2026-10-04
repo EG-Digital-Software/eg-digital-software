@@ -367,6 +367,45 @@ copy karein**, neeche wali table sirf samajhne ke liye hai:
 3. Link kholke naya password set karein. Token **ek baar** hi chalta hai aur **1 ghante** me expire hota hai; reset hote hi us user ke saare purane session logout ho jaate hain.
 4. Response hamesha `"If an account exists, a reset link has been sent"` aata hai — email galat ho tab bhi. Ye jaanbujh kar hai (user enumeration rokne ke liye), isliye "success aaya par mail nahi aayi" ka matlab hai: account exist nahi karta, ya SMTP config galat hai. Server logs dekhein.
 
+### 8.2 Password reset email — Microsoft 365 `no-reply@egdigital.com.au` se
+
+Sirf **password reset** wali email Microsoft 365 mailbox `no-reply@egdigital.com.au`
+se jaati hai, **Microsoft Graph API** ke through (SMTP nahi — usme mailbox password
+lagta hai aur Microsoft December 2026 ke baad SMTP basic auth band kar raha hai).
+Baaki saari emails (invoice, notifications) pehle jaise `EMAIL_PROVIDER` (Brevo) se.
+
+**a) Mailbox:** `no-reply@egdigital.com.au` Microsoft 365 mein ek mailbox honi
+chahiye — licensed user, ya free **shared mailbox** (shared mailbox ko licence nahi chahiye).
+
+**b) Entra ID app registration** (https://entra.microsoft.com):
+1. *Applications → App registrations → New registration* — naam jaise `EG Digital Mailer`, single tenant.
+2. *Overview* se **Directory (tenant) ID** aur **Application (client) ID** copy karein.
+3. *Certificates & secrets → New client secret* — **Value** copy karein (sirf ek baar dikhti hai). Expiry yaad rakhein; expire hone se pehle naya secret daalna padega.
+4. *API permissions → Add → Microsoft Graph → **Application permissions** → `Mail.Send`* → **Grant admin consent**.
+5. (Recommended) App ko sirf is ek mailbox tak seemit karein — warna `Mail.Send` org ke kisi bhi mailbox se bhej sakta hai. Exchange Online PowerShell mein:
+   ```
+   New-DistributionGroup -Name "EG Mailer Senders" -Alias egmailersenders -Type Security -Members no-reply@egdigital.com.au
+   New-ApplicationAccessPolicy -AppId <client id> -PolicyScopeGroupId egmailersenders@egdigital.com.au -AccessRight RestrictAccess -Description "EG Digital mailer: no-reply only"
+   ```
+
+**c) App Service env variables:**
+```
+RESET_EMAIL_FROM=no-reply@egdigital.com.au
+RESET_EMAIL_FROM_NAME=EG Digital
+MS_GRAPH_TENANT_ID=<tenant id>
+MS_GRAPH_CLIENT_ID=<client id>
+MS_GRAPH_CLIENT_SECRET=<secret value>
+```
+Teeno `MS_GRAPH_*` set na hon to reset email `EMAIL_PROVIDER` (Brevo) se hi jaati
+hai, taaki password reset kabhi band na ho. Boot log batata hai kaunsa route chal
+raha hai: `Password-reset email provider ready` (Microsoft 365) ya
+`MS_GRAPH_* not set — sending through EMAIL_PROVIDER`.
+
+**d) Errors (App Service log stream mein `Password-reset email send failed`):**
+- `Microsoft sign-in 401` — client ID ya secret galat / secret expire.
+- `Microsoft Graph sendMail 403` — `Mail.Send` application permission ya admin consent missing, ya Application Access Policy is mailbox ko allow nahi karti.
+- `Microsoft Graph sendMail 404` — `RESET_EMAIL_FROM` naam ki mailbox tenant mein nahi hai.
+
 ---
 
 ## Troubleshooting

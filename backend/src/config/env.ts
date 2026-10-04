@@ -54,6 +54,17 @@ const schema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
 
+  // ── Password-reset email (Microsoft 365 via Microsoft Graph) ──
+  // Reset emails only — everything else keeps using EMAIL_PROVIDER. Sent from
+  // RESET_EMAIL_FROM through an Entra ID app registration that holds the
+  // application permission Mail.Send (admin-consented). Until all three
+  // MS_GRAPH_* values are set, reset emails go through EMAIL_PROVIDER.
+  RESET_EMAIL_FROM: z.string().default('no-reply@egdigital.com.au'),
+  RESET_EMAIL_FROM_NAME: z.string().default('EG Digital'),
+  MS_GRAPH_TENANT_ID: z.string().optional(),
+  MS_GRAPH_CLIENT_ID: z.string().optional(),
+  MS_GRAPH_CLIENT_SECRET: z.string().optional(),
+
   APP_URL: z.string().default('http://localhost:5173'),
 
   // Cron jobs (billing, overdue sweep, reminders, token cleanup) write to the

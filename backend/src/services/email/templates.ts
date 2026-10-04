@@ -1,6 +1,6 @@
 import { env } from '../../config/env.js';
 import type { Role } from '@prisma/client';
-import { sendEmail, type EmailMessage } from './index.js';
+import { sendEmail, sendResetEmail, type EmailMessage } from './index.js';
 
 const ROLE_SLUG: Record<string, string> = {
   SUPER_ADMIN: 'admin',
@@ -66,7 +66,8 @@ export function sendPasswordReset(
 ) {
   const slug = ROLE_SLUG[user.role] ?? 'client';
   const resetUrl = `${env.APP_URL.replace(/\/$/, '')}/${slug}/reset-password?token=${encodeURIComponent(rawToken)}`;
-  sendEmail({
+  // Sent from the Microsoft 365 no-reply mailbox, not the main provider.
+  sendResetEmail({
     to: user.email,
     subject: 'Reset your EG Digital password',
     text: `Hi ${user.firstName}, reset your EG Digital password here: ${resetUrl} — the link expires in ${expiresInMinutes} minutes and can only be used once. If you did not request this, ignore this email; your password stays unchanged.`,

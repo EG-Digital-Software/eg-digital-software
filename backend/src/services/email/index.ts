@@ -227,6 +227,110 @@ if (undeliverableReason) {
   logger.info({ provider: env.EMAIL_PROVIDER, from: fromHeader() }, '✉️  Email provider ready');
 }
 
+/**
+ * Microsoft 365 mailbox send over Microsoft Graph (POST /users/{from}/sendMail),
+ * authenticated as an Entra ID app with the client-credentials flow. Used only
+ * for password-reset emails, sent as RESET_EMAIL_FROM. Unlike SMTP AUTH this
+ * needs no mailbox password and is not affected by Microsoft retiring basic
+ * auth for client submission.
+ */
+class GraphMailProvider implements EmailProvider {
+  readonly name = 'microsoft-graph';
+  private token: { value: string; expiresAt: number } | null = null;
+
+  constructor(
+    private readonly tenantId: string,
+    private readonly clientId: string,
+    private readonly clientSecret: string,
+    private readonly from: string,
+    private readonly fromName: string
+  ) {}
+
+  private async accessToken(): Promise<string> {
+    // Reuse the token until a minute before it expires (they last ~1 hour).
+    if (this.token && Date.now() < this.token.expiresAt - 60_000) return this.token.value;
+    const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(this.tenantId)}/oauth2/v2.0/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        scope: 'https://graph.microsoft.com/.default',
+        grant_type: 'client_credentials',
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Microsoft sign-in ${res.status}: ${body}`);
+    }
+    const data = (await res.json()) as { access_token: string; expires_in: number };
+    this.token = { value: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 };
+    return data.access_token;
+  }
+
+  async send(msg: EmailMessage): Promise<void> {
+    const recipients = (value?: string) =>
+      (value ?? '')
+        .split(',')
+        .map((e) => e.trim())
+        .filter(Boolean)
+        .map((address) => ({ emailAddress: { address } }));
+    const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(this.from)}/sendMail`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${await this.accessToken()}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          subject: msg.subject,
+          body: { contentType: 'HTML', content: msg.html },
+          from: { emailAddress: { address: this.from, name: this.fromName } },
+          toRecipients: recipients(msg.to),
+          ccRecipients: recipients(msg.cc),
+          ...(msg.replyTo ? { replyTo: recipients(msg.replyTo) } : {}),
+        },
+        // A no-reply mailbox has no use for a copy of every reset link.
+        saveToSentItems: false,
+      }),
+    });
+    // Graph answers 202 Accepted with an empty body on success.
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Microsoft Graph sendMail ${res.status}: ${body}`);
+    }
+  }
+}
+
+/**
+ * Password-reset emails go out from the Microsoft 365 no-reply mailbox when the
+ * Graph app is configured. Until then they fall back to the main provider, so a
+ * missing setting never stops people from resetting their password.
+ */
+const resetProvider: EmailProvider =
+  env.MS_GRAPH_TENANT_ID && env.MS_GRAPH_CLIENT_ID && env.MS_GRAPH_CLIENT_SECRET
+    ? new GraphMailProvider(
+        env.MS_GRAPH_TENANT_ID,
+        env.MS_GRAPH_CLIENT_ID,
+        env.MS_GRAPH_CLIENT_SECRET,
+        env.RESET_EMAIL_FROM,
+        env.RESET_EMAIL_FROM_NAME
+      )
+    : emailProvider;
+
+if (resetProvider === emailProvider) {
+  logger.warn(
+    { provider: env.EMAIL_PROVIDER },
+    '✉️  Password-reset email: MS_GRAPH_* not set — sending through EMAIL_PROVIDER instead of Microsoft 365'
+  );
+} else {
+  logger.info({ provider: resetProvider.name, from: env.RESET_EMAIL_FROM }, '✉️  Password-reset email provider ready');
+}
+
+/** Fire-and-forget password-reset send through the Microsoft 365 no-reply mailbox. */
+export function sendResetEmail(msg: EmailMessage): void {
+  resetProvider
+    .send(msg)
+    .catch((err) => logger.error({ err, to: msg.to, provider: resetProvider.name }, 'Password-reset email send failed'));
+}
+
 /** Fire-and-forget send — never breaks the primary flow (used by notifications). */
 export function sendEmail(msg: EmailMessage): void {
   emailProvider.send(msg).catch((err) => logger.error({ err }, 'Email send failed'));
