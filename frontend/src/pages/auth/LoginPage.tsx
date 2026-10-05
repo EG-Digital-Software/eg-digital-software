@@ -5,20 +5,18 @@ import { toPortal, PORTAL_ROLEKEY, PORTAL_ROLE, ROLE_HOME, authPaths } from '@/l
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLogin } from '@/hooks/useSession';
 import { apiErrorMessage } from '@/api/client';
-import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
+import { cn } from '@/lib/utils';
 import {
-  AuthShell,
-  AuthField,
-  AuthButton,
-  type AuthAccent,
-  type AuthTab,
-  type AuthVariant,
-} from '@/components/auth/AuthShell';
+  GraphiteShell,
+  GRAPHITE_BUTTON,
+  GRAPHITE_EYEBROW,
+  GRAPHITE_INPUT,
+} from '@/components/auth/GraphiteShell';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -34,42 +32,31 @@ type RoleConfig = {
   description: string;
   placeholder: string;
   allowSignup: boolean;
-  welcome: string;
-  subline: string;
-  accent: AuthAccent;
-  variant: AuthVariant;
+  /** Caption above the page headline. */
+  eyebrow: string;
 };
 
 const ROLES: Record<RoleKey, RoleConfig> = {
   'super-admin': {
-    label: 'EG',
+    label: 'Admin',
     description: 'Administrative access to the EG Digital control panel.',
     placeholder: 'admin@egdigital.com.au',
     allowSignup: false,
-    welcome: 'Welcome to EG Digital',
-    subline: 'Manage customers, licences, invoicing and analytics in one premium workspace.',
-    accent: { from: '#6366f1', to: '#8b5cf6' }, // indigo → violet
-    variant: 'admin',
+    eyebrow: 'Admin Console · Secure sign-in',
   },
   client: {
     label: 'Customer',
     description: 'Access your invoices, licences and payments.',
     placeholder: 'you@company.com.au',
     allowSignup: true,
-    welcome: 'Your invoices & licences, all in one place',
-    subline: 'View statements, track licence status and pay online in seconds.',
-    accent: { from: '#0d9488', to: '#10b981' }, // teal → emerald
-    variant: 'client',
+    eyebrow: 'Customer Portal · Secure sign-in',
   },
   employee: {
     label: 'Team',
     description: 'Access your workspace, tasks and internal tools.',
     placeholder: 'you@egdigital.com.au',
     allowSignup: true,
-    welcome: 'Your workspace, tasks & tools — unified',
-    subline: 'Customers, licences and internal tools in one focused place.',
-    accent: { from: '#0284c7', to: '#38bdf8' }, // sky blue
-    variant: 'employee',
+    eyebrow: 'Team Workspace · Secure sign-in',
   },
 };
 
@@ -98,13 +85,6 @@ export default function LoginPage() {
   const role = ROLES[roleKey];
   const from = (location.state as { from?: string })?.from;
 
-  const tabs: AuthTab[] = [
-    { label: 'Sign In', to: authPaths.login(portal), active: true },
-    ...(role.allowSignup
-      ? [{ label: 'Sign Up', to: authPaths.register(portal) }]
-      : []),
-    { label: 'Password recovery', to: authPaths.forgot(portal) },
-  ];
   const forgotPath = authPaths.forgot(portal);
 
   const onSubmit = async (values: FormValues) => {
@@ -131,91 +111,100 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthShell
-      tabs={tabs}
-      welcome={role.welcome}
-      subline={role.subline}
-      accent={role.accent}
-      variant={role.variant}
-    >
-      <div className="stagger">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Sign In</h1>
-        </div>
+    <GraphiteShell eyebrow={role.eyebrow}>
+      <div className="flex flex-col gap-2">
+        <div className={GRAPHITE_EYEBROW}>Sign in · {role.label}</div>
+        <h2 className="m-0 text-[34px] !font-bold leading-[1.1] text-white">Welcome back.</h2>
+        <p className="m-0 text-[15px] text-[#a3abb9]">{role.description}</p>
+      </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Login / Email</Label>
-            <AuthField
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="email" className={GRAPHITE_EYEBROW}>
+            Email Address
+          </label>
+          <div className="relative">
+            <Mail
+              className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#8b93a3]"
+              strokeWidth={1.8}
+            />
+            <input
               id="email"
-              icon={Mail}
               type="email"
               autoComplete="email"
               placeholder={role.placeholder}
+              className={cn(GRAPHITE_INPUT, 'pr-3.5')}
               {...register('email')}
             />
-            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
+          {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
+        </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <Link to={forgotPath} className="text-xs font-medium text-primary hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-            <AuthField
+        <div className="flex flex-col gap-2">
+          <label htmlFor="password" className={GRAPHITE_EYEBROW}>
+            Password
+          </label>
+          <div className="relative">
+            <Lock
+              className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#8b93a3]"
+              strokeWidth={1.8}
+            />
+            <input
               id="password"
-              icon={Lock}
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
+              className={cn(GRAPHITE_INPUT, 'pr-12')}
               {...register('password')}
-              trailing={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              }
             />
-            {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[#a3abb9] transition-colors hover:text-white"
+            >
+              {showPassword ? (
+                <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.8} />
+              ) : (
+                <Eye className="h-[18px] w-[18px]" strokeWidth={1.8} />
+              )}
+            </button>
           </div>
+          {errors.password && <p className="text-xs text-red-400">{errors.password.message}</p>}
+        </div>
 
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-input accent-primary"
-              {...register('rememberMe')}
-            />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm text-[#c7ccd6]">
+            <input type="checkbox" className="m-0 h-4 w-4 accent-white" {...register('rememberMe')} />
             Keep me signed in
           </label>
+          <Link
+            to={forgotPath}
+            className="text-sm text-white underline underline-offset-[3px] hover:text-[#cbd5e1]"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
-          <AuthButton type="submit" accent={role.accent} disabled={isSubmitting}>
-            {isSubmitting ? <Spinner /> : null}
-            Sign In
-            {!isSubmitting && (
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            )}
-          </AuthButton>
-        </form>
+        <button type="submit" disabled={isSubmitting} className={GRAPHITE_BUTTON}>
+          {isSubmitting ? <Spinner /> : null}
+          Sign In {!isSubmitting && '→'}
+        </button>
+      </form>
 
+      <div className="flex flex-wrap justify-between gap-2 border-t border-[#1f2430] pt-[18px] text-[13px] text-[#a3abb9]">
         {role.allowSignup ? (
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{' '}
-            <Link to={authPaths.register(portal)} className="font-semibold text-primary hover:underline">
-              Sign Up
+          <>
+            <span>Don&apos;t have an account?</span>
+            <Link to={authPaths.register(portal)} className="font-semibold text-white hover:text-[#cbd5e1]">
+              Sign up →
             </Link>
-          </p>
+          </>
         ) : (
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            Protected area · Unauthorised access is prohibited.
-          </p>
+          <span>Protected area · Unauthorised access is prohibited.</span>
         )}
       </div>
-    </AuthShell>
+    </GraphiteShell>
   );
 }
+

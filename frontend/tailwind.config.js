@@ -58,7 +58,7 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['Inter Variable', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Barlow', 'Helvetica Neue', 'system-ui', 'sans-serif'],
       },
       letterSpacing: {
         tight: '-0.02em',

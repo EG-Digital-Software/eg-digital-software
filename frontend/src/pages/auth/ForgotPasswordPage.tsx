@@ -3,20 +3,16 @@ import { Link, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { MailCheck, Mail, ArrowRight } from 'lucide-react';
+import { Mail } from 'lucide-react';
 import { forgotPasswordRequest, type Portal } from '@/api/auth';
 import { toPortal, PORTAL_ROLEKEY } from '@/lib/portal';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
 import {
-  AuthShell,
-  AuthField,
-  AuthButton,
-  type AuthAccent,
-  type AuthTab,
-  type AuthVariant,
-} from '@/components/auth/AuthShell';
+  GraphiteShell,
+  GRAPHITE_BUTTON,
+  GRAPHITE_EYEBROW,
+  GRAPHITE_INPUT,
+} from '@/components/auth/GraphiteShell';
 
 const schema = z.object({ email: z.string().email('Enter a valid email') });
 type FormValues = z.infer<typeof schema>;
@@ -27,35 +23,33 @@ type RecoveryConfig = {
   label: string;
   portal: Portal;
   placeholder: string;
-  allowSignup: boolean;
-  accent: AuthAccent;
-  variant: AuthVariant;
+  /** Caption above the page headline. */
+  eyebrow: string;
+  /** Where "Back to sign in" goes. */
+  signInPath: string;
 };
 
 const ROLES: Record<RoleKey, RecoveryConfig> = {
   'super-admin': {
-    label: 'EG',
+    label: 'Admin',
     portal: 'SUPER_ADMIN',
     placeholder: 'admin@egdigital.com.au',
-    allowSignup: false,
-    accent: { from: '#6366f1', to: '#8b5cf6' },
-    variant: 'admin',
+    eyebrow: 'Admin Console · Secure sign-in',
+    signInPath: '/admin/login',
   },
   client: {
     label: 'Customer',
     portal: 'CLIENT',
     placeholder: 'you@company.com.au',
-    allowSignup: true,
-    accent: { from: '#0d9488', to: '#10b981' },
-    variant: 'client',
+    eyebrow: 'Customer Portal · Secure sign-in',
+    signInPath: '/',
   },
   employee: {
     label: 'Team',
     portal: 'EMPLOYEE',
     placeholder: 'you@egdigital.com.au',
-    allowSignup: true,
-    accent: { from: '#0284c7', to: '#38bdf8' },
-    variant: 'employee',
+    eyebrow: 'Team Workspace · Secure sign-in',
+    signInPath: '/',
   },
 };
 
@@ -66,13 +60,6 @@ export default function ForgotPasswordPage() {
   const portal = toPortal(params.portal);
   const roleKey = PORTAL_ROLEKEY[portal] as RoleKey;
   const role = ROLES[roleKey];
-
-  const loginPath = `/${portal}/login`;
-  const tabs: AuthTab[] = [
-    { label: 'Sign In', to: loginPath },
-    { label: 'Sign Up', to: `/${portal}/register`, disabled: !role.allowSignup },
-    { label: 'Password recovery', to: `/${portal}/forgot-password`, active: true },
-  ];
 
   const {
     register,
@@ -86,63 +73,66 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <AuthShell
-      tabs={tabs}
-      welcome={`Recover access to your ${role.label} account`}
-      subline="We'll email you a secure link to reset your password."
-      accent={role.accent}
-      variant={role.variant}
-    >
+    <GraphiteShell eyebrow={role.eyebrow}>
       {sent ? (
-        <div className="stagger text-center">
-          <div
-            className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg"
-            style={{ background: `linear-gradient(120deg, ${role.accent.from}, ${role.accent.to})` }}
-          >
-            <MailCheck className="h-7 w-7" />
+        <>
+          <div className="flex flex-col gap-2">
+            <div className={GRAPHITE_EYEBROW}>Password recovery</div>
+            <h2 className="m-0 text-[34px] !font-bold leading-[1.1] text-white">Check your email.</h2>
+            <p className="m-0 text-[15px] text-[#a3abb9]">
+              If a {role.label} account exists for that address, we&apos;ve sent a password reset link.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Check Your Email</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            If a {role.label} account exists for that address, we&apos;ve sent a password reset link.
-          </p>
-          <Button asChild variant="outline" className="mt-6 w-full" size="lg">
-            <Link to={loginPath}>Back to sign in</Link>
-          </Button>
-        </div>
+          <Link to={role.signInPath} className={GRAPHITE_BUTTON}>
+            Back to sign in →
+          </Link>
+        </>
       ) : (
-        <div className="stagger">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-800">Reset Your Password</h1>
+        <>
+          <div className="flex flex-col gap-2">
+            <div className={GRAPHITE_EYEBROW}>Password recovery · {role.label}</div>
+            <h2 className="m-0 text-[34px] !font-bold leading-[1.1] text-white">Reset your password.</h2>
+            <p className="m-0 text-[15px] text-[#a3abb9]">We&apos;ll email you a secure link to reset it.</p>
           </div>
-          <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-5">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <AuthField
-                id="email"
-                icon={Mail}
-                type="email"
-                autoComplete="email"
-                placeholder={role.placeholder}
-                {...register('email')}
-              />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="email" className={GRAPHITE_EYEBROW}>
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#8b93a3]"
+                  strokeWidth={1.8}
+                />
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder={role.placeholder}
+                  className={`${GRAPHITE_INPUT} pr-3.5`}
+                  {...register('email')}
+                />
+              </div>
+              {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
             </div>
-            <AuthButton type="submit" accent={role.accent} disabled={isSubmitting}>
+
+            <button type="submit" disabled={isSubmitting} className={GRAPHITE_BUTTON}>
               {isSubmitting ? <Spinner /> : null}
-              Send reset link
-              {!isSubmitting && (
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              )}
-            </AuthButton>
+              Send reset link {!isSubmitting && '→'}
+            </button>
           </form>
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Remembered it?{' '}
-            <Link to={loginPath} className="font-semibold text-primary hover:underline">
-              Sign In
-            </Link>
-          </p>
+        </>
+      )}
+
+      {!sent && (
+        <div className="flex flex-wrap justify-between gap-2 border-t border-[#1f2430] pt-[18px] text-[13px] text-[#a3abb9]">
+          <span>Remembered it?</span>
+          <Link to={role.signInPath} className="font-semibold text-white hover:text-[#cbd5e1]">
+            Back to sign in →
+          </Link>
         </div>
       )}
-    </AuthShell>
+    </GraphiteShell>
   );
 }

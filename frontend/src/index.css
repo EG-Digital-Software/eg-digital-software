@@ -58,15 +58,14 @@ h1, h2, h3, h4, h5, h6 {
   html,
   body {
     @apply bg-background text-foreground font-sans;
-    /* Inter is a grotesk — a hair of negative tracking reads crisp and premium. */
-    letter-spacing: -0.011em;
+    /* Barlow is drawn with its own spacing — keep the default tracking. */
+    letter-spacing: normal;
     /* Crisp, lighter glyph rendering — the standard premium look. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* Inter's stylistic sets + ligatures: cleaner g/l/a shapes and proper
-       kerning — the detail that separates premium type from default. */
-    font-feature-settings: 'cv02' 1, 'cv03' 1, 'cv04' 1, 'cv11' 1, 'liga' 1, 'calt' 1;
+    /* Ligatures + contextual alternates for proper kerning. */
+    font-feature-settings: 'liga' 1, 'calt' 1;
     font-variant-ligatures: common-ligatures contextual;
     line-height: 1.55;
   }

@@ -5,8 +5,12 @@ import { Toaster } from 'sonner';
 import App from './App';
 import { queryClient } from './lib/queryClient';
 import 'flag-icons/css/flag-icons.min.css';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/inter/wght-italic.css';
+import '@fontsource/barlow/400.css';
+import '@fontsource/barlow/400-italic.css';
+import '@fontsource/barlow/500.css';
+import '@fontsource/barlow/600.css';
+import '@fontsource/barlow/700.css';
+import '@fontsource/barlow/800.css';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
