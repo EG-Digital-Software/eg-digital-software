@@ -825,7 +825,9 @@ export async function decideApproval(
     where: { id: approvalId },
     data: {
       status: input.status,
-      feedback: input.feedback ?? null,
+      // Feedback is write-once: once saved it is never changed or cleared, even
+      // when an admin re-opens the request and it is decided again.
+      feedback: approval.feedback ?? input.feedback ?? null,
       decidedById: decider.id,
       decidedByType: decider.type,
       decidedByName: decider.name,

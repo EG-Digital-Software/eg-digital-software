@@ -35,6 +35,7 @@ import {
   Image as ImageIcon,
   Eye,
   Hourglass,
+  Lock,
 } from 'lucide-react';
 import type {
   AssignableUser,
@@ -1086,11 +1087,10 @@ export function TaskDialog({
                 feedbackDraft={feedbackDraft}
                 onFeedbackChange={(id, v) => setFeedbackDraft((f) => ({ ...f, [id]: v }))}
                 onDecide={(id, status) => {
-                  // An untouched box keeps the saved feedback (e.g. after an admin re-open);
-                  // an edited one — even cleared — replaces it.
-                  const draft = feedbackDraft[id];
+                  // Saved feedback is locked (the server keeps it too); only a first
+                  // feedback can be written.
                   const saved = liveTask?.approvals.find((a) => a.id === id)?.feedback ?? null;
-                  decideApproval.mutate({ id, status, feedback: draft === undefined ? saved : draft.trim() || null });
+                  decideApproval.mutate({ id, status, feedback: saved ?? (feedbackDraft[id]?.trim() || null) });
                 }}
                 deciding={decideApproval.isPending ? decideApproval.variables?.id : undefined}
                 onRemove={(id) => removeApproval.mutate(id)}
@@ -2096,14 +2096,20 @@ function ApprovalPanel({
                     <X className="h-4 w-4" /> Reject
                   </Button>
                 </div>
-                {/* Pre-filled with the saved feedback, so after an admin re-open the
-                    client sees what they wrote before and can edit it. */}
-                <Input
-                  value={feedbackDraft[a.id] ?? a.feedback ?? ''}
-                  placeholder="Feedback (optional)"
-                  className="h-8 text-xs"
-                  onChange={(e) => onFeedbackChange(a.id, e.target.value)}
-                />
+                {/* Once saved, feedback is locked — after an admin re-open it stays
+                    as it was (shown in the Feedback column) and can't be edited. */}
+                {a.feedback ? (
+                  <div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <Lock className="h-3 w-3" /> Feedback saved
+                  </div>
+                ) : (
+                  <Input
+                    value={feedbackDraft[a.id] ?? ''}
+                    placeholder="Feedback (optional)"
+                    className="h-8 text-xs"
+                    onChange={(e) => onFeedbackChange(a.id, e.target.value)}
+                  />
+                )}
               </div>
             ) : (
               <ApprovalStatusBadge status={a.status} />
