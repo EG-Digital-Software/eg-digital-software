@@ -330,6 +330,8 @@ export function TaskDialog({
     onSettled: () => { invalidateTask(); invalidate(); },
   });
   const removeComment = useMutation({ mutationFn: (id: string) => api.deleteComment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
+  // Touch screens have no hover: tapping a message opens its emoji bar instead.
+  const [reactFor, setReactFor] = useState<string | null>(null);
   const toggleReaction = useMutation({
     mutationFn: (v: { commentId: string; emoji: string }) => api.toggleReaction(task!.id, v.commentId, v.emoji),
     // Flip the reaction instantly; the server's list replaces it once saved.
@@ -1220,7 +1222,12 @@ export function TaskDialog({
                 )}
                 </div>
               </div>
-              <div ref={chatScrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
+              <div
+                ref={chatScrollRef}
+                className="flex-1 space-y-4 overflow-y-auto p-4"
+                // A tap outside every message closes an open emoji bar.
+                onClick={(e) => { if (!(e.target as HTMLElement).closest('[data-chat-msg]')) setReactFor(null); }}
+              >
                 {!task && <p className="pt-8 text-center text-xs text-muted-foreground">Create the task first to start the conversation.</p>}
                 {task && liveTask && liveTask.comments.length === 0 && <p className="pt-8 text-center text-xs text-muted-foreground">No messages yet. Start the conversation.</p>}
                 {liveTask?.comments.map((c) => {
@@ -1230,14 +1237,31 @@ export function TaskDialog({
                       {!mine && (
                         <Avatar className="mt-4 h-7 w-7 shrink-0"><AvatarFallback className="text-[10px]">{initials(c.authorName)}</AvatarFallback></Avatar>
                       )}
-                      <div className={cn('min-w-0 max-w-[85%]', mine && 'text-right')}>
+                      <div
+                        data-chat-msg
+                        className={cn('min-w-0 max-w-[85%]', mine && 'text-right')}
+                        onClick={(e) => {
+                          // Touch only — on a mouse, hovering already shows the bar.
+                          if (c.id.startsWith('temp-') || !window.matchMedia('(hover: none)').matches) return;
+                          if ((e.target as HTMLElement).closest('a, button, input, textarea')) return;
+                          setReactFor((id) => (id === c.id ? null : c.id));
+                        }}
+                      >
                         <div className={cn('mb-1 flex items-center gap-2 text-[11px]', mine ? 'justify-end' : '')}>
                           {!mine && <span className="font-semibold text-primary">{c.authorName}</span>}
                           {mine && !c.id.startsWith('temp-') && (
-                            <ReactionPicker onPick={(emoji) => toggleReaction.mutate({ commentId: c.id, emoji })} />
+                            <ReactionPicker
+                              open={reactFor === c.id}
+                              onPick={(emoji) => { setReactFor(null); toggleReaction.mutate({ commentId: c.id, emoji }); }}
+                            />
                           )}
                           <span className="text-muted-foreground">{formatDate(c.createdAt, 'dd MMM, h:mm a')}</span>
-                          {!mine && <ReactionPicker onPick={(emoji) => toggleReaction.mutate({ commentId: c.id, emoji })} />}
+                          {!mine && (
+                            <ReactionPicker
+                              open={reactFor === c.id}
+                              onPick={(emoji) => { setReactFor(null); toggleReaction.mutate({ commentId: c.id, emoji }); }}
+                            />
+                          )}
                         </div>
                         {c.body && (
                           <div className={cn('inline-block rounded-2xl px-3 py-2 text-left text-sm', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
@@ -2518,17 +2542,28 @@ function DateField({
 /** Quick reactions offered on a chat message — mirrors the server's allow-list. */
 const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-/** Emoji bar shown while hovering a chat message; clicking one toggles your reaction. */
-function ReactionPicker({ onPick }: { onPick: (emoji: string) => void }) {
+/**
+ * Emoji bar for a chat message — shown on hover with a mouse, or while `open`
+ * (tapped) on a touch screen. Hidden, it ignores taps so nothing is hit blind.
+ */
+function ReactionPicker({ open, onPick }: { open: boolean; onPick: (emoji: string) => void }) {
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 opacity-0 shadow-sm transition focus-within:opacity-100 group-hover:opacity-100">
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 shadow-sm transition',
+        'focus-within:pointer-events-auto focus-within:opacity-100',
+        '[@media(hover:hover)]:group-hover:pointer-events-auto [@media(hover:hover)]:group-hover:opacity-100',
+        open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+      )}
+    >
       {CHAT_REACTIONS.map((e) => (
         <button
           key={e}
           type="button"
           title={`React ${e}`}
-          onClick={() => onPick(e)}
-          className="rounded-full px-0.5 text-sm leading-none transition hover:scale-125"
+          // Drop focus so focus-within doesn't keep the bar pinned open.
+          onClick={(ev) => { ev.currentTarget.blur(); onPick(e); }}
+          className="rounded-full px-1 text-base leading-none transition hover:scale-125 [@media(hover:hover)]:px-0.5 [@media(hover:hover)]:text-sm"
         >
           {e}
         </button>
