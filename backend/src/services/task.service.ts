@@ -76,7 +76,10 @@ const taskInclude = {
   checklist: { orderBy: { order: 'asc' } },
   comments: {
     orderBy: { createdAt: 'asc' },
-    include: { attachments: { orderBy: { createdAt: 'asc' } } },
+    include: {
+      attachments: { orderBy: { createdAt: 'asc' } },
+      reactions: { orderBy: { createdAt: 'asc' } },
+    },
   },
   notes: { orderBy: { createdAt: 'asc' } },
   // Task-level attachments only — approval files are scoped to their request.
@@ -524,6 +527,41 @@ export async function addComment(
     where: { id: comment.id },
     include: { attachments: { orderBy: { createdAt: 'asc' } } },
   });
+}
+
+/** The quick reactions offered on a chat message; anything else is rejected. */
+export const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
+
+/**
+ * Toggle the signed-in user's emoji reaction on a chat message: adds it, or
+ * removes it if they had already reacted with that emoji. Returns the message's
+ * reactions after the change.
+ */
+export async function toggleCommentReaction(
+  customerId: string,
+  taskId: string,
+  commentId: string,
+  user: { id: string; type: Role; name: string },
+  emoji: string
+) {
+  if (!(CHAT_REACTIONS as readonly string[]).includes(emoji)) throw ApiError.badRequest('Unsupported reaction');
+  await ensureTask(customerId, taskId);
+  const comment = await prisma.taskComment.findFirst({ where: { id: commentId, taskId } });
+  if (!comment) throw ApiError.notFound('Comment not found');
+
+  const key = { commentId_userId_emoji: { commentId, userId: user.id, emoji } };
+  const existing = await prisma.taskCommentReaction.findUnique({ where: key });
+  if (existing) {
+    await prisma.taskCommentReaction.delete({ where: key }).catch(() => undefined);
+  } else {
+    // A double click can race two creates; the unique key makes the second a no-op.
+    await prisma.taskCommentReaction
+      .create({ data: { commentId, userId: user.id, userType: user.type, userName: user.name, emoji } })
+      .catch((err) => {
+        if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
+      });
+  }
+  return prisma.taskCommentReaction.findMany({ where: { commentId }, orderBy: { createdAt: 'asc' } });
 }
 
 export async function deleteComment(customerId: string, taskId: string, commentId: string) {

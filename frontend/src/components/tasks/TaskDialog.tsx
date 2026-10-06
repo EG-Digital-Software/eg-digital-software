@@ -45,6 +45,7 @@ import type {
   TaskAttachment,
   TaskBucket,
   TaskComment,
+  TaskCommentReaction,
   TaskNote,
   TaskNoteKind,
   TaskPriority,
@@ -329,6 +330,31 @@ export function TaskDialog({
     onSettled: () => { invalidateTask(); invalidate(); },
   });
   const removeComment = useMutation({ mutationFn: (id: string) => api.deleteComment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
+  const toggleReaction = useMutation({
+    mutationFn: (v: { commentId: string; emoji: string }) => api.toggleReaction(task!.id, v.commentId, v.emoji),
+    // Flip the reaction instantly; the server's list replaces it once saved.
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: taskKey });
+      const prev = qc.getQueryData<Task>(taskKey);
+      if (prev && meId) {
+        qc.setQueryData<Task>(taskKey, {
+          ...prev,
+          comments: prev.comments.map((c) => {
+            if (c.id !== v.commentId) return c;
+            const list = c.reactions ?? [];
+            const had = list.some((r) => r.userId === meId && r.emoji === v.emoji);
+            const next: TaskCommentReaction[] = had
+              ? list.filter((r) => !(r.userId === meId && r.emoji === v.emoji))
+              : [...list, { id: `tmp-${Date.now()}`, commentId: c.id, userId: meId, userType: me?.role ?? 'SUPER_ADMIN', userName: meName, emoji: v.emoji, createdAt: new Date().toISOString() }];
+            return { ...c, reactions: next };
+          }),
+        });
+      }
+      return { prev };
+    },
+    onError: (e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
+    onSettled: () => { invalidateTask(); },
+  });
   const addNoteMut = useMutation({
     mutationFn: (v: { body: string; kind: TaskNoteKind; subject?: string | null }) => api.addNote(task!.id, v.body, v.kind, v.subject),
     // Show the note instantly (and clear the right composer) before the round-trip.
@@ -1207,7 +1233,11 @@ export function TaskDialog({
                       <div className={cn('min-w-0 max-w-[85%]', mine && 'text-right')}>
                         <div className={cn('mb-1 flex items-center gap-2 text-[11px]', mine ? 'justify-end' : '')}>
                           {!mine && <span className="font-semibold text-primary">{c.authorName}</span>}
+                          {mine && !c.id.startsWith('temp-') && (
+                            <ReactionPicker onPick={(emoji) => toggleReaction.mutate({ commentId: c.id, emoji })} />
+                          )}
                           <span className="text-muted-foreground">{formatDate(c.createdAt, 'dd MMM, h:mm a')}</span>
+                          {!mine && <ReactionPicker onPick={(emoji) => toggleReaction.mutate({ commentId: c.id, emoji })} />}
                         </div>
                         {c.body && (
                           <div className={cn('inline-block rounded-2xl px-3 py-2 text-left text-sm', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
@@ -1247,6 +1277,12 @@ export function TaskDialog({
                             </div>
                           );
                         })}
+                        <ReactionChips
+                          reactions={c.reactions ?? []}
+                          meId={meId}
+                          alignEnd={mine}
+                          onToggle={(emoji) => toggleReaction.mutate({ commentId: c.id, emoji })}
+                        />
                         {/* Deleting a chat message is admin-only — clients and
                             employees cannot delete any message, not even their own. */}
                         {isAdmin && (
@@ -2475,6 +2511,67 @@ function DateField({
           <X className="h-3.5 w-3.5" />
         </button>
       )}
+    </div>
+  );
+}
+
+/** Quick reactions offered on a chat message — mirrors the server's allow-list. */
+const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+/** Emoji bar shown while hovering a chat message; clicking one toggles your reaction. */
+function ReactionPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  return (
+    <span className="inline-flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 opacity-0 shadow-sm transition focus-within:opacity-100 group-hover:opacity-100">
+      {CHAT_REACTIONS.map((e) => (
+        <button
+          key={e}
+          type="button"
+          title={`React ${e}`}
+          onClick={() => onPick(e)}
+          className="rounded-full px-0.5 text-sm leading-none transition hover:scale-125"
+        >
+          {e}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/** Reactions under a chat message, grouped by emoji; yours are highlighted and click to remove. */
+function ReactionChips({
+  reactions,
+  meId,
+  alignEnd,
+  onToggle,
+}: {
+  reactions: TaskCommentReaction[];
+  meId?: string;
+  alignEnd: boolean;
+  onToggle: (emoji: string) => void;
+}) {
+  if (reactions.length === 0) return null;
+  const groups = new Map<string, TaskCommentReaction[]>();
+  for (const r of reactions) groups.set(r.emoji, [...(groups.get(r.emoji) ?? []), r]);
+  return (
+    <div className={cn('mt-1 flex flex-wrap gap-1', alignEnd && 'justify-end')}>
+      {[...groups.entries()].map(([emoji, list]) => {
+        const mineToo = !!meId && list.some((r) => r.userId === meId);
+        return (
+          <button
+            key={emoji}
+            type="button"
+            title={list.map((r) => r.userName).join(', ')}
+            onClick={() => onToggle(emoji)}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs transition',
+              mineToo ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:border-primary/30'
+            )}
+          >
+            <span className="leading-none">{emoji}</span>
+            <span className="font-medium">{list.length}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

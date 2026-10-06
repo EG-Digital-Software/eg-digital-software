@@ -454,6 +454,18 @@ export interface TaskComment {
   createdAt: string;
   /** Files sent with this chat message (task-level uploads are not included). */
   attachments?: TaskAttachment[];
+  /** Emoji reactions — one entry per (person, emoji). */
+  reactions?: TaskCommentReaction[];
+}
+
+export interface TaskCommentReaction {
+  id: string;
+  commentId: string;
+  userId: string;
+  userType: Role;
+  userName: string;
+  emoji: string;
+  createdAt: string;
 }
 
 export type TaskNoteKind = 'NOTE' | 'ACCESS_POINT';

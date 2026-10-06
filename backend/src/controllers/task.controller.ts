@@ -120,6 +120,16 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, comment, 'Comment added', 201);
 });
 
+export const toggleCommentReaction = asyncHandler(async (req: Request, res: Response) => {
+  const emoji = typeof req.body.emoji === 'string' ? req.body.emoji : '';
+  const customerId = await resolve(req);
+  return ok(
+    res,
+    await taskService.toggleCommentReaction(customerId, req.params.taskId, req.params.commentId, await author(req), emoji),
+    'Reaction updated'
+  );
+});
+
 export const deleteComment = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await resolve(req);
   return ok(res, await taskService.deleteComment(customerId, req.params.taskId, req.params.commentId), 'Comment deleted');

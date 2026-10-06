@@ -88,6 +88,16 @@ export const employeeAddComment = asyncHandler(async (req: Request, res: Respons
   return ok(res, await taskService.addComment(customerId, req.params.taskId, await employeeAuthor(req), body, req.file), 'Comment added', 201);
 });
 
+export const employeeToggleCommentReaction = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  const emoji = typeof req.body.emoji === 'string' ? req.body.emoji : '';
+  return ok(
+    res,
+    await taskService.toggleCommentReaction(customerId, req.params.taskId, req.params.commentId, await employeeAuthor(req), emoji),
+    'Reaction updated'
+  );
+});
+
 export const employeeAddNote = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
   const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';

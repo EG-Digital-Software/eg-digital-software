@@ -9,6 +9,7 @@ import type {
   TaskBoard,
   TaskBucket,
   TaskComment,
+  TaskCommentReaction,
   TaskLabel,
   TaskPriority,
   TaskProgress,
@@ -77,6 +78,9 @@ export function taskApi(base: string) {
       }
       return unwrap<TaskComment>(api.post(`${base}/tasks/${taskId}/comments`, { body }));
     },
+    // Toggle the signed-in user's emoji on a chat message; returns its reactions.
+    toggleReaction: (taskId: string, commentId: string, emoji: string) =>
+      unwrap<TaskCommentReaction[]>(api.post(`${base}/tasks/${taskId}/comments/${commentId}/reactions`, { emoji })),
     deleteComment: (taskId: string, commentId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/comments/${commentId}`)),
 

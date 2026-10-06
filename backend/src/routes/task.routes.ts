@@ -57,6 +57,8 @@ export function buildTaskRouter(readOnly = false): Router {
   // controller strips the fields locked in the portal (start/due/priority).
   router.patch('/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.updateTask);
   router.post('/tasks/:taskId/comments', upload.single('file'), ctrl.addComment);
+  // Emoji reactions on a chat message — anyone in the chat may react (toggle).
+  router.post('/tasks/:taskId/comments/:commentId/reactions', ctrl.toggleCommentReaction);
   // Notes thread — available to clients too, like comments. Editing is limited
   // to your own notes (enforced in the controller/service).
   router.post('/tasks/:taskId/notes', ctrl.addNote);

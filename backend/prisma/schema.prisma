@@ -871,7 +871,27 @@ model TaskComment {
   /// tab) leave commentId null; chat attachments point back here.
   attachments TaskAttachment[]
 
+  /// Emoji reactions on this message — one row per (person, emoji).
+  reactions TaskCommentReaction[]
+
   @@index([taskId])
+}
+
+/// An emoji reaction on a task chat message. Users are polymorphic
+/// (admin/employee/client) like comment authors; the name is snapshotted so the
+/// hover tooltip doesn't need a lookup. Clicking the same emoji again removes it.
+model TaskCommentReaction {
+  id        String      @id @default(uuid())
+  comment   TaskComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId String
+  userId    String
+  userType  Role
+  userName  String
+  emoji     String
+  createdAt DateTime    @default(now())
+
+  @@unique([commentId, userId, emoji])
+  @@index([commentId])
 }
 
 model TaskAttachment {

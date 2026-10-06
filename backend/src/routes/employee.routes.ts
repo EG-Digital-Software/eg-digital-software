@@ -31,6 +31,7 @@ router.get('/tasks/tasks/:taskId/mentionable-users', ctrl.employeeMentionableUse
 router.patch('/tasks/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.employeeSetProgress);
 router.patch('/tasks/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.employeeUpdateTask);
 router.post('/tasks/tasks/:taskId/comments', upload.single('file'), ctrl.employeeAddComment);
+router.post('/tasks/tasks/:taskId/comments/:commentId/reactions', ctrl.employeeToggleCommentReaction);
 // Deleting a chat message is admin-only — employees cannot delete any message.
 router.post('/tasks/tasks/:taskId/notes', ctrl.employeeAddNote);
 router.patch('/tasks/tasks/:taskId/notes/:noteId', ctrl.employeeEditNote);
