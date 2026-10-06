@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   BellRing,
   KeyRound,
+  Reply,
 } from 'lucide-react';
 import { notificationApi, type AppNotification } from '@/api/notifications';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,7 @@ const ICONS: Record<string, typeof Bell> = {
   account: BadgeCheck,
   licence: KeyRound,
   'licence-digest': KeyRound,
+  TASK_REPLY: Reply,
 };
 
 function timeAgo(date: string) {

@@ -64,6 +64,32 @@ function notifyMentions(
 }
 
 /**
+ * Fire-and-forget a notification to the author of the message being replied
+ * to — unless they're replying to themselves, or are already @mentioned in the
+ * reply (the mention notification covers it).
+ */
+function notifyReply(
+  task: { id: string; title: string },
+  author: { id: string; type: Role; name: string },
+  original: { authorId: string; authorType: Role },
+  body: string
+): void {
+  if (original.authorId === author.id) return;
+  if (parseMentions(body).some((m) => m.userId === original.authorId)) return;
+  const preview = stripMentions(body).replace(/\s+/g, ' ').trim();
+  notify({
+    userId: original.authorId,
+    userType: original.authorType,
+    type: 'TASK_REPLY',
+    title: `${author.name} replied to your message`,
+    body: preview ? `${task.title} — ${preview.slice(0, 140)}` : task.title,
+    link: MENTION_HOME[original.authorType] ?? '/',
+    entityType: 'task',
+    entityId: task.id,
+  });
+}
+
+/**
  * Microsoft Planner-style task board, scoped to one customer. Buckets are the
  * columns, tasks the cards. Assignees/comments/attachments reference staff by
  * (userId, userType) the same polymorphic way notifications do.
@@ -498,10 +524,10 @@ export async function addComment(
   const task = await ensureTask(customerId, taskId);
 
   // A reply can only quote a message in the same task's chat.
-  if (replyToId) {
-    const original = await prisma.taskComment.findFirst({ where: { id: replyToId, taskId }, select: { id: true } });
-    if (!original) throw ApiError.badRequest('The message you are replying to no longer exists');
-  }
+  const original = replyToId
+    ? await prisma.taskComment.findFirst({ where: { id: replyToId, taskId }, select: { authorId: true, authorType: true } })
+    : null;
+  if (replyToId && !original) throw ApiError.badRequest('The message you are replying to no longer exists');
 
   const comment = await prisma.taskComment.create({
     data: { taskId, authorId: author.id, authorType: author.type, authorName: author.name, body, replyToId: replyToId || null },
@@ -510,6 +536,7 @@ export async function addComment(
   // Tag anyone @mentioned in the message — fire-and-forget so a notification
   // hiccup never blocks the chat.
   notifyMentions(task, author, body);
+  if (original) notifyReply(task, author, original, body);
 
   // A file sent with the message is stored as a task attachment linked back to
   // this comment, so it shows both in the chat bubble and the Attachments tab.
