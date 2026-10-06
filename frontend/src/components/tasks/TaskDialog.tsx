@@ -469,7 +469,7 @@ export function TaskDialog({
           ...prev,
           approvals: prev.approvals.map((a) =>
             a.id === v.id
-              ? { ...a, status: v.status, feedback: v.feedback ?? a.feedback ?? null, decidedByName: meName, decidedAt: now }
+              ? { ...a, status: v.status, feedback: v.feedback ?? null, decidedByName: meName, decidedAt: now }
               : a
           ),
         });
@@ -1085,7 +1085,13 @@ export function TaskDialog({
                 submitting={submitApproval.isPending}
                 feedbackDraft={feedbackDraft}
                 onFeedbackChange={(id, v) => setFeedbackDraft((f) => ({ ...f, [id]: v }))}
-                onDecide={(id, status) => decideApproval.mutate({ id, status, feedback: feedbackDraft[id]?.trim() || null })}
+                onDecide={(id, status) => {
+                  // An untouched box keeps the saved feedback (e.g. after an admin re-open);
+                  // an edited one — even cleared — replaces it.
+                  const draft = feedbackDraft[id];
+                  const saved = liveTask?.approvals.find((a) => a.id === id)?.feedback ?? null;
+                  decideApproval.mutate({ id, status, feedback: draft === undefined ? saved : draft.trim() || null });
+                }}
                 deciding={decideApproval.isPending ? decideApproval.variables?.id : undefined}
                 onRemove={(id) => removeApproval.mutate(id)}
                 onReopen={(id) => reopenApproval.mutate(id)}
@@ -2090,8 +2096,10 @@ function ApprovalPanel({
                     <X className="h-4 w-4" /> Reject
                   </Button>
                 </div>
+                {/* Pre-filled with the saved feedback, so after an admin re-open the
+                    client sees what they wrote before and can edit it. */}
                 <Input
-                  value={feedbackDraft[a.id] ?? ''}
+                  value={feedbackDraft[a.id] ?? a.feedback ?? ''}
                   placeholder="Feedback (optional)"
                   className="h-8 text-xs"
                   onChange={(e) => onFeedbackChange(a.id, e.target.value)}
