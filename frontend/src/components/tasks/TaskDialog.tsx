@@ -36,6 +36,7 @@ import {
   Eye,
   Hourglass,
   Lock,
+  Reply,
 } from 'lucide-react';
 import type {
   AssignableUser,
@@ -56,7 +57,7 @@ import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
 import { cn, formatDate, initials, mediaUrl } from '@/lib/utils';
 import { downloadChatDoc, printChatPdf } from '@/lib/chatExport';
-import { renderMessageBody } from '@/lib/mentions';
+import { renderMessageBody, stripMentions } from '@/lib/mentions';
 import { NotoEmoji, withNotoEmoji } from '@/lib/emoji';
 import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER } from '@/lib/tasks';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -206,6 +207,12 @@ export function TaskDialog({
   const [showChat, setShowChat] = useState(true);
   const [showNotes, setShowNotes] = useState(false);
   const [chatFile, setChatFile] = useState<File | null>(null);
+  // Message the composer is replying to (quoted above the input), and the one
+  // briefly highlighted after jumping to it from a quote.
+  const [replyTo, setReplyTo] = useState<TaskComment | null>(null);
+  const [flashMsg, setFlashMsg] = useState<string | null>(null);
+  // Ignore a reply left over from another task (the composer outlives task switches).
+  const activeReply = replyTo && replyTo.taskId === task?.id ? replyTo : null;
   // @mention autocomplete for the chat composer. `mention` is active only while
   // the caret sits inside a `@query` token; index tracks the highlighted row.
   const [mention, setMention] = useState<{ start: number; query: string; index: number } | null>(null);
@@ -297,13 +304,14 @@ export function TaskDialog({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const addComment = useMutation({
-    mutationFn: (v: { body: string; file?: File }) => api.addComment(task!.id, v.body, v.file),
+    mutationFn: (v: { body: string; file?: File; replyToId?: string }) => api.addComment(task!.id, v.body, v.file, v.replyToId),
     // Show the message instantly (and clear the composer) instead of waiting for
     // the round-trip.
     onMutate: async (v) => {
       setComment('');
       setMentionTokens([]);
       setChatFile(null);
+      setReplyTo(null);
       if (!task) return { prev: undefined };
       await qc.cancelQueries({ queryKey: taskKey });
       const prev = qc.getQueryData<Task>(taskKey);
@@ -316,6 +324,7 @@ export function TaskDialog({
         authorName: meName,
         body: v.body,
         createdAt: now,
+        replyToId: v.replyToId ?? null,
         attachments: v.file
           ? [{ id: `tmp-${Date.now()}`, taskId: task.id, fileName: v.file.name, url: '', size: v.file.size, createdAt: now }]
           : [],
@@ -590,7 +599,18 @@ export function TaskDialog({
     const body = toMentionBody(comment).trim();
     if (!task || addComment.isPending || (!body && !chatFile)) return;
     setMention(null);
-    addComment.mutate({ body, file: chatFile ?? undefined });
+    addComment.mutate({ body, file: chatFile ?? undefined, replyToId: activeReply?.id });
+  }
+  function startReply(c: TaskComment) {
+    setReactFor(null);
+    setReplyTo(c);
+    commentRef.current?.focus();
+  }
+  // Clicking a quote scrolls to the original message and flashes it.
+  function jumpToMessage(id: string) {
+    document.getElementById(`chat-msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setFlashMsg(id);
+    window.setTimeout(() => setFlashMsg((cur) => (cur === id ? null : cur)), 1500);
   }
 
   // People who can be @mentioned — the same admins/team members the task can be
@@ -1235,8 +1255,13 @@ export function TaskDialog({
                 {task && liveTask && liveTask.comments.length === 0 && <p className="pt-8 text-center text-xs text-muted-foreground">No messages yet. Start the conversation.</p>}
                 {liveTask?.comments.map((c) => {
                   const mine = !!meId && c.authorId === meId;
+                  const quoted = c.replyToId ? liveTask.comments.find((x) => x.id === c.replyToId) : undefined;
                   return (
-                    <div key={c.id} className={cn('group flex gap-2', mine && 'flex-row-reverse')}>
+                    <div
+                      key={c.id}
+                      id={`chat-msg-${c.id}`}
+                      className={cn('group flex gap-2 rounded-xl transition-colors duration-500', mine && 'flex-row-reverse', flashMsg === c.id && 'bg-primary/10')}
+                    >
                       {!mine && (
                         <Avatar className="mt-4 h-7 w-7 shrink-0"><AvatarFallback className="text-[10px]">{initials(c.authorName)}</AvatarFallback></Avatar>
                       )}
@@ -1259,12 +1284,18 @@ export function TaskDialog({
                             className={cn('absolute -top-3 z-20', mine ? 'right-0' : 'left-0')}
                             onPick={(emoji) => { setReactFor(null); toggleReaction.mutate({ commentId: c.id, emoji }); }}
                             onMore={() => { setReactFor(null); setReactMoreFor(c.id); }}
+                            onReply={() => startReply(c)}
                           />
                         )}
                         <div className={cn('mb-1 flex items-center gap-2 whitespace-nowrap text-[11px]', mine ? 'justify-end' : '')}>
                           {!mine && <span className="font-semibold text-primary">{c.authorName}</span>}
                           <span className="text-muted-foreground">{formatDate(c.createdAt, 'dd MMM, h:mm a')}</span>
                         </div>
+                        {c.replyToId && (
+                          <div className={cn('mb-1 flex', mine && 'justify-end')}>
+                            <ReplyQuote comment={quoted} onClick={quoted ? () => jumpToMessage(quoted.id) : undefined} />
+                          </div>
+                        )}
                         {c.body && (isJumboEmoji(c.body) ? (
                           // Like WhatsApp: a message of just 1–3 emoji is shown large, without a bubble.
                           <p className="text-4xl leading-tight">{withNotoEmoji(c.body.trim())}</p>
@@ -1366,6 +1397,14 @@ export function TaskDialog({
                     ))}
                   </div>
                 )}
+                {activeReply && (
+                  <div className="mb-2 flex items-center gap-2">
+                    <ReplyQuote comment={activeReply} className="flex-1" />
+                    <button type="button" title="Cancel reply" onClick={() => setReplyTo(null)} className="shrink-0 text-muted-foreground hover:text-rose-500">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
                 {chatFile && (
                   <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
                     <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -1443,6 +1482,7 @@ export function TaskDialog({
                         if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(mentionMatches[mention.index]); return; }
                         if (e.key === 'Escape') { e.preventDefault(); setMention(null); return; }
                       }
+                      if (e.key === 'Escape' && activeReply) { e.preventDefault(); setReplyTo(null); return; }
                       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
                     }}
                   />
@@ -2586,11 +2626,13 @@ function ReactionPicker({
   className,
   onPick,
   onMore,
+  onReply,
 }: {
   open: boolean;
   className?: string;
   onPick: (emoji: string) => void;
   onMore: () => void;
+  onReply: () => void;
 }) {
   return (
     <span
@@ -2622,7 +2664,40 @@ function ReactionPicker({
       >
         <Plus className="h-4 w-4" />
       </button>
+      <button
+        type="button"
+        title="Reply"
+        onClick={(ev) => { ev.currentTarget.blur(); onReply(); }}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+      >
+        <Reply className="h-4 w-4" />
+      </button>
     </span>
+  );
+}
+
+/**
+ * The quoted message shown above a reply (and above the composer while
+ * replying): author plus a short preview. `comment` is undefined when the
+ * original has been deleted.
+ */
+function ReplyQuote({ comment, className, onClick }: { comment?: TaskComment; className?: string; onClick?: () => void }) {
+  const preview = comment
+    ? stripMentions(comment.body).trim() || (comment.attachments?.[0] ? `📎 ${comment.attachments[0].fileName}` : '')
+    : 'Original message was deleted';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={cn(
+        'block min-w-0 max-w-full rounded-lg border-l-4 border-primary bg-secondary/70 px-2.5 py-1 text-left text-xs transition enabled:hover:bg-secondary disabled:cursor-default',
+        className
+      )}
+    >
+      {comment && <span className="block truncate font-semibold text-primary">{comment.authorName}</span>}
+      <span className={cn('line-clamp-2 break-words text-muted-foreground', !comment && 'italic')}>{withNotoEmoji(preview)}</span>
+    </button>
   );
 }
 

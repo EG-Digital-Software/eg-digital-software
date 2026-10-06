@@ -456,6 +456,8 @@ export interface TaskComment {
   attachments?: TaskAttachment[];
   /** Emoji reactions — one entry per (person, emoji). */
   reactions?: TaskCommentReaction[];
+  /** The message this one replies to; null when it isn't a reply or the original was deleted. */
+  replyToId?: string | null;
 }
 
 export interface TaskCommentReaction {

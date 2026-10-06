@@ -874,6 +874,12 @@ model TaskComment {
   /// Emoji reactions on this message — one row per (person, emoji).
   reactions TaskCommentReaction[]
 
+  /// The message this one replies to (quoted above the bubble). Deleting the
+  /// original keeps the reply but drops the quote.
+  replyTo   TaskComment?  @relation("TaskCommentReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replyToId String?
+  replies   TaskComment[] @relation("TaskCommentReplies")
+
   @@index([taskId])
 }
 

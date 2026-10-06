@@ -492,12 +492,19 @@ export async function addComment(
   taskId: string,
   author: { id: string; type: Role; name: string },
   body: string,
-  file?: { originalname: string; buffer: Buffer; mimetype: string; size: number }
+  file?: { originalname: string; buffer: Buffer; mimetype: string; size: number },
+  replyToId?: string
 ) {
   const task = await ensureTask(customerId, taskId);
 
+  // A reply can only quote a message in the same task's chat.
+  if (replyToId) {
+    const original = await prisma.taskComment.findFirst({ where: { id: replyToId, taskId }, select: { id: true } });
+    if (!original) throw ApiError.badRequest('The message you are replying to no longer exists');
+  }
+
   const comment = await prisma.taskComment.create({
-    data: { taskId, authorId: author.id, authorType: author.type, authorName: author.name, body },
+    data: { taskId, authorId: author.id, authorType: author.type, authorName: author.name, body, replyToId: replyToId || null },
   });
 
   // Tag anyone @mentioned in the message — fire-and-forget so a notification

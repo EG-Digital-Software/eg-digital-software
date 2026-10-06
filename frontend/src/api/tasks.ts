@@ -65,10 +65,11 @@ export function taskApi(base: string) {
       unwrap<Task>(api.patch(`${base}/tasks/${taskId}/progress`, { progress })),
 
     // Comments — an optional file rides along and is shown inside the chat bubble.
-    addComment: (taskId: string, body: string, file?: File) => {
+    addComment: (taskId: string, body: string, file?: File, replyToId?: string) => {
       if (file) {
         const form = new FormData();
         if (body) form.append('body', body);
+        if (replyToId) form.append('replyToId', replyToId);
         form.append('file', file);
         return unwrap<TaskComment>(
           api.post(`${base}/tasks/${taskId}/comments`, form, {
@@ -76,7 +77,7 @@ export function taskApi(base: string) {
           })
         );
       }
-      return unwrap<TaskComment>(api.post(`${base}/tasks/${taskId}/comments`, { body }));
+      return unwrap<TaskComment>(api.post(`${base}/tasks/${taskId}/comments`, { body, replyToId }));
     },
     // Toggle the signed-in user's emoji on a chat message; returns its reactions.
     toggleReaction: (taskId: string, commentId: string, emoji: string) =>

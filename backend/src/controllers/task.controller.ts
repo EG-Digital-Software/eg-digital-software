@@ -109,13 +109,15 @@ export const setProgress = asyncHandler(async (req: Request, res: Response) => {
 export const addComment = asyncHandler(async (req: Request, res: Response) => {
   const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
   if (!body && !req.file) throw ApiError.badRequest('A message or a file is required');
+  const replyToId = typeof req.body.replyToId === 'string' && req.body.replyToId ? req.body.replyToId : undefined;
   const customerId = await resolve(req);
   const comment = await taskService.addComment(
     customerId,
     req.params.taskId,
     await author(req),
     body,
-    req.file
+    req.file,
+    replyToId
   );
   return ok(res, comment, 'Comment added', 201);
 });
