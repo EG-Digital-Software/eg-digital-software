@@ -1243,9 +1243,11 @@ export function TaskDialog({
                         data-chat-msg
                         className={cn('min-w-0 max-w-[85%]', mine && 'text-right')}
                         onClick={(e) => {
-                          // Touch only — on a mouse, hovering already shows the bar.
-                          if (c.id.startsWith('temp-') || !window.matchMedia('(hover: none)').matches) return;
+                          // Tapping/clicking a message also opens its emoji bar — the way
+                          // in on touch screens, and on devices that misreport hover.
+                          if (c.id.startsWith('temp-')) return;
                           if ((e.target as HTMLElement).closest('a, button, input, textarea')) return;
+                          if (window.getSelection()?.toString()) return; // selecting text, not tapping
                           setReactFor((id) => (id === c.id ? null : c.id));
                         }}
                       >
@@ -2579,8 +2581,9 @@ function isJumboEmoji(body: string) {
 const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 /**
- * Emoji bar for a chat message — shown on hover with a mouse, or while `open`
- * (tapped) on a touch screen. Hidden, it ignores taps so nothing is hit blind.
+ * Emoji bar for a chat message — shown while the message is hovered, or while
+ * `open` (the message was tapped/clicked). Hidden, it ignores taps so nothing is
+ * hit blind.
  */
 function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoji: string) => void; onMore: () => void }) {
   return (
@@ -2588,7 +2591,7 @@ function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoj
       className={cn(
         'inline-flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 font-emoji shadow-sm transition',
         'focus-within:pointer-events-auto focus-within:opacity-100',
-        '[@media(hover:hover)]:group-hover:pointer-events-auto [@media(hover:hover)]:group-hover:opacity-100',
+        'group-hover:pointer-events-auto group-hover:opacity-100',
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       )}
     >
