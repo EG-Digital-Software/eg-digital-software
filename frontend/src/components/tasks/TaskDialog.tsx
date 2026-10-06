@@ -1247,7 +1247,7 @@ export function TaskDialog({
               </div>
               <div
                 ref={chatScrollRef}
-                className="flex-1 space-y-4 overflow-y-auto p-4"
+                className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4"
                 // A tap outside every message closes an open emoji bar.
                 onClick={(e) => { if (!(e.target as HTMLElement).closest('[data-chat-msg]')) setReactFor(null); }}
               >
@@ -1257,8 +1257,8 @@ export function TaskDialog({
                   const mine = !!meId && c.authorId === meId;
                   const quoted = c.replyToId ? liveTask.comments.find((x) => x.id === c.replyToId) : undefined;
                   return (
+                    <SwipeToReply key={c.id} disabled={c.id.startsWith('temp-')} onReply={() => startReply(c)}>
                     <div
-                      key={c.id}
                       id={`chat-msg-${c.id}`}
                       className={cn('group flex gap-2 rounded-xl transition-colors duration-500', mine && 'flex-row-reverse', flashMsg === c.id && 'bg-primary/10')}
                     >
@@ -1351,6 +1351,7 @@ export function TaskDialog({
                         )}
                       </div>
                     </div>
+                    </SwipeToReply>
                   );
                 })}
               </div>
@@ -2674,6 +2675,74 @@ function ReactionPicker({
         <Reply className="h-4 w-4" />
       </button>
     </span>
+  );
+}
+
+/** How far (px) a message must be swiped right to start a reply, and the most it moves. */
+const SWIPE_REPLY_TRIGGER = 60;
+const SWIPE_REPLY_MAX = 80;
+
+/**
+ * Touch-only swipe-right-to-reply around a chat message, like WhatsApp. The row
+ * follows the finger (moved via refs, so no re-render per frame) with a reply
+ * icon fading in behind it; letting go past the trigger starts a reply. Vertical
+ * drags are left to the browser so the chat still scrolls, and mouse users are
+ * unaffected (touch events only).
+ */
+function SwipeToReply({ disabled, onReply, children }: { disabled?: boolean; onReply: () => void; children: React.ReactNode }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const iconRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; dx: number; axis: 'h' | 'v' | null } | null>(null);
+
+  function moveTo(dx: number, animate: boolean) {
+    const row = rowRef.current;
+    const icon = iconRef.current;
+    if (!row || !icon) return;
+    const t = animate ? 'transform 0.2s ease, opacity 0.2s ease' : 'none';
+    row.style.transition = t;
+    icon.style.transition = t;
+    row.style.transform = dx ? `translateX(${dx}px)` : '';
+    const p = Math.min(dx / SWIPE_REPLY_TRIGGER, 1);
+    icon.style.opacity = String(p);
+    icon.style.transform = `translateY(-50%) scale(${0.5 + 0.5 * p})`;
+  }
+
+  return (
+    <div
+      className="relative touch-pan-y"
+      onTouchStart={(e) => {
+        if (disabled || e.touches.length !== 1) return;
+        drag.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, axis: null };
+      }}
+      onTouchMove={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        const dx = e.touches[0].clientX - d.x;
+        const dy = e.touches[0].clientY - d.y;
+        // Decide once per gesture whether it's a swipe (right) or a scroll.
+        if (!d.axis && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) d.axis = dx > 0 && Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+        if (d.axis !== 'h') return;
+        // Past the trigger it drags with resistance, up to the max.
+        d.dx = dx <= SWIPE_REPLY_TRIGGER ? Math.max(dx, 0) : Math.min(SWIPE_REPLY_TRIGGER + (dx - SWIPE_REPLY_TRIGGER) / 3, SWIPE_REPLY_MAX);
+        moveTo(d.dx, false);
+      }}
+      onTouchEnd={() => {
+        const d = drag.current;
+        drag.current = null;
+        if (!d || d.axis !== 'h') return;
+        if (d.dx >= SWIPE_REPLY_TRIGGER) {
+          navigator.vibrate?.(10);
+          onReply();
+        }
+        moveTo(0, true);
+      }}
+      onTouchCancel={() => { drag.current = null; moveTo(0, true); }}
+    >
+      <div ref={iconRef} className="pointer-events-none absolute left-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-secondary text-muted-foreground opacity-0">
+        <Reply className="h-4 w-4" />
+      </div>
+      <div ref={rowRef}>{children}</div>
+    </div>
   );
 }
 
