@@ -57,6 +57,7 @@ import { useAuth } from '@/store/auth';
 import { cn, formatDate, initials, mediaUrl } from '@/lib/utils';
 import { downloadChatDoc, printChatPdf } from '@/lib/chatExport';
 import { renderMessageBody } from '@/lib/mentions';
+import { NotoEmoji, withNotoEmoji } from '@/lib/emoji';
 import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER } from '@/lib/tasks';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input, Textarea, Select } from '@/components/ui/input';
@@ -1271,10 +1272,10 @@ export function TaskDialog({
                         </div>
                         {c.body && (isJumboEmoji(c.body) ? (
                           // Like WhatsApp: a message of just 1–3 emoji is shown large, without a bubble.
-                          <p className="font-emoji text-4xl leading-tight">{c.body}</p>
+                          <p className="text-4xl leading-tight">{withNotoEmoji(c.body.trim())}</p>
                         ) : (
                           <div className={cn('inline-block rounded-2xl px-3 py-2 text-left text-sm', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
-                            <p className="whitespace-pre-wrap break-words font-emoji">{renderMessageBody(c.body, { meId })}</p>
+                            <p className="whitespace-pre-wrap break-words">{renderMessageBody(c.body, { meId })}</p>
                           </div>
                         ))}
                         {c.attachments?.map((f) => {
@@ -1430,7 +1431,7 @@ export function TaskDialog({
                     placeholder={task ? 'Type a message — @ to mention someone' : 'Available after the task is created'}
                     rows={1}
                     disabled={!task}
-                    className="min-h-[28px] w-full flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm leading-6 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed font-emoji"
+                    className="min-h-[28px] w-full flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm leading-6 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed"
                     onChange={onCommentChange}
                     onKeyUp={(e) => {
                       // Navigation keys are handled in onKeyDown; re-running
@@ -2589,7 +2590,7 @@ function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoj
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 font-emoji shadow-sm transition',
+        'inline-flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 shadow-sm transition',
         'focus-within:pointer-events-auto focus-within:opacity-100',
         'group-hover:pointer-events-auto group-hover:opacity-100',
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
@@ -2604,7 +2605,7 @@ function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoj
           onClick={(ev) => { ev.currentTarget.blur(); onPick(e); }}
           className="rounded-full px-1 text-base leading-none transition hover:scale-125 [@media(hover:hover)]:px-0.5 [@media(hover:hover)]:text-sm"
         >
-          {e}
+          <NotoEmoji emoji={e} />
         </button>
       ))}
       <button
@@ -2649,7 +2650,7 @@ function ReactionChips({
               mineToo ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:border-primary/30'
             )}
           >
-            <span className="font-emoji text-sm leading-none">{emoji}</span>
+            <NotoEmoji emoji={emoji} className="text-sm" />
             <span className="font-medium">{list.length}</span>
           </button>
         );

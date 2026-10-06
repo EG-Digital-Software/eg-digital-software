@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { withNotoEmoji } from '@/lib/emoji';
 
 /**
  * @mention tokens live inline in a chat message body as `@[Full Name](ROLE:userId)`.
@@ -23,7 +24,7 @@ export function renderMessageBody(body: string, opts?: { meId?: string }): React
   let key = 0;
   let match: RegExpExecArray | null;
   while ((match = re.exec(body))) {
-    if (match.index > last) nodes.push(body.slice(last, match.index));
+    if (match.index > last) nodes.push(...withNotoEmoji(body.slice(last, match.index), `t-${key++}`));
     const name = match[1];
     const id = match[3];
     const isMe = !!opts?.meId && id === opts.meId;
@@ -40,6 +41,6 @@ export function renderMessageBody(body: string, opts?: { meId?: string }): React
     );
     last = re.lastIndex;
   }
-  if (last < body.length) nodes.push(body.slice(last));
+  if (last < body.length) nodes.push(...withNotoEmoji(body.slice(last), `t-${key++}`));
   return nodes;
 }

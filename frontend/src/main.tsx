@@ -11,8 +11,6 @@ import '@fontsource/barlow/500.css';
 import '@fontsource/barlow/600.css';
 import '@fontsource/barlow/700.css';
 import '@fontsource/barlow/800.css';
-// Colour emoji for chat — split by unicode-range, so only the subsets in use download.
-import '@fontsource/noto-color-emoji/400.css';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
