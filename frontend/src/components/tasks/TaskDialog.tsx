@@ -2590,7 +2590,7 @@ function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoj
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 shadow-sm transition',
+        'inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 shadow-md transition',
         'focus-within:pointer-events-auto focus-within:opacity-100',
         'group-hover:pointer-events-auto group-hover:opacity-100',
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
@@ -2603,7 +2603,7 @@ function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoj
           title={`React ${e}`}
           // Drop focus so focus-within doesn't keep the bar pinned open.
           onClick={(ev) => { ev.currentTarget.blur(); onPick(e); }}
-          className="rounded-full px-1 text-base leading-none transition hover:scale-125 [@media(hover:hover)]:px-0.5 [@media(hover:hover)]:text-sm"
+          className="rounded-full p-0.5 text-xl leading-none transition hover:scale-125"
         >
           <NotoEmoji emoji={e} />
         </button>
@@ -2612,9 +2612,9 @@ function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoj
         type="button"
         title="More reactions"
         onClick={(ev) => { ev.currentTarget.blur(); onMore(); }}
-        className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+        className="ml-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
       >
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className="h-4 w-4" />
       </button>
     </span>
   );
