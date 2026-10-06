@@ -1242,7 +1242,7 @@ export function TaskDialog({
                       )}
                       <div
                         data-chat-msg
-                        className={cn('min-w-0 max-w-[85%]', mine && 'text-right')}
+                        className={cn('relative min-w-0 max-w-[85%]', mine && 'text-right')}
                         onClick={(e) => {
                           // Tapping/clicking a message also opens its emoji bar — the way
                           // in on touch screens, and on devices that misreport hover.
@@ -1252,23 +1252,18 @@ export function TaskDialog({
                           setReactFor((id) => (id === c.id ? null : c.id));
                         }}
                       >
-                        <div className={cn('mb-1 flex items-center gap-2 text-[11px]', mine ? 'justify-end' : '')}>
+                        {/* Floats over the name/time line, so it never takes up room or squeezes it. */}
+                        {!c.id.startsWith('temp-') && (
+                          <ReactionPicker
+                            open={reactFor === c.id}
+                            className={cn('absolute -top-3 z-20', mine ? 'right-0' : 'left-0')}
+                            onPick={(emoji) => { setReactFor(null); toggleReaction.mutate({ commentId: c.id, emoji }); }}
+                            onMore={() => { setReactFor(null); setReactMoreFor(c.id); }}
+                          />
+                        )}
+                        <div className={cn('mb-1 flex items-center gap-2 whitespace-nowrap text-[11px]', mine ? 'justify-end' : '')}>
                           {!mine && <span className="font-semibold text-primary">{c.authorName}</span>}
-                          {mine && !c.id.startsWith('temp-') && (
-                            <ReactionPicker
-                              open={reactFor === c.id}
-                              onPick={(emoji) => { setReactFor(null); toggleReaction.mutate({ commentId: c.id, emoji }); }}
-                              onMore={() => { setReactFor(null); setReactMoreFor(c.id); }}
-                            />
-                          )}
                           <span className="text-muted-foreground">{formatDate(c.createdAt, 'dd MMM, h:mm a')}</span>
-                          {!mine && (
-                            <ReactionPicker
-                              open={reactFor === c.id}
-                              onPick={(emoji) => { setReactFor(null); toggleReaction.mutate({ commentId: c.id, emoji }); }}
-                              onMore={() => { setReactFor(null); setReactMoreFor(c.id); }}
-                            />
-                          )}
                         </div>
                         {c.body && (isJumboEmoji(c.body) ? (
                           // Like WhatsApp: a message of just 1–3 emoji is shown large, without a bubble.
@@ -2586,11 +2581,22 @@ const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
  * `open` (the message was tapped/clicked). Hidden, it ignores taps so nothing is
  * hit blind.
  */
-function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoji: string) => void; onMore: () => void }) {
+function ReactionPicker({
+  open,
+  className,
+  onPick,
+  onMore,
+}: {
+  open: boolean;
+  className?: string;
+  onPick: (emoji: string) => void;
+  onMore: () => void;
+}) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 shadow-md transition',
+        'inline-flex w-max shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-card px-2 py-1 shadow-md transition',
+        className,
         'focus-within:pointer-events-auto focus-within:opacity-100',
         'group-hover:pointer-events-auto group-hover:opacity-100',
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
@@ -2603,7 +2609,7 @@ function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoj
           title={`React ${e}`}
           // Drop focus so focus-within doesn't keep the bar pinned open.
           onClick={(ev) => { ev.currentTarget.blur(); onPick(e); }}
-          className="rounded-full p-0.5 text-xl leading-none transition hover:scale-125"
+          className="shrink-0 rounded-full p-0.5 text-xl leading-none transition hover:scale-125"
         >
           <NotoEmoji emoji={e} />
         </button>
@@ -2612,7 +2618,7 @@ function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoj
         type="button"
         title="More reactions"
         onClick={(ev) => { ev.currentTarget.blur(); onMore(); }}
-        className="ml-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+        className="ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
       >
         <Plus className="h-4 w-4" />
       </button>
