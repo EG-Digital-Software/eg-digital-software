@@ -59,6 +59,9 @@ export default {
       },
       fontFamily: {
         sans: ['Barlow', 'Helvetica Neue', 'system-ui', 'sans-serif'],
+        // Chat text: emoji come from a colour emoji font (Apple's on Apple
+        // devices, self-hosted Noto elsewhere) instead of Windows' flat set.
+        emoji: ['Barlow', 'Apple Color Emoji', 'Noto Color Emoji', 'sans-serif'],
       },
       letterSpacing: {
         tight: '-0.02em',
