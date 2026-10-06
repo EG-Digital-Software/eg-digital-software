@@ -332,6 +332,8 @@ export function TaskDialog({
   const removeComment = useMutation({ mutationFn: (id: string) => api.deleteComment(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
   // Touch screens have no hover: tapping a message opens its emoji bar instead.
   const [reactFor, setReactFor] = useState<string | null>(null);
+  // The message whose full emoji picker (the bar's "+") is open, to react with any emoji.
+  const [reactMoreFor, setReactMoreFor] = useState<string | null>(null);
   const toggleReaction = useMutation({
     mutationFn: (v: { commentId: string; emoji: string }) => api.toggleReaction(task!.id, v.commentId, v.emoji),
     // Flip the reaction instantly; the server's list replaces it once saved.
@@ -1253,6 +1255,7 @@ export function TaskDialog({
                             <ReactionPicker
                               open={reactFor === c.id}
                               onPick={(emoji) => { setReactFor(null); toggleReaction.mutate({ commentId: c.id, emoji }); }}
+                              onMore={() => { setReactFor(null); setReactMoreFor(c.id); }}
                             />
                           )}
                           <span className="text-muted-foreground">{formatDate(c.createdAt, 'dd MMM, h:mm a')}</span>
@@ -1260,6 +1263,7 @@ export function TaskDialog({
                             <ReactionPicker
                               open={reactFor === c.id}
                               onPick={(emoji) => { setReactFor(null); toggleReaction.mutate({ commentId: c.id, emoji }); }}
+                              onMore={() => { setReactFor(null); setReactMoreFor(c.id); }}
                             />
                           )}
                         </div>
@@ -1320,6 +1324,27 @@ export function TaskDialog({
                   );
                 })}
               </div>
+              {reactMoreFor && (
+                <>
+                  {/* Full picker from the reaction bar's "+": react with any emoji. */}
+                  <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setReactMoreFor(null)} />
+                  <div className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl shadow-xl">
+                    <EmojiPicker
+                      onEmojiClick={(e) => {
+                        toggleReaction.mutate({ commentId: reactMoreFor, emoji: e.emoji });
+                        setReactMoreFor(null);
+                      }}
+                      emojiStyle={EmojiStyle.GOOGLE}
+                      lazyLoadEmojis
+                      width={320}
+                      height={400}
+                      theme={Theme.AUTO}
+                      previewConfig={{ showPreview: false }}
+                      searchPlaceholder="Search emoji"
+                    />
+                  </div>
+                </>
+              )}
               <div className="relative border-t border-border p-3">
                 {mention && mentionMatches.length > 0 && (
                   <div className="absolute bottom-full left-3 right-3 z-20 mb-1 max-h-56 overflow-auto rounded-xl border border-border bg-card p-1 shadow-lg">
@@ -2557,7 +2582,7 @@ const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
  * Emoji bar for a chat message — shown on hover with a mouse, or while `open`
  * (tapped) on a touch screen. Hidden, it ignores taps so nothing is hit blind.
  */
-function ReactionPicker({ open, onPick }: { open: boolean; onPick: (emoji: string) => void }) {
+function ReactionPicker({ open, onPick, onMore }: { open: boolean; onPick: (emoji: string) => void; onMore: () => void }) {
   return (
     <span
       className={cn(
@@ -2579,6 +2604,14 @@ function ReactionPicker({ open, onPick }: { open: boolean; onPick: (emoji: strin
           {e}
         </button>
       ))}
+      <button
+        type="button"
+        title="More reactions"
+        onClick={(ev) => { ev.currentTarget.blur(); onMore(); }}
+        className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
     </span>
   );
 }

@@ -529,8 +529,16 @@ export async function addComment(
   });
 }
 
-/** The quick reactions offered on a chat message; anything else is rejected. */
-export const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
+/**
+ * A reaction must be exactly one emoji (one grapheme, which covers skin tones,
+ * flags and ZWJ sequences like 👨‍👩‍👧) — never text.
+ */
+function isSingleEmoji(value: string): boolean {
+  if (!value || value.length > 32) return false;
+  if (!/^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[#*0-9]|‍|️|⃣|[\u{E0020}-\u{E007F}])+$/u.test(value)) return false;
+  if (!/\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣/u.test(value)) return false;
+  return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value)].length === 1;
+}
 
 /**
  * Toggle the signed-in user's emoji reaction on a chat message: adds it, or
@@ -544,7 +552,7 @@ export async function toggleCommentReaction(
   user: { id: string; type: Role; name: string },
   emoji: string
 ) {
-  if (!(CHAT_REACTIONS as readonly string[]).includes(emoji)) throw ApiError.badRequest('Unsupported reaction');
+  if (!isSingleEmoji(emoji)) throw ApiError.badRequest('A reaction must be a single emoji');
   await ensureTask(customerId, taskId);
   const comment = await prisma.taskComment.findFirst({ where: { id: commentId, taskId } });
   if (!comment) throw ApiError.notFound('Comment not found');
