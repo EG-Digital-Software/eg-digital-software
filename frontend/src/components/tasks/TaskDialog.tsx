@@ -1291,19 +1291,20 @@ export function TaskDialog({
                           {!mine && <span className="font-semibold text-primary">{c.authorName}</span>}
                           <span className="text-muted-foreground">{formatDate(c.createdAt, 'dd MMM, h:mm a')}</span>
                         </div>
-                        {c.replyToId && (
-                          <div className={cn('mb-1 flex', mine && 'justify-end')}>
-                            <ReplyQuote comment={quoted} onClick={quoted ? () => jumpToMessage(quoted.id) : undefined} />
-                          </div>
-                        )}
-                        {c.body && (isJumboEmoji(c.body) ? (
+                        {c.body && !c.replyToId && isJumboEmoji(c.body) ? (
                           // Like WhatsApp: a message of just 1–3 emoji is shown large, without a bubble.
                           <p className="text-4xl leading-tight">{withNotoEmoji(c.body.trim())}</p>
-                        ) : (
-                          <div className={cn('inline-block rounded-2xl px-3 py-2 text-left text-sm', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
-                            <p className="whitespace-pre-wrap break-words">{renderMessageBody(c.body, { meId })}</p>
+                        ) : (c.body || c.replyToId) && (
+                          // A reply carries its quote inside the bubble, above the text (like WhatsApp).
+                          <div className={cn('inline-block max-w-full rounded-2xl text-left text-sm', c.replyToId ? 'min-w-[10rem] p-1' : 'px-3 py-2', mine ? 'bg-primary/10' : 'bg-card shadow-sm')}>
+                            {c.replyToId && (
+                              <ReplyQuote comment={quoted} className="w-full" onClick={quoted ? () => jumpToMessage(quoted.id) : undefined} />
+                            )}
+                            {c.body && (
+                              <p className={cn('whitespace-pre-wrap break-words', c.replyToId && 'px-2 pb-1 pt-1.5')}>{renderMessageBody(c.body, { meId })}</p>
+                            )}
                           </div>
-                        ))}
+                        )}
                         {c.attachments?.map((f) => {
                           const furl = mediaUrl(f.url) ?? '';
                           return (
@@ -2691,7 +2692,7 @@ function ReplyQuote({ comment, className, onClick }: { comment?: TaskComment; cl
       onClick={onClick}
       disabled={!onClick}
       className={cn(
-        'block min-w-0 max-w-full rounded-lg border-l-4 border-primary bg-secondary/70 px-2.5 py-1 text-left text-xs transition enabled:hover:bg-secondary disabled:cursor-default',
+        'block min-w-0 max-w-full rounded-lg border-l-4 border-primary bg-black/5 px-2.5 py-1 text-left text-xs transition enabled:hover:bg-black/10 disabled:cursor-default dark:bg-white/10 dark:enabled:hover:bg-white/15',
         className
       )}
     >
