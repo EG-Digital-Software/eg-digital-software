@@ -203,7 +203,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   return (
     <div className="space-y-4">
       {/* Header band */}
-      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-white p-5 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
         <div className="relative flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-inner">

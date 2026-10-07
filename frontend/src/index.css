@@ -254,3 +254,129 @@ h1, h2, h3, h4, h5, h6 {
   pointer-events: none; /* clicks still reach the row */
   border: 2px solid rgb(59 130 246); /* blue-500 */
 }
+
+/* ------------------------------------------------------------------ */
+/* Customer portal — "Atomic Core · Graphite" theme.                    */
+/* ClientLayout adds .eg-graphite to <html> while it is mounted, so the */
+/* theme also reaches dialogs/menus portalled to <body>, and every      */
+/* other portal keeps the default light theme.                          */
+/* ------------------------------------------------------------------ */
+
+html.eg-graphite {
+  color-scheme: dark;
+  --background: 228 14% 5%;          /* #0C0D10 */
+  --foreground: 220 14% 97%;         /* #F5F6F8 */
+  --card: 225 30% 7%;                /* deep graphite panel */
+  --card-foreground: 220 14% 97%;
+  --popover: 225 22% 9%;
+  --popover-foreground: 220 14% 97%;
+  --primary: 0 0% 100%;              /* white CTAs, as in the reference */
+  --primary-foreground: 225 44% 5%;  /* #070A12 */
+  --secondary: 224 16% 13%;
+  --secondary-foreground: 220 14% 97%;
+  --muted: 224 16% 13%;
+  --muted-foreground: 223 13% 69%;   /* #A3AABB */
+  --accent: 224 16% 15%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 66%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 144 65% 69%;            /* #7CE3A6 */
+  --success-foreground: 225 44% 5%;
+  --warning: 38 92% 62%;
+  --warning-foreground: 225 44% 5%;
+  --border: 225 12% 17%;
+  --input: 225 12% 20%;
+  --ring: 214 32% 91%;               /* #E2E8F0 */
+  --radius: 2px;
+}
+
+html.eg-graphite,
+html.eg-graphite body {
+  background: #0c0d10;
+}
+
+/* Sharp, flat panels. */
+.eg-graphite .rounded-xl,
+.eg-graphite .rounded-2xl,
+.eg-graphite .rounded-3xl {
+  border-radius: 2px;
+}
+.eg-graphite .shadow-card,
+.eg-graphite .shadow-sm,
+.eg-graphite .shadow {
+  box-shadow: none;
+}
+.eg-graphite .shadow-md,
+.eg-graphite .shadow-lg,
+.eg-graphite .shadow-xl {
+  box-shadow: 0 18px 48px -12px rgb(0 0 0 / 0.7);
+}
+.eg-graphite .bg-card {
+  background-color: rgb(10 13 22 / 0.72);
+}
+.eg-graphite [role='dialog'].bg-card,
+.eg-graphite [role='menu'],
+.eg-graphite [data-radix-popper-content-wrapper] .bg-popover {
+  background-color: hsl(var(--popover));
+}
+.eg-graphite .skeleton::after {
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.06), transparent);
+}
+
+/* Light-theme hard-coded tints → dark equivalents. */
+.eg-graphite .text-slate-800 { color: #f5f6f8; }
+.eg-graphite .text-slate-600,
+.eg-graphite .text-slate-500 { color: #c9ceda; }
+.eg-graphite .text-slate-400 { color: #8c93a5; }
+.eg-graphite .bg-slate-50,
+.eg-graphite .bg-slate-100 { background-color: rgb(255 255 255 / 0.06); }
+.eg-graphite .border-slate-200 { border-color: hsl(var(--border)); }
+.eg-graphite [class*='text-[hsl(30_90%_38%)]'] { color: #fcd34d; }
+
+.eg-graphite .bg-amber-50,
+.eg-graphite .bg-amber-100 { background-color: rgb(245 158 11 / 0.14); }
+.eg-graphite .bg-emerald-50,
+.eg-graphite .bg-emerald-100,
+.eg-graphite .bg-green-100 { background-color: rgb(124 227 166 / 0.13); }
+.eg-graphite .bg-blue-50,
+.eg-graphite .bg-blue-100,
+.eg-graphite .bg-sky-100,
+.eg-graphite .bg-indigo-100 { background-color: rgb(148 163 184 / 0.16); }
+.eg-graphite .bg-violet-100 { background-color: rgb(167 139 250 / 0.14); }
+.eg-graphite .bg-rose-50,
+.eg-graphite .bg-rose-100,
+.eg-graphite .bg-red-100 { background-color: rgb(244 63 94 / 0.14); }
+.eg-graphite .bg-rose-50\/60 { background-color: rgb(244 63 94 / 0.08); }
+
+.eg-graphite .text-amber-600,
+.eg-graphite .text-amber-700 { color: #fcd34d; }
+.eg-graphite .text-emerald-600,
+.eg-graphite .text-emerald-700,
+.eg-graphite .text-green-600 { color: #7ce3a6; }
+.eg-graphite .text-blue-600,
+.eg-graphite .text-blue-700,
+.eg-graphite .text-sky-600,
+.eg-graphite .text-indigo-600 { color: #e2e8f0; }
+.eg-graphite .text-violet-600 { color: #c4b5fd; }
+.eg-graphite .text-rose-600,
+.eg-graphite .text-rose-700,
+.eg-graphite .text-red-600 { color: #fda4af; }
+.eg-graphite .border-emerald-100,
+.eg-graphite .border-blue-100 { border-color: hsl(var(--border)); }
+
+/* Page headings: title only, no icon badge. */
+.eg-graphite [data-page-header-icon] {
+  display: none;
+}
+
+/* Unseen-activity outline on task rows: white instead of blue. */
+.eg-graphite .task-row-active::after {
+  border-color: #e2e8f0;
+}
+
+/* Reference animations (atom orbits + core pulse). */
+@keyframes egSpin { to { transform: rotate(360deg); } }
+@keyframes egTw { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .eg-graphite .eg-anim { animation: none !important; }
+}

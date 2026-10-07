@@ -1,121 +1,97 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import {
-  FileWarning,
-  CheckCircle2,
-  Package,
-  ArrowRight,
-  AlertTriangle,
-  ListChecks,
-  RefreshCw,
-  ClipboardCheck,
-  FileText,
-  BadgeCheck,
-} from 'lucide-react';
-import type { LucideProps } from 'lucide-react';
-import type { ComponentType } from 'react';
-import { clientApi } from '@/api/client-portal';
+import { FileText } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { clientApi, type ClientProduct } from '@/api/client-portal';
 import { clientTaskApi } from '@/api/tasks';
 import { useAuth } from '@/store/auth';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/misc';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LicenceBadge, InvoiceBadge } from '@/components/shared/status';
-import { EmptyState } from '@/components/shared/states';
-import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { HeroWave, HeroHealthCluster } from '@/components/shared/HeroHealth';
+import { InvoiceBadge } from '@/components/shared/status';
+import { formatCurrency, formatDate, cn, mediaUrl } from '@/lib/utils';
+import type { LicenceStatus } from '@/types';
 import { ProductGlyph } from '@/lib/product-icon';
-import headphonesArt from '@/assets/headphones.png';
-import upgradeRocketArt from '@/assets/upgrade-rocket-cutout.png';
 
-// Soft pastel tones for the stat-card icon tiles (matches the reference).
-const TONES: Record<string, { tile: string; link: string }> = {
-  violet: { tile: 'bg-violet-100 text-violet-600', link: 'text-violet-600' },
-  emerald: { tile: 'bg-emerald-100 text-emerald-600', link: 'text-emerald-600' },
-  blue: { tile: 'bg-blue-100 text-blue-600', link: 'text-blue-600' },
-  amber: { tile: 'bg-amber-100 text-amber-600', link: 'text-amber-600' },
-  rose: { tile: 'bg-rose-100 text-rose-600', link: 'text-rose-600' },
-};
+/* ---- "Atomic Core · Graphite" building blocks ---------------------------- */
 
-function StatCard({
+const panel = 'border border-white/10 bg-[rgba(10,13,22,0.62)] backdrop-blur-[14px]';
+const eyebrow = 'text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A3AABB]';
+const btnBase =
+  'inline-flex h-[46px] items-center justify-center px-7 text-[13px] font-bold uppercase tracking-[0.1em] transition-colors';
+const btnLight = cn(btnBase, 'bg-white text-[#070A12] hover:bg-[#E2E8F0] hover:text-[#070A12]');
+const btnDark = cn(btnBase, 'bg-[rgba(40,46,62,0.7)] text-white hover:bg-[rgba(58,66,88,0.8)] hover:text-white');
+const viewAll = 'ml-auto text-xs font-bold uppercase tracking-[0.1em] text-white hover:text-[#D5D9E2]';
+
+function Panel({
   title,
-  icon: Icon,
-  value,
-  sub,
-  to,
-  tone,
+  action,
+  className,
+  children,
 }: {
   title: string;
-  icon: ComponentType<LucideProps>;
-  value: string;
-  sub?: React.ReactNode;
-  to: string;
-  tone: keyof typeof TONES;
+  action?: ReactNode;
+  className?: string;
+  children: ReactNode;
 }) {
-  const t = TONES[tone];
   return (
-    <Card className="flex flex-col justify-between p-5 transition-shadow hover:shadow-card-hover">
-      <div className="flex items-start gap-3">
-        <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', t.tile)}>
-          <Icon className="h-[22px] w-[22px]" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
-          {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
-        </div>
+    <section className={cn(panel, 'min-w-0', className)}>
+      <div className="flex items-center border-b border-white/[0.08] px-[22px] py-[18px]">
+        <h2 className="m-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">{title}</h2>
+        {action}
       </div>
-      <Link
-        to={to}
-        className={cn('mt-4 inline-flex items-center gap-1 text-sm font-medium hover:gap-1.5 transition-all', t.link)}
-      >
-        View all <ArrowRight className="h-3.5 w-3.5" />
-      </Link>
-    </Card>
+      {children}
+    </section>
   );
 }
 
-/** Multi-segment donut used by the Tasks Overview card. */
-function Donut({ total, segments }: { total: number; segments: { value: number; color: string }[] }) {
-  const r = 42;
-  const c = 2 * Math.PI * r;
-  const sum = segments.reduce((s, x) => s + x.value, 0) || 1;
-  let acc = 0;
+function ViewAll({ to, label = 'View all' }: { to: string; label?: string }) {
   return (
-    <div className="relative h-32 w-32 shrink-0">
-      <svg viewBox="0 0 100 100" className="h-32 w-32 -rotate-90">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="hsl(var(--secondary))" strokeWidth="10" />
-        {segments.map((seg, i) => {
-          if (seg.value <= 0) return null;
-          const len = (seg.value / sum) * c;
-          const el = (
-            <circle
-              key={i}
-              cx="50"
-              cy="50"
-              r={r}
-              fill="none"
-              stroke={seg.color}
-              strokeWidth="10"
-              strokeDasharray={`${len} ${c - len}`}
-              strokeDashoffset={-acc}
-              strokeLinecap="round"
-            />
-          );
-          acc += len;
-          return el;
-        })}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-semibold tabular-nums">{total}</span>
-        <span className="text-[11px] text-muted-foreground">Total tasks</span>
-      </div>
-    </div>
+    <Link to={to} className={viewAll}>
+      {label} <span aria-hidden="true">→</span>
+    </Link>
   );
 }
 
-// Account status → health score shown by the hero donut.
+/** Three tilted orbits with travelling electrons around a pulsing core. */
+function AtomicCore() {
+  return (
+    <svg
+      viewBox="285 34 870 772"
+      aria-hidden="true"
+      fill="none"
+      className="pointer-events-none absolute left-1/2 top-1/2 aspect-[870/772] h-[500px] -translate-x-1/2 -translate-y-1/2 sm:h-[660px]"
+    >
+      {[
+        { rot: 0, dur: 13.2, delay: -5.6 },
+        { rot: 60, dur: 13.4, delay: -5.4 },
+        { rot: 120, dur: 15.9, delay: -0.7 },
+      ].map((o) => (
+        <g key={o.rot} transform={`rotate(${o.rot} 720 420)`}>
+          <ellipse cx="720" cy="420" rx="420" ry="134" stroke="rgba(203,213,225,0.3)" vectorEffect="non-scaling-stroke" />
+          <g
+            className="eg-anim"
+            style={{ transformOrigin: '720px 420px', animation: `egSpin ${o.dur}s linear ${o.delay}s infinite` }}
+          >
+            <circle cx="1140" cy="420" r="5" fill="rgba(100,116,139,1)" />
+          </g>
+        </g>
+      ))}
+      <circle
+        cx="720"
+        cy="420"
+        r="40"
+        fill="rgba(148,163,184,0.35)"
+        className="eg-anim"
+        style={{ transformBox: 'fill-box', transformOrigin: 'center', animation: 'egTw 3s ease-in-out infinite' }}
+      />
+      <circle cx="720" cy="420" r="14" fill="#FFFFFF" fillOpacity=".85" />
+    </svg>
+  );
+}
+
+/* ---- Data presentation helpers (read-only) ------------------------------- */
+
+// Account status → health score shown in the hero.
 const ACCOUNT_HEALTH: Record<string, { pct: number; label: string }> = {
   ACTIVE: { pct: 98, label: 'Excellent' },
   ACTIVE_TRIAL: { pct: 90, label: 'Trial' },
@@ -123,40 +99,57 @@ const ACCOUNT_HEALTH: Record<string, { pct: number; label: string }> = {
   SUSPENDED: { pct: 34, label: 'At risk' },
 };
 
-const TASK_PILL: Record<string, { label: string; cls: string }> = {
-  IN_PROGRESS: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
-  ONGOING: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
-  NOT_STARTED: { label: 'Pending', cls: 'bg-blue-100 text-blue-700' },
-  COMPLETED: { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700' },
+const LICENCE_DOT: Record<LicenceStatus, { label: string; color: string }> = {
+  ACTIVE: { label: 'Active', color: '#7CE3A6' },
+  EXPIRING_SOON: { label: 'Expiring soon', color: '#FCD34D' },
+  CRITICAL: { label: 'Critical', color: '#FDA4AF' },
+  EXPIRED: { label: 'Expired', color: '#FDA4AF' },
+  SUSPENDED: { label: 'Suspended', color: '#FDA4AF' },
 };
+
+const DAY = 86_400_000;
+
+/** Share of the licence term still left, 0–100 (null when open-ended). */
+function termRemaining(p: ClientProduct, now: number): number | null {
+  if (!p.expiryDate) return null;
+  const start = new Date(p.issueDate).getTime();
+  const end = new Date(p.expiryDate).getTime();
+  if (!(end > start)) return 0;
+  const pct = ((end - now) / (end - start)) * 100;
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
 
 interface ActivityItem {
   id: string;
-  icon: ComponentType<LucideProps>;
-  tone: string;
   title: string;
   sub: string;
   at: number; // epoch ms — for sorting
 }
 
-// Split a timestamp into a short day label ("Today" / "Yesterday" / date) and a
-// clock time, matching the reference's two-line right column.
-function activityWhen(iso: string): { day: string; time: string } {
-  const dt = new Date(iso);
-  const today = new Date();
-  const yest = new Date();
-  yest.setDate(today.getDate() - 1);
-  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  const day = sameDay(dt, today) ? 'Today' : sameDay(dt, yest) ? 'Yesterday' : formatDate(iso);
-  const time = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return { day, time };
+function activityWhen(at: number): string {
+  const dt = new Date(at);
+  const day = dt.toLocaleDateString([], { day: '2-digit', month: 'short' });
+  const time = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `${day} · ${time}`;
 }
+
+/* ---- Page ---------------------------------------------------------------- */
 
 export default function ClientDashboard() {
   const user = useAuth((s) => s.user);
+  // Captured once per mount so renders stay pure.
+  const [now] = useState(() => Date.now());
   const dashQ = useQuery({ queryKey: ['client', 'dashboard'], queryFn: clientApi.dashboard });
   const tasksQ = useQuery({ queryKey: ['client', 'tasks', 'summary'], queryFn: () => clientTaskApi().board() });
-  const allTasks = (tasksQ.data?.buckets ?? []).flatMap((b) => b.tasks);
+  const invQ = useQuery({
+    queryKey: ['client', 'invoices', 'recent'],
+    queryFn: () => clientApi.invoices({ pageSize: 5 }),
+  });
+  const prodQ = useQuery({ queryKey: ['client', 'products'], queryFn: clientApi.products });
+  const profileQ = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
+
+  const buckets = tasksQ.data?.buckets ?? [];
+  const allTasks = buckets.flatMap((b) => b.tasks.map((t) => ({ ...t, bucketName: b.name })));
   const activeTasks = allTasks.filter((t) => t.progress !== 'COMPLETED').length;
   const tInProgress = allTasks.filter((t) => t.progress === 'IN_PROGRESS' || t.progress === 'ONGOING').length;
   const tPending = allTasks.filter((t) => t.progress === 'NOT_STARTED').length;
@@ -165,20 +158,30 @@ export default function ClientDashboard() {
     .filter((t) => t.progress !== 'COMPLETED')
     .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
     .slice(0, 4);
-  const invQ = useQuery({
-    queryKey: ['client', 'invoices', 'recent'],
-    queryFn: () => clientApi.invoices({ pageSize: 5 }),
-  });
-  const prodQ = useQuery({ queryKey: ['client', 'products'], queryFn: clientApi.products });
-  const profileQ = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
 
   const d = dashQ.data;
-  const acctStatus = profileQ.data?.accountStatusEffective ?? profileQ.data?.accountStatus;
+  const profile = profileQ.data;
+  const manager = profile?.accountManager ?? null;
+  const acctStatus = profile?.accountStatusEffective ?? profile?.accountStatus;
   const health = (acctStatus && ACCOUNT_HEALTH[acctStatus]) ?? ACCOUNT_HEALTH.ACTIVE;
-  const displayName =
-    profileQ.data?.companyName?.trim() ||
-    [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
-    'there';
+  const company = profile?.companyName?.trim();
+  const firstName = user?.firstName?.trim();
+
+  const headline =
+    acctStatus === 'SUSPENDED'
+      ? 'Your account needs attention.'
+      : d && d.overdue.count > 0
+        ? `${d.overdue.count} invoice${d.overdue.count === 1 ? ' is' : 's are'} past due.`
+        : 'Everything’s running smoothly.';
+
+  // Next renewal — the soonest upcoming expiry among approved products.
+  const products = prodQ.data ?? [];
+  const upcoming = products
+    .filter((p) => !p.pending && p.expiryDate && new Date(p.expiryDate).getTime() >= now)
+    .sort((a, b) => a.expiryDate!.localeCompare(b.expiryDate!));
+  const next = upcoming[0];
+  const nextDays = next ? Math.max(0, Math.ceil((new Date(next.expiryDate!).getTime() - now) / DAY)) : null;
+  const sameDay = next && upcoming.every((p) => formatDate(p.expiryDate) === formatDate(next.expiryDate));
 
   // Recent Activity — derived read-only from data already loaded on this page
   // (invoices, products/licences, tasks). No new API, no data mutation.
@@ -188,8 +191,6 @@ export default function ClientDashboard() {
     if (inv.status === 'PAID' || Number(inv.amountPaid) > 0) {
       activity.push({
         id: `pay-${inv.id}`,
-        icon: BadgeCheck,
-        tone: 'bg-emerald-100 text-emerald-600',
         title: 'Payment received',
         sub: inv.invoiceNumber,
         at: new Date(inv.createdAt).getTime(),
@@ -197,376 +198,399 @@ export default function ClientDashboard() {
     }
     activity.push({
       id: `inv-${inv.id}`,
-      icon: FileText,
-      tone: 'bg-amber-100 text-amber-600',
       title: 'Invoice generated',
       sub: inv.invoiceNumber,
       at: new Date(inv.createdAt).getTime(),
     });
   }
-  for (const p of prodQ.data ?? []) {
+  for (const p of products) {
     if (!p.issueDate) continue;
     activity.push({
       id: `lic-${p.id}`,
-      icon: RefreshCw,
-      tone: 'bg-violet-100 text-violet-600',
       title: p.pending ? 'Product requested' : 'Licence activated',
       sub: p.product,
       at: new Date(p.issueDate).getTime(),
     });
   }
   for (const t of allTasks) {
-    const iso = t.completedAt ?? t.updatedAt ?? t.createdAt;
     activity.push({
       id: `task-${t.id}`,
-      icon: ClipboardCheck,
-      tone: 'bg-blue-100 text-blue-600',
       title: t.progress === 'COMPLETED' ? 'Task completed' : 'Task updated',
-      sub: t.title,
-      at: new Date(iso).getTime(),
+      sub: `${t.title} – ${t.bucketName}`,
+      at: new Date(t.completedAt ?? t.updatedAt ?? t.createdAt).getTime(),
     });
   }
   activity.sort((a, b) => b.at - a.at);
   const recentActivity = activity.slice(0, 6);
 
+  const loadingVal = <Skeleton className="mt-1 h-10 w-20 bg-white/10" />;
+
   return (
-    <div className="space-y-6">
+    <div className="-mt-4">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[#eaf1ff] via-[#f3f7ff] to-[#e9f6ef] p-6 sm:p-8">
-        {/* Blue wave background graphic — fitted to the right and faded to the left */}
-        <HeroWave />
-        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-xl">
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">
-              Welcome back, {displayName} <span className="align-middle">👋</span>
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Here’s an overview of your invoices, products and account.
-            </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <Button asChild>
-                <Link to="/client/invoices">View invoices</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to="/client/licences">Explore products</Link>
-              </Button>
+      <section className="relative flex flex-col items-center gap-3.5 px-0 pb-[110px] pt-[90px] text-center sm:px-8">
+        <AtomicCore />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[980px] -translate-x-1/2 -translate-y-1/2"
+          style={{ background: 'radial-gradient(ellipse at 50% 50%, rgba(12,13,16,0.82), rgba(12,13,16,0) 70%)' }}
+        />
+        <span className={cn(eyebrow, 'relative')}>Customer Portal{company ? ` · ${company}` : ''}</span>
+        <h1 className="relative m-0 max-w-[860px] text-[40px] font-semibold leading-[1.02] tracking-[-0.01em] text-[#F5F6F8] sm:text-[64px]">
+          Welcome back{firstName ? `, ${firstName}` : ''}.
+          <br />
+          {headline}
+        </h1>
+        <p className="relative m-0 text-lg text-[#C9CEDA]">Here’s an overview of your invoices, products and account.</p>
+
+        <div className={cn(panel, 'relative mt-[22px] flex flex-wrap justify-center')}>
+          {[
+            { label: 'Account health', value: `${health.pct}%`, sub: health.label, strong: true },
+            { label: 'Active products', value: d ? String(d.products) : null, sub: 'Assigned to you' },
+            {
+              label: 'Active tasks',
+              value: tasksQ.isLoading ? null : String(activeTasks),
+              sub: 'In progress or pending',
+            },
+          ].map((s, i) => (
+            <div
+              key={s.label}
+              className={cn('flex flex-col items-center gap-0.5 px-[34px] py-[18px]', i < 2 && 'sm:border-r sm:border-white/[0.12]')}
+            >
+              <span className={eyebrow}>{s.label}</span>
+              {s.value === null ? (
+                loadingVal
+              ) : (
+                <span className="text-[46px] font-semibold leading-[1.05] tabular-nums">{s.value}</span>
+              )}
+              <span className={cn('text-[13px]', s.strong ? 'font-semibold text-[#E2E8F0]' : 'text-[#A3AABB]')}>
+                {s.sub}
+              </span>
             </div>
-          </div>
-
-          {/* Account Health floating cluster (shield · donut · chart) */}
-          <HeroHealthCluster title="Account Health" pct={health.pct} label={health.label} />
+          ))}
         </div>
-      </div>
 
-      {/* Stat cards — existing KPIs */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {dashQ.isLoading || !d ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <Card key={i} className="p-5">
-              <div className="space-y-3">
-                <Skeleton className="h-11 w-11 rounded-xl" />
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-7 w-20" />
-              </div>
-            </Card>
-          ))
-        ) : (
-          <>
-            <StatCard
-              title="Products"
-              icon={Package}
-              tone="violet"
-              to="/client/licences"
-              value={String(d.products)}
-              sub="assigned to you"
-            />
-            <StatCard
-              title="Active Task"
-              icon={ListChecks}
-              tone="blue"
-              to="/client/tasks"
-              value={String(activeTasks)}
-              sub="tasks in progress"
-            />
-            <StatCard
-              title="Total Paid"
-              icon={CheckCircle2}
-              tone="emerald"
-              to="/client/invoices"
-              value={formatCurrency(d.totalPaid)}
-              sub={`${d.invoices} invoice${d.invoices === 1 ? '' : 's'} total`}
-            />
-            <StatCard
-              title="Outstanding"
-              icon={FileWarning}
-              tone="amber"
-              to="/client/invoices"
-              value={formatCurrency(d.outstanding.amount)}
-              sub={`${d.outstanding.count} unpaid`}
-            />
-            <StatCard
-              title="Overdue"
-              icon={AlertTriangle}
-              tone="rose"
-              to="/client/invoices"
-              value={formatCurrency(d.overdue.amount)}
-              sub={d.overdue.count > 0 ? `${d.overdue.count} past due` : 'Nothing past due'}
-            />
-          </>
-        )}
-      </div>
+        <div className="relative mt-[18px] flex flex-wrap justify-center gap-3">
+          <Link to="/client/invoices" className={btnLight}>
+            View invoices
+          </Link>
+          <Link to="/client/licences" className={btnDark}>
+            Explore products
+          </Link>
+        </div>
+      </section>
 
-      {/* Main grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Recent invoices */}
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="text-base">Recent Invoices</CardTitle>
-            <Link to="/client/invoices" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-              View all <ArrowRight className="h-3.5 w-3.5" />
+      <div className="relative flex flex-col gap-[18px]">
+        {/* KPI strip */}
+        <div className={cn(panel, 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4')}>
+          {[
+            {
+              label: 'Total paid',
+              value: d && formatCurrency(d.totalPaid),
+              sub: d && `${d.invoices} invoice${d.invoices === 1 ? '' : 's'} total`,
+              to: '/client/invoices',
+            },
+            {
+              label: 'Outstanding',
+              value: d && formatCurrency(d.outstanding.amount),
+              sub: d && `${d.outstanding.count} unpaid`,
+              to: '/client/invoices',
+            },
+            {
+              label: 'Overdue',
+              value: d && formatCurrency(d.overdue.amount),
+              sub: d && (d.overdue.count > 0 ? `${d.overdue.count} past due` : 'Nothing past due'),
+              to: '/client/invoices',
+              alert: !!d && d.overdue.count > 0,
+            },
+            {
+              label: 'Next renewal',
+              value: prodQ.isLoading ? null : nextDays === null ? '—' : `${nextDays} day${nextDays === 1 ? '' : 's'}`,
+              sub: next
+                ? `${sameDay && upcoming.length > 1 ? 'All services' : next.product} · ${formatDate(next.expiryDate)}`
+                : 'No upcoming renewals',
+              to: '/client/licences',
+            },
+          ].map((k, i) => (
+            <Link
+              key={k.label}
+              to={k.to}
+              className={cn(
+                'flex flex-col gap-1.5 border-white/[0.08] px-[22px] py-5 text-[#F5F6F8] transition-colors hover:bg-white/[0.03] hover:text-[#F5F6F8]',
+                i < 3 && 'border-b lg:border-b-0 lg:border-r',
+                i === 1 && 'sm:border-r-0 lg:border-r',
+                i === 0 && 'sm:border-r'
+              )}
+            >
+              <span className={eyebrow}>{k.label}</span>
+              {k.value == null ? (
+                <Skeleton className="h-10 w-28 bg-white/10" />
+              ) : (
+                <span className={cn('text-[34px] font-semibold tabular-nums', k.alert && 'text-[#FDA4AF]')}>
+                  {k.value}
+                </span>
+              )}
+              <span className="text-[13px] text-[#A3AABB]">{k.sub ?? ' '}</span>
             </Link>
-          </CardHeader>
-          <CardContent className="p-0">
-            {invQ.isLoading ? (
-              <div className="space-y-2 p-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : !invQ.data?.items.length ? (
-              <div className="p-6">
-                <EmptyState title="No invoices yet" description="Your invoices will appear here." />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice</TableHead>
-                    <TableHead>Due</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invQ.data.items.map((inv) => (
-                    <TableRow key={inv.id} className="cursor-pointer">
-                      <TableCell>
-                        <Link to={`/client/invoices/${inv.id}`} className="font-medium hover:underline">
-                          {inv.invoiceNumber}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-sm">{formatDate(inv.dueDate)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(inv.total)}</TableCell>
-                      <TableCell>
-                        <InvoiceBadge status={inv.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+          ))}
+        </div>
 
-        {/* Product status */}
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="text-base">Product Status</CardTitle>
-            <Link to="/client/licences" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-              View all <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent className="pt-0">
+        <div className="flex flex-wrap gap-[18px]">
+          {/* Product status */}
+          <Panel title="Product status" action={<ViewAll to="/client/licences" />} className="flex-[2_1_580px]">
             {prodQ.isLoading ? (
-              <div className="space-y-2">
+              <div className="space-y-2 p-[22px]">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
+                  <Skeleton key={i} className="h-10 w-full bg-white/[0.06]" />
                 ))}
               </div>
-            ) : !prodQ.data?.length ? (
-              <EmptyState title="No products" description="Your licences will appear here." />
+            ) : !products.length ? (
+              <p className="px-[22px] py-8 text-[15px] text-[#A3AABB]">No products yet — your licences will appear here.</p>
             ) : (
-              <ul className="space-y-3">
-                {prodQ.data.slice(0, 6).map((p) => {
-                  return (
-                  <li key={p.id} className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
-                      <ProductGlyph parts={[p.product]} className="h-[20px] w-[20px]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{p.product}</p>
-                      <p className="text-xs text-muted-foreground">Expires {formatDate(p.expiryDate)}</p>
-                    </div>
-                    <LicenceBadge status={p.status} />
-                  </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent activity */}
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="text-base">Recent Activity</CardTitle>
-            <Link to="/client/invoices" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-              View all <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {activityLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : recentActivity.length === 0 ? (
-              <EmptyState title="No activity yet" description="Recent account activity will appear here." />
-            ) : (
-              <ul className="space-y-3.5">
-                {recentActivity.map((a) => {
-                  const Icon = a.icon;
-                  const when = activityWhen(new Date(a.at).toISOString());
-                  return (
-                    <li key={a.id} className="flex items-start gap-3">
-                      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', a.tone)}>
-                        <Icon className="h-[18px] w-[18px]" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{a.title}</p>
-                        <p className="truncate text-xs text-muted-foreground">{a.sub}</p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-xs font-medium text-muted-foreground">{when.day}</p>
-                        <p className="text-[11px] text-muted-foreground">{when.time}</p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tasks overview + Upgrade + Need help */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="text-base">Tasks Overview</CardTitle>
-            <Link to="/client/tasks" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-              View all tasks <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
-              {/* Donut + legend */}
-              <div className="flex items-center gap-5">
-                <Donut
-                  total={allTasks.length}
-                  segments={[
-                    { value: tInProgress, color: '#f59e0b' },
-                    { value: tPending, color: '#3b82f6' },
-                    { value: tCompleted, color: '#10b981' },
-                  ]}
-                />
-                <ul className="space-y-2.5 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                    <span className="font-semibold tabular-nums">{tInProgress}</span>
-                    <span className="text-muted-foreground">In progress</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                    <span className="font-semibold tabular-nums">{tPending}</span>
-                    <span className="text-muted-foreground">Pending</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    <span className="font-semibold tabular-nums">{tCompleted}</span>
-                    <span className="text-muted-foreground">Completed</span>
-                  </li>
-                </ul>
-              </div>
-
-              {/* Upcoming task list */}
-              <div className="min-w-0 flex-1">
-                {upcomingTasks.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No open tasks — you’re all caught up.</p>
-                ) : (
-                  <ul className="divide-y divide-border">
-                    {upcomingTasks.map((t) => {
-                      const pill = TASK_PILL[t.progress] ?? TASK_PILL.NOT_STARTED;
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] border-collapse text-[15px]">
+                  <thead>
+                    <tr className="text-left">
+                      <th className={cn(eyebrow, 'px-[22px] py-3')}>Product</th>
+                      <th className={cn(eyebrow, 'p-3')}>Status</th>
+                      <th className={cn(eyebrow, 'p-3')}>Expires</th>
+                      <th className={cn(eyebrow, 'px-[22px] py-3 text-right')}>Term remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.slice(0, 6).map((p) => {
+                      const st = p.pending
+                        ? { label: 'Pending approval', color: '#A3AABB' }
+                        : (LICENCE_DOT[p.status] ?? LICENCE_DOT.ACTIVE);
+                      const pct = termRemaining(p, now);
                       return (
-                        <li key={t.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{t.title}</p>
-                            <span className={cn('mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium', pill.cls)}>
-                              {pill.label}
+                        <tr key={p.id} className="border-t border-white/[0.06]">
+                          <td className="px-[22px] py-3.5 font-semibold">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/20">
+                                <ProductGlyph parts={[p.product]} className="h-5 w-5" />
+                              </span>
+                              {p.product}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3.5">
+                            <span className="inline-flex items-center gap-2 text-sm">
+                              <span
+                                className="h-[7px] w-[7px] rounded-full"
+                                style={{ background: st.color, boxShadow: `0 0 8px ${st.color}cc` }}
+                              />
+                              {st.label}
                             </span>
-                          </div>
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {t.dueDate ? formatDate(t.dueDate) : '—'}
-                          </span>
-                        </li>
+                          </td>
+                          <td className="px-3 py-3.5 text-[#A3AABB]">{p.expiryDate ? formatDate(p.expiryDate) : '—'}</td>
+                          <td className="px-[22px] py-3.5">
+                            {pct === null ? (
+                              <span className="block text-right text-[13px] text-[#C9CEDA]">Ongoing</span>
+                            ) : (
+                              <div className="flex items-center justify-end gap-2.5">
+                                <div className="h-[3px] w-[90px] bg-white/[0.12]">
+                                  <div className="h-full bg-white" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="w-[34px] text-right text-[13px] tabular-nums text-[#C9CEDA]">{pct}%</span>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
                       );
                     })}
-                  </ul>
-                )}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            )}
+          </Panel>
 
-        {/* Upgrade your experience */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-[#eef2ff] via-[#eef4ff] to-[#e9f1ff]">
-          {/* Rocket illustration (extracted cutout) — anchored bottom-right */}
-          <img
-            src={upgradeRocketArt}
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute -bottom-3 right-3 z-0 h-64 w-auto select-none object-contain object-right-bottom drop-shadow-md sm:h-72"
-          />
-          <CardContent className="relative z-10 flex h-full min-h-[248px] flex-col pt-6">
-            <div className="max-w-[190px]">
-              <h3 className="text-lg font-semibold text-slate-800">Upgrade Your Experience</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Discover advanced solutions to grow your business and improve efficiency.
-              </p>
-            </div>
-            <div className="mt-auto max-w-[190px]">
-              <Button variant="outline" className="w-full bg-white/85 backdrop-blur" asChild>
-                <Link to="/client/licences">View recommendations</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-[18px]">
+            {/* Account manager */}
+            {manager && (
+              <Panel
+                title="Account manager"
+                action={
+                  <a href={`mailto:${manager.email}`} className={viewAll}>
+                    Contact <span aria-hidden="true">→</span>
+                  </a>
+                }
+              >
+                <div className="flex flex-col gap-4 p-[22px]">
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/50 text-[21px] font-semibold">
+                      {manager.avatarUrl ? (
+                        <img src={mediaUrl(manager.avatarUrl)} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        (manager.firstName?.[0] ?? '?').toUpperCase()
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-[21px] font-semibold">
+                        {manager.firstName} {manager.lastName}
+                      </span>
+                      <span className="truncate text-[13px] text-[#A3AABB]">{manager.email}</span>
+                      {manager.phone && <span className="text-[13px] text-[#A3AABB]">{manager.phone}</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2.5">
+                    <a href={`mailto:${manager.email}`} className={cn(btnLight, 'h-11 flex-1 px-3 text-xs')}>
+                      Message
+                    </a>
+                    {manager.phone && (
+                      <a
+                        href={`tel:${manager.phone.replace(/\s+/g, '')}`}
+                        className={cn(btnDark, 'h-11 flex-1 px-3 text-xs')}
+                      >
+                        Call
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </Panel>
+            )}
 
-        {/* Need help */}
-        <Card className="relative overflow-hidden">
-          {/* Headphones illustration — anchored to the bottom-right, fully visible */}
-          <img
-            src={headphonesArt}
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-3 -right-1 z-0 h-60 w-60 select-none object-contain object-right-bottom drop-shadow-lg sm:h-64 sm:w-64"
-          />
-          <CardContent className="relative z-10 flex h-full min-h-[248px] flex-col pt-6">
-            <div>
-              <h3 className="text-lg font-semibold">Need Help?</h3>
-              <p className="mt-1 text-sm text-muted-foreground">We’re here to help you 24/7.</p>
+            {/* Recent invoices */}
+            {invQ.isLoading ? (
+              <div className={cn(panel, 'p-[22px]')}>
+                <Skeleton className="h-12 w-full bg-white/[0.06]" />
+              </div>
+            ) : !invQ.data?.items.length ? (
+              <section className={cn(panel, 'flex items-center gap-3.5 px-[22px] py-5')}>
+                <span className="flex h-[46px] w-[46px] shrink-0 items-center justify-center border border-white/20 text-[#C9CEDA]">
+                  <FileText className="h-5 w-5" strokeWidth={1.8} />
+                </span>
+                <div className="flex flex-col">
+                  <span className={eyebrow}>Recent invoices</span>
+                  <span className="text-base font-semibold">No invoices yet</span>
+                  <span className="text-[13px] text-[#A3AABB]">They’ll appear here once issued.</span>
+                </div>
+              </section>
+            ) : (
+              <Panel title="Recent invoices" action={<ViewAll to="/client/invoices" />}>
+                <ul className="px-[22px] py-2">
+                  {invQ.data.items.map((inv) => (
+                    <li key={inv.id} className="border-b border-white/[0.06] last:border-0">
+                      <Link
+                        to={`/client/invoices/${inv.id}`}
+                        className="flex items-center gap-3 py-3 text-[#F5F6F8] hover:text-white"
+                      >
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate text-[15px] font-semibold">{inv.invoiceNumber}</span>
+                          <span className="text-[13px] text-[#A3AABB]">Due {formatDate(inv.dueDate)}</span>
+                        </div>
+                        <span className="text-sm tabular-nums">{formatCurrency(inv.total)}</span>
+                        <InvoiceBadge status={inv.status} />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-[18px]">
+          {/* Tasks */}
+          <Panel title="Tasks" action={<ViewAll to="/client/tasks" />} className="flex-[1_1_340px]">
+            <div className="flex flex-col gap-3 px-[22px] py-[18px]">
+              <div className="grid grid-cols-3 gap-px bg-white/10">
+                {[
+                  { n: tInProgress, label: 'In progress' },
+                  { n: tPending, label: 'Pending' },
+                  { n: tCompleted, label: 'Completed', dim: true },
+                ].map((c) => (
+                  <div key={c.label} className="flex flex-col bg-[#0D111C] px-3.5 py-3">
+                    <span className={cn('text-[28px] font-semibold tabular-nums', c.dim && 'text-[#A3AABB]')}>
+                      {tasksQ.isLoading ? '–' : c.n}
+                    </span>
+                    <span className={cn(eyebrow, 'truncate')}>{c.label}</span>
+                  </div>
+                ))}
+              </div>
+              {tasksQ.isLoading ? (
+                <Skeleton className="h-24 w-full bg-white/[0.06]" />
+              ) : upcomingTasks.length === 0 ? (
+                <p className="py-2 text-[13px] text-[#A3AABB]">No open tasks — you’re all caught up.</p>
+              ) : (
+                upcomingTasks.map((t) => {
+                  const inProgress = t.progress === 'IN_PROGRESS' || t.progress === 'ONGOING';
+                  return (
+                    <div key={t.id} className="flex items-center gap-2.5 border-t border-white/[0.06] py-2.5">
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-[15px] font-semibold">{t.title}</span>
+                        <span className="truncate text-[13px] text-[#A3AABB]">
+                          {t.bucketName}
+                          {t.dueDate ? ` · Due ${formatDate(t.dueDate)}` : ''}
+                        </span>
+                      </div>
+                      {inProgress ? (
+                        <span className="whitespace-nowrap bg-white px-2 py-1 text-[10px] font-bold tracking-[0.12em] text-[#070A12]">
+                          IN PROGRESS
+                        </span>
+                      ) : (
+                        <span className="whitespace-nowrap border border-white/45 px-2 py-[3px] text-[10px] font-bold tracking-[0.12em] text-white">
+                          PENDING
+                        </span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
-            <div className="mt-auto max-w-[180px] space-y-2">
-              <Button className="w-full" asChild>
-                <a href="mailto:help@egdigital.com.au?subject=Support%20request">Create a Ticket</a>
-              </Button>
-              <Button variant="outline" className="w-full bg-card/80 backdrop-blur" asChild>
-                <a href="mailto:support@egdigital.com.au?subject=Knowledge%20base%20enquiry">Browse Knowledge Base</a>
-              </Button>
+          </Panel>
+
+          {/* Recent activity */}
+          <Panel title="Recent activity" className="flex-[1_1_340px]">
+            <div className="px-[22px] pb-4 pt-2">
+              {activityLoading ? (
+                <div className="space-y-2 pt-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full bg-white/[0.06]" />
+                  ))}
+                </div>
+              ) : recentActivity.length === 0 ? (
+                <p className="py-4 text-[13px] text-[#A3AABB]">Recent account activity will appear here.</p>
+              ) : (
+                recentActivity.map((a) => (
+                  <div key={a.id} className="flex gap-3.5 border-b border-white/[0.06] py-[11px] last:border-0">
+                    <span className="mt-[7px] h-2 w-2 shrink-0 rounded-full border border-[#E2E8F0]" />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-[15px] font-semibold">{a.title}</span>
+                      <span className="truncate text-[13px] text-[#A3AABB]">{a.sub}</span>
+                    </div>
+                    <span className="whitespace-nowrap text-xs text-[#A3AABB]">{activityWhen(a.at)}</span>
+                  </div>
+                ))
+              )}
             </div>
-          </CardContent>
-        </Card>
+          </Panel>
+
+          {/* Support */}
+          <section className={cn(panel, 'flex flex-[1_1_300px] flex-col gap-2.5 p-[26px]')}>
+            <span className={eyebrow}>Support · 24/7</span>
+            <span className="text-[30px] font-semibold leading-[1.1]">Need help or ready to upgrade?</span>
+            <span className="text-[15px] text-[#A3AABB]">
+              Our team is here around the clock, and we can recommend solutions to grow your business.
+            </span>
+            <div className="mt-auto flex flex-col gap-2 pt-3">
+              <a href="mailto:help@egdigital.com.au?subject=Support%20request" className={cn(btnLight, 'h-11 text-xs')}>
+                Create a ticket
+              </a>
+              <a
+                href="mailto:support@egdigital.com.au?subject=Knowledge%20base%20enquiry"
+                className={cn(btnDark, 'h-11 text-xs')}
+              >
+                Knowledge base
+              </a>
+              <Link
+                to="/client/licences"
+                className="inline-flex h-11 items-center justify-center border border-white/30 text-xs font-bold uppercase tracking-[0.1em] text-white hover:bg-white/[0.06] hover:text-white"
+              >
+                View recommendations
+              </Link>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

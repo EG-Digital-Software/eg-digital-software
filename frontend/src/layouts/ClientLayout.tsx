@@ -1,75 +1,56 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import {
-  Home,
-  Package,
-  Receipt,
-  ListChecks,
-  IdCard,
-  FileText,
-  LogOut,
-  User,
-  Search,
-  HelpCircle,
-  Menu,
-  X,
-  MessageCircle,
-  ShieldCheck,
-  Phone,
-  PanelLeft,
-  Lock,
-  type LucideProps,
-} from 'lucide-react';
-import type { ComponentType } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, User, Menu, X, Lock } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
 import { useAuth } from '@/store/auth';
 import { useLogout } from '@/hooks/useSession';
-import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { initials, cn, mediaUrl } from '@/lib/utils';
-import { Logo } from '@/components/layout/Logo';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { NewActivityDot } from '@/components/tasks/NewActivityDot';
 import { clientTaskApi } from '@/api/tasks';
 import { useBoardHasNewActivity } from '@/lib/taskSeen';
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: ComponentType<LucideProps>;
-}
-
-// Account status → sidebar card presentation.
-const ACCOUNT_STATUS: Record<string, { label: string; dot: string; text: string; ring: string }> = {
-  ACTIVE: { label: 'Active', dot: 'bg-emerald-500', text: 'text-emerald-600', ring: 'bg-emerald-500/15' },
-  ACTIVE_TRIAL: { label: 'Active-Trial', dot: 'bg-blue-500', text: 'text-blue-600', ring: 'bg-blue-500/15' },
-  DORMANT: { label: 'Dormant', dot: 'bg-amber-500', text: 'text-amber-600', ring: 'bg-amber-500/15' },
-  SUSPENDED: { label: 'Suspended', dot: 'bg-rose-500', text: 'text-rose-600', ring: 'bg-rose-500/15' },
+// Account status → label + dot shown in the account menu.
+const ACCOUNT_STATUS: Record<string, { label: string; dot: string }> = {
+  ACTIVE: { label: 'Active', dot: 'bg-[#7CE3A6]' },
+  ACTIVE_TRIAL: { label: 'Active-Trial', dot: 'bg-[#E2E8F0]' },
+  DORMANT: { label: 'Dormant', dot: 'bg-amber-400' },
+  SUSPENDED: { label: 'Suspended', dot: 'bg-rose-400' },
 };
 
 const TASK_API = clientTaskApi();
 
-const NAV: NavItem[] = [
-  { to: '/client/dashboard', label: 'Dashboard', icon: Home },
-  { to: '/client/licences', label: 'Products', icon: Package },
-  { to: '/client/invoices', label: 'Invoices', icon: Receipt },
-  { to: '/client/tasks', label: 'Tasks', icon: ListChecks },
-  { to: '/client/details', label: 'Company Details', icon: IdCard },
-  { to: '/client/agreement', label: 'Agreement', icon: FileText },
+const NAV = [
+  { to: '/client/dashboard', label: 'Dashboard' },
+  { to: '/client/licences', label: 'Products' },
+  { to: '/client/invoices', label: 'Invoices' },
+  { to: '/client/tasks', label: 'Tasks' },
+  { to: '/client/details', label: 'Company' },
+  { to: '/client/agreement', label: 'Agreement' },
 ];
 
-/** Left-rail portal shell matching the customer-portal reference design. */
+const roundBtn =
+  'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-white/[0.12] text-white transition-colors hover:bg-white/20';
+
+/** Top-nav portal shell — "Atomic Core · Graphite" customer-portal design. */
 export function ClientLayout() {
   const user = useAuth((s) => s.user);
   const impersonating = useAuth((s) => !!s.impersonation);
   const logout = useLogout();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false); // mobile drawer
-  const { collapsed, toggle } = useSidebarCollapse(); // desktop slide in/out
+  const location = useLocation();
+  const [open, setOpen] = useState(false); // mobile menu
   const { data: profile } = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
-  const manager = profile?.accountManager ?? null;
   const acctStatus = profile?.accountStatusEffective ?? profile?.accountStatus;
   const status = (acctStatus && ACCOUNT_STATUS[acctStatus]) ?? undefined;
   // A suspended account loses access to Tasks — the nav item is locked and the
@@ -78,256 +59,171 @@ export function ClientLayout() {
   // Red dot on Tasks while any task has activity this user hasn't opened.
   const tasksDot = useBoardHasNewActivity(TASK_API, 'client', !!profile && !suspended);
 
+  // Scope the graphite theme to the client portal. It lives on <html> so
+  // dialogs and menus portalled to <body> pick it up too.
+  useEffect(() => {
+    document.documentElement.classList.add('eg-graphite');
+    return () => document.documentElement.classList.remove('eg-graphite');
+  }, []);
+
   const handleLogout = async () => {
     await logout();
     navigate('/', { replace: true });
   };
 
-  const sidebar = (
-    <div className="flex h-full flex-col">
-      {/* Brand */}
-      <div className="flex h-16 items-center gap-2 px-5">
-        <Logo className="shrink-0 whitespace-nowrap text-[22px]" />
-        <span className="shrink-0 whitespace-nowrap rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-          Customer Portal
-        </span>
-      </div>
-
-      {/* Primary navigation */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
-        {NAV.map((item) => {
-          const locked = suspended && item.to === '/client/tasks';
-          if (locked) {
-            return (
-              <div
-                key={item.to}
-                title="Tasks are locked while your account is suspended. Please contact your account manager."
-                aria-disabled="true"
-                className="flex cursor-not-allowed select-none items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-400"
-              >
-                <item.icon className="h-[18px] w-[18px] shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                <Lock className="h-4 w-4 shrink-0" />
-              </div>
-            );
+  const navItems = (mobile: boolean) =>
+    NAV.map((item) => {
+      const base = mobile
+        ? 'flex h-12 items-center gap-2 border-b border-white/[0.06] px-1 text-[13px] uppercase tracking-[0.08em]'
+        : 'relative inline-flex h-11 items-center gap-1.5 px-3 text-[13px] uppercase tracking-[0.08em]';
+      if (suspended && item.to === '/client/tasks') {
+        return (
+          <span
+            key={item.to}
+            title="Tasks are locked while your account is suspended. Please contact your account manager."
+            aria-disabled="true"
+            className={cn(base, 'cursor-not-allowed select-none font-semibold text-[#6B7385]')}
+          >
+            {item.label}
+            <Lock className="h-3.5 w-3.5" />
+          </span>
+        );
+      }
+      return (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          onClick={() => setOpen(false)}
+          className={({ isActive }) =>
+            cn(base, isActive ? 'font-bold text-white' : 'font-semibold text-[#C9CEDA] hover:text-white')
           }
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-slate-600 hover:bg-secondary hover:text-foreground'
-                )
-              }
-            >
-              <item.icon className="h-[18px] w-[18px] shrink-0" />
-              <span className="flex-1">{item.label}</span>
+        >
+          {({ isActive }) => (
+            <>
+              {item.label}
               {item.to === '/client/tasks' && tasksDot && <NewActivityDot />}
-            </NavLink>
-          );
-        })}
-      </nav>
-
-      {/* Account manager — shown when an admin has assigned one */}
-      {manager && (
-        <div className="px-3 pb-1">
-          <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Account Manager
-            </p>
-            <div className="flex items-center gap-3">
-              <Avatar>
-                {manager.avatarUrl && <AvatarImage src={mediaUrl(manager.avatarUrl)} alt="" />}
-                <AvatarFallback>{initials(manager.firstName, manager.lastName)}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">
-                  {manager.firstName} {manager.lastName}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">{manager.email}</p>
-                {manager.phone && (
-                  <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
-                    <Phone className="h-3 w-3 shrink-0" /> {manager.phone}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <a
-                href={`mailto:${manager.email}`}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-              >
-                <MessageCircle className="h-4 w-4" /> Contact
-              </a>
-              {manager.phone && (
-                <a
-                  href={`tel:${manager.phone.replace(/\s+/g, '')}`}
-                  title={`Call ${manager.phone}`}
-                  className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-                >
-                  <Phone className="h-4 w-4" /> Call
-                </a>
+              {isActive && !mobile && (
+                <span className="absolute inset-x-3 bottom-1.5 h-0.5 bg-[#E2E8F0]" aria-hidden="true" />
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Account status */}
-      {status && (
-        <div className="px-3 pb-2">
-          <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary/40 px-3.5 py-3">
-            <div className="flex items-center gap-2.5">
-              <span className={cn('flex h-7 w-7 items-center justify-center rounded-full', status.ring)}>
-                <ShieldCheck className={cn('h-4 w-4', status.text)} />
-              </span>
-              <div className="leading-tight">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Account Status
-                </p>
-                <p className={cn('text-sm font-semibold', status.text)}>{status.label}</p>
-              </div>
-            </div>
-            <span className={cn('h-2.5 w-2.5 rounded-full', status.dot)} />
-          </div>
-        </div>
-      )}
-
-      {/* Account + sign out */}
-      <div className="border-t border-border p-3">
-        <div className="mb-2 flex items-center gap-3 rounded-xl px-2 py-2">
-          <Avatar>
-            {user?.avatarUrl && <AvatarImage src={mediaUrl(user.avatarUrl)} alt="" />}
-            <AvatarFallback>{initials(user?.firstName, user?.lastName)}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(false);
-            navigate('/client/account');
-          }}
-          className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-secondary hover:text-foreground"
-        >
-          <User className="h-[18px] w-[18px]" />
-          My Account
-        </button>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="mt-1 flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-destructive/10 hover:text-destructive"
-        >
-          <LogOut className="h-[18px] w-[18px]" />
-          Sign out
-        </button>
-      </div>
-    </div>
-  );
+            </>
+          )}
+        </NavLink>
+      );
+    });
 
   return (
-    <div className={cn('min-h-screen bg-[#f5f7fa]', impersonating && 'pt-10')}>
+    <div
+      className={cn(
+        'relative flex min-h-screen flex-col overflow-x-clip bg-[#0C0D10] text-[#F5F6F8]',
+        impersonating && 'pt-10'
+      )}
+    >
       <ImpersonationBanner />
-      {/* Desktop sidebar */}
-      <aside
+      {/* Ambient graphite glow behind the top of every page */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-[-30px] h-[900px] w-[1500px] -translate-x-1/2"
+        style={{ background: 'radial-gradient(ellipse at 50% 50%, rgba(148,163,184,0.22), rgba(0,0,0,0) 64%)' }}
+      />
+
+      <header
         className={cn(
-          'fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card transition-transform duration-300 lg:block',
-          impersonating && 'top-10',
-          collapsed && 'lg:-translate-x-full'
+          'sticky z-30 border-b border-transparent bg-[#0C0D10]/70 backdrop-blur-md',
+          impersonating ? 'top-10' : 'top-0'
         )}
       >
-        {sidebar}
-      </aside>
+        <div className="flex flex-wrap items-center gap-3 px-3 py-[18px] sm:px-5">
+          <Link
+            to="/client/dashboard"
+            className="mr-6 whitespace-nowrap text-[17px] font-semibold tracking-[0.34em] text-white hover:text-white"
+          >
+            EG DIGITAL
+          </Link>
 
-      {/* Mobile drawer */}
-      {open && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 border-r border-border bg-card shadow-xl">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="absolute right-3 top-4 rounded-md p-1 text-muted-foreground hover:bg-secondary"
-              aria-label="Close menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            {sidebar}
-          </aside>
-        </div>
-      )}
+          <nav aria-label="Main" className="hidden flex-wrap lg:flex">
+            {navItems(false)}
+          </nav>
 
-      <div className={cn('transition-[padding] duration-300', collapsed ? 'lg:pl-0' : 'lg:pl-72')}>
-        {/* Top bar */}
-        <header
-          className={cn(
-            'sticky z-20 border-b border-border bg-card/85 backdrop-blur-md',
-            impersonating ? 'top-10' : 'top-0'
-          )}
-        >
-          <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className="rounded-md p-2 text-muted-foreground hover:bg-secondary lg:hidden"
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={toggle}
-              className="hidden rounded-md p-2 text-muted-foreground hover:bg-secondary lg:inline-flex"
-              aria-label={collapsed ? 'Show sidebar' : 'Hide sidebar'}
-              title={collapsed ? 'Show sidebar' : 'Hide sidebar'}
-            >
-              <PanelLeft className="h-5 w-5" />
-            </button>
+          <div className="ml-auto flex items-center gap-2.5">
 
-            {/* Search */}
-            <div className="relative hidden max-w-md flex-1 sm:block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search anything..."
-                className="h-10 w-full rounded-full border border-input bg-secondary/50 pl-9 pr-14 text-sm outline-none transition-colors focus:border-primary focus:bg-card"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground md:inline">
-                ⌘K
-              </span>
-            </div>
-
-            <div className="ml-auto flex items-center gap-1">
+            <div className="[&>button]:flex [&>button]:h-10 [&>button]:w-10 [&>button]:items-center [&>button]:justify-center [&>button]:rounded-full [&>button]:bg-white/[0.12] [&>button]:p-0 [&>button]:text-white [&>button:hover]:bg-white/20 [&>button>svg]:h-4 [&>button>svg]:w-4">
               <NotificationBell />
-              <button
-                type="button"
-                onClick={() => navigate('/client/agreement')}
-                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                aria-label="Help"
-                title="Help"
-              >
-                <HelpCircle className="h-5 w-5" />
-              </button>
             </div>
-          </div>
-        </header>
 
-        <main className="px-3 py-4 sm:px-4 lg:py-6">
-          <div className="w-full space-y-6">
-            <Outlet />
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={cn(roundBtn, 'overflow-hidden text-[13px] font-bold focus:outline-none')}
+                aria-label={`Account: ${user?.firstName ?? ''} ${user?.lastName ?? ''}`}
+              >
+                {user?.avatarUrl ? (
+                  <img src={mediaUrl(user.avatarUrl)} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  initials(user?.firstName, user?.lastName)
+                )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>
+                  <p className="text-sm font-medium">
+                    {user?.firstName} {user?.lastName}
+                  </p>
+                  <p className="truncate text-xs font-normal text-muted-foreground">{user?.email}</p>
+                  {status && (
+                    <p className="mt-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      <span className={cn('h-2 w-2 rounded-full', status.dot)} />
+                      Account {status.label}
+                    </p>
+                  )}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/client/account')}>
+                  <User /> My Account
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem destructive onClick={handleLogout}>
+                  <LogOut /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className={cn(roundBtn, 'lg:hidden')}
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              aria-expanded={open}
+            >
+              {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </button>
           </div>
-        </main>
-      </div>
+        </div>
+
+        {/* Mobile menu */}
+        {open && (
+          <nav aria-label="Main" className="flex flex-col border-t border-white/[0.08] px-3 pb-3 sm:px-5 lg:hidden">
+            {navItems(true)}
+          </nav>
+        )}
+      </header>
+
+      <main className="relative flex-1">
+        <div key={location.pathname} className="mx-auto w-full max-w-[1760px] space-y-6 px-3 pb-14 pt-4 animate-fade-in sm:px-5">
+          <Outlet />
+        </div>
+      </main>
+
+      <footer className="relative mx-auto w-full max-w-[1760px] px-3 pb-8 sm:px-5">
+        <div className="flex flex-wrap items-center gap-4 border-t border-white/[0.08] pt-[18px] text-xs uppercase tracking-[0.08em] text-[#8C93A5]">
+          <span>EG Digital · Customer Portal</span>
+          {user?.email && <span className="sm:ml-auto">Signed in as {user.email}</span>}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={cn('uppercase tracking-[0.08em] text-[#C9CEDA] hover:text-white', !user?.email && 'sm:ml-auto')}
+          >
+            Sign out
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }
