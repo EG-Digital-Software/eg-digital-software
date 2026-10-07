@@ -380,3 +380,63 @@ html.eg-graphite body {
 @media (prefers-reduced-motion: reduce) {
   .eg-graphite .eg-anim { animation: none !important; }
 }
+
+/* Paper-like surfaces stay light inside the graphite theme. */
+html.eg-graphite .invoice-sheet {
+  color-scheme: light;
+  --background: 210 40% 99%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 19% 41%;
+  --accent: 221 83% 96%;
+  --accent-foreground: 221 83% 45%;
+  --destructive: 0 72% 51%;
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 221 83% 53%;
+  color: hsl(var(--foreground));
+}
+.eg-graphite .invoice-sheet .bg-amber-50 { background-color: #fffbeb; }
+.eg-graphite .invoice-sheet .text-amber-700 { color: #b45309; }
+.eg-graphite .invoice-sheet .bg-slate-50 { background-color: #f8fafc; }
+
+/* White chips/fields default to dark text (any explicit text-* class still wins). */
+:where(.eg-graphite) :where(.bg-white, [class*='bg-white/8'], [class*='bg-white/9']) {
+  color: #0b0c10;
+}
+
+/* Customer form's soft-filled fields. */
+.eg-graphite .ff-form input:not([type='checkbox']):not([type='radio']),
+.eg-graphite .ff-form select,
+.eg-graphite .ff-form textarea {
+  background-color: rgb(255 255 255 / 0.04);
+  border-color: hsl(var(--input));
+}
+.eg-graphite .ff-form input:focus,
+.eg-graphite .ff-form select:focus,
+.eg-graphite .ff-form textarea:focus {
+  background-color: rgb(255 255 255 / 0.07);
+}
+
+/* Charts (recharts) on dark panels. */
+.eg-graphite .recharts-default-tooltip {
+  background-color: hsl(var(--popover)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground));
+}
+.eg-graphite .recharts-cartesian-grid line {
+  stroke: rgb(255 255 255 / 0.08);
+}
+.eg-graphite .recharts-cartesian-axis-tick text {
+  fill: #a3aabb;
+}

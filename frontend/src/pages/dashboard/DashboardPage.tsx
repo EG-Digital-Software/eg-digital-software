@@ -23,23 +23,24 @@ import { useAuth } from '@/store/auth';
 import { StatDelta } from '@/components/shared/misc';
 import { SalesChart } from './SalesChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton, Avatar, AvatarFallback } from '@/components/ui/misc';
 import { EmptyState } from '@/components/shared/states';
-import { HeroWave, HeroHealthCluster, healthLabel } from '@/components/shared/HeroHealth';
+import { healthLabel } from '@/components/shared/HeroHealth';
+import { GraphiteHero } from '@/components/layout/graphite';
+import { btnLight, btnDark } from '@/lib/graphite';
 import { customerName } from '@/lib/customer';
 import { ProductGlyph } from '@/lib/product-icon';
 import { formatCurrency, formatNumber, formatDate, cn, initials } from '@/lib/utils';
 
-// Soft pastel tones for the stat-card icon tiles (matches the reference).
+// Icon colours for the stat cards (no tile background).
 const TONES: Record<string, string> = {
-  violet: 'bg-violet-100 text-violet-600',
-  emerald: 'bg-emerald-100 text-emerald-600',
-  blue: 'bg-blue-100 text-blue-600',
-  amber: 'bg-amber-100 text-amber-600',
-  rose: 'bg-rose-100 text-rose-600',
-  cyan: 'bg-cyan-100 text-cyan-600',
+  violet: 'text-violet-300',
+  emerald: 'text-emerald-300',
+  blue: 'text-sky-300',
+  amber: 'text-amber-300',
+  rose: 'text-rose-300',
+  cyan: 'text-cyan-300',
 };
 
 function StatCard({
@@ -135,31 +136,32 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[#eaf1ff] via-[#f3f7ff] to-[#e9f6ef] p-6 sm:p-8">
-        <HeroWave />
-        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-xl">
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">
-              {greeting()}, {user?.firstName ?? 'Admin'} <span className="align-middle">👋</span>
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Here’s an overview of your business performance.
-            </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <Button asChild>
-                <Link to="/admin/approvals?role=EMPLOYEE">Manage Team</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to="/admin/customers">Manage customers</Link>
-              </Button>
-            </div>
-          </div>
-
-          {s && (
-            <HeroHealthCluster title="System Health" pct={healthPct} label={healthLabel(healthPct)} />
-          )}
-        </div>
+      <div className="-mt-4">
+        <GraphiteHero
+          kicker="Admin Portal · EG Digital"
+          atomClassName="h-[455px] sm:h-[590px]"
+          title={
+            <>
+              {greeting()}, {user?.firstName ?? 'Admin'}.
+            </>
+          }
+          subtitle="Here’s an overview of your business performance."
+          stats={[
+            { label: 'System health', value: s ? `${healthPct}%` : null, sub: healthLabel(healthPct), strong: true },
+            { label: 'Customers', value: s ? formatNumber(s.customers.total) : null, sub: 'Active accounts' },
+            { label: 'Sales (month)', value: s ? formatCurrency(s.totalSales.current) : null, sub: 'Invoiced this month' },
+          ]}
+          actions={
+            <>
+              <Link to="/admin/approvals?role=EMPLOYEE" className={btnLight}>
+                Manage team
+              </Link>
+              <Link to="/admin/customers" className={btnDark}>
+                Manage customers
+              </Link>
+            </>
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -480,7 +482,7 @@ function TaskCustomerPicker({
                 selected === '' && 'bg-secondary'
               )}
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center text-muted-foreground">
                 <Users className="h-4 w-4" />
               </span>
               <span className="flex-1 font-medium">All customers</span>
@@ -551,7 +553,7 @@ function TotalProductsCard() {
             {data.items.map((p) => {
               return (
               <li key={p.id} className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center">
                   <ProductGlyph parts={[p.name, p.category, p.type]} className="h-[20px] w-[20px]" />
                 </div>
                 <div className="min-w-0 flex-1">

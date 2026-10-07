@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/store/auth';
 import { adminApi } from '@/api/resources';
+import { clientApi } from '@/api/client-portal';
 import type { TaskApi } from '@/api/tasks';
 
 // ── "New activity" seen-state, shared by the task board and the sidebar ──────
@@ -126,6 +127,33 @@ export function useBoardHasNewActivity(api: TaskApi, scopeKey: string, enabled =
     return Object.entries(meta).some(([id, m]) => isTaskUnseen(id, m, seen, meId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [board, enabled, meId, scopeKey, version]);
+}
+
+/** Shared query key for the client's lightweight task list (dashboard + nav dot). */
+export const CLIENT_TASK_SUMMARY_KEY = ['client', 'task-summary'] as const;
+
+/**
+ * Client portal nav dot: same rule as useBoardHasNewActivity, but driven by the
+ * lightweight task summary instead of the full board, so the header poll stays
+ * cheap. The dashboard reads the same cached query.
+ */
+export function useClientTaskActivity(enabled = true) {
+  const meId = useAuth((s) => s.user?.id);
+  const { data: tasks } = useQuery({
+    queryKey: CLIENT_TASK_SUMMARY_KEY,
+    queryFn: clientApi.taskSummary,
+    enabled: enabled && !!meId,
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: true,
+  });
+  const version = useSeenVersion();
+  return useMemo(() => {
+    if (!enabled || !meId || !tasks) return false;
+    const meta = taskActivityMeta(tasks);
+    const seen = readSeen(taskRowSeenKey(meId, 'client'));
+    return Object.entries(meta).some(([id, m]) => isTaskUnseen(id, m, seen, meId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, enabled, meId, version]);
 }
 
 /**

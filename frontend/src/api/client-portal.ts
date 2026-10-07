@@ -44,12 +44,37 @@ export interface AvailableProduct {
   contractTerm: 'CONTRACTUAL' | 'PERMANENT' | null;
 }
 
+/** Lightweight task row for the dashboard and the nav's new-activity dot. */
+export interface ClientTaskSummary {
+  id: string;
+  title: string;
+  progress: string;
+  dueDate?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdById?: string | null;
+  bucketName: string;
+  comments: { createdAt: string; authorId: string }[];
+  notes: { createdAt: string; authorId: string }[];
+  attachments: { createdAt: string; uploadedById?: string | null }[];
+  approvals: {
+    createdAt: string;
+    requestedById: string;
+    decidedAt?: string | null;
+    decidedById?: string | null;
+    status: string;
+  }[];
+}
+
 interface ListEnvelope<T> extends ApiEnvelope<T[]> {
   meta: PageMeta;
 }
 
 export const clientApi = {
   profile: async () => (await api.get<ApiEnvelope<Customer>>('/client/profile')).data.data,
+  taskSummary: async () =>
+    (await api.get<ApiEnvelope<ClientTaskSummary[]>>('/client/task-summary')).data.data,
   dashboard: async () =>
     (await api.get<ApiEnvelope<ClientDashboard>>('/client/dashboard')).data.data,
   invoices: async (params: Record<string, unknown>) => {
