@@ -1,4 +1,5 @@
 import { Prisma, Role, TaskPriority, TaskProgress } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -791,6 +792,35 @@ export interface ApprovalRequester {
  * request so the customer can download them at their original size.
  */
 type ApprovalFile = { originalname: string; buffer: Buffer; mimetype: string; size: number };
+/** A file the browser already uploaded straight to storage (see createApprovalUpload). */
+export type UploadedApprovalFile = { url: string; fileName: string; contentType?: string };
+
+const approvalUploadPrefix = (taskId: string) => `tasks/${taskId}/approvals/uploads/`;
+
+/**
+ * Hand the browser a write-only URL to upload one approval file straight to
+ * storage. Large videos otherwise stream through the API and get cut off by
+ * App Service's request timeout. `direct: false` means the storage driver can't
+ * do this (local dev) and the file should be sent with the request as before.
+ */
+export async function createApprovalUpload(customerId: string, taskId: string, fileName: string) {
+  await ensureTask(customerId, taskId);
+  const safeName = fileName.replace(/[^\w.\-]+/g, '_') || 'file';
+  const key = `${approvalUploadPrefix(taskId)}${randomUUID()}/${safeName}`;
+  const target = await storage.createDirectUpload(key);
+  return target ? { direct: true as const, ...target } : { direct: false as const };
+}
+
+/** Check each directly uploaded file really landed in this task's upload area and read its size. */
+async function verifyUploads(taskId: string, uploaded: UploadedApprovalFile[]) {
+  return Promise.all(
+    uploaded.map(async (u) => {
+      const stat = await storage.statUpload(u.url, approvalUploadPrefix(taskId));
+      if (!stat) throw ApiError.badRequest(`Upload of "${u.fileName}" did not complete — please attach it again`);
+      return { ...u, size: stat.size };
+    })
+  );
+}
 
 /** How long after a rejection the team may resubmit (kept in sync with the frontend). */
 const RESUBMIT_WINDOW_HOURS = 48;
@@ -801,10 +831,12 @@ export async function createApproval(
   taskId: string,
   requester: ApprovalRequester,
   input: { subject: string; message: string },
-  files?: ApprovalFile[]
+  files?: ApprovalFile[],
+  uploaded: UploadedApprovalFile[] = []
 ) {
   await ensureTask(customerId, taskId);
-  return insertApproval(taskId, requester, input, files);
+  const verified = await verifyUploads(taskId, uploaded);
+  return insertApproval(taskId, requester, input, files, verified);
 }
 
 /**
@@ -820,7 +852,8 @@ export async function resubmitApproval(
   approvalId: string,
   requester: ApprovalRequester,
   input: { subject: string; message: string },
-  files?: ApprovalFile[]
+  files?: ApprovalFile[],
+  uploaded: UploadedApprovalFile[] = []
 ) {
   await ensureTask(customerId, taskId);
   const target = await prisma.taskApproval.findFirst({ where: { id: approvalId, taskId } });
@@ -842,7 +875,8 @@ export async function resubmitApproval(
   if (Date.now() > rejectedAt.getTime() + RESUBMIT_WINDOW_MS) {
     throw ApiError.badRequest(`The ${RESUBMIT_WINDOW_HOURS}-hour resubmission window for this request has closed`);
   }
-  return insertApproval(taskId, requester, input, files, root.id);
+  const verified = await verifyUploads(taskId, uploaded);
+  return insertApproval(taskId, requester, input, files, verified, root.id);
 }
 
 async function insertApproval(
@@ -850,6 +884,7 @@ async function insertApproval(
   requester: ApprovalRequester,
   input: { subject: string; message: string },
   files?: ApprovalFile[],
+  uploaded: (UploadedApprovalFile & { size: number })[] = [],
   parentId?: string
 ) {
   const approval = await prisma.taskApproval.create({
@@ -876,6 +911,20 @@ async function insertApproval(
         url,
         size: file.size,
         contentType: file.mimetype,
+        uploadedById: requester.id,
+      },
+    });
+  }
+
+  for (const u of uploaded) {
+    await prisma.taskAttachment.create({
+      data: {
+        taskId,
+        approvalId: approval.id,
+        fileName: u.fileName,
+        url: u.url,
+        size: u.size,
+        contentType: u.contentType || 'application/octet-stream',
         uploadedById: requester.id,
       },
     });

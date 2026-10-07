@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
+import { BlobSASPermissions, BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 
@@ -23,6 +23,15 @@ export interface StorageProvider {
   /** Delete a stored file. Accepts the value persisted on the record (the URL
    *  returned by save) or a raw key. Best-effort: a missing file is not an error. */
   remove(urlOrKey: string): Promise<void>;
+  /**
+   * A short-lived, write-only URL the browser uploads a file to directly, so
+   * large files never stream through the API (App Service cuts requests that
+   * run past ~230s). Null when the driver can't issue one — callers then fall
+   * back to a normal multipart upload.
+   */
+  createDirectUpload(key: string): Promise<{ uploadUrl: string; url: string } | null>;
+  /** Size of a directly uploaded file, or null when `url` isn't a stored blob under `keyPrefix`. */
+  statUpload(url: string, keyPrefix: string): Promise<{ size: number } | null>;
 }
 
 class LocalStorage implements StorageProvider {
@@ -42,6 +51,14 @@ class LocalStorage implements StorageProvider {
   async remove(urlOrKey: string): Promise<void> {
     const key = urlOrKey.startsWith('/uploads/') ? urlOrKey.slice('/uploads/'.length) : urlOrKey;
     await fs.rm(path.join(this.root, key), { force: true });
+  }
+
+  async createDirectUpload(): Promise<null> {
+    return null;
+  }
+
+  async statUpload(): Promise<null> {
+    return null;
   }
 }
 
@@ -70,14 +87,22 @@ class AzureBlobStorage implements StorageProvider {
       try {
         const props = await this.service.getProperties();
         const existing = props.cors ?? [];
-        const covered = existing.some((r) => {
+        const covering = existing.find((r) => {
           const origins = r.allowedOrigins.split(',').map((o) => o.trim().replace(/\/$/, ''));
           return origins.includes('*') || blobCorsOrigins.every((o) => origins.includes(o));
         });
-        if (covered) return;
+        if (covering) {
+          // Direct browser uploads PUT blocks straight to the blob, so the rule
+          // must allow PUT as well as reads. Add it in place; nothing else changes.
+          const methods = covering.allowedMethods.split(',').map((m) => m.trim().toUpperCase());
+          if (methods.includes('PUT')) return;
+          covering.allowedMethods = [...methods, 'PUT'].join(',');
+          await this.service.setProperties({ cors: existing });
+          return;
+        }
         existing.push({
           allowedOrigins: blobCorsOrigins.join(','),
-          allowedMethods: 'GET,HEAD,OPTIONS',
+          allowedMethods: 'GET,HEAD,OPTIONS,PUT',
           allowedHeaders: '*',
           exposedHeaders: '*',
           maxAgeInSeconds: 3600,
@@ -140,6 +165,38 @@ class AzureBlobStorage implements StorageProvider {
       blobName = decodeURIComponent(urlOrKey.slice(base.length).replace(/^\/+/, '').split('?')[0]);
     }
     await this.container.getBlockBlobClient(blobName).deleteIfExists();
+  }
+
+  async createDirectUpload(key: string): Promise<{ uploadUrl: string; url: string } | null> {
+    await this.ensureContainer();
+    await this.ensureCors();
+    const blob = this.container.getBlockBlobClient(key);
+    try {
+      // Scoped to this one blob, create/write only, and long enough for a very
+      // large video on a slow connection.
+      const uploadUrl = await blob.generateSasUrl({
+        permissions: BlobSASPermissions.parse('cw'),
+        expiresOn: new Date(Date.now() + 12 * 60 * 60 * 1000),
+      });
+      return { uploadUrl, url: blob.url };
+    } catch (err) {
+      // A connection string without an account key can't sign SAS URLs.
+      logger.warn({ err }, 'Could not sign a direct-upload URL — falling back to uploads through the API');
+      return null;
+    }
+  }
+
+  async statUpload(url: string, keyPrefix: string): Promise<{ size: number } | null> {
+    const base = `${this.container.url}/`;
+    if (!url.startsWith(base) || url.includes('?')) return null;
+    const blobName = decodeURIComponent(url.slice(base.length));
+    if (!blobName.startsWith(keyPrefix) || blobName.includes('..')) return null;
+    try {
+      const props = await this.container.getBlockBlobClient(blobName).getProperties();
+      return { size: props.contentLength ?? 0 };
+    } catch {
+      return null;
+    }
   }
 }
 

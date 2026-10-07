@@ -13,6 +13,7 @@ import {
   createLabelSchema,
   updateLabelSchema,
   submitApprovalSchema,
+  approvalUploadSchema,
   decideApprovalSchema,
   createAppointmentSchema,
 } from '../validators/task.validator.js';
@@ -70,6 +71,8 @@ export function buildTaskRouter(readOnly = false): Router {
   // Approvals — admins and the customer submit requests and decide them; the
   // decision itself is role-gated inside the controller (team members view only).
   router.post('/tasks/:taskId/approvals', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.submitApproval);
+  // Direct-to-storage upload URL for one approval file (large videos skip the API).
+  router.post('/tasks/:taskId/approvals/upload-url', validate({ body: approvalUploadSchema }), ctrl.approvalUploadUrl);
   // Resubmit a rejected request — nests a new request under it (admin-only, enforced in the controller).
   router.post('/tasks/:taskId/approvals/:approvalId/resubmit', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.resubmitApproval);
   router.patch('/tasks/:taskId/approvals/:approvalId', validate({ body: decideApprovalSchema }), ctrl.decideApproval);

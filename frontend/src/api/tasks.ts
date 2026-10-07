@@ -1,4 +1,5 @@
 import { api } from './client';
+import { uploadToBlob } from '@/lib/directUpload';
 import type {
   ApiEnvelope,
   Appointment,
@@ -29,6 +30,44 @@ export interface TaskInput {
 }
 
 const unwrap = <T>(p: Promise<{ data: ApiEnvelope<T> }>) => p.then((r) => r.data.data);
+
+/** Overall upload progress, 0–100. */
+export type UploadProgress = (percent: number) => void;
+
+type ApprovalUploadTarget = { direct: true; uploadUrl: string; url: string } | { direct: false };
+
+/**
+ * Upload approval files straight to storage and return their references, so a
+ * large video never streams through the API (which times out on long uploads).
+ * Returns null when there are no files or storage can't take direct uploads
+ * (local dev) — the caller then sends the files with the request as before.
+ */
+async function uploadApprovalFiles(base: string, taskId: string, files: File[] | undefined, onProgress?: UploadProgress) {
+  if (!files || files.length === 0) return null;
+  const targets: ApprovalUploadTarget[] = [];
+  for (const f of files) {
+    const t = await unwrap<ApprovalUploadTarget>(api.post(`${base}/tasks/${taskId}/approvals/upload-url`, { fileName: f.name }));
+    if (!t.direct) return null;
+    targets.push(t);
+  }
+  const total = files.reduce((n, f) => n + f.size, 0) || 1;
+  const done = new Array<number>(files.length).fill(0);
+  onProgress?.(0);
+  for (let i = 0; i < files.length; i++) {
+    const t = targets[i] as Extract<ApprovalUploadTarget, { direct: true }>;
+    await uploadToBlob(t.uploadUrl, files[i], (loaded) => {
+      done[i] = loaded;
+      onProgress?.(Math.min(100, Math.round((done.reduce((a, b) => a + b, 0) / total) * 100)));
+    });
+    done[i] = files[i].size;
+  }
+  onProgress?.(100);
+  return files.map((f, i) => ({
+    url: (targets[i] as Extract<ApprovalUploadTarget, { direct: true }>).url,
+    fileName: f.name,
+    contentType: f.type || undefined,
+  }));
+}
 
 /**
  * Task board API bound to a base path. The admin uses
@@ -127,7 +166,11 @@ export function taskApi(base: string) {
 
     // Approvals — submit a request; admins/customers decide it (approve/reject
     // with optional feedback). The decision endpoint 403s for team members.
-    submitApproval: (taskId: string, body: { subject: string; message: string; files?: File[] }) => {
+    submitApproval: async (taskId: string, body: { subject: string; message: string; files?: File[] }, onProgress?: UploadProgress) => {
+      const uploads = await uploadApprovalFiles(base, taskId, body.files, onProgress);
+      if (uploads) {
+        return unwrap<TaskApproval>(api.post(`${base}/tasks/${taskId}/approvals`, { subject: body.subject, message: body.message, uploads }));
+      }
       if (body.files && body.files.length) {
         const form = new FormData();
         form.append('subject', body.subject);
@@ -146,8 +189,12 @@ export function taskApi(base: string) {
     },
     // Resubmit a rejected request: a new pending request nested under it. The
     // rejected request itself is left unchanged.
-    resubmitApproval: (taskId: string, approvalId: string, body: { subject: string; message: string; files?: File[] }) => {
+    resubmitApproval: async (taskId: string, approvalId: string, body: { subject: string; message: string; files?: File[] }, onProgress?: UploadProgress) => {
       const url = `${base}/tasks/${taskId}/approvals/${approvalId}/resubmit`;
+      const uploads = await uploadApprovalFiles(base, taskId, body.files, onProgress);
+      if (uploads) {
+        return unwrap<TaskApproval>(api.post(url, { subject: body.subject, message: body.message, uploads }));
+      }
       if (body.files && body.files.length) {
         const form = new FormData();
         form.append('subject', body.subject);

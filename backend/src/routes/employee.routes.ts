@@ -5,7 +5,7 @@ import * as ctrl from '../controllers/portal.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
-import { taskProgressSchema, updateTaskSchema, createAppointmentSchema, submitApprovalSchema } from '../validators/task.validator.js';
+import { taskProgressSchema, updateTaskSchema, createAppointmentSchema, submitApprovalSchema, approvalUploadSchema } from '../validators/task.validator.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 // Approval attachments carry no size/count cap — mirrors the admin task board.
@@ -40,6 +40,7 @@ router.post('/tasks/tasks/:taskId/attachments', upload.single('file'), ctrl.empl
 router.delete('/tasks/tasks/:taskId/attachments/:attachmentId', ctrl.employeeDeleteAttachment);
 // Raise an approval request (subject/message + optional files). Deciding stays admin/customer-only.
 router.post('/tasks/tasks/:taskId/approvals', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.employeeSubmitApproval);
+router.post('/tasks/tasks/:taskId/approvals/upload-url', validate({ body: approvalUploadSchema }), ctrl.employeeApprovalUploadUrl);
 // Resubmit a rejected request — nests a new request under the rejected one.
 router.post('/tasks/tasks/:taskId/approvals/:approvalId/resubmit', uploadApproval.array('files'), validate({ body: submitApprovalSchema }), ctrl.employeeResubmitApproval);
 

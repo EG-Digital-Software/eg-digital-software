@@ -486,16 +486,19 @@ export function TaskDialog({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const removeArchive = useMutation({ mutationFn: (id: string) => api.deleteArchive(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
+  // Approval files upload straight to storage; a single toast tracks the progress.
+  const APPROVAL_UPLOAD_TOAST = 'approval-upload';
+  const showUploadProgress = (p: number) => toast.loading(`Uploading files… ${p}%`, { id: APPROVAL_UPLOAD_TOAST });
   const submitApproval = useMutation({
-    mutationFn: (v: { subject: string; message: string; files?: File[] }) => api.submitApproval(task!.id, v),
-    onSuccess: () => { invalidateTask(); invalidate(); setApprovalSubject(''); setApprovalMessage(''); setApprovalFiles([]); toast.success('Approval requested'); },
-    onError: (e) => toast.error(apiErrorMessage(e)),
+    mutationFn: (v: { subject: string; message: string; files?: File[] }) => api.submitApproval(task!.id, v, showUploadProgress),
+    onSuccess: () => { invalidateTask(); invalidate(); setApprovalSubject(''); setApprovalMessage(''); setApprovalFiles([]); toast.success('Approval requested', { id: APPROVAL_UPLOAD_TOAST }); },
+    onError: (e) => toast.error(apiErrorMessage(e), { id: APPROVAL_UPLOAD_TOAST }),
   });
   const resubmitApproval = useMutation({
     mutationFn: (v: { id: string; subject: string; message: string; files: File[] }) =>
-      api.resubmitApproval(task!.id, v.id, { subject: v.subject, message: v.message, files: v.files }),
-    onSuccess: () => { invalidateTask(); invalidate(); toast.success('Resubmitted for approval'); },
-    onError: (e) => toast.error(apiErrorMessage(e)),
+      api.resubmitApproval(task!.id, v.id, { subject: v.subject, message: v.message, files: v.files }, showUploadProgress),
+    onSuccess: () => { invalidateTask(); invalidate(); toast.success('Resubmitted for approval', { id: APPROVAL_UPLOAD_TOAST }); },
+    onError: (e) => toast.error(apiErrorMessage(e), { id: APPROVAL_UPLOAD_TOAST }),
   });
   const decideApproval = useMutation({
     mutationFn: (v: { id: string; status: 'APPROVED' | 'REJECTED'; feedback?: string | null }) =>

@@ -79,6 +79,21 @@ export const taskProgressSchema = z.object({
 export const submitApprovalSchema = z.object({
   subject: z.string().max(200).optional(),
   message: z.string().max(5000).optional(),
+  // Files the browser already uploaded straight to storage (approval upload URLs).
+  uploads: z
+    .array(
+      z.object({
+        url: z.string().url().max(2000),
+        fileName: z.string().min(1).max(255),
+        contentType: z.string().max(255).optional(),
+      })
+    )
+    .max(100)
+    .optional(),
+});
+
+export const approvalUploadSchema = z.object({
+  fileName: z.string().min(1).max(255),
 });
 
 export const decideApprovalSchema = z.object({

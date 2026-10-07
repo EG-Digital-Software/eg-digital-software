@@ -167,8 +167,9 @@ export const employeeSubmitApproval = asyncHandler(async (req: Request, res: Res
   const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
   const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
   const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : undefined;
+  const uploads: taskService.UploadedApprovalFile[] = Array.isArray(req.body.uploads) ? req.body.uploads : [];
   // A file-only request is fine; only reject a wholly empty submission.
-  if (!subject && !message && !(files && files.length)) {
+  if (!subject && !message && !(files && files.length) && !uploads.length) {
     throw ApiError.badRequest('Add a subject, a message, or a file');
   }
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
@@ -177,9 +178,16 @@ export const employeeSubmitApproval = asyncHandler(async (req: Request, res: Res
     req.params.taskId,
     await employeeAuthor(req),
     { subject, message },
-    files
+    files,
+    uploads
   );
   return ok(res, approval, 'Approval requested', 201);
+});
+
+// A direct-to-storage upload URL for one approval file, so large videos skip the API.
+export const employeeApprovalUploadUrl = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  return ok(res, await taskService.createApprovalUpload(customerId, req.params.taskId, req.body.fileName));
 });
 
 // Employees resubmit a rejected request on tasks they're assigned to. The
@@ -188,7 +196,8 @@ export const employeeResubmitApproval = asyncHandler(async (req: Request, res: R
   const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
   const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
   const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : undefined;
-  if (!subject && !message && !(files && files.length)) {
+  const uploads: taskService.UploadedApprovalFile[] = Array.isArray(req.body.uploads) ? req.body.uploads : [];
+  if (!subject && !message && !(files && files.length) && !uploads.length) {
     throw ApiError.badRequest('Add a subject, a message, or a file');
   }
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
@@ -198,7 +207,8 @@ export const employeeResubmitApproval = asyncHandler(async (req: Request, res: R
     req.params.approvalId,
     await employeeAuthor(req),
     { subject, message },
-    files
+    files,
+    uploads
   );
   return ok(res, approval, 'Resubmitted for approval', 201);
 });
