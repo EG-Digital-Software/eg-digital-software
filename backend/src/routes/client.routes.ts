@@ -29,6 +29,8 @@ const docUpload = multer({ storage: multer.memoryStorage() });
 // Read-only view of this customer's task board, plus comments/attachments.
 router.use('/tasks', buildTaskRouter(true));
 
+// Lightweight task list for the dashboard and the nav's new-activity dot.
+router.get('/task-summary', ctrl.taskSummary);
 router.get('/profile', ctrl.profile);
 router.get('/dashboard', ctrl.dashboard);
 router.get('/invoices', validate({ query: listClientInvoiceQuerySchema }), ctrl.invoices);

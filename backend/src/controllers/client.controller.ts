@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import * as clientService from '../services/client.service.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
+import { taskSummaryForCustomer } from '../services/task.service.js';
 
 async function cid(req: Request) {
   // An admin impersonation token carries the target customer id directly, so it
@@ -12,6 +13,10 @@ async function cid(req: Request) {
 
 export const profile = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, await clientService.getProfile(await cid(req)));
+});
+
+export const taskSummary = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await taskSummaryForCustomer(await cid(req)));
 });
 
 export const dashboard = asyncHandler(async (req: Request, res: Response) => {

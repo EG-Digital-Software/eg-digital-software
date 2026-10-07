@@ -1184,6 +1184,44 @@ export async function taskActivityByTask() {
 }
 
 /**
+ * Lightweight, read-only task list for one customer — the fields the client
+ * dashboard and the portal's "new activity" dot need (same activity fields,
+ * filters and order as the board's taskInclude), without loading every
+ * comment body, reaction and file record the full board carries. Unlike
+ * getBoard it never seeds default buckets.
+ */
+export async function taskSummaryForCustomer(customerId: string) {
+  const tasks = await prisma.task.findMany({
+    where: { customerId },
+    // Board order: bucket column first, then position within it.
+    orderBy: [{ bucket: { order: 'asc' } }, { order: 'asc' }],
+    select: {
+      id: true,
+      title: true,
+      progress: true,
+      dueDate: true,
+      completedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      createdById: true,
+      bucket: { select: { name: true } },
+      comments: { orderBy: { createdAt: 'asc' }, select: { createdAt: true, authorId: true } },
+      notes: { orderBy: { createdAt: 'asc' }, select: { createdAt: true, authorId: true } },
+      attachments: {
+        where: { approvalId: null, kind: { not: 'ARCHIVE' } },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true, uploadedById: true },
+      },
+      approvals: {
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, requestedById: true, decidedAt: true, decidedById: true, status: true },
+      },
+    },
+  });
+  return tasks.map(({ bucket, ...t }) => ({ ...t, bucketName: bucket.name }));
+}
+
+/**
  * Latest task activity per customer — the newest of any task update, comment,
  * note, attachment or approval change on that customer's board. Powers the "this
  * company has new activity" highlight on the admin Tasks picker. Read-only; one
