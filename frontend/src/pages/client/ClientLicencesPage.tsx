@@ -17,6 +17,7 @@ import { LicenceBadge } from '@/components/shared/status';
 import { EmptyState, ErrorState, Spinner } from '@/components/shared/states';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { ProductGlyph } from '@/lib/product-icon';
+import { formatCountryPrice } from '@/lib/currencies';
 
 const STATUSES = [
   { value: 'ACTIVE', label: 'Active' },
@@ -26,10 +27,13 @@ const STATUSES = [
   { value: 'SUSPENDED', label: 'Suspended' },
 ];
 
-/** "$120.00 / month" for a MANUAL product's own price. */
+const BILLING_SUFFIX = { DAILY: ' / day', WEEKLY: ' / week', MONTHLY: ' / month', ANNUALLY: ' / year' } as const;
+
+/** "$120.00 / month" for a MANUAL product's own price, in its country's currency. */
 function manualPriceLabel(p: AvailableProduct) {
-  const per = p.billingPeriod === 'ANNUALLY' ? ' / year' : p.billingPeriod === 'MONTHLY' ? ' / month' : '';
-  return `${formatCurrency(p.price)}${per}`;
+  const per = p.billingPeriod ? BILLING_SUFFIX[p.billingPeriod] : '';
+  const gst = p.gstType === 'INCLUSIVE' ? ' (incl. GST)' : p.gstType === 'EXCLUSIVE' ? ' + GST' : '';
+  return `${formatCountryPrice(p.price, p.country)}${per}${gst}`;
 }
 
 export default function ClientLicencesPage() {

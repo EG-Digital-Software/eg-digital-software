@@ -38,10 +38,13 @@ export interface AvailableProduct {
   productCode: string;
   sku?: string | null;
   priceMode: 'AUTOMATIC' | 'MANUAL';
+  /** ISO-3166 alpha-2 code the price is in; null on older products (AUD). */
+  country?: string | null;
   /** MANUAL products only; null when the admin prices it on approval. */
   price: string | null;
-  billingPeriod: 'MONTHLY' | 'ANNUALLY' | null;
+  billingPeriod: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ANNUALLY' | null;
   contractTerm: 'CONTRACTUAL' | 'PERMANENT' | null;
+  gstType?: 'INCLUSIVE' | 'EXCLUSIVE' | null;
 }
 
 /** Lightweight task row for the dashboard and the nav's new-activity dot. */

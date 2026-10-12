@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const createProductSchema = z.object({
   // Auto-generated on the server (EG-101, EG-102, …); optional in the payload.
   productCode: z.string().optional(),
+  country: z.string().trim().toUpperCase().length(2, 'Select a country').optional(),
   sku: z.string().optional(),
   type: z.string().optional(),
   name: z.string().min(1, 'Product name is required'),
@@ -16,8 +17,9 @@ export const createProductSchema = z.object({
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   priceMode: z.enum(['AUTOMATIC', 'MANUAL']).default('AUTOMATIC'),
   // MANUAL products only; null clears them when a product switches to AUTOMATIC.
-  billingPeriod: z.enum(['MONTHLY', 'ANNUALLY']).nullable().optional(),
+  billingPeriod: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUALLY']).nullable().optional(),
   contractTerm: z.enum(['CONTRACTUAL', 'PERMANENT']).nullable().optional(),
+  gstType: z.enum(['INCLUSIVE', 'EXCLUSIVE']).nullable().optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

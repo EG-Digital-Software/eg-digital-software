@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,9 +15,13 @@ import { Input, Select } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/shared/states';
 import { titleCaseField } from '@/lib/input';
+import { cn } from '@/lib/utils';
+import { CountrySelect, DEFAULT_COUNTRY } from '@/components/shared/PhoneInput';
+import { currencyOf, currencySymbolOf, formatCountryPrice } from '@/lib/currencies';
 
 const schema = z
   .object({
+    country: z.string().length(2, 'Select a country'),
     name: z.string().min(1, 'Required'),
     type: z.string().optional(),
     category: z.string().optional(),
@@ -29,8 +33,9 @@ const schema = z
     lowStockThreshold: z.coerce.number().int().min(0, 'Cannot be negative'),
     status: z.enum(['ACTIVE', 'INACTIVE']),
     priceMode: z.enum(['AUTOMATIC', 'MANUAL']),
-    billingPeriod: z.enum(['MONTHLY', 'ANNUALLY']).or(z.literal('')),
+    billingPeriod: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUALLY']).or(z.literal('')),
     contractTerm: z.enum(['CONTRACTUAL', 'PERMANENT']).or(z.literal('')),
+    gstType: z.enum(['INCLUSIVE', 'EXCLUSIVE']),
   })
   // A MANUAL product carries its own price, billing period and contract term.
   .superRefine((v, ctx) => {
@@ -104,6 +109,7 @@ export function ProductFormDialog({
   const isEdit = !!product;
   const {
     register,
+    control,
     handleSubmit,
     reset,
     watch,
@@ -111,10 +117,12 @@ export function ProductFormDialog({
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
+      country: DEFAULT_COUNTRY,
       status: 'ACTIVE',
       priceMode: 'AUTOMATIC',
       billingPeriod: '',
       contractTerm: '',
+      gstType: 'EXCLUSIVE',
       taxRate: 10,
       pricePerQty: 0,
       totalStock: 0,
@@ -128,6 +136,7 @@ export function ProductFormDialog({
       reset(
         product
           ? {
+              country: product.country || DEFAULT_COUNTRY,
               name: product.name,
               type: product.type ?? '',
               category: product.category ?? '',
@@ -141,8 +150,10 @@ export function ProductFormDialog({
               priceMode: product.priceMode ?? 'AUTOMATIC',
               billingPeriod: product.billingPeriod ?? '',
               contractTerm: product.contractTerm ?? '',
+              gstType: product.gstType ?? 'EXCLUSIVE',
             }
           : {
+              country: DEFAULT_COUNTRY,
               name: '',
               type: '',
               category: '',
@@ -156,6 +167,7 @@ export function ProductFormDialog({
               priceMode: 'AUTOMATIC',
               billingPeriod: '',
               contractTerm: '',
+              gstType: 'EXCLUSIVE',
             }
       );
     }
@@ -178,6 +190,13 @@ export function ProductFormDialog({
   const codeDisplay = isEdit ? product?.productCode ?? '—' : nextCode ?? 'Generating…';
 
   const isManual = watch('priceMode') === 'MANUAL';
+  // The price is entered and shown in the selected country's currency.
+  const country = watch('country');
+  const priceValue = watch('pricePerQty');
+  // Net amount: an inclusive price already holds the 10% GST; exclusive adds it on top.
+  const gstType = watch('gstType');
+  const price = Number(priceValue) || 0;
+  const netAmount = gstType === 'EXCLUSIVE' ? Math.round(price * 1.1 * 100) / 100 : price;
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) => {
@@ -190,7 +209,8 @@ export function ProductFormDialog({
         pricePerQty: manual ? values.pricePerQty : 0,
         billingPeriod: manual ? values.billingPeriod || null : null,
         contractTerm: manual ? values.contractTerm || null : null,
-        taxRate: 0,
+        gstType: manual ? values.gstType : null,
+        taxRate: manual ? 10 : 0,
         unit: values.unit?.trim() || 'unit',
         totalStock: 1_000_000,
         lowStockThreshold: 0,
@@ -215,6 +235,15 @@ export function ProductFormDialog({
         <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="mt-2 space-y-6">
           <Section icon={LayoutGrid} title="Product Information">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Country" error={errors.country?.message}>
+                <Controller
+                  control={control}
+                  name="country"
+                  render={({ field }) => (
+                    <CountrySelect value={field.value} onChange={field.onChange} className={FILLED_CONTROL} />
+                  )}
+                />
+              </Field>
               <Field label="Product Code" hint="Auto-generated">
                 <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-foreground">
                   {codeDisplay}
@@ -241,26 +270,46 @@ export function ProductFormDialog({
                 </Select>
               </Field>
               <Field label="Product Price">
+                {/* Labels are intentionally swapped against the stored values:
+                    "Automatic" = the product carries its own price (MANUAL),
+                    "Manual" = priced per customer on assignment (AUTOMATIC).
+                    Stored values stay as-is so existing products keep their behaviour. */}
                 <Select className={FILLED_CONTROL} {...register('priceMode')}>
-                  <option value="AUTOMATIC">Automatic</option>
-                  <option value="MANUAL">Manual</option>
+                  <option value="MANUAL">Automatic</option>
+                  <option value="AUTOMATIC">Manual</option>
                 </Select>
               </Field>
               {isManual && (
                 <>
-                  <Field label="Price" error={errors.pricePerQty?.message}>
-                    <Input
-                      className={FILLED_CONTROL}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      {...register('pricePerQty')}
-                      placeholder="0.00"
-                    />
+                  <Field
+                    label={`Price (${currencyOf(country)})`}
+                    error={errors.pricePerQty?.message}
+                    hint={`${formatCountryPrice(priceValue, country)} ${currencyOf(country)}`}
+                  >
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        {currencySymbolOf(country)}
+                      </span>
+                      <Input
+                        className={cn(
+                          FILLED_CONTROL,
+                          'pl-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+                        )}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        // Without the arrows, a mouse-wheel scroll shouldn't silently change the price either.
+                        onWheel={(e) => e.currentTarget.blur()}
+                        {...register('pricePerQty')}
+                        placeholder="0.00"
+                      />
+                    </div>
                   </Field>
                   <Field label="Billing" error={errors.billingPeriod?.message}>
                     <Select className={FILLED_CONTROL} {...register('billingPeriod')}>
                       <option value="">Select…</option>
+                      <option value="DAILY">Daily</option>
+                      <option value="WEEKLY">Weekly</option>
                       <option value="MONTHLY">Monthly</option>
                       <option value="ANNUALLY">Annually</option>
                     </Select>
@@ -271,6 +320,20 @@ export function ProductFormDialog({
                       <option value="CONTRACTUAL">Contractual</option>
                       <option value="PERMANENT">Permanent</option>
                     </Select>
+                  </Field>
+                  <Field label="GST" error={errors.gstType?.message}>
+                    <Select className={FILLED_CONTROL} {...register('gstType')}>
+                      <option value="INCLUSIVE">Inclusive (10%)</option>
+                      <option value="EXCLUSIVE">Exclusive (10%)</option>
+                    </Select>
+                  </Field>
+                  <Field
+                    label="Net Amount"
+                    hint={gstType === 'EXCLUSIVE' ? 'Price + 10% GST' : 'Price already includes 10% GST'}
+                  >
+                    <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-foreground">
+                      {formatCountryPrice(netAmount, country)}
+                    </div>
                   </Field>
                 </>
               )}

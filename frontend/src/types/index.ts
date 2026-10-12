@@ -69,8 +69,11 @@ export interface Product {
   lowStockThreshold: number;
   status: 'ACTIVE' | 'INACTIVE';
   priceMode?: 'AUTOMATIC' | 'MANUAL';
-  billingPeriod?: 'MONTHLY' | 'ANNUALLY' | null;
+  /** ISO-3166 alpha-2 code; null on products created before the field existed. */
+  country?: string | null;
+  billingPeriod?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ANNUALLY' | null;
   contractTerm?: 'CONTRACTUAL' | 'PERMANENT' | null;
+  gstType?: 'INCLUSIVE' | 'EXCLUSIVE' | null;
   createdAt: string;
 }
 

@@ -268,16 +268,18 @@ export async function listAvailableProducts() {
       productCode: true,
       sku: true,
       priceMode: true,
+      country: true,
       pricePerQty: true,
       billingPeriod: true,
       contractTerm: true,
+      gstType: true,
     },
     orderBy: { name: 'asc' },
   });
-  return products.map(({ pricePerQty, billingPeriod, contractTerm, ...p }) =>
+  return products.map(({ pricePerQty, billingPeriod, contractTerm, gstType, ...p }) =>
     p.priceMode === 'MANUAL'
-      ? { ...p, price: pricePerQty.toString(), billingPeriod, contractTerm }
-      : { ...p, price: null, billingPeriod: null, contractTerm: null }
+      ? { ...p, price: pricePerQty.toString(), billingPeriod, contractTerm, gstType }
+      : { ...p, price: null, billingPeriod: null, contractTerm: null, gstType: null }
   );
 }
 
