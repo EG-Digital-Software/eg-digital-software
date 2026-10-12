@@ -2105,13 +2105,18 @@ function ApprovalPanel({
   // one flat list, so group it here: top-level requests newest first, each one's
   // resubmissions oldest first (#1, #2, …).
   const roots = approvals.filter((a) => !a.parentId);
+  // Display numbers count up from the oldest request (1, 2, …); resubmissions
+  // extend their request's number (1.1, 1.2, …).
+  const rootNo = new Map(
+    [...roots].sort((x, y) => x.createdAt.localeCompare(y.createdAt)).map((a, i) => [a.id, i + 1]),
+  );
   const childrenOf = new Map<string, TaskApproval[]>();
   for (const a of approvals) {
     if (!a.parentId) continue;
     childrenOf.set(a.parentId, [...(childrenOf.get(a.parentId) ?? []), a]);
   }
   for (const list of childrenOf.values()) list.sort((x, y) => x.createdAt.localeCompare(y.createdAt));
-  // Dropdown state per request; unset = open only while the latest entry awaits a decision or a resubmission.
+  // Dropdown state per request; unset = minimised.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Inline resubmit form, opened from the latest rejected entry of a request.
   const [resubmitFor, setResubmitFor] = useState<string | null>(null);
@@ -2151,13 +2156,18 @@ function ApprovalPanel({
   const renderRow = (a: TaskApproval, sub: number | null, resubmitRoot: TaskApproval | null, deadline: number | null) => {
     const pending = a.status === 'PENDING';
     const busy = deciding === a.id;
+    const no = rootNo.get(a.parentId ?? a.id);
     return (
       <tr key={a.id} className={cn('border-b border-border/60 align-top', sub !== null && 'bg-secondary/20')}>
-        <td className={cn('whitespace-nowrap px-2 py-3 text-xs text-muted-foreground', sub !== null && 'pl-8')}>
-          {sub !== null && (
+        <td className={cn('whitespace-nowrap px-2 py-3 text-xs text-muted-foreground', sub !== null && 'relative pl-12')}>
+          {/* Guide line tying a resubmission to the request above it. */}
+          {sub !== null && <span aria-hidden className="absolute bottom-0 left-[1.4rem] top-0 w-0.5 bg-primary/30" />}
+          {sub !== null ? (
             <div className="mb-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
-              <CornerDownRight className="h-3 w-3" /> Resubmission #{sub}
+              <CornerDownRight className="h-3 w-3" /> Resubmission #{no}.{sub}
             </div>
+          ) : (
+            <div className="mb-0.5 text-[11px] font-semibold text-foreground">Approval #{no}</div>
           )}
           <div>{formatDate(a.createdAt, 'dd MMM yyyy, h:mm a')}</div>
           <div className="mt-0.5 text-[11px]">by {a.requestedByName}</div>
@@ -2390,32 +2400,39 @@ function ApprovalPanel({
                 const latest = subs[subs.length - 1] ?? root;
                 const deadline = latest.status === 'REJECTED' ? resubmitDeadline(latest) : null;
                 const windowOpen = deadline !== null && now < deadline;
-                // Open while something needs attention: a pending decision or a running resubmission countdown.
-                const open = expanded[root.id] ?? (latest.status === 'PENDING' || windowOpen);
+                // Each request starts minimised to a summary row; clicking it shows the request and its resubmissions.
+                const open = expanded[root.id] ?? false;
                 const canResubmit = canSubmit && windowOpen;
                 const rowDeadline = (a: TaskApproval) => (a.id === latest.id ? deadline : null);
                 return (
                   <Fragment key={root.id}>
-                    {renderRow(root, null, canResubmit && latest.id === root.id ? root : null, rowDeadline(root))}
-                    {subs.length > 0 && (
-                      <tr className="border-b border-border/60">
-                        <td colSpan={5} className="px-2 py-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setExpanded((e) => ({ ...e, [root.id]: !open }))}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary transition hover:underline"
-                          >
-                            {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                            Resubmissions ({subs.length})
-                            <ApprovalStatusBadge status={latest.status} />
-                          </button>
-                        </td>
-                      </tr>
-                    )}
+                    <tr className={cn('border-b border-border/60 transition-colors', open ? 'bg-primary/10' : 'hover:bg-secondary/40')}>
+                      <td colSpan={5} className="relative p-0">
+                        {open && <span aria-hidden className="absolute bottom-0 left-0 top-0 w-1 bg-primary" />}
+                        <button
+                          type="button"
+                          onClick={() => setExpanded((e) => ({ ...e, [root.id]: !open }))}
+                          aria-expanded={open}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
+                        >
+                          {open ? <ChevronDown className="h-4 w-4 shrink-0 text-primary" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                          <span className="shrink-0 font-semibold">Approval #{rootNo.get(root.id)}</span>
+                          <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground">{root.subject}</span>
+                          {subs.length > 0 && (
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {subs.length} resubmission{subs.length === 1 ? '' : 's'}
+                            </span>
+                          )}
+                          <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">{formatDate(latest.createdAt, 'dd MMM yyyy')}</span>
+                          <ApprovalStatusBadge status={latest.status} />
+                        </button>
+                      </td>
+                    </tr>
+                    {open && renderRow(root, null, canResubmit && latest.id === root.id ? root : null, rowDeadline(root))}
                     {open && subs.map((sub, i) => renderRow(sub, i + 1, canResubmit && latest.id === sub.id ? root : null, rowDeadline(sub)))}
-                    {resubmitFor === root.id && canResubmit && (
+                    {open && resubmitFor === root.id && canResubmit && (
                       <tr className="border-b border-border/60 bg-secondary/30">
-                        <td colSpan={5} className="px-2 py-3 pl-8">
+                        <td colSpan={5} className="px-2 py-3 pl-12">
                           <div className="max-w-xl space-y-2">
                             <h4 className="text-sm font-semibold">Resubmit for approval</h4>
                             <Input value={reSubject} placeholder="Subject" maxLength={200} onChange={(e) => setReSubject(e.target.value)} />
