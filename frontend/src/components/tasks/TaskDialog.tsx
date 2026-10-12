@@ -2424,7 +2424,15 @@ function ApprovalPanel({
                             </span>
                           )}
                           <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">{formatDate(latest.createdAt, 'dd MMM yyyy')}</span>
-                          <ApprovalStatusBadge status={latest.status} />
+                          {/* Status of the latest entry, naming the resubmission it belongs to. */}
+                          <span className="inline-flex shrink-0 items-center gap-1.5">
+                            {subs.length > 0 && (
+                              <span className={cn('text-xs font-semibold', latest.status === 'PENDING' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
+                                Resubmission #{rootNo.get(root.id)}.{subs.length}
+                              </span>
+                            )}
+                            <ApprovalStatusBadge status={latest.status} />
+                          </span>
                         </button>
                       </td>
                     </tr>
