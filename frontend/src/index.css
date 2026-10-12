@@ -319,6 +319,33 @@ html.eg-graphite body {
 .eg-graphite [data-radix-popper-content-wrapper] .bg-popover {
   background-color: hsl(var(--popover));
 }
+/* Floating panels (custom dropdowns, pickers, hover actions) must be opaque —
+   the translucent card fill lets the content underneath bleed through. */
+.eg-graphite .bg-card.absolute,
+.eg-graphite .bg-card.fixed,
+.eg-graphite [class*='bg-card/'].absolute,
+.eg-graphite .bg-popover {
+  background-color: hsl(var(--popover));
+}
+
+/* Native dropdowns: the browser paints the open list from the select's own
+   colours, so a translucent fill turned it into white-on-white. */
+.eg-graphite select {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--foreground));
+}
+.eg-graphite select option,
+.eg-graphite select optgroup {
+  background-color: #14171f;
+  color: #f5f6f8;
+}
+.eg-graphite select option:disabled {
+  color: #8c93a5;
+}
+.eg-graphite input::placeholder,
+.eg-graphite textarea::placeholder {
+  color: #8c93a5;
+}
 .eg-graphite .skeleton::after {
   background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.06), transparent);
 }
@@ -363,6 +390,42 @@ html.eg-graphite body {
 .eg-graphite .text-red-600 { color: #fda4af; }
 .eg-graphite .border-emerald-100,
 .eg-graphite .border-blue-100 { border-color: hsl(var(--border)); }
+
+/* Remaining tinted chips (task labels, priorities, mentions) — dark fill with
+   a light tint so the label stays readable. */
+.eg-graphite .bg-teal-100 { background-color: rgb(45 212 191 / 0.14); }
+.eg-graphite .bg-lime-100 { background-color: rgb(163 230 53 / 0.14); }
+.eg-graphite .bg-pink-100 { background-color: rgb(244 114 182 / 0.14); }
+.eg-graphite .bg-amber-200 { background-color: rgb(245 158 11 / 0.24); }
+.eg-graphite .text-slate-700 { color: #dfe3ea; }
+.eg-graphite .text-sky-700 { color: #7dd3fc; }
+.eg-graphite .text-teal-700 { color: #5eead4; }
+.eg-graphite .text-lime-700 { color: #bef264; }
+.eg-graphite .text-pink-700 { color: #f9a8d4; }
+.eg-graphite .text-indigo-700 { color: #c7d2fe; }
+.eg-graphite .text-violet-700 { color: #c4b5fd; }
+.eg-graphite .text-amber-900 { color: #fde68a; }
+.eg-graphite .border-sky-200,
+.eg-graphite .border-rose-200,
+.eg-graphite .border-amber-200 { border-color: hsl(var(--border)); }
+
+/* Gradient chips that start at the (now white) primary would hide their white
+   icon/initials — start them from slate instead. */
+.eg-graphite .from-primary {
+  --tw-gradient-from: #475569 var(--tw-gradient-from-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+/* Solid white cards inside the dark theme keep their light-theme text, so the
+   dark-mode remaps above don't turn it white-on-white. */
+.eg-graphite .bg-white .text-slate-800 { color: #1e293b; }
+.eg-graphite .bg-white .text-slate-700 { color: #334155; }
+.eg-graphite .bg-white .text-slate-600,
+.eg-graphite .bg-white .text-slate-500 { color: #64748b; }
+.eg-graphite .bg-white .text-slate-400 { color: #94a3b8; }
+.eg-graphite .bg-white .text-emerald-600 { color: #059669; }
+.eg-graphite .bg-white .text-foreground { color: #0b0c10; }
+.eg-graphite .bg-white .text-muted-foreground { color: #64748b; }
 
 /* Page headings: title only, no icon badge. */
 .eg-graphite [data-page-header-icon] {
