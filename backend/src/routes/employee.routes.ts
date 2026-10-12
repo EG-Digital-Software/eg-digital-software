@@ -7,7 +7,8 @@ import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
 import { taskProgressSchema, updateTaskSchema, createAppointmentSchema, submitApprovalSchema, approvalUploadSchema } from '../validators/task.validator.js';
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+// Chat files and attachments: no size cap — mirrors the admin task board.
+const upload = multer({ storage: multer.memoryStorage() });
 // Approval attachments carry no size/count cap — mirrors the admin task board.
 const uploadApproval = multer({ storage: multer.memoryStorage() });
 
@@ -30,6 +31,7 @@ router.get('/tasks/tasks/:taskId', ctrl.employeeGetTask);
 router.get('/tasks/tasks/:taskId/mentionable-users', ctrl.employeeMentionableUsers);
 router.patch('/tasks/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.employeeSetProgress);
 router.patch('/tasks/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.employeeUpdateTask);
+router.post('/tasks/tasks/:taskId/uploads/upload-url', validate({ body: approvalUploadSchema }), ctrl.employeeTaskUploadUrl);
 router.post('/tasks/tasks/:taskId/comments', upload.single('file'), ctrl.employeeAddComment);
 router.post('/tasks/tasks/:taskId/comments/:commentId/reactions', ctrl.employeeToggleCommentReaction);
 // Deleting a chat message is admin-only — employees cannot delete any message.

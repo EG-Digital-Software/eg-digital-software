@@ -6,6 +6,7 @@ import * as appointmentService from '../services/appointment.service.js';
 import { findById } from '../services/accounts.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
+import { taskUploadRefSchema } from '../validators/task.validator.js';
 
 /**
  * One controller drives both the admin board (customer addressed by the public
@@ -104,11 +105,32 @@ export const setProgress = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, task);
 });
 
+// ─── Task files (chat + attachments) ──────────────────────
+
+/**
+ * The file on a chat/attachment request: sent with it (multipart), or a
+ * reference (`upload`) to one the browser already put straight into storage.
+ */
+export function taskFileFrom(req: Request): taskService.TaskFileInput | undefined {
+  if (req.file) return req.file;
+  if (req.body?.upload === undefined) return undefined;
+  const parsed = taskUploadRefSchema.safeParse(req.body.upload);
+  if (!parsed.success) throw ApiError.badRequest('Invalid file upload reference');
+  return parsed.data;
+}
+
+// A direct-to-storage upload URL for one chat/attachment file (any size).
+export const taskUploadUrl = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await resolve(req);
+  return ok(res, await taskService.createTaskUpload(customerId, req.params.taskId, req.body.fileName));
+});
+
 // ─── Comments ─────────────────────────────────────────────
 
 export const addComment = asyncHandler(async (req: Request, res: Response) => {
   const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
-  if (!body && !req.file) throw ApiError.badRequest('A message or a file is required');
+  const file = taskFileFrom(req);
+  if (!body && !file) throw ApiError.badRequest('A message or a file is required');
   const replyToId = typeof req.body.replyToId === 'string' && req.body.replyToId ? req.body.replyToId : undefined;
   const customerId = await resolve(req);
   const comment = await taskService.addComment(
@@ -116,7 +138,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
     req.params.taskId,
     await author(req),
     body,
-    req.file,
+    file,
     replyToId
   );
   return ok(res, comment, 'Comment added', 201);
@@ -174,9 +196,10 @@ export const deleteNote = asyncHandler(async (req: Request, res: Response) => {
 // ─── Attachments ──────────────────────────────────────────
 
 export const addAttachment = asyncHandler(async (req: Request, res: Response) => {
-  if (!req.file) throw ApiError.badRequest('No file uploaded');
+  const file = taskFileFrom(req);
+  if (!file) throw ApiError.badRequest('No file uploaded');
   const customerId = await resolve(req);
-  const attachment = await taskService.addAttachment(customerId, req.params.taskId, req.file, req.user?.sub);
+  const attachment = await taskService.addAttachment(customerId, req.params.taskId, file, req.user?.sub);
   return ok(res, attachment, 'Attachment added', 201);
 });
 

@@ -96,6 +96,13 @@ export const approvalUploadSchema = z.object({
   fileName: z.string().min(1).max(255),
 });
 
+/** A chat/attachment file the browser already uploaded straight to storage. */
+export const taskUploadRefSchema = z.object({
+  url: z.string().url().max(2000),
+  fileName: z.string().min(1).max(255),
+  contentType: z.string().max(255).optional(),
+});
+
 export const decideApprovalSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED']),
   feedback: z.string().max(5000).nullish(),

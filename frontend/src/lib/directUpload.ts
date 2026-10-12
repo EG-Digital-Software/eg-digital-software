@@ -7,7 +7,7 @@ import axios from 'axios';
  */
 const BLOCK_SIZE = 8 * 1024 * 1024;
 const PARALLEL = 4;
-const RETRIES = 3;
+const RETRIES = 5;
 
 function withQuery(sasUrl: string, extra: string): string {
   return `${sasUrl}${sasUrl.includes('?') ? '&' : '?'}${extra}`;
@@ -23,10 +23,22 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (err) {
-      if (attempt >= RETRIES) throw err;
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
+      // 403 = the upload URL was refused (expired / not allowed); retrying can't help.
+      if (attempt >= RETRIES || (axios.isAxiosError(err) && err.response?.status === 403)) throw err;
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
     }
   }
+}
+
+/** A readable reason for a failed storage request — Azure answers with an XML <Code>/<Message>. */
+export function describeUploadError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    if (!err.response) return 'the connection to storage was interrupted or blocked';
+    const body = typeof err.response.data === 'string' ? err.response.data : '';
+    const code = /<Code>([^<]+)<\/Code>/.exec(body)?.[1];
+    return `storage replied ${err.response.status}${code ? ` (${code})` : ''}`;
+  }
+  return err instanceof Error && err.message ? err.message : 'unknown error';
 }
 
 export async function uploadToBlob(sasUrl: string, file: File, onProgress?: (loaded: number) => void): Promise<void> {

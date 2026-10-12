@@ -1,5 +1,5 @@
 import { api } from './client';
-import { uploadToBlob } from '@/lib/directUpload';
+import { describeUploadError, uploadToBlob } from '@/lib/directUpload';
 import type {
   ApiEnvelope,
   Appointment,
@@ -36,11 +36,15 @@ export type UploadProgress = (percent: number) => void;
 
 type ApprovalUploadTarget = { direct: true; uploadUrl: string; url: string } | { direct: false };
 
+/** Largest total that may fall back to going through the API when a direct upload fails. */
+const API_UPLOAD_LIMIT = 100 * 1024 * 1024;
+
 /**
  * Upload approval files straight to storage and return their references, so a
  * large video never streams through the API (which times out on long uploads).
- * Returns null when there are no files or storage can't take direct uploads
- * (local dev) — the caller then sends the files with the request as before.
+ * Returns null when there are no files, storage can't take direct uploads
+ * (local dev), or a small upload failed — the caller then sends the files with
+ * the request as before.
  */
 async function uploadApprovalFiles(base: string, taskId: string, files: File[] | undefined, onProgress?: UploadProgress) {
   if (!files || files.length === 0) return null;
@@ -55,10 +59,18 @@ async function uploadApprovalFiles(base: string, taskId: string, files: File[] |
   onProgress?.(0);
   for (let i = 0; i < files.length; i++) {
     const t = targets[i] as Extract<ApprovalUploadTarget, { direct: true }>;
-    await uploadToBlob(t.uploadUrl, files[i], (loaded) => {
-      done[i] = loaded;
-      onProgress?.(Math.min(100, Math.round((done.reduce((a, b) => a + b, 0) / total) * 100)));
-    });
+    try {
+      await uploadToBlob(t.uploadUrl, files[i], (loaded) => {
+        done[i] = loaded;
+        onProgress?.(Math.min(100, Math.round((done.reduce((a, b) => a + b, 0) / total) * 100)));
+      });
+    } catch (err) {
+      // Storage refused or dropped the upload. Files small enough to pass the
+      // API's request timeout go with the request instead (null = send them
+      // through the API); anything larger reports exactly what failed.
+      if (total <= API_UPLOAD_LIMIT) return null;
+      throw new Error(`Could not upload "${files[i].name}": ${describeUploadError(err)}. Please try again.`);
+    }
     done[i] = files[i].size;
   }
   onProgress?.(100);
@@ -68,6 +80,37 @@ async function uploadApprovalFiles(base: string, taskId: string, files: File[] |
     contentType: f.type || undefined,
   }));
 }
+
+/**
+ * Upload one chat/attachment file straight to storage and return its reference.
+ * Null means send the file with the request instead: storage can't take direct
+ * uploads (local dev), or a direct upload failed but the file is small enough
+ * for the API. A large file that fails reports what went wrong.
+ */
+async function uploadTaskFile(base: string, taskId: string, file: File, onProgress?: UploadProgress) {
+  let t: ApprovalUploadTarget;
+  try {
+    t = await unwrap<ApprovalUploadTarget>(api.post(`${base}/tasks/${taskId}/uploads/upload-url`, { fileName: file.name }));
+  } catch {
+    // No upload URL (e.g. an older API mid-deploy) — send the file the classic way.
+    return null;
+  }
+  if (!t.direct) return null;
+  try {
+    onProgress?.(0);
+    await uploadToBlob(t.uploadUrl, file, (loaded) => onProgress?.(Math.min(100, Math.round((loaded / (file.size || 1)) * 100))));
+    onProgress?.(100);
+  } catch (err) {
+    if (file.size <= API_UPLOAD_LIMIT) return null;
+    throw new Error(`Could not upload "${file.name}": ${describeUploadError(err)}. Please try again.`);
+  }
+  return { url: t.url, fileName: file.name, contentType: file.type || undefined };
+}
+
+/** Multipart upload progress, for files sent through the API. */
+const multipartProgress = (onProgress?: UploadProgress) => (e: { loaded: number; total?: number }) => {
+  if (e.total) onProgress?.(Math.round((e.loaded / e.total) * 100));
+};
 
 /**
  * Task board API bound to a base path. The admin uses
@@ -104,8 +147,13 @@ export function taskApi(base: string) {
       unwrap<Task>(api.patch(`${base}/tasks/${taskId}/progress`, { progress })),
 
     // Comments — an optional file rides along and is shown inside the chat bubble.
-    addComment: (taskId: string, body: string, file?: File, replyToId?: string) => {
+    // Files of any size go straight to storage first; small ones fall back to multipart.
+    addComment: async (taskId: string, body: string, file?: File, replyToId?: string, onProgress?: UploadProgress) => {
       if (file) {
+        const upload = await uploadTaskFile(base, taskId, file, onProgress);
+        if (upload) {
+          return unwrap<TaskComment>(api.post(`${base}/tasks/${taskId}/comments`, { body, replyToId, upload }));
+        }
         const form = new FormData();
         if (body) form.append('body', body);
         if (replyToId) form.append('replyToId', replyToId);
@@ -113,6 +161,7 @@ export function taskApi(base: string) {
         return unwrap<TaskComment>(
           api.post(`${base}/tasks/${taskId}/comments`, form, {
             headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: multipartProgress(onProgress),
           })
         );
       }
@@ -135,12 +184,15 @@ export function taskApi(base: string) {
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/notes/${noteId}`)),
 
     // Attachments
-    addAttachment: (taskId: string, file: File) => {
+    addAttachment: async (taskId: string, file: File, onProgress?: UploadProgress) => {
+      const upload = await uploadTaskFile(base, taskId, file, onProgress);
+      if (upload) return unwrap<TaskAttachment>(api.post(`${base}/tasks/${taskId}/attachments`, { upload }));
       const form = new FormData();
       form.append('file', file);
       return unwrap<TaskAttachment>(
         api.post(`${base}/tasks/${taskId}/attachments`, form, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: multipartProgress(onProgress),
         })
       );
     },
@@ -179,6 +231,7 @@ export function taskApi(base: string) {
         return unwrap<TaskApproval>(
           api.post(`${base}/tasks/${taskId}/approvals`, form, {
             headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => e.total && onProgress?.(Math.round((e.loaded / e.total) * 100)),
           })
         );
       }
@@ -200,7 +253,12 @@ export function taskApi(base: string) {
         form.append('subject', body.subject);
         form.append('message', body.message);
         body.files.forEach((f) => form.append('files', f));
-        return unwrap<TaskApproval>(api.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' } }));
+        return unwrap<TaskApproval>(
+          api.post(url, form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => e.total && onProgress?.(Math.round((e.loaded / e.total) * 100)),
+          })
+        );
       }
       return unwrap<TaskApproval>(api.post(url, { subject: body.subject, message: body.message }));
     },

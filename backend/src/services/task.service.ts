@@ -512,6 +512,41 @@ export async function deleteTask(customerId: string, taskId: string) {
   return { id: taskId };
 }
 
+// ─── Task files (chat + attachments) ──────────────────────
+
+type MulterLikeFile = { originalname: string; buffer: Buffer; mimetype: string; size: number };
+/** A chat/attachment file: sent with the request, or already uploaded straight to storage. */
+export type TaskFileInput = MulterLikeFile | UploadedApprovalFile;
+
+const taskUploadPrefix = (taskId: string) => `tasks/${taskId}/uploads/`;
+
+/**
+ * Write-only URL for one chat/attachment file, so files of any size go straight
+ * to storage instead of streaming through the API (which times out). `direct:
+ * false` means the storage driver can't (local dev) — send the file as before.
+ */
+export async function createTaskUpload(customerId: string, taskId: string, fileName: string) {
+  await ensureTask(customerId, taskId);
+  const safeName = fileName.replace(/[^\w.-]+/g, '_') || 'file';
+  const key = `${taskUploadPrefix(taskId)}${randomUUID()}/${safeName}`;
+  const target = await storage.createDirectUpload(key);
+  return target ? { direct: true as const, ...target } : { direct: false as const };
+}
+
+/** Store a task file and return the attachment fields describing it. */
+async function storeTaskFile(taskId: string, file: TaskFileInput) {
+  if ('buffer' in file) {
+    const safeName = file.originalname.replace(/[^\w.-]+/g, '_');
+    const key = `tasks/${taskId}/${Date.now()}-${safeName}`;
+    const url = await storage.save(key, file.buffer, file.mimetype);
+    return { fileName: file.originalname, url, size: file.size, contentType: file.mimetype };
+  }
+  // Directly uploaded: confirm it really landed in this task's upload area.
+  const stat = await storage.statUpload(file.url, taskUploadPrefix(taskId));
+  if (!stat) throw ApiError.badRequest(`Upload of "${file.fileName}" did not complete — please attach it again`);
+  return { fileName: file.fileName, url: file.url, size: stat.size, contentType: file.contentType || 'application/octet-stream' };
+}
+
 // ─── Comments ─────────────────────────────────────────────
 
 export async function addComment(
@@ -519,10 +554,12 @@ export async function addComment(
   taskId: string,
   author: { id: string; type: Role; name: string },
   body: string,
-  file?: { originalname: string; buffer: Buffer; mimetype: string; size: number },
+  file?: TaskFileInput,
   replyToId?: string
 ) {
   const task = await ensureTask(customerId, taskId);
+  // Check a direct upload before creating the message, so a failed one leaves no empty bubble.
+  const stored = file ? await storeTaskFile(taskId, file) : null;
 
   // A reply can only quote a message in the same task's chat.
   const original = replyToId
@@ -541,20 +578,9 @@ export async function addComment(
 
   // A file sent with the message is stored as a task attachment linked back to
   // this comment, so it shows both in the chat bubble and the Attachments tab.
-  if (file) {
-    const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');
-    const key = `tasks/${taskId}/${Date.now()}-${safeName}`;
-    const url = await storage.save(key, file.buffer, file.mimetype);
+  if (stored) {
     await prisma.taskAttachment.create({
-      data: {
-        taskId,
-        commentId: comment.id,
-        fileName: file.originalname,
-        url,
-        size: file.size,
-        contentType: file.mimetype,
-        uploadedById: author.id,
-      },
+      data: { taskId, commentId: comment.id, ...stored, uploadedById: author.id },
     });
   }
 
@@ -692,22 +718,13 @@ export async function deleteNote(
 export async function addAttachment(
   customerId: string,
   taskId: string,
-  file: { originalname: string; buffer: Buffer; mimetype: string; size: number },
+  file: TaskFileInput,
   uploadedById?: string
 ) {
   await ensureTask(customerId, taskId);
-  const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');
-  const key = `tasks/${taskId}/${Date.now()}-${safeName}`;
-  const url = await storage.save(key, file.buffer, file.mimetype);
+  const stored = await storeTaskFile(taskId, file);
   return prisma.taskAttachment.create({
-    data: {
-      taskId,
-      fileName: file.originalname,
-      url,
-      size: file.size,
-      contentType: file.mimetype,
-      uploadedById,
-    },
+    data: { taskId, ...stored, uploadedById },
   });
 }
 

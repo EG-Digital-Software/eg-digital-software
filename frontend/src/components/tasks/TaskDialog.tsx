@@ -72,6 +72,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
+import { Linkify } from '@/lib/linkify';
 
 interface Props {
   open: boolean;
@@ -303,8 +304,16 @@ export function TaskDialog({
     onSuccess: () => { invalidate(); toast.success('Task created'); onClose(); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
+  // Big chat/attachment files show upload progress; small ones go up silently.
+  const CHAT_UPLOAD_TOAST = 'chat-upload';
+  const ATTACHMENT_UPLOAD_TOAST = 'attachment-upload';
+  const fileProgress = (toastId: string, file?: File) =>
+    file && file.size > 5 * 1024 * 1024
+      ? (p: number) => toast.loading(`Uploading ${file.name}… ${p}%`, { id: toastId })
+      : undefined;
   const addComment = useMutation({
-    mutationFn: (v: { body: string; file?: File; replyToId?: string }) => api.addComment(task!.id, v.body, v.file, v.replyToId),
+    mutationFn: (v: { body: string; file?: File; replyToId?: string }) =>
+      api.addComment(task!.id, v.body, v.file, v.replyToId, fileProgress(CHAT_UPLOAD_TOAST, v.file)),
     // Show the message instantly (and clear the composer) instead of waiting for
     // the round-trip.
     onMutate: async (v) => {
@@ -333,9 +342,10 @@ export function TaskDialog({
       qc.setQueryData<Task>(taskKey, { ...base, comments: [...base.comments, optimistic] });
       return { prev };
     },
+    onSuccess: () => toast.dismiss(CHAT_UPLOAD_TOAST),
     onError: (e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev);
-      toast.error(apiErrorMessage(e));
+      toast.error(apiErrorMessage(e), { id: CHAT_UPLOAD_TOAST });
     },
     onSettled: () => { invalidateTask(); invalidate(); },
   });
@@ -436,7 +446,7 @@ export function TaskDialog({
     onSettled: () => { invalidateTask(); invalidate(); },
   });
   const uploadFile = useMutation({
-    mutationFn: (file: File) => api.addAttachment(task!.id, file),
+    mutationFn: (file: File) => api.addAttachment(task!.id, file, fileProgress(ATTACHMENT_UPLOAD_TOAST, file)),
     // Show the file in the list instantly with a local preview URL; the real
     // record (with its stored URL) replaces it once the refetch lands.
     onMutate: async (file) => {
@@ -459,8 +469,8 @@ export function TaskDialog({
       }
       return { prev };
     },
-    onError: (e, _f, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
-    onSuccess: () => toast.success('Attachment added'),
+    onError: (e, _f, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e), { id: ATTACHMENT_UPLOAD_TOAST }); },
+    onSuccess: () => toast.success('Attachment added', { id: ATTACHMENT_UPLOAD_TOAST }),
     onSettled: () => { invalidateTask(); invalidate(); },
   });
   const removeFile = useMutation({
@@ -1652,7 +1662,7 @@ function NotesThread({
               <span className="font-semibold text-primary">{originalAuthor || 'Original note'}</span>
               <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">Original</span>
             </div>
-            <p className="whitespace-pre-wrap break-words text-sm">{originalNote}</p>
+            <p className="whitespace-pre-wrap break-words text-sm"><Linkify text={originalNote} /></p>
           </div>
         )}
         {notes.map((n) => {
@@ -1689,7 +1699,7 @@ function NotesThread({
                   </div>
                 </div>
               ) : (
-                <p className="whitespace-pre-wrap break-words text-sm">{n.body}</p>
+                <p className="whitespace-pre-wrap break-words text-sm"><Linkify text={n.body} /></p>
               )}
             </div>
           );
@@ -1815,7 +1825,7 @@ function AccessPointPanel({
                       </>
                     ) : (
                       <>
-                        <td className="px-2 py-3 text-muted-foreground"><p className="max-w-[360px] whitespace-pre-wrap break-words">{n.body}</p></td>
+                        <td className="px-2 py-3 text-muted-foreground"><p className="max-w-[360px] whitespace-pre-wrap break-words"><Linkify text={n.body} /></p></td>
                         <td className="px-2 py-3">
                           {canManage && !isTemp && (
                             <div className="flex items-center gap-2">
@@ -2154,7 +2164,7 @@ function ApprovalPanel({
         </td>
         <td className="px-2 py-3 font-medium">{a.subject}</td>
         <td className="px-2 py-3 text-muted-foreground">
-          <p className="max-w-[360px] whitespace-pre-wrap break-words">{a.message}</p>
+          <p className="max-w-[360px] whitespace-pre-wrap break-words"><Linkify text={a.message} /></p>
           {a.attachments && a.attachments.length > 0 && (
             <div className="mt-2 flex max-w-[360px] flex-wrap gap-2">
               {a.attachments.map((f) => {
@@ -2296,7 +2306,7 @@ function ApprovalPanel({
         </td>
         <td className="px-2 py-3 text-muted-foreground">
           <div className="flex items-start gap-1.5">
-            <p className="max-w-[300px] flex-1 whitespace-pre-wrap break-words">{a.feedback || '—'}</p>
+            <p className="max-w-[300px] flex-1 whitespace-pre-wrap break-words">{a.feedback ? <Linkify text={a.feedback} /> : '—'}</p>
             {isAdmin && (
               <button
                 type="button"

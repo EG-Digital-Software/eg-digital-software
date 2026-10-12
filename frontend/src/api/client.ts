@@ -81,5 +81,7 @@ export function apiErrorMessage(err: unknown, fallback = 'Something went wrong')
     // No response at all: the connection dropped or timed out mid-request.
     if (!err.response) return 'Network error — the connection was interrupted. Please try again.';
   }
+  // Plain errors raised in the browser (e.g. a direct storage upload) carry their own explanation.
+  if (err instanceof Error && err.message) return err.message;
   return fallback;
 }

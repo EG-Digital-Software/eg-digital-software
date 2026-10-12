@@ -6,6 +6,7 @@ import * as appointmentService from '../services/appointment.service.js';
 import { findById } from '../services/accounts.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
+import { taskFileFrom } from './task.controller.js';
 
 // ── Supplier ─────────────────────────────────────────────
 export const supplierDashboard = asyncHandler(async (req: Request, res: Response) => {
@@ -84,8 +85,9 @@ export const employeeUpdateTask = asyncHandler(async (req: Request, res: Respons
 export const employeeAddComment = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
   const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
-  if (!body && !req.file) throw ApiError.badRequest('A message or a file is required');
-  return ok(res, await taskService.addComment(customerId, req.params.taskId, await employeeAuthor(req), body, req.file), 'Comment added', 201);
+  const file = taskFileFrom(req);
+  if (!body && !file) throw ApiError.badRequest('A message or a file is required');
+  return ok(res, await taskService.addComment(customerId, req.params.taskId, await employeeAuthor(req), body, file), 'Comment added', 201);
 });
 
 export const employeeToggleCommentReaction = asyncHandler(async (req: Request, res: Response) => {
@@ -151,9 +153,16 @@ export const employeeDeleteAppointment = asyncHandler(async (req: Request, res: 
 });
 
 export const employeeAddAttachment = asyncHandler(async (req: Request, res: Response) => {
-  if (!req.file) throw ApiError.badRequest('No file uploaded');
+  const file = taskFileFrom(req);
+  if (!file) throw ApiError.badRequest('No file uploaded');
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
-  return ok(res, await taskService.addAttachment(customerId, req.params.taskId, req.file, req.user?.sub), 'Attachment added', 201);
+  return ok(res, await taskService.addAttachment(customerId, req.params.taskId, file, req.user?.sub), 'Attachment added', 201);
+});
+
+// A direct-to-storage upload URL for one chat/attachment file (any size).
+export const employeeTaskUploadUrl = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  return ok(res, await taskService.createTaskUpload(customerId, req.params.taskId, req.body.fileName));
 });
 
 export const employeeDeleteAttachment = asyncHandler(async (req: Request, res: Response) => {

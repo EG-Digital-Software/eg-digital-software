@@ -18,7 +18,9 @@ import {
   createAppointmentSchema,
 } from '../validators/task.validator.js';
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+// Chat files and attachments: no size cap. Large files normally skip the API
+// entirely (direct-to-storage upload URL); this path serves small fallbacks.
+const upload = multer({ storage: multer.memoryStorage() });
 // Approval attachments: no size or count cap — admins may upload files of any
 // size, as many as they like.
 const uploadApproval = multer({ storage: multer.memoryStorage() });
@@ -57,6 +59,8 @@ export function buildTaskRouter(readOnly = false): Router {
   // Clients may edit a task's content (title, notes, checklist, assignees); the
   // controller strips the fields locked in the portal (start/due/priority).
   router.patch('/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.updateTask);
+  // Direct-to-storage upload URL for one chat/attachment file (any size).
+  router.post('/tasks/:taskId/uploads/upload-url', validate({ body: approvalUploadSchema }), ctrl.taskUploadUrl);
   router.post('/tasks/:taskId/comments', upload.single('file'), ctrl.addComment);
   // Emoji reactions on a chat message — anyone in the chat may react (toggle).
   router.post('/tasks/:taskId/comments/:commentId/reactions', ctrl.toggleCommentReaction);
