@@ -19,6 +19,7 @@ import {
   type LicenceGroup,
 } from '@/lib/proration';
 import { formatPhone } from '@/components/shared/PhoneInput';
+import { Linkify } from '@/lib/linkify';
 
 /**
  * Tax-invoice layout, tuned for web, print (A4) and PDF export. Print styling is
@@ -347,7 +348,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
           <p className="mt-6 text-[11.5px] leading-relaxed text-muted-foreground">{pay.payInstructions}</p>
         )}
         {invoice.notes && (
-          <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground">{invoice.notes}</p>
+          <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground"><Linkify text={invoice.notes} /></p>
         )}
         <p
           className="mt-5 border-t pt-4 text-[11px] leading-relaxed text-muted-foreground"

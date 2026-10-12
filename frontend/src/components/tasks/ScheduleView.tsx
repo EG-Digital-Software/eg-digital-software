@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PRIORITY_META } from '@/lib/tasks';
+import { Linkify } from '@/lib/linkify';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -210,7 +211,7 @@ export function ScheduleView({
             <div className="space-y-2 text-sm">
               <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-muted-foreground" /> {formatDate(detail.startAt, 'dd MMM yyyy, h:mm a')} – {timeLabel(detail.endAt)}</p>
               {detail.location && <p>{detail.location}</p>}
-              {detail.notes && <p className="whitespace-pre-wrap text-muted-foreground">{detail.notes}</p>}
+              {detail.notes && <p className="whitespace-pre-wrap break-words text-muted-foreground"><Linkify text={detail.notes} /></p>}
               <div>
                 <p className="mb-1 flex items-center gap-2 font-medium"><Users className="h-4 w-4 text-muted-foreground" /> Attendees</p>
                 <ul className="space-y-0.5 text-muted-foreground">

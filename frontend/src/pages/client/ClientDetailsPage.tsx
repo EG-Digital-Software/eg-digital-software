@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/misc';
 import { ErrorState } from '@/components/shared/states';
 import { formatAbn, formatAcn } from '@/lib/customer';
 import type { Address } from '@/types';
+import { Linkify } from '@/lib/linkify';
 
 /** Turn an enum like HOSPITALITY_AND_TOURISM into "Hospitality And Tourism". */
 function prettify(value?: string | null): string {
@@ -22,7 +23,7 @@ function Row({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-baseline sm:gap-3">
       <dt className="w-48 shrink-0 text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value?.toString().trim() ? value : '—'}</dd>
+      <dd className="break-words text-sm text-foreground">{value?.toString().trim() ? <Linkify text={value} /> : '—'}</dd>
     </div>
   );
 }

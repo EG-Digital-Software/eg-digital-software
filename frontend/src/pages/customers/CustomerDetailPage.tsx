@@ -52,6 +52,7 @@ import { businessTypesLabel, customerName, formatAbn, formatAcn } from '@/lib/cu
 import { companyFieldsFor } from '@/lib/company';
 import { formatPhone, Flag } from '@/components/shared/PhoneInput';
 import { countryCodeByName, countryName } from '@/lib/countries';
+import { linkifyValue } from '@/lib/linkify';
 
 /**
  * Address rendered the way the form collects it: street, then country, city and
@@ -98,7 +99,7 @@ function Detail({ label, value }: { label: string; value?: React.ReactNode }) {
     <div className="min-w-0">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="mt-0.5 break-words text-sm font-medium">
-        {value || <span className="text-muted-foreground">—</span>}
+        {value ? linkifyValue(value) : <span className="text-muted-foreground">—</span>}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { withNotoEmoji } from '@/lib/emoji';
+import { linkify } from '@/lib/linkify';
 
 /**
  * @mention tokens live inline in a chat message body as `@[Full Name](ROLE:userId)`.
@@ -16,7 +17,7 @@ export function stripMentions(body: string): string {
   return body.replace(MENTION_RE, '@$1');
 }
 
-/** Render a message body, turning mention tokens into highlighted chips. */
+/** Render a message body, turning mention tokens into highlighted chips and links into anchors. */
 export function renderMessageBody(body: string, opts?: { meId?: string }): ReactNode {
   const nodes: ReactNode[] = [];
   const re = new RegExp(MENTION_RE.source, 'g');
@@ -24,7 +25,7 @@ export function renderMessageBody(body: string, opts?: { meId?: string }): React
   let key = 0;
   let match: RegExpExecArray | null;
   while ((match = re.exec(body))) {
-    if (match.index > last) nodes.push(...withNotoEmoji(body.slice(last, match.index), `t-${key++}`));
+    if (match.index > last) nodes.push(...linkify(body.slice(last, match.index), `t-${key++}`, withNotoEmoji));
     const name = match[1];
     const id = match[3];
     const isMe = !!opts?.meId && id === opts.meId;
@@ -41,6 +42,6 @@ export function renderMessageBody(body: string, opts?: { meId?: string }): React
     );
     last = re.lastIndex;
   }
-  if (last < body.length) nodes.push(...withNotoEmoji(body.slice(last), `t-${key++}`));
+  if (last < body.length) nodes.push(...linkify(body.slice(last), `t-${key++}`, withNotoEmoji));
   return nodes;
 }

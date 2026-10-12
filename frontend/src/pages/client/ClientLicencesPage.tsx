@@ -18,6 +18,7 @@ import { EmptyState, ErrorState, Spinner } from '@/components/shared/states';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { ProductGlyph } from '@/lib/product-icon';
 import { formatCountryPrice } from '@/lib/currencies';
+import { Linkify } from '@/lib/linkify';
 
 const STATUSES = [
   { value: 'ACTIVE', label: 'Active' },
@@ -358,7 +359,7 @@ function Detail({
   return (
     <div>
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 font-medium ${mono ? 'font-mono tracking-wide' : ''} ${className ?? ''}`}>{value}</p>
+      <p className={`mt-0.5 font-medium ${mono ? 'font-mono tracking-wide' : ''} ${className ?? ''}`}><Linkify text={value} /></p>
     </div>
   );
 }

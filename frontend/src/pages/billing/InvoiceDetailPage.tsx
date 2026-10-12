@@ -34,6 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
+import { linkifyValue } from '@/lib/linkify';
 
 function Money({ label, value, tone }: { label: string; value: string | number; tone?: 'owed' | 'paid' }) {
   return (
@@ -55,7 +56,7 @@ function Detail({ label, value }: { label: string; value?: React.ReactNode }) {
     <div className="min-w-0">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="mt-0.5 truncate text-sm font-medium">
-        {value || <span className="text-muted-foreground">—</span>}
+        {value ? linkifyValue(value) : <span className="text-muted-foreground">—</span>}
       </div>
     </div>
   );

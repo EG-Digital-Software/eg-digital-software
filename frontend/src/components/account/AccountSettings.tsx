@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 import { Spinner } from '@/components/shared/states';
 import { initials, mediaUrl, formatDate } from '@/lib/utils';
+import { linkifyValue } from '@/lib/linkify';
 
 const ROLE_LABEL: Record<string, string> = {
   SUPER_ADMIN: 'EG',
@@ -82,7 +83,7 @@ function Detail({ label, value }: { label: string; value?: React.ReactNode }) {
     <div className="min-w-0">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="mt-0.5 truncate text-sm font-medium">
-        {value || <span className="text-muted-foreground">—</span>}
+        {value ? linkifyValue(value) : <span className="text-muted-foreground">—</span>}
       </div>
     </div>
   );
