@@ -542,9 +542,19 @@ async function storeTaskFile(taskId: string, file: TaskFileInput) {
     return { fileName: file.originalname, url, size: file.size, contentType: file.mimetype };
   }
   // Directly uploaded: confirm it really landed in this task's upload area.
-  const stat = await storage.statUpload(file.url, taskUploadPrefix(taskId));
-  if (!stat) throw ApiError.badRequest(`Upload of "${file.fileName}" did not complete — please attach it again`);
-  return { fileName: file.fileName, url: file.url, size: stat.size, contentType: file.contentType || 'application/octet-stream' };
+  const size = await confirmUpload(file, taskUploadPrefix(taskId));
+  return { fileName: file.fileName, url: file.url, size, contentType: file.contentType || 'application/octet-stream' };
+}
+
+/**
+ * Confirm a direct upload landed (finishing it server-side if only the final
+ * commit was lost) and return its size; otherwise a clear, specific error.
+ */
+async function confirmUpload(u: UploadedApprovalFile, keyPrefix: string): Promise<number> {
+  const stat = await storage.statUpload(u.url, keyPrefix, { contentType: u.contentType, size: u.size });
+  if (!stat) throw ApiError.badRequest(`Upload of "${u.fileName}" is not a valid file for this task — please attach it again`);
+  if ('error' in stat) throw ApiError.badRequest(`Upload of "${u.fileName}" did not complete: ${stat.error}. Please attach it again`);
+  return stat.size;
 }
 
 // ─── Comments ─────────────────────────────────────────────
@@ -810,7 +820,7 @@ export interface ApprovalRequester {
  */
 type ApprovalFile = { originalname: string; buffer: Buffer; mimetype: string; size: number };
 /** A file the browser already uploaded straight to storage (see createApprovalUpload). */
-export type UploadedApprovalFile = { url: string; fileName: string; contentType?: string };
+export type UploadedApprovalFile = { url: string; fileName: string; contentType?: string; size?: number };
 
 const approvalUploadPrefix = (taskId: string) => `tasks/${taskId}/approvals/uploads/`;
 
@@ -832,9 +842,8 @@ export async function createApprovalUpload(customerId: string, taskId: string, f
 async function verifyUploads(taskId: string, uploaded: UploadedApprovalFile[]) {
   return Promise.all(
     uploaded.map(async (u) => {
-      const stat = await storage.statUpload(u.url, approvalUploadPrefix(taskId));
-      if (!stat) throw ApiError.badRequest(`Upload of "${u.fileName}" did not complete — please attach it again`);
-      return { ...u, size: stat.size };
+      const size = await confirmUpload(u, approvalUploadPrefix(taskId));
+      return { url: u.url, fileName: u.fileName, contentType: u.contentType, size };
     })
   );
 }

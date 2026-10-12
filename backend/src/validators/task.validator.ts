@@ -86,6 +86,7 @@ export const submitApprovalSchema = z.object({
         url: z.string().url().max(2000),
         fileName: z.string().min(1).max(255),
         contentType: z.string().max(255).optional(),
+        size: z.number().int().min(0).optional(),
       })
     )
     .max(100)
@@ -101,6 +102,7 @@ export const taskUploadRefSchema = z.object({
   url: z.string().url().max(2000),
   fileName: z.string().min(1).max(255),
   contentType: z.string().max(255).optional(),
+  size: z.number().int().min(0).optional(),
 });
 
 export const decideApprovalSchema = z.object({

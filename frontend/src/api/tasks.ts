@@ -78,6 +78,7 @@ async function uploadApprovalFiles(base: string, taskId: string, files: File[] |
     url: (targets[i] as Extract<ApprovalUploadTarget, { direct: true }>).url,
     fileName: f.name,
     contentType: f.type || undefined,
+    size: f.size,
   }));
 }
 
@@ -104,7 +105,7 @@ async function uploadTaskFile(base: string, taskId: string, file: File, onProgre
     if (file.size <= API_UPLOAD_LIMIT) return null;
     throw new Error(`Could not upload "${file.name}": ${describeUploadError(err)}. Please try again.`);
   }
-  return { url: t.url, fileName: file.name, contentType: file.type || undefined };
+  return { url: t.url, fileName: file.name, contentType: file.type || undefined, size: file.size };
 }
 
 /** Multipart upload progress, for files sent through the API. */
