@@ -7,7 +7,7 @@ import { startScheduler } from './config/scheduler.js';
 const app = createApp();
 
 const server = app.listen(env.PORT, () => {
-  logger.info(`🚀 EG Digital API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
+  logger.info(`🚀 EG Eloma API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
   startScheduler();
 });
 

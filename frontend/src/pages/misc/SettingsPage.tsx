@@ -186,7 +186,7 @@ export default function SettingsPage() {
           <Input {...titleCaseField(register('companyName'))} />
         </Field>
         <Field label="Legal / Registered Name" hint="Shown as the issuing entity on invoices">
-          <Input placeholder="EG Digital Australia Pty Ltd" {...titleCaseField(register('legalName'))} />
+          <Input placeholder="EG Eloma Australia Pty Ltd" {...titleCaseField(register('legalName'))} />
         </Field>
         <Field label="ABN" error={errors.abn?.message} hint="11 digits">
           <Input maxLength={14} placeholder="76 593 175 012" {...register('abn')} />

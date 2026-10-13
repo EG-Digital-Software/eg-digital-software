@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, Menu, X, Lock, type LucideProps } from 'lucide-react';
+import { Logo } from '@/components/layout/Logo';
 import { useAuth } from '@/store/auth';
 import { useLogout } from '@/hooks/useSession';
 import { initials, cn, mediaUrl } from '@/lib/utils';
@@ -149,9 +150,9 @@ export function GraphitePortalShell({
         <div className="flex flex-wrap items-center gap-3 px-3 py-[18px] sm:px-5">
           <Link
             to={home}
-            className="mr-6 whitespace-nowrap text-[17px] font-semibold tracking-[0.34em] text-white hover:text-white"
+            className="mr-6 whitespace-nowrap text-white hover:text-white"
           >
-            EG DIGITAL
+            <Logo light className="text-[24px]" />
           </Link>
 
           <nav aria-label="Main" className={cn('flex-wrap', bp.desktop)}>
@@ -223,7 +224,7 @@ export function GraphitePortalShell({
 
       <footer className="relative mx-auto w-full max-w-[1760px] px-3 pb-8 sm:px-5">
         <div className="flex flex-wrap items-center gap-4 border-t border-white/[0.08] pt-[18px] text-xs uppercase tracking-[0.08em] text-[#8C93A5]">
-          <span>EG Digital · {portalName}</span>
+          <span>EG Eloma · {portalName}</span>
           {user?.email && <span className="sm:ml-auto">Signed in as {user.email}</span>}
           <button
             type="button"

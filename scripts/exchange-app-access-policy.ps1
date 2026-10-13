@@ -46,7 +46,7 @@ if ($pol) {
   while ($true) {
     try {
       New-ApplicationAccessPolicy -AppId $AppId -PolicyScopeGroupId $Group `
-        -AccessRight RestrictAccess -Description 'EG Digital mailer: no-reply only' |
+        -AccessRight RestrictAccess -Description 'EG Eloma mailer: no-reply only' |
         Format-List | Out-String | Write-Host
       break
     } catch {

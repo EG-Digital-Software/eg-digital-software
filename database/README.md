@@ -1,6 +1,6 @@
 # Database
 
-EG Digital uses **PostgreSQL** via **Prisma ORM**. The schema, migrations and seed
+EG Eloma uses **PostgreSQL** via **Prisma ORM**. The schema, migrations and seed
 live in `backend/prisma/`.
 
 ## Local development

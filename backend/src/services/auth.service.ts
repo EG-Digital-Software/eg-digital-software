@@ -180,7 +180,7 @@ export async function login(email: string, password: string, portal?: Role) {
     throw ApiError.forbidden('Your account is awaiting Admin approval');
   }
   if (account.approvalStatus === 'REJECTED') {
-    throw ApiError.forbidden('Your account request was declined. Please contact EG Digital.');
+    throw ApiError.forbidden('Your account request was declined. Please contact EG Eloma.');
   }
 
   const updated = await accounts.updateAccount(account.role, account.id, {

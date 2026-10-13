@@ -1,7 +1,7 @@
 {
   "name": "eg-digital-backend",
   "version": "1.0.0",
-  "description": "EG Digital SaaS Platform — REST API",
+  "description": "EG Eloma SaaS Platform — REST API",
   "type": "module",
   "main": "dist/server.js",
   "engines": {

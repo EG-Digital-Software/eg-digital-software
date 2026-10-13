@@ -32,7 +32,7 @@ function shell(title: string, body: string, cta?: { label: string; url: string }
         }
       </div>
       <div style="padding:16px 28px;border-top:1px solid #eef2f6;font-size:12px;color:#94a3b8">
-        EG Digital · Australia · This is an automated message.
+        EG Eloma · Australia · This is an automated message.
       </div>
     </div>
   </div>`;
@@ -44,11 +44,11 @@ export function sendAccountApproved(user: { email: string; firstName: string; ro
   const loginUrl = `${env.APP_URL.replace(/\/$/, '')}/login/${slug}`;
   sendEmail({
     to: user.email,
-    subject: 'Your EG Digital account has been approved',
+    subject: 'Your EG Eloma account has been approved',
     text: `Hi ${user.firstName}, your ${label} account has been approved. Sign in at ${loginUrl}`,
     html: shell(
       'Your account is approved 🎉',
-      `Hi ${user.firstName},<br/><br/>Great news — your <strong>${label}</strong> account with EG Digital has been approved. You can now sign in and access your portal.`,
+      `Hi ${user.firstName},<br/><br/>Great news — your <strong>${label}</strong> account with EG Eloma has been approved. You can now sign in and access your portal.`,
       { label: `Sign in to your ${label} portal`, url: loginUrl }
     ),
   });
@@ -69,11 +69,11 @@ export function sendPasswordReset(
   // Sent from the Microsoft 365 no-reply mailbox, not the main provider.
   sendResetEmail({
     to: user.email,
-    subject: 'Reset your EG Digital password',
-    text: `Hi ${user.firstName}, reset your EG Digital password here: ${resetUrl} — the link expires in ${expiresInMinutes} minutes and can only be used once. If you did not request this, ignore this email; your password stays unchanged.`,
+    subject: 'Reset your EG Eloma password',
+    text: `Hi ${user.firstName}, reset your EG Eloma password here: ${resetUrl} — the link expires in ${expiresInMinutes} minutes and can only be used once. If you did not request this, ignore this email; your password stays unchanged.`,
     html: shell(
       'Reset your password',
-      `Hi ${user.firstName},<br/><br/>We received a request to reset the password for your EG Digital account. Use the button below to choose a new one.<br/><br/>This link expires in <strong>${expiresInMinutes} minutes</strong> and can only be used once.<br/><br/><span style="color:#94a3b8">If you did not request this, you can safely ignore this email — your password will stay unchanged.</span>`,
+      `Hi ${user.firstName},<br/><br/>We received a request to reset the password for your EG Eloma account. Use the button below to choose a new one.<br/><br/>This link expires in <strong>${expiresInMinutes} minutes</strong> and can only be used once.<br/><br/><span style="color:#94a3b8">If you did not request this, you can safely ignore this email — your password will stay unchanged.</span>`,
       { label: 'Choose a new password', url: resetUrl }
     ),
   });
@@ -128,11 +128,11 @@ export function sendAccountRejected(user: { email: string; firstName: string; ro
   const label = ROLE_LABEL[user.role] ?? 'account';
   sendEmail({
     to: user.email,
-    subject: 'Update on your EG Digital account request',
-    text: `Hi ${user.firstName}, unfortunately your ${label} account request was not approved. Please contact EG Digital for details.`,
+    subject: 'Update on your EG Eloma account request',
+    text: `Hi ${user.firstName}, unfortunately your ${label} account request was not approved. Please contact EG Eloma for details.`,
     html: shell(
       'About your account request',
-      `Hi ${user.firstName},<br/><br/>Thank you for your interest. Unfortunately your <strong>${label}</strong> account request was not approved at this time. Please contact EG Digital if you believe this is a mistake.`
+      `Hi ${user.firstName},<br/><br/>Thank you for your interest. Unfortunately your <strong>${label}</strong> account request was not approved at this time. Please contact EG Eloma if you believe this is a mistake.`
     ),
   });
 }
@@ -195,14 +195,14 @@ export function buildInvoiceEmail(params: {
   return {
     to: params.to,
     cc: params.cc,
-    subject: `Invoice ${params.invoiceNumber} from EG Digital — ${params.currency} ${params.amount}`,
+    subject: `Invoice ${params.invoiceNumber} from EG Eloma — ${params.currency} ${params.amount}`,
     text:
       `${greeting}\n\n` +
       `Please find your invoice ${params.invoiceNumber}` +
       (params.reference ? ` (reference ${params.reference})` : '') +
       ` for ${params.currency} ${params.amount}, due ${params.dueDate}.\n\n` +
       `View and pay online: ${params.payUrl}\n\n` +
-      `If you have already paid, please ignore this message.\n\nEG Digital · Australia`,
+      `If you have already paid, please ignore this message.\n\nEG Eloma · Australia`,
     html: shell(
       `Invoice ${params.invoiceNumber}`,
       `${greeting}<br/><br/>Please find your invoice below. You can view the full invoice and pay securely online using the button.

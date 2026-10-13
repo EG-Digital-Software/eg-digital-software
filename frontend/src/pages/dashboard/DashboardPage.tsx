@@ -138,7 +138,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="-mt-4">
         <GraphiteHero
-          kicker="Admin Portal · EG Digital"
+          kicker="Admin Portal · EG Eloma"
           atomClassName="h-[455px] sm:h-[590px]"
           title={
             <>

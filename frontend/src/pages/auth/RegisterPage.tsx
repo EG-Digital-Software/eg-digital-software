@@ -38,7 +38,7 @@ const ROLE_MAP: Record<string, RoleCfg> = {
     role: 'CLIENT',
     client: true,
     welcome: 'Manage your invoices & licences online',
-    subline: 'Create your EG Digital client account to view statements and pay securely.',
+    subline: 'Create your EG Eloma client account to view statements and pay securely.',
     accent: { from: '#0d9488', to: '#10b981' }, // teal → emerald
     variant: 'client',
   },
@@ -46,7 +46,7 @@ const ROLE_MAP: Record<string, RoleCfg> = {
     label: 'Team',
     role: 'EMPLOYEE',
     client: false,
-    welcome: 'Set up your EG Digital workspace',
+    welcome: 'Set up your EG Eloma workspace',
     subline: 'Access customers, licences and internal tools in one focused place.',
     accent: { from: '#0284c7', to: '#38bdf8' }, // sky blue
     variant: 'employee',

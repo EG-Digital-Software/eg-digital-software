@@ -437,8 +437,7 @@ html.eg-graphite body {
   border-color: #e2e8f0;
 }
 
-/* Reference animations (atom orbits + core pulse). */
-@keyframes egSpin { to { transform: rotate(360deg); } }
+/* Reference animations (atom core pulse). */
 @keyframes egTw { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .eg-graphite .eg-anim { animation: none !important; }

@@ -36,11 +36,11 @@ function icsEscape(s: string): string {
 
 function buildIcs(appt: ApptWithAttendees, method: 'REQUEST' | 'CANCEL'): string {
   const organiser = env.EMAIL_FROM;
-  const organiserName = env.EMAIL_FROM_NAME || 'EG Digital';
+  const organiserName = env.EMAIL_FROM_NAME || 'EG Eloma';
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//EG Digital//Appointments//EN',
+    'PRODID:-//EG Eloma//Appointments//EN',
     'CALSCALE:GREGORIAN',
     `METHOD:${method}`,
     'BEGIN:VEVENT',

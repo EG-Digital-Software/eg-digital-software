@@ -1,4 +1,4 @@
-// EG Digital — Prisma schema
+// EG Eloma — Prisma schema
 // PostgreSQL (local dev / Azure Database for PostgreSQL – Flexible Server)
 
 generator client {

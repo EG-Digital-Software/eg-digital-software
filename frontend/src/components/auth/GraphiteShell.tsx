@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { Logo } from '@/components/layout/Logo';
 import { brand } from '@/config/brand';
 import { cn } from '@/lib/utils';
 
@@ -106,8 +107,8 @@ export function GraphiteShell({
           locked ? 'h-full px-8' : 'min-h-screen px-[clamp(16px,2.2vw,32px)]',
         )}
       >
-        <Link to="/" className="w-fit text-lg font-semibold tracking-[0.32em] text-white">
-          EG DIGITAL
+        <Link to="/" className="w-fit text-white">
+          <Logo light className="text-[28px]" />
         </Link>
 
         <div className="flex flex-1 flex-wrap items-center gap-12 py-10">
@@ -174,7 +175,7 @@ export function GraphiteShell({
         {/* Footer — the copyright doubles as the hidden admin entry. */}
         <div className="flex flex-wrap justify-between gap-3 border-t border-[#1f2430] pt-[18px] text-xs uppercase tracking-[0.12em] text-[#9ca3af]">
           <Link to="/admin/login" aria-label="EG staff login" className="transition-colors hover:text-white">
-            © {year} {brand.companyName} — {brand.legal.country}
+            © {year} {brand.companyName} By Eloma Group — {brand.legal.country}
           </Link>
         </div>
       </div>

@@ -5,7 +5,7 @@ import argon2 from 'argon2';
 const prisma = new PrismaClient();
 
 /**
- * Clean seed — provisions an EMPTY EG Digital instance.
+ * Clean seed — provisions an EMPTY EG Eloma instance.
  *
  * Creates the Super Admin only. No demo customers, products, invoices,
  * licences, payments or portal logins: the platform starts empty so every
@@ -36,7 +36,7 @@ function assertSafeTarget() {
 
 async function main() {
   assertSafeTarget();
-  console.log('🌱 Seeding EG Digital (clean install)…');
+  console.log('🌱 Seeding EG Eloma (clean install)…');
 
   // ── Wipe all business + portal data (child rows first) ─
   await prisma.payment.deleteMany();

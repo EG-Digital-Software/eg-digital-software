@@ -3,7 +3,7 @@ import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
 
 /**
- * Payment configuration for EG Digital. Stored as a single Setting row under the
+ * Payment configuration for EG Eloma. Stored as a single Setting row under the
  * `payment` key. Secret keys are persisted but NEVER returned in full — admin
  * reads get a masked hint (last 4 chars) instead.
  */
@@ -35,7 +35,7 @@ const DEFAULTS: PaymentSettings = {
   upiId: '',
   bankTransferEnabled: false,
   bankName: '',
-  accountName: 'EG Digital Australia Pty Ltd',
+  accountName: 'EG Eloma Australia Pty Ltd',
   bsb: '',
   accountNumber: '',
   payInstructions: '',
@@ -135,8 +135,8 @@ export interface OrganisationSettings {
 const ORG_KEY = 'organisation';
 
 const ORG_DEFAULTS: OrganisationSettings = {
-  companyName: 'EG Digital',
-  legalName: 'EG Digital Australia Pty Ltd',
+  companyName: 'EG Eloma',
+  legalName: 'EG Eloma Australia Pty Ltd',
   abn: '76593175012',
   addressLine1: '71 Gipps Street',
   addressLine2: '',

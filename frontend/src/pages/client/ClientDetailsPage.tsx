@@ -83,7 +83,7 @@ export default function ClientDetailsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Company Details"
-        description="Your account details on record. These are managed by EG Digital — to update anything, please get in touch."
+        description="Your account details on record. These are managed by EG Eloma — to update anything, please get in touch."
         icon={Contact}
         iconTone="violet"
       />

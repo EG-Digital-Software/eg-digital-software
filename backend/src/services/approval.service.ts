@@ -75,7 +75,7 @@ export async function approve(userId: string, approverId: string) {
     userType: updated.role,
     type: 'account',
     title: 'Account approved',
-    body: 'Your account has been approved — welcome to EG Digital!',
+    body: 'Your account has been approved — welcome to EG Eloma!',
     link: ROLE_HOME[updated.role] ?? '/',
   });
   return publicUser(updated);

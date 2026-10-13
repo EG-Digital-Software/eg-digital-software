@@ -38,7 +38,7 @@ const schema = z.object({
   // The visible sender. For best inbox delivery this should be a real, hosted
   // mailbox on a domain with SPF + DKIM + DMARC (e.g. the admin's address).
   EMAIL_FROM: z.string().default('connect@egdigital.com.au'),
-  EMAIL_FROM_NAME: z.string().default('EG Digital'),
+  EMAIL_FROM_NAME: z.string().default('EG Eloma'),
   // Where replies go if it differs from EMAIL_FROM (e.g. a no-reply sender).
   EMAIL_REPLY_TO: z.string().optional(),
 
@@ -60,7 +60,7 @@ const schema = z.object({
   // application permission Mail.Send (admin-consented). Until all three
   // MS_GRAPH_* values are set, reset emails go through EMAIL_PROVIDER.
   RESET_EMAIL_FROM: z.string().default('no-reply@egdigital.com.au'),
-  RESET_EMAIL_FROM_NAME: z.string().default('EG Digital'),
+  RESET_EMAIL_FROM_NAME: z.string().default('EG Eloma'),
   MS_GRAPH_TENANT_ID: z.string().optional(),
   MS_GRAPH_CLIENT_ID: z.string().optional(),
   MS_GRAPH_CLIENT_SECRET: z.string().optional(),

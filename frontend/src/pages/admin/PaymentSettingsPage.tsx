@@ -224,7 +224,7 @@ export default function PaymentSettingsForm() {
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Account name" error={errors.accountName?.message}>
-              <Input disabled={!bankOn} placeholder="EG Digital Australia Pty Ltd" {...titleCaseField(register('accountName'))} />
+              <Input disabled={!bankOn} placeholder="EG Eloma Australia Pty Ltd" {...titleCaseField(register('accountName'))} />
             </Field>
             <Field label="Bank name" error={errors.bankName?.message}>
               <Input disabled={!bankOn} placeholder="e.g. Commonwealth Bank" {...titleCaseField(register('bankName'))} />

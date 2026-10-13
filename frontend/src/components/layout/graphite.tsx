@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/misc';
 import { cn } from '@/lib/utils';
 import { panel, eyebrow, viewAll } from '@/lib/graphite';
@@ -38,6 +38,9 @@ export function ViewAll({ to, label = 'View all' }: { to: string; label?: string
 
 /** Three tilted orbits with travelling electrons around a pulsing core. */
 export function AtomicCore({ className }: { className?: string }) {
+  const uid = useId();
+  // SMIL ignores the CSS reduced-motion rule, so leave the electrons parked.
+  const still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   return (
     <svg
       viewBox="285 34 870 772"
@@ -54,13 +57,20 @@ export function AtomicCore({ className }: { className?: string }) {
         { rot: 120, dur: 15.9, delay: -0.7 },
       ].map((o) => (
         <g key={o.rot} transform={`rotate(${o.rot} 720 420)`}>
-          <ellipse cx="720" cy="420" rx="420" ry="134" stroke="rgba(203,213,225,0.3)" vectorEffect="non-scaling-stroke" />
-          <g
-            className="eg-anim"
-            style={{ transformOrigin: '720px 420px', animation: `egSpin ${o.dur}s linear ${o.delay}s infinite` }}
-          >
-            <circle cx="1140" cy="420" r="5" fill="rgba(100,116,139,1)" />
-          </g>
+          {/* The orbit is drawn as a path so each electron rides exactly on its line. */}
+          <path
+            id={`${uid}-orb${o.rot}`}
+            d="M1140,420 a420,134 0 1,1 -840,0 a420,134 0 1,1 840,0"
+            stroke="rgba(203,213,225,0.3)"
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle cx={still ? 1140 : 0} cy={still ? 420 : 0} r="5" fill="rgba(100,116,139,1)">
+            {!still && (
+              <animateMotion dur={`${o.dur}s`} begin={`${o.delay}s`} repeatCount="indefinite">
+                <mpath href={`#${uid}-orb${o.rot}`} />
+              </animateMotion>
+            )}
+          </circle>
         </g>
       ))}
       <circle

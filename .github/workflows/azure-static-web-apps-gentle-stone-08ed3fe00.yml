@@ -45,7 +45,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_APP_NAME: EG Digital
+          VITE_APP_NAME: EG Eloma
         run: npm run build
 
       # github-script already injects `core`; redeclaring it is a syntax error.

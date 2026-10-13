@@ -70,7 +70,7 @@ export function buildChatHtml(task: Task, customerName?: string): string {
 </head>
 <body>
   <div class="head">
-    <div class="brand">EG Digital</div>
+    <div class="brand">EG Eloma</div>
     <div class="title">${esc(task.title)}</div>
     <div class="sub">${esc(task.taskNumber)}${customerName ? ` · ${esc(customerName)}` : ''} · ${comments.length} message${comments.length === 1 ? '' : 's'} · Exported ${exportedAt}</div>
   </div>

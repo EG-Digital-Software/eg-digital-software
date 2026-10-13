@@ -1,4 +1,4 @@
-# EG Digital — GitHub + Azure Deployment Guide
+# EG Eloma — GitHub + Azure Deployment Guide
 
 Stack mapping:
 
@@ -31,7 +31,7 @@ This folder should be its **own** repository (parent `E:\website` repo mein mat 
 cd "E:/website/Digital Saas"
 git init
 git add .
-git commit -m "Initial commit: EG Digital SaaS platform"
+git commit -m "Initial commit: EG Eloma SaaS platform"
 git branch -M main
 
 # GitHub CLI se (easiest)
@@ -254,7 +254,7 @@ SMTP nahi. Free tier: 300 mail/din.
 APP_URL=https://teamegdigital.com      # web domain — email links isse bante hain
 EMAIL_PROVIDER=smtp
 EMAIL_FROM=no-reply@teamegdigital.com  # sending identity — mailbox nahi, sirf From:
-EMAIL_FROM_NAME=EG Digital
+EMAIL_FROM_NAME=EG Eloma
 EMAIL_REPLY_TO=                        # reply kahan aaye — no-reply se bhej rahe hain to asli inbox dein
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
@@ -283,7 +283,7 @@ hai (Microsoft third-party hosted app ko explicitly support karta hai).
 APP_URL=https://<aapka web domain>
 EMAIL_PROVIDER=smtp
 EMAIL_FROM=connect@egdigital.com.au
-EMAIL_FROM_NAME=EG Digital
+EMAIL_FROM_NAME=EG Eloma
 EMAIL_REPLY_TO=connect@egdigital.com.au
 SMTP_HOST=smtp.office365.com     # DNS name — IP address kabhi nahi
 SMTP_PORT=587                    # 465 NAHI (TLS version support nahi karta);
@@ -378,20 +378,20 @@ Baaki saari emails (invoice, notifications) pehle jaise `EMAIL_PROVIDER` (Brevo)
 chahiye — licensed user, ya free **shared mailbox** (shared mailbox ko licence nahi chahiye).
 
 **b) Entra ID app registration** (https://entra.microsoft.com):
-1. *Applications → App registrations → New registration* — naam jaise `EG Digital Mailer`, single tenant.
+1. *Applications → App registrations → New registration* — naam jaise `EG Eloma Mailer`, single tenant.
 2. *Overview* se **Directory (tenant) ID** aur **Application (client) ID** copy karein.
 3. *Certificates & secrets → New client secret* — **Value** copy karein (sirf ek baar dikhti hai). Expiry yaad rakhein; expire hone se pehle naya secret daalna padega.
 4. *API permissions → Add → Microsoft Graph → **Application permissions** → `Mail.Send`* → **Grant admin consent**.
 5. (Recommended) App ko sirf is ek mailbox tak seemit karein — warna `Mail.Send` org ke kisi bhi mailbox se bhej sakta hai. Exchange Online PowerShell mein:
    ```
    New-DistributionGroup -Name "EG Mailer Senders" -Alias egmailersenders -Type Security -Members no-reply@egdigital.com.au
-   New-ApplicationAccessPolicy -AppId <client id> -PolicyScopeGroupId egmailersenders@egdigital.com.au -AccessRight RestrictAccess -Description "EG Digital mailer: no-reply only"
+   New-ApplicationAccessPolicy -AppId <client id> -PolicyScopeGroupId egmailersenders@egdigital.com.au -AccessRight RestrictAccess -Description "EG Eloma mailer: no-reply only"
    ```
 
 **c) App Service env variables:**
 ```
 RESET_EMAIL_FROM=no-reply@egdigital.com.au
-RESET_EMAIL_FROM_NAME=EG Digital
+RESET_EMAIL_FROM_NAME=EG Eloma
 MS_GRAPH_TENANT_ID=<tenant id>
 MS_GRAPH_CLIENT_ID=<client id>
 MS_GRAPH_CLIENT_SECRET=<secret value>

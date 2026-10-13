@@ -39,7 +39,7 @@ type RoleConfig = {
 const ROLES: Record<RoleKey, RoleConfig> = {
   'super-admin': {
     label: 'Admin',
-    description: 'Administrative access to the EG Digital control panel.',
+    description: 'Administrative access to the EG Eloma control panel.',
     placeholder: 'admin@egdigital.com.au',
     allowSignup: false,
     eyebrow: 'Admin Console · Secure sign-in',
