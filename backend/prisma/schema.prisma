@@ -516,7 +516,8 @@ model CustomerProduct {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  licence Licence?
+  licence     Licence?
+  timeEntries TaskTimeEntry[]
 
   @@index([customerId])
   @@index([productId])
@@ -794,6 +795,7 @@ model Task {
   notes       TaskNote[]
   attachments TaskAttachment[]
   approvals   TaskApproval[]
+  timeEntries TaskTimeEntry[]
 
   @@index([customerId])
   @@index([bucketId])
@@ -805,6 +807,31 @@ model Task {
 /// do, so everyone can see who wrote which note. `kind` splits the same thread
 /// UI into two independent lists: NOTE (the Notes section) and ACCESS_POINT (the
 /// Access Point tab).
+/// Hours worked on a task, logged by an admin or team member against one of the
+/// customer's purchased hours (a CustomerProduct with Unit/Hours on). Entries
+/// are kept if the task or the product assignment is removed (links go null),
+/// so a customer's used hours never silently reset.
+model TaskTimeEntry {
+  id                String           @id @default(uuid())
+  customerId        String
+  task              Task?            @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskId            String?
+  customerProduct   CustomerProduct? @relation(fields: [customerProductId], references: [id], onDelete: SetNull)
+  customerProductId String?
+  workDate          DateTime         @db.Date
+  hours             Decimal          @db.Decimal(6, 2)
+  note              String?
+  authorId          String
+  authorType        Role
+  authorName        String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([customerId])
+  @@index([taskId])
+  @@index([customerProductId])
+}
+
 model TaskNote {
   id         String   @id @default(uuid())
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)

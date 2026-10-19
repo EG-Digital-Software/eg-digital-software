@@ -55,6 +55,7 @@ import type {
 import type { TaskApi, TaskInput } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
+import { TimeSheetPanel } from './TimeSheetPanel';
 import { cn, formatDate, initials, mediaUrl } from '@/lib/utils';
 import { downloadChatDoc, printChatPdf } from '@/lib/chatExport';
 import { renderMessageBody, stripMentions } from '@/lib/mentions';
@@ -1190,12 +1191,8 @@ export function TaskDialog({
                 text="Task analytics and performance insights are on the way. This space is coming soon."
               />
             ) : tab === 'timesheet' ? (
-              /* Time Sheet — coming soon. */
-              <ComingSoonPanel
-                icon={Clock}
-                title="Time Sheet"
-                text="Time tracking for this task is on the way. This space is coming soon."
-              />
+              /* Time Sheet — the hours this customer has bought, then time logged on this task. */
+              task ? <TimeSheetPanel api={api} taskId={task.id} scopeKey={scopeKey} /> : null
             ) : (
               /* Archive tab — admin stores files/images/videos (original quality);
                  the client and team can only view them. */

@@ -70,6 +70,28 @@ export const getTask = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, await taskService.getTask(await resolve(req), req.params.taskId));
 });
 
+/** Hours the customer has bought, for the task's Time Sheet tab. */
+export const hourProducts = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await taskService.listTaskHourProducts(await resolve(req), req.params.taskId));
+});
+
+/** Time logged on this task. Everyone with the task can view it. */
+export const timeEntries = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await taskService.listTimeEntries(await resolve(req), req.params.taskId));
+});
+
+export const addTimeEntry = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await taskService.addTimeEntry(await resolve(req), req.params.taskId, req.body, await author(req)), 'Time logged', 201);
+});
+
+export const updateTimeEntry = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await taskService.updateTimeEntry(await resolve(req), req.params.taskId, req.params.entryId, req.body, await author(req)), 'Time entry updated');
+});
+
+export const deleteTimeEntry = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await taskService.deleteTimeEntry(await resolve(req), req.params.taskId, req.params.entryId, await author(req)), 'Time entry deleted');
+});
+
 export const updateTask = asyncHandler(async (req: Request, res: Response) => {
   const body = { ...req.body };
   // Clients may edit a task but never its schedule/priority or which column it

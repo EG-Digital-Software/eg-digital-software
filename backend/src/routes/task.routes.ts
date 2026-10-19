@@ -16,6 +16,8 @@ import {
   approvalUploadSchema,
   decideApprovalSchema,
   createAppointmentSchema,
+  timeEntrySchema,
+  updateTimeEntrySchema,
 } from '../validators/task.validator.js';
 
 // Chat files and attachments: no size cap. Large files normally skip the API
@@ -53,6 +55,9 @@ export function buildTaskRouter(readOnly = false): Router {
   router.get('/tasks/:taskId', ctrl.getTask);
   // Who can be @mentioned in this task's chat — admins, team, and the customer's clients.
   router.get('/tasks/:taskId/mentionable-users', ctrl.mentionableUsers);
+  // Hours the customer has bought — the Time Sheet tab's summary (read-only).
+  router.get('/tasks/:taskId/hour-products', ctrl.hourProducts);
+  router.get('/tasks/:taskId/time-entries', ctrl.timeEntries);
 
   // Collaboration — available to clients too.
   router.patch('/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.setProgress);
@@ -96,6 +101,12 @@ export function buildTaskRouter(readOnly = false): Router {
     // Deleting a chat message is admin-only. The client board mounts this router
     // with readOnly=true, so clients never get this route; only the admin does.
     router.delete('/tasks/:taskId/comments/:commentId', ctrl.deleteComment);
+
+    // Time sheet — logging time is admin/team only; the client board is readOnly
+    // so clients just view entries (the service also checks the role).
+    router.post('/tasks/:taskId/time-entries', validate({ body: timeEntrySchema }), ctrl.addTimeEntry);
+    router.patch('/tasks/:taskId/time-entries/:entryId', validate({ body: updateTimeEntrySchema }), ctrl.updateTimeEntry);
+    router.delete('/tasks/:taskId/time-entries/:entryId', ctrl.deleteTimeEntry);
 
     router.post('/labels', validate({ body: createLabelSchema }), ctrl.createLabel);
     router.patch('/labels/:labelId', validate({ body: updateLabelSchema }), ctrl.updateLabel);

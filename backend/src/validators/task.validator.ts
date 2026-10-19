@@ -130,3 +130,13 @@ export const updateLabelSchema = z.object({
   name: z.string().min(1).max(60).optional(),
   color: z.string().min(1).max(30).optional(),
 });
+
+/** One time-sheet entry: hours worked on a task, taken from a purchased hours product. */
+export const timeEntrySchema = z.object({
+  customerProductId: z.string().uuid('Pick the purchased hours to use'),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date'),
+  hours: z.coerce.number().positive('Enter the hours worked').max(24, 'At most 24 hours per entry'),
+  note: z.string().trim().max(1000, 'Keep the note under 1000 characters').nullable().optional(),
+});
+
+export const updateTimeEntrySchema = timeEntrySchema.partial();

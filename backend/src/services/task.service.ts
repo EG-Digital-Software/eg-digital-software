@@ -381,6 +381,152 @@ export async function getTask(customerId: string, taskId: string) {
   return shaped;
 }
 
+/**
+ * Hours the task's customer has bought — every approved product assigned with
+ * Unit/Hours on. Shown at the top of the task's Time Sheet tab. "Used" counts
+ * time logged against each product across ALL of the customer's tasks, since
+ * the hours belong to the customer, not to one task.
+ */
+export async function listTaskHourProducts(customerId: string, taskId: string) {
+  await ensureTask(customerId, taskId);
+  const rows = await prisma.customerProduct.findMany({
+    where: { customerId, unitHoursEnabled: true, unitHours: { gt: 0 }, approvalStatus: 'APPROVED' },
+    select: { id: true, issueDate: true, unitHours: true, product: { select: { name: true } } },
+    orderBy: { issueDate: 'desc' },
+  });
+  const used = await prisma.taskTimeEntry.groupBy({
+    by: ['customerProductId'],
+    where: { customerProductId: { in: rows.map((r) => r.id) } },
+    _sum: { hours: true },
+  });
+  const usedById = new Map(used.map((u) => [u.customerProductId, Number(u._sum.hours ?? 0)]));
+  return rows.map((r) => {
+    const totalHours = Number(r.unitHours);
+    const usedHours = usedById.get(r.id) ?? 0;
+    return {
+      id: r.id,
+      product: r.product.name,
+      purchasedAt: r.issueDate,
+      totalHours,
+      usedHours,
+      balanceHours: totalHours - usedHours,
+    };
+  });
+}
+
+// ─── Time sheet ───────────────────────────────────────────
+
+type TimeEntryInput = { customerProductId?: string; workDate?: string; hours?: number; note?: string | null };
+type TimeActor = { id: string; type: Role; name: string };
+
+const timeEntryInclude = { customerProduct: { select: { product: { select: { name: true } } } } } as const;
+
+function shapeTimeEntry(e: Prisma.TaskTimeEntryGetPayload<{ include: typeof timeEntryInclude }>) {
+  return {
+    id: e.id,
+    customerProductId: e.customerProductId,
+    product: e.customerProduct?.product.name ?? null,
+    workDate: e.workDate,
+    hours: Number(e.hours),
+    note: e.note,
+    authorId: e.authorId,
+    authorType: e.authorType,
+    authorName: e.authorName,
+    createdAt: e.createdAt,
+  };
+}
+
+/** Only admins and the team log time; clients view it. */
+function assertCanLogTime(actor: { type: Role }) {
+  if (actor.type !== Role.SUPER_ADMIN && actor.type !== Role.EMPLOYEE) {
+    throw ApiError.forbidden('Only admins and team members can log time');
+  }
+}
+
+/** The hours must come from one of this customer's own approved hours products. */
+async function ensureHoursProduct(customerId: string, customerProductId: string) {
+  const cp = await prisma.customerProduct.findFirst({
+    where: { id: customerProductId, customerId, unitHoursEnabled: true, approvalStatus: 'APPROVED' },
+    select: { id: true },
+  });
+  if (!cp) throw ApiError.badRequest("Pick one of this client's purchased hours");
+}
+
+const toWorkDate = (d: string) => new Date(`${d}T00:00:00.000Z`);
+const roundHours = (h: number) => new Prisma.Decimal(Math.round(h * 100) / 100);
+
+export async function listTimeEntries(customerId: string, taskId: string) {
+  await ensureTask(customerId, taskId);
+  const rows = await prisma.taskTimeEntry.findMany({
+    where: { taskId },
+    include: timeEntryInclude,
+    orderBy: [{ workDate: 'desc' }, { createdAt: 'desc' }],
+  });
+  return rows.map(shapeTimeEntry);
+}
+
+export async function addTimeEntry(
+  customerId: string,
+  taskId: string,
+  input: { customerProductId: string; workDate: string; hours: number; note?: string | null },
+  actor: TimeActor
+) {
+  assertCanLogTime(actor);
+  await ensureTask(customerId, taskId);
+  await ensureHoursProduct(customerId, input.customerProductId);
+  const entry = await prisma.taskTimeEntry.create({
+    data: {
+      customerId,
+      taskId,
+      customerProductId: input.customerProductId,
+      workDate: toWorkDate(input.workDate),
+      hours: roundHours(input.hours),
+      note: input.note?.trim() || null,
+      authorId: actor.id,
+      authorType: actor.type,
+      authorName: actor.name,
+    },
+    include: timeEntryInclude,
+  });
+  return shapeTimeEntry(entry);
+}
+
+/** Find an entry on this task that the actor may change: their own, or any for an admin. */
+async function ownedTimeEntry(customerId: string, taskId: string, entryId: string, actor: { id: string; type: Role }) {
+  assertCanLogTime(actor);
+  await ensureTask(customerId, taskId);
+  const entry = await prisma.taskTimeEntry.findFirst({ where: { id: entryId, taskId, customerId } });
+  if (!entry) throw ApiError.notFound('Time entry not found');
+  const isOwner = entry.authorId === actor.id && entry.authorType === actor.type;
+  if (!isOwner && actor.type !== Role.SUPER_ADMIN) {
+    throw ApiError.forbidden('You can only change your own time entries');
+  }
+  return entry;
+}
+
+export async function updateTimeEntry(customerId: string, taskId: string, entryId: string, input: TimeEntryInput, actor: TimeActor) {
+  await ownedTimeEntry(customerId, taskId, entryId, actor);
+  if (input.customerProductId) await ensureHoursProduct(customerId, input.customerProductId);
+  const entry = await prisma.taskTimeEntry.update({
+    where: { id: entryId },
+    // Only the fields that were sent change.
+    data: {
+      ...(input.customerProductId !== undefined && { customerProductId: input.customerProductId }),
+      ...(input.workDate !== undefined && { workDate: toWorkDate(input.workDate) }),
+      ...(input.hours !== undefined && { hours: roundHours(input.hours) }),
+      ...(input.note !== undefined && { note: input.note?.trim() || null }),
+    },
+    include: timeEntryInclude,
+  });
+  return shapeTimeEntry(entry);
+}
+
+export async function deleteTimeEntry(customerId: string, taskId: string, entryId: string, actor: TimeActor) {
+  await ownedTimeEntry(customerId, taskId, entryId, actor);
+  await prisma.taskTimeEntry.delete({ where: { id: entryId } });
+  return { id: entryId };
+}
+
 export async function updateTask(
   customerId: string,
   taskId: string,

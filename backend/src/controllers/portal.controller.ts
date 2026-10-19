@@ -67,6 +67,31 @@ export const employeeGetTask = asyncHandler(async (req: Request, res: Response) 
   return ok(res, await taskService.getTask(customerId, req.params.taskId));
 });
 
+export const employeeHourProducts = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  return ok(res, await taskService.listTaskHourProducts(customerId, req.params.taskId));
+});
+
+export const employeeTimeEntries = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  return ok(res, await taskService.listTimeEntries(customerId, req.params.taskId));
+});
+
+export const employeeAddTimeEntry = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  return ok(res, await taskService.addTimeEntry(customerId, req.params.taskId, req.body, await employeeAuthor(req)), 'Time logged', 201);
+});
+
+export const employeeUpdateTimeEntry = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  return ok(res, await taskService.updateTimeEntry(customerId, req.params.taskId, req.params.entryId, req.body, await employeeAuthor(req)), 'Time entry updated');
+});
+
+export const employeeDeleteTimeEntry = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  return ok(res, await taskService.deleteTimeEntry(customerId, req.params.taskId, req.params.entryId, await employeeAuthor(req)), 'Time entry deleted');
+});
+
 export const employeeSetProgress = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
   return ok(res, await taskService.updateTask(customerId, req.params.taskId, { progress: req.body.progress }));

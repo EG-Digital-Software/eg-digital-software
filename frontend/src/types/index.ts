@@ -597,3 +597,35 @@ export interface Appointment {
   createdByName: string;
   attendees: AppointmentAttendee[];
 }
+
+/** Hours a customer bought (a product assigned with Unit/Hours on), shown in a task's Time Sheet. */
+export interface TaskHourProduct {
+  id: string;
+  product: string;
+  purchasedAt: string;
+  totalHours: number;
+  usedHours: number;
+  balanceHours: number;
+}
+
+/** Hours worked on a task, taken from one of the customer's purchased hours. */
+export interface TaskTimeEntry {
+  id: string;
+  /** Null when the product assignment was later removed — the entry is kept. */
+  customerProductId: string | null;
+  product: string | null;
+  workDate: string;
+  hours: number;
+  note: string | null;
+  authorId: string;
+  authorType: string;
+  authorName: string;
+  createdAt: string;
+}
+
+export interface TimeEntryInput {
+  customerProductId: string;
+  workDate: string;
+  hours: number;
+  note?: string | null;
+}

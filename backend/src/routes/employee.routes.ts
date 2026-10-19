@@ -5,7 +5,7 @@ import * as ctrl from '../controllers/portal.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
-import { taskProgressSchema, updateTaskSchema, createAppointmentSchema, submitApprovalSchema, approvalUploadSchema } from '../validators/task.validator.js';
+import { taskProgressSchema, updateTaskSchema, createAppointmentSchema, submitApprovalSchema, approvalUploadSchema, timeEntrySchema, updateTimeEntrySchema } from '../validators/task.validator.js';
 
 // Chat files and attachments: no size cap — mirrors the admin task board.
 const upload = multer({ storage: multer.memoryStorage() });
@@ -29,6 +29,12 @@ router.post('/tasks/appointments', validate({ body: createAppointmentSchema }), 
 router.delete('/tasks/appointments/:appointmentId', ctrl.employeeDeleteAppointment);
 router.get('/tasks/tasks/:taskId', ctrl.employeeGetTask);
 router.get('/tasks/tasks/:taskId/mentionable-users', ctrl.employeeMentionableUsers);
+router.get('/tasks/tasks/:taskId/hour-products', ctrl.employeeHourProducts);
+// Time sheet — the team logs time on their tasks and can change their own entries.
+router.get('/tasks/tasks/:taskId/time-entries', ctrl.employeeTimeEntries);
+router.post('/tasks/tasks/:taskId/time-entries', validate({ body: timeEntrySchema }), ctrl.employeeAddTimeEntry);
+router.patch('/tasks/tasks/:taskId/time-entries/:entryId', validate({ body: updateTimeEntrySchema }), ctrl.employeeUpdateTimeEntry);
+router.delete('/tasks/tasks/:taskId/time-entries/:entryId', ctrl.employeeDeleteTimeEntry);
 router.patch('/tasks/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.employeeSetProgress);
 router.patch('/tasks/tasks/:taskId', validate({ body: updateTaskSchema }), ctrl.employeeUpdateTask);
 router.post('/tasks/tasks/:taskId/uploads/upload-url', validate({ body: approvalUploadSchema }), ctrl.employeeTaskUploadUrl);
