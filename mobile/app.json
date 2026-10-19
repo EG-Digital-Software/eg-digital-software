@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "EG Eloma",
+    "slug": "eg-eloma-tasks",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "egeloma",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/eg-eloma-mark-light.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1F3A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.elomagroup.egdigital",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Choose photos and videos to share in task chats.",
+        "NSCameraUsageDescription": "Take photos to share in task chats."
+      }
+    },
+    "android": {
+      "package": "org.elomagroup.egdigital",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/eg-eloma-mark-light.png",
+        "backgroundColor": "#0B1F3A"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose photos and videos to share in task chats.",
+          "cameraPermission": "Take photos to share in task chats."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "https://eg-digital-api-fcgbfcajbqehgpd5.australiaeast-01.azurewebsites.net/api"
+    }
+  }
+}

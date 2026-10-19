@@ -34,10 +34,26 @@ function setRefreshCookie(res: Response, token: string) {
   });
 }
 
+/**
+ * The iOS/Android app (mobile/) identifies itself with `X-Client: mobile`. It
+ * keeps the refresh token in the device keychain rather than a cookie jar, so
+ * the token travels in the JSON body for it — browsers keep the httpOnly cookie
+ * and never see the token.
+ */
+const isNativeApp = (req: Request) => req.get('x-client') === 'mobile';
+
+/** The refresh token a request presents: the app's body token, else the cookie. */
+function presentedRefreshToken(req: Request): string | undefined {
+  const bodyToken = typeof req.body?.refreshToken === 'string' ? req.body.refreshToken : undefined;
+  if (isNativeApp(req) && bodyToken) return bodyToken;
+  return req.cookies?.[REFRESH_COOKIE] ?? bodyToken;
+}
+
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password, portal } = req.body;
   const result = await authService.login(email, password, portal);
-  setRefreshCookie(res, result.refreshToken);
+  const nativeApp = isNativeApp(req);
+  if (!nativeApp) setRefreshCookie(res, result.refreshToken);
   logActivity({
     userId: result.user.id,
     userType: result.user.role,
@@ -45,7 +61,11 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     ipAddress: req.ip,
     userAgent: req.get('user-agent') ?? undefined,
   });
-  return ok(res, { user: result.user, accessToken: result.accessToken }, 'Logged in');
+  return ok(
+    res,
+    { user: result.user, accessToken: result.accessToken, ...(nativeApp && { refreshToken: result.refreshToken }) },
+    'Logged in'
+  );
 });
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
@@ -62,15 +82,18 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
-  const token = req.cookies?.[REFRESH_COOKIE] ?? req.body?.refreshToken;
-  const result = await authService.refresh(token);
-  setRefreshCookie(res, result.refreshToken);
-  return ok(res, { user: result.user, accessToken: result.accessToken }, 'Token refreshed');
+  const result = await authService.refresh(presentedRefreshToken(req) as string);
+  const nativeApp = isNativeApp(req);
+  if (!nativeApp) setRefreshCookie(res, result.refreshToken);
+  return ok(
+    res,
+    { user: result.user, accessToken: result.accessToken, ...(nativeApp && { refreshToken: result.refreshToken }) },
+    'Token refreshed'
+  );
 });
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
-  const token = req.cookies?.[REFRESH_COOKIE];
-  await authService.logout(token);
+  await authService.logout(isNativeApp(req) ? presentedRefreshToken(req) : req.cookies?.[REFRESH_COOKIE]);
   if (req.user) {
     logActivity({
       userId: req.user.sub,
