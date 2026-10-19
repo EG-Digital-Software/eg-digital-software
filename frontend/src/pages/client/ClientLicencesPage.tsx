@@ -19,6 +19,7 @@ import { formatDate, formatCurrency } from '@/lib/utils';
 import { ProductGlyph } from '@/lib/product-icon';
 import { formatCountryPrice } from '@/lib/currencies';
 import { Linkify } from '@/lib/linkify';
+import { BoldText } from '@/components/shared/BoldTextarea';
 
 const STATUSES = [
   { value: 'ACTIVE', label: 'Active' },
@@ -28,7 +29,13 @@ const STATUSES = [
   { value: 'SUSPENDED', label: 'Suspended' },
 ];
 
-const BILLING_SUFFIX = { DAILY: ' / day', WEEKLY: ' / week', MONTHLY: ' / month', ANNUALLY: ' / year' } as const;
+const CONTRACT_TERM_LABEL: Record<string, string> = {
+  TRIAL: 'Trial',
+  CONTRACT_1_YEAR: 'Contract - 1 Year',
+  CONTRACT_2_YEARS: 'Contract - 2 Years',
+};
+
+const BILLING_SUFFIX ={ DAILY: ' / day', WEEKLY: ' / week', MONTHLY: ' / month', ANNUALLY: ' / year', ONE_TIME: ' one-time' } as const;
 
 /** "$120.00 / month" for a MANUAL product's own price, in its country's currency. */
 function manualPriceLabel(p: AvailableProduct) {
@@ -255,11 +262,14 @@ export default function ClientLicencesPage() {
                 {selectedProduct.contractTerm && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Term</span>
-                    <span className="capitalize">{selectedProduct.contractTerm.toLowerCase()}</span>
+                    <span className="capitalize">
+                      {CONTRACT_TERM_LABEL[selectedProduct.contractTerm] ?? selectedProduct.contractTerm.toLowerCase()}
+                    </span>
                   </div>
                 )}
               </div>
             )}
+            {selectedProduct?.planInclusive && <PlanInclusive text={selectedProduct.planInclusive} />}
           </div>
           <DialogFooter className="pt-2">
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
@@ -332,6 +342,7 @@ function LicenceDetailsDialog({
                 }
               />
             </div>
+            {product.planInclusive && <PlanInclusive text={product.planInclusive} />}
             <div className="space-y-1 rounded-lg border border-border bg-secondary/30 p-3 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Net amount</span><span className="tabular-nums">{formatCurrency(net)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">GST (10%)</span><span className="tabular-nums">{formatCurrency(gst)}</span></div>
@@ -341,6 +352,16 @@ function LicenceDetailsDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Read-only "Plan Inclusive" block for a product. */
+function PlanInclusive({ text }: { text: string }) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">Plan Inclusive</p>
+      <BoldText text={text} className="mt-1 text-sm" />
+    </div>
   );
 }
 

@@ -24,6 +24,8 @@ export interface ClientProduct {
   contractType?: string | null;
   /** 'INCLUSIVE' (price includes GST) or 'EXCLUSIVE' (GST added on top). */
   gstType?: string | null;
+  /** Product's "Plan Inclusive" text; **double asterisks** mark bold runs. */
+  planInclusive?: string | null;
   issueDate: string;
   expiryDate?: string | null;
   daysRemaining: number | null;
@@ -42,9 +44,11 @@ export interface AvailableProduct {
   country?: string | null;
   /** MANUAL products only; null when the admin prices it on approval. */
   price: string | null;
-  billingPeriod: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ANNUALLY' | null;
-  contractTerm: 'CONTRACTUAL' | 'PERMANENT' | null;
+  billingPeriod: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ANNUALLY' | 'ONE_TIME' | null;
+  contractTerm: 'TRIAL' | 'CONTRACT_1_YEAR' | 'CONTRACT_2_YEARS' | null;
   gstType?: 'INCLUSIVE' | 'EXCLUSIVE' | null;
+  /** Optional; **double asterisks** mark bold runs. */
+  planInclusive?: string | null;
 }
 
 /** Lightweight task row for the dashboard and the nav's new-activity dot. */

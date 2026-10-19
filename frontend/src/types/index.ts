@@ -71,9 +71,11 @@ export interface Product {
   priceMode?: 'AUTOMATIC' | 'MANUAL';
   /** ISO-3166 alpha-2 code; null on products created before the field existed. */
   country?: string | null;
-  billingPeriod?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ANNUALLY' | null;
-  contractTerm?: 'CONTRACTUAL' | 'PERMANENT' | null;
+  billingPeriod?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ANNUALLY' | 'ONE_TIME' | null;
+  contractTerm?: 'TRIAL' | 'CONTRACT_1_YEAR' | 'CONTRACT_2_YEARS' | null;
   gstType?: 'INCLUSIVE' | 'EXCLUSIVE' | null;
+  /** Optional; **double asterisks** mark bold runs. */
+  planInclusive?: string | null;
   createdAt: string;
 }
 

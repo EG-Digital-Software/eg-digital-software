@@ -239,6 +239,7 @@ export async function listProducts(
     unitHours: r.unitHours,
     contractType: r.contractType,
     gstType: r.gstType,
+    planInclusive: r.product.planInclusive,
     issueDate: r.issueDate,
     expiryDate: r.expiryDate,
     daysRemaining: daysRemaining(r.expiryDate),
@@ -273,6 +274,7 @@ export async function listAvailableProducts() {
       billingPeriod: true,
       contractTerm: true,
       gstType: true,
+      planInclusive: true,
     },
     orderBy: { name: 'asc' },
   });

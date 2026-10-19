@@ -17,7 +17,10 @@ import { Spinner } from '@/components/shared/states';
 import { titleCaseField } from '@/lib/input';
 import { cn } from '@/lib/utils';
 import { CountrySelect, DEFAULT_COUNTRY } from '@/components/shared/PhoneInput';
+import { BoldTextarea } from '@/components/shared/BoldTextarea';
 import { currencyOf, currencySymbolOf, formatCountryPrice } from '@/lib/currencies';
+
+const CONTRACT_TERMS = ['TRIAL', 'CONTRACT_1_YEAR', 'CONTRACT_2_YEARS'] as const;
 
 const schema = z
   .object({
@@ -33,9 +36,10 @@ const schema = z
     lowStockThreshold: z.coerce.number().int().min(0, 'Cannot be negative'),
     status: z.enum(['ACTIVE', 'INACTIVE']),
     priceMode: z.enum(['AUTOMATIC', 'MANUAL']),
-    billingPeriod: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUALLY']).or(z.literal('')),
-    contractTerm: z.enum(['CONTRACTUAL', 'PERMANENT']).or(z.literal('')),
+    billingPeriod: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUALLY', 'ONE_TIME']).or(z.literal('')),
+    contractTerm: z.enum(CONTRACT_TERMS).or(z.literal('')),
     gstType: z.enum(['INCLUSIVE', 'EXCLUSIVE']),
+    planInclusive: z.string().max(5000, 'Keep it under 5000 characters').optional(),
   })
   // A MANUAL product carries its own price, billing period and contract term.
   .superRefine((v, ctx) => {
@@ -123,6 +127,7 @@ export function ProductFormDialog({
       billingPeriod: '',
       contractTerm: '',
       gstType: 'EXCLUSIVE',
+      planInclusive: '',
       taxRate: 10,
       pricePerQty: 0,
       totalStock: 0,
@@ -149,8 +154,10 @@ export function ProductFormDialog({
               status: product.status,
               priceMode: product.priceMode ?? 'AUTOMATIC',
               billingPeriod: product.billingPeriod ?? '',
-              contractTerm: product.contractTerm ?? '',
+              // Products saved with a retired term (CONTRACTUAL / PERMANENT) start blank so one of the current terms gets picked.
+              contractTerm: CONTRACT_TERMS.includes(product.contractTerm as never) ? product.contractTerm! : '',
               gstType: product.gstType ?? 'EXCLUSIVE',
+              planInclusive: product.planInclusive ?? '',
             }
           : {
               country: DEFAULT_COUNTRY,
@@ -168,6 +175,7 @@ export function ProductFormDialog({
               billingPeriod: '',
               contractTerm: '',
               gstType: 'EXCLUSIVE',
+              planInclusive: '',
             }
       );
     }
@@ -210,6 +218,7 @@ export function ProductFormDialog({
         billingPeriod: manual ? values.billingPeriod || null : null,
         contractTerm: manual ? values.contractTerm || null : null,
         gstType: manual ? values.gstType : null,
+        planInclusive: values.planInclusive?.trim() || null,
         taxRate: manual ? 10 : 0,
         unit: values.unit?.trim() || 'unit',
         totalStock: 1_000_000,
@@ -255,6 +264,22 @@ export function ProductFormDialog({
               <Field label="Product Type">
                 <Input className={FILLED_CONTROL} {...titleCaseField(register('type'))} placeholder="Software Licence" />
               </Field>
+              <div className="sm:col-span-2">
+                <Field label="Plan Inclusive" error={errors.planInclusive?.message} hint="Optional. Select text and click B (or press Ctrl+B) to make it bold.">
+                  <Controller
+                    control={control}
+                    name="planInclusive"
+                    render={({ field }) => (
+                      <BoldTextarea
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        className="bg-slate-50"
+                        placeholder="What's included in this plan…"
+                      />
+                    )}
+                  />
+                </Field>
+              </div>
               <Field label="SKU" hint="Auto-generated">
                 <div className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm font-medium tabular-nums text-foreground">
                   {skuDisplay}
@@ -305,9 +330,10 @@ export function ProductFormDialog({
                       />
                     </div>
                   </Field>
-                  <Field label="Billing" error={errors.billingPeriod?.message}>
+                  <Field label="Charged" error={errors.billingPeriod?.message}>
                     <Select className={FILLED_CONTROL} {...register('billingPeriod')}>
                       <option value="">Select…</option>
+                      <option value="ONE_TIME">One Time</option>
                       <option value="DAILY">Daily</option>
                       <option value="WEEKLY">Weekly</option>
                       <option value="MONTHLY">Monthly</option>
@@ -317,8 +343,9 @@ export function ProductFormDialog({
                   <Field label="Term" error={errors.contractTerm?.message}>
                     <Select className={FILLED_CONTROL} {...register('contractTerm')}>
                       <option value="">Select…</option>
-                      <option value="CONTRACTUAL">Contractual</option>
-                      <option value="PERMANENT">Permanent</option>
+                      <option value="TRIAL">Trial</option>
+                      <option value="CONTRACT_1_YEAR">Contract - 1 Year</option>
+                      <option value="CONTRACT_2_YEARS">Contract - 2 Years</option>
                     </Select>
                   </Field>
                   <Field label="GST" error={errors.gstType?.message}>
