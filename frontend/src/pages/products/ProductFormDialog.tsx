@@ -20,7 +20,7 @@ import { CountrySelect, DEFAULT_COUNTRY } from '@/components/shared/PhoneInput';
 import { BoldTextarea } from '@/components/shared/BoldTextarea';
 import { currencyOf, currencySymbolOf, formatCountryPrice } from '@/lib/currencies';
 
-const CONTRACT_TERMS = ['TRIAL', 'CONTRACT_1_YEAR', 'CONTRACT_2_YEARS'] as const;
+const CONTRACT_TERMS = ['ONE_TIME', 'TRIAL', 'CONTRACT_1_YEAR', 'CONTRACT_2_YEARS'] as const;
 
 const schema = z
   .object({
@@ -343,6 +343,7 @@ export function ProductFormDialog({
                   <Field label="Term" error={errors.contractTerm?.message}>
                     <Select className={FILLED_CONTROL} {...register('contractTerm')}>
                       <option value="">Select…</option>
+                      <option value="ONE_TIME">One Time</option>
                       <option value="TRIAL">Trial</option>
                       <option value="CONTRACT_1_YEAR">Contract - 1 Year</option>
                       <option value="CONTRACT_2_YEARS">Contract - 2 Years</option>

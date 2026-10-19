@@ -18,7 +18,7 @@ export const createProductSchema = z.object({
   priceMode: z.enum(['AUTOMATIC', 'MANUAL']).default('AUTOMATIC'),
   // MANUAL products only; null clears them when a product switches to AUTOMATIC.
   billingPeriod: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUALLY', 'ONE_TIME']).nullable().optional(),
-  contractTerm: z.enum(['TRIAL', 'CONTRACT_1_YEAR', 'CONTRACT_2_YEARS']).nullable().optional(),
+  contractTerm: z.enum(['ONE_TIME', 'TRIAL', 'CONTRACT_1_YEAR', 'CONTRACT_2_YEARS']).nullable().optional(),
   gstType: z.enum(['INCLUSIVE', 'EXCLUSIVE']).nullable().optional(),
   // Optional; **double asterisks** mark bold runs. Null or empty clears it.
   planInclusive: z.string().max(5000).nullable().optional(),

@@ -450,7 +450,7 @@ model Product {
   priceMode         String        @default("AUTOMATIC")
   /// MANUAL products only: DAILY, WEEKLY, MONTHLY, ANNUALLY or ONE_TIME. Null for AUTOMATIC.
   billingPeriod     String?
-  /// MANUAL products only: TRIAL, CONTRACT_1_YEAR or CONTRACT_2_YEARS. Null for AUTOMATIC.
+  /// MANUAL products only: ONE_TIME, TRIAL, CONTRACT_1_YEAR or CONTRACT_2_YEARS. Null for AUTOMATIC.
   contractTerm      String?
   /// MANUAL products only: INCLUSIVE or EXCLUSIVE of 10% GST. Null for AUTOMATIC.
   gstType           String?

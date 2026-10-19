@@ -30,6 +30,7 @@ const STATUSES = [
 ];
 
 const CONTRACT_TERM_LABEL: Record<string, string> = {
+  ONE_TIME: 'One Time',
   TRIAL: 'Trial',
   CONTRACT_1_YEAR: 'Contract - 1 Year',
   CONTRACT_2_YEARS: 'Contract - 2 Years',
