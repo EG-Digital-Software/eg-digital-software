@@ -189,7 +189,7 @@ export function TaskDialog({
   const isAdmin = me?.role === 'SUPER_ADMIN';
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
-  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive'>('details');
+  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive' | 'timesheet'>('details');
   const [approvalSubject, setApprovalSubject] = useState('');
   const [approvalMessage, setApprovalMessage] = useState('');
   const [approvalFiles, setApprovalFiles] = useState<File[]>([]);
@@ -943,7 +943,7 @@ export function TaskDialog({
             </div>
 
             {/* Tabs */}
-            <div className="mt-5 flex items-center gap-2">
+            <div className="mt-5 flex flex-wrap items-center gap-2">
               <TabPill active={tab === 'details'} onClick={() => setTab('details')} icon={<Circle className="h-4 w-4" />} dot={tabHasDot('notes')}>Task details</TabPill>
               {isEdit && (
                 <TabPill active={tab === 'attachments'} onClick={() => setTab('attachments')} icon={<Paperclip className="h-4 w-4" />} dot={tabHasDot('attachments')}>
@@ -968,6 +968,11 @@ export function TaskDialog({
               {isEdit && (
                 <TabPill active={tab === 'archive'} onClick={() => setTab('archive')} icon={<Archive className="h-4 w-4" />} dot={tabHasDot('archive')}>
                   Archive{liveTask && liveTask.archive && liveTask.archive.length > 0 ? ` (${liveTask.archive.length})` : ''}
+                </TabPill>
+              )}
+              {isEdit && (
+                <TabPill active={tab === 'timesheet'} onClick={() => setTab('timesheet')} icon={<Clock className="h-4 w-4" />}>
+                  Time Sheet
                 </TabPill>
               )}
             </div>
@@ -1179,7 +1184,18 @@ export function TaskDialog({
               />
             ) : tab === 'performance' ? (
               /* Performance Dashboard — coming soon. */
-              <ComingSoonPanel />
+              <ComingSoonPanel
+                icon={LineChart}
+                title="Performance Dashboard"
+                text="Task analytics and performance insights are on the way. This space is coming soon."
+              />
+            ) : tab === 'timesheet' ? (
+              /* Time Sheet — coming soon. */
+              <ComingSoonPanel
+                icon={Clock}
+                title="Time Sheet"
+                text="Time tracking for this task is on the way. This space is coming soon."
+              />
             ) : (
               /* Archive tab — admin stores files/images/videos (original quality);
                  the client and team can only view them. */
@@ -1871,16 +1887,14 @@ function TabPill({ active, onClick, icon, children, dot }: { active: boolean; on
 }
 
 /** Performance Dashboard tab — placeholder until the analytics view ships. */
-function ComingSoonPanel() {
+function ComingSoonPanel({ icon: Icon, title, text }: { icon: React.ElementType; title: string; text: string }) {
   return (
     <div className="mt-5 flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
-        <LineChart className="h-7 w-7 text-muted-foreground" />
+        <Icon className="h-7 w-7 text-muted-foreground" />
       </div>
-      <h4 className="mt-4 text-base font-semibold">Performance Dashboard</h4>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        Task analytics and performance insights are on the way. This space is coming soon.
-      </p>
+      <h4 className="mt-4 text-base font-semibold">{title}</h4>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{text}</p>
       <span className="mt-4 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
         Coming soon
       </span>
