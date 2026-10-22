@@ -43,7 +43,7 @@ export default function AgreementSignDialog({
   onSubmit,
   submitting,
 }: AgreementSignDialogProps) {
-  const { loading, error: loadError, bytes, pages, mountCanvas } = usePdfDocument(doc.url, open);
+  const { loading, error: loadError, bytes, pages, mountCanvas } = usePdfDocument(`/client/documents/${doc.id}/file`, open);
   const [error, setError] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [sigs, setSigs] = useState<Record<string, SigImage>>({});
@@ -101,13 +101,13 @@ export default function AgreementSignDialog({
           const v = values[f.id]?.trim();
           if (!v) continue;
           // Normal document text size — only shrink for an unusually short box.
-          const size = Math.min(11, boxH * 0.9);
+          const size = Math.min(13, boxH * 0.9);
           page.drawText(v, {
             x: x + 2,
             y: yBottom + (boxH - size) / 2 + size * 0.12,
             size,
             font,
-            color: rgb(0.07, 0.09, 0.15),
+            color: rgb(0, 0, 0),
           });
         } else {
           const sig = sigs[f.id];
@@ -138,7 +138,7 @@ export default function AgreementSignDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl" className="max-w-5xl">
+      <DialogContent size="xl" className="flex h-[95vh] max-h-[95vh] w-[95vw] max-w-[95vw] flex-col">
         <DialogHeader>
           <DialogTitle>Review &amp; sign — {doc.fileName}</DialogTitle>
           <DialogDescription>
@@ -167,7 +167,7 @@ export default function AgreementSignDialog({
                 {error}
               </div>
             )}
-            <div className="max-h-[58vh] space-y-6 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
               {pages.map((layout) => (
                 <div
                   key={layout.index}
@@ -192,7 +192,7 @@ export default function AgreementSignDialog({
                             onChange={(e) => setValues((v) => ({ ...v, [f.id]: e.target.value }))}
                             placeholder={f.label}
                             title={f.label}
-                            className="absolute rounded-sm border border-primary/60 bg-white/90 px-1 py-0 text-xs shadow-sm focus:bg-white"
+                            className="absolute rounded-sm border border-primary/60 bg-white/90 px-1 py-0 text-sm font-medium leading-none text-black shadow-sm placeholder:text-gray-500 focus:bg-white"
                             style={style}
                           />
                         );

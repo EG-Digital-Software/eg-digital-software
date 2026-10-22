@@ -5,7 +5,10 @@ import type { PageQuery } from '../utils/http.js';
 import { computeLicenceStatus, daysRemaining } from '../utils/licence.js';
 import { formatLicenceKey } from '../utils/sequence.js';
 import { ensurePayable } from './invoice.service.js';
-import { submitSignedDocument as submitSignedDocumentForCustomer } from './customer.service.js';
+import {
+  submitSignedDocument as submitSignedDocumentForCustomer,
+  readDocumentFile,
+} from './customer.service.js';
 import { getResolvedAccountManager } from './settings.service.js';
 
 /** Resolve the Customer a signed-in client user is linked to. */
@@ -313,4 +316,8 @@ export async function addClientProduct(customerId: string, productId: string) {
     },
   });
   return cp;
+}
+
+export function documentFile(customerId: string, documentId: string, signed = false) {
+  return readDocumentFile(customerId, documentId, signed);
 }

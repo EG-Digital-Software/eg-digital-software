@@ -15,6 +15,8 @@ import { taskUploadRefSchema } from '../validators/task.validator.js';
  */
 async function resolve(req: Request): Promise<string> {
   if (req.params.clientId) return taskService.resolveCustomerId(req.params.clientId);
+  // Admin impersonation tokens carry the customer id (works without a portal login).
+  if (req.user?.cid) return req.user.cid;
   return clientService.resolveCustomerId(req.user!.sub);
 }
 

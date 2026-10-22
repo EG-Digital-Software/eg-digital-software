@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 // Vite resolves this to a served worker URL; pdf.js needs it before rendering.
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { mediaUrl } from '@/lib/utils';
+import { api } from '@/api/client';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -17,12 +17,20 @@ export interface PdfPageLayout {
 }
 
 /**
- * Load a PDF (by media URL) for on-screen viewing. Returns the raw bytes (kept for
+ * Load a PDF (by its API file path, e.g. `/client/documents/:id/file`) for on-screen viewing.
+ * Fetched through the API rather than straight from storage, so the viewer never
+ * depends on the blob's CORS rules. Returns the raw bytes (kept for
  * pdf-lib editing), per-page layouts, and a ref callback that renders each page into
  * its canvas the first time it mounts. Shared by the admin field-placement dialog and
  * the client fill-and-sign dialog so both render identically.
  */
-export function usePdfDocument(url: string | undefined, open: boolean, renderWidth = 720) {
+export function usePdfDocument(filePath: string | undefined, open: boolean, width?: number) {
+  // Fit the page to the near-full-screen viewer (95vw minus dialog padding/scrollbar),
+  // fixed at mount so re-renders don't re-load the PDF. Field coords are page-relative %.
+  const [autoWidth] = useState(() =>
+    Math.min(1200, Math.max(320, Math.round(window.innerWidth * 0.95) - 80))
+  );
+  const renderWidth = width ?? autoWidth;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pages, setPages] = useState<PdfPageLayout[]>([]);
@@ -40,11 +48,11 @@ export function usePdfDocument(url: string | undefined, open: boolean, renderWid
 
     (async () => {
       try {
-        const resolved = mediaUrl(url);
-        if (!resolved) throw new Error('Document URL missing');
-        const res = await fetch(resolved);
-        if (!res.ok) throw new Error('Could not load the document');
-        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (!filePath) throw new Error('Document URL missing');
+        const res = await api.get<ArrayBuffer>(filePath, { responseType: 'arraybuffer' }).catch(() => {
+          throw new Error('Could not load the document');
+        });
+        const bytes = new Uint8Array(res.data);
         bytesRef.current = bytes;
 
         const pdf = await pdfjs.getDocument({ data: bytes.slice() }).promise;
@@ -77,7 +85,7 @@ export function usePdfDocument(url: string | undefined, open: boolean, renderWid
     return () => {
       cancelled = true;
     };
-  }, [open, url, renderWidth]);
+  }, [open, filePath, renderWidth]);
 
   const mountCanvas = useCallback(
     (layout: PdfPageLayout) => (canvas: HTMLCanvasElement | null) => {

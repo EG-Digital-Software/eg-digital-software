@@ -14,10 +14,10 @@ import {
 const router = Router();
 router.use(authenticate, authorize(Role.CLIENT));
 
-// When an admin is viewing this portal (impersonation token), it is strictly
-// read-only — no writes on the client's behalf.
+// When an admin is viewing this portal (impersonation token) it is read-only,
+// unless the admin opened it in Edit mode — then they can act on the client's behalf.
 router.use((req, _res, next) => {
-  if (req.user?.imp && req.method !== 'GET') {
+  if (req.user?.imp && !req.user.edit && req.method !== 'GET') {
     return next(ApiError.forbidden('Read-only: you are viewing this portal as an admin'));
   }
   next();
@@ -40,6 +40,8 @@ router.get('/available-products', ctrl.availableProducts);
 // A client can add a product to their own account; it starts PENDING approval.
 router.post('/products', ctrl.addProduct);
 
+// Agreement PDF bytes for the in-app viewer (proxied, so no storage CORS needed).
+router.get('/documents/:documentId/file', ctrl.documentFile);
 // Submit a filled + signed copy of an agreement PDF for admin approval.
 router.post('/documents/:documentId/sign', docUpload.single('file'), ctrl.signDocument);
 

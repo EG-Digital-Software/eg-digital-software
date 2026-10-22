@@ -28,10 +28,11 @@ export const getOne = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, customer);
 });
 
-/** Issue a read-only impersonation session for viewing this client's portal. */
+/** Issue an impersonation session for this client's portal — read-only unless `mode: 'edit'`. */
 export const impersonate = asyncHandler(async (req: Request, res: Response) => {
-  const session = await customerService.impersonateCustomer(req.params.clientId);
-  return ok(res, session, 'Viewing client portal');
+  const edit = req.body?.mode === 'edit';
+  const session = await customerService.impersonateCustomer(req.params.clientId, edit);
+  return ok(res, { ...session, mode: edit ? 'edit' : 'view' }, edit ? 'Editing client portal' : 'Viewing client portal');
 });
 
 // ─── Agreement Documents ──────────────────────────────────
@@ -54,6 +55,17 @@ export const updateDocument = asyncHandler(async (req: Request, res: Response) =
     req.user?.sub
   );
   return ok(res, doc, 'Document updated');
+});
+
+export const documentFile = asyncHandler(async (req: Request, res: Response) => {
+  const { data, contentType } = await customerService.readDocumentFileForClientId(
+    req.params.clientId,
+    req.params.documentId,
+    req.query.signed === '1'
+  );
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.send(data);
 });
 
 export const deleteDocument = asyncHandler(async (req: Request, res: Response) => {

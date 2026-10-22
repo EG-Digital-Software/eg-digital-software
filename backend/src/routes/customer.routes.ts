@@ -36,6 +36,8 @@ router.post('/:clientId/impersonate', ctrl.impersonate);
 // Reveal the customer's portal password (admin-only, like every route here).
 // Agreement Document uploads (admin-only, like every route here).
 router.post('/:clientId/documents', docUpload.single('file'), ctrl.uploadDocument);
+// Stream the PDF through the API so the in-app viewer doesn't depend on storage CORS.
+router.get('/:clientId/documents/:documentId/file', ctrl.documentFile);
 router.patch('/:clientId/documents/:documentId', ctrl.updateDocument);
 router.delete('/:clientId/documents/:documentId', ctrl.deleteDocument);
 

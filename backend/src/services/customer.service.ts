@@ -5,6 +5,8 @@ import {
   AddressType,
   LicenceStatus,
 } from '@prisma/client';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import argon2 from 'argon2';
 import { prisma } from '../config/prisma.js';
 import { storage } from './storage/index.js';
@@ -133,12 +135,12 @@ export async function previewNextClientId(): Promise<string> {
 }
 
 /**
- * Mint a read-only impersonation session so an admin can view a client's portal
- * (every tab, real data) without the client's password. The token carries the
- * customer id directly, so it works even for customers with no portal login. The
- * client route layer refuses any write while `imp` is set.
+ * Mint an impersonation session so an admin can open a client's portal (every tab,
+ * real data) without the client's password. The token carries the customer id
+ * directly, so it works even for customers with no portal login. Read-only by
+ * default — the client route layer refuses writes unless `edit` was chosen.
  */
-export async function impersonateCustomer(clientId: string) {
+export async function impersonateCustomer(clientId: string, edit = false) {
   const customer = await prisma.customer.findUnique({
     where: { clientId },
     select: { id: true, clientId: true, companyName: true, contactPerson: true },
@@ -158,6 +160,7 @@ export async function impersonateCustomer(clientId: string) {
     role: 'CLIENT',
     email: login?.email ?? '',
     cid: customer.id,
+    ...(edit ? { edit: true } : {}),
   });
 
   const user = {
@@ -1265,6 +1268,39 @@ export async function submitSignedDocument(
       status: 'SUBMITTED',
     },
   });
+}
+
+/**
+ * Read an agreement PDF's bytes server-side so the in-app viewer never fetches the
+ * blob cross-origin (storage CORS only lists the deployed frontend, so a local or
+ * new origin would get "Failed to fetch"). Read-only: nothing is written.
+ */
+export async function readDocumentFile(customerId: string, documentId: string, signed = false) {
+  const doc = await prisma.customerDocument.findFirst({
+    where: { id: documentId, customerId },
+    select: { url: true, signedUrl: true, contentType: true },
+  });
+  if (!doc) throw ApiError.notFound('Document not found');
+  const url = signed ? doc.signedUrl : doc.url;
+  if (!url) throw ApiError.notFound('Document file not found');
+
+  if (url.startsWith('/uploads/')) {
+    const root = path.resolve(process.cwd(), 'uploads');
+    const file = path.resolve(root, url.slice('/uploads/'.length));
+    if (!file.startsWith(root + path.sep)) throw ApiError.notFound('Document file not found');
+    const data = await fs.readFile(file).catch(() => null);
+    if (!data) throw ApiError.notFound('Document file not found');
+    return { data, contentType: doc.contentType ?? 'application/pdf' };
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw ApiError.notFound('Document file not found');
+  return { data: Buffer.from(await res.arrayBuffer()), contentType: doc.contentType ?? 'application/pdf' };
+}
+
+export async function readDocumentFileForClientId(clientId: string, documentId: string, signed = false) {
+  const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  return readDocumentFile(customer.id, documentId, signed);
 }
 
 export async function deleteDocument(clientId: string, documentId: string) {

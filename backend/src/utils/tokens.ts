@@ -11,6 +11,9 @@ export interface AccessPayload {
   imp?: boolean;
   /** Target customer id carried by an impersonation token. */
   cid?: string;
+  /** Client impersonation only: the admin chose "Edit", so writes are allowed.
+   *  Absent (the default) keeps the session read-only. */
+  edit?: boolean;
 }
 
 export function signAccessToken(payload: AccessPayload): string {

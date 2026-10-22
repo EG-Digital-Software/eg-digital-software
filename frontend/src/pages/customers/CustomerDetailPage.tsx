@@ -447,13 +447,14 @@ export default function CustomerDetailPage() {
   });
 
   const viewPortal = useMutation({
-    mutationFn: () => customerApi.impersonate(clientId!),
-    onSuccess: (session) => {
+    mutationFn: (mode: 'view' | 'edit') => customerApi.impersonate(clientId!, mode),
+    onSuccess: (session, mode) => {
       startImpersonation({
         user: session.user,
         accessToken: session.accessToken,
         meta: {
           kind: 'client',
+          mode,
           label: session.company.companyName || session.company.clientId,
           returnTo: `/admin/customers/${session.company.clientId}`,
         },
@@ -510,10 +511,10 @@ export default function CustomerDetailPage() {
               <Button
                 variant="outline"
                 disabled={viewPortal.isPending}
-                onClick={() => viewPortal.mutate()}
-                title="Open this client's portal read-only, without their password"
+                onClick={() => viewPortal.mutate('edit')}
+                title="Open this client's portal without their password — you can view and edit; changes are saved as the client"
               >
-                <Eye className="h-4 w-4" /> View portal
+                <Eye className="h-4 w-4" /> View/Edit portal
               </Button>
               <Button variant="outline" asChild>
                 <Link to={`/admin/customers/${c.clientId}/edit`}>
@@ -1079,6 +1080,7 @@ function AgreementTab({ customer }: { customer: Customer }) {
     </Card>
     {fieldsDoc && (
       <AgreementFieldsDialog
+        clientId={customer.clientId}
         document={fieldsDoc}
         open={!!fieldsDoc}
         onOpenChange={(o) => { if (!o) setFieldsDoc(null); }}

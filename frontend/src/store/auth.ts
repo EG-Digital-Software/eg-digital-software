@@ -14,6 +14,8 @@ export interface Impersonation {
   label: string | null;
   /** Admin route to return to when the admin exits the view. */
   returnTo: string;
+  /** Client portal only: 'edit' lets the admin make changes; otherwise read-only. */
+  mode?: 'view' | 'edit';
 }
 
 interface AuthState {

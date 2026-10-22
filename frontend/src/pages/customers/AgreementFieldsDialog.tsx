@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Trash2, Type, PenLine } from 'lucide-react';
+import { Loader2, Trash2, Type } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,7 @@ interface DragState {
 }
 
 export interface AgreementFieldsDialogProps {
+  clientId: string;
   document: CustomerDocument;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,16 +37,20 @@ export interface AgreementFieldsDialogProps {
  * fraction so it lines up for the client at any zoom.
  */
 export default function AgreementFieldsDialog({
+  clientId,
   document: doc,
   open,
   onOpenChange,
   onSave,
   saving,
 }: AgreementFieldsDialogProps) {
-  const { loading, error, pages, mountCanvas } = usePdfDocument(doc.url, open);
+  const { loading, error, pages, mountCanvas } = usePdfDocument(
+    `/customers/${clientId}/documents/${doc.id}/file`,
+    open
+  );
   const [fields, setFields] = useState<AgreementField[]>([]);
-  const [kind, setKind] = useState<'text' | 'signature'>('text');
-  const [label, setLabel] = useState('Name');
+  // Admins only place text fields now; existing signature fields still render below.
+  const [label, setLabel] = useState('Signature');
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
 
@@ -89,8 +94,8 @@ export default function AgreementFieldsDialog({
       ...prev,
       {
         id: crypto.randomUUID(),
-        kind,
-        label: kind === 'signature' ? label || 'Signature' : label || 'Field',
+        kind: 'text',
+        label: label || 'Signature',
         page: layout.index,
         xPct: left / layout.widthPx,
         yPct: top / layout.heightPx,
@@ -112,20 +117,17 @@ export default function AgreementFieldsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl" className="max-w-5xl">
+      <DialogContent size="xl" className="flex h-[95vh] max-h-[95vh] w-[95vw] max-w-[95vw] flex-col">
         <DialogHeader>
           <DialogTitle>Mark fields — {doc.fileName}</DialogTitle>
           <DialogDescription>
-            Choose a field type, then drag a box on the document where the client should fill or sign.
+            Set a label, then drag a box on the document where the client should fill in text.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/30 p-2">
-          <Button type="button" size="sm" variant={kind === 'text' ? 'default' : 'outline'} onClick={() => { setKind('text'); if (label === 'Signature') setLabel('Name'); }}>
+          <Button type="button" size="sm">
             <Type className="h-4 w-4" /> Text
-          </Button>
-          <Button type="button" size="sm" variant={kind === 'signature' ? 'default' : 'outline'} onClick={() => { setKind('signature'); setLabel('Signature'); }}>
-            <PenLine className="h-4 w-4" /> Signature
           </Button>
           <Input
             value={label}
@@ -143,7 +145,7 @@ export default function AgreementFieldsDialog({
         ) : error ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</div>
         ) : (
-          <div className="max-h-[58vh] space-y-6 overflow-y-auto pr-1">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
             {pages.map((layout) => (
               <div
                 key={layout.index}

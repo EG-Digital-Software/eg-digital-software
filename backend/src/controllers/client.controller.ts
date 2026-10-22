@@ -62,6 +62,17 @@ export const addProduct = asyncHandler(async (req: Request, res: Response) => {
   );
 });
 
+export const documentFile = asyncHandler(async (req: Request, res: Response) => {
+  const { data, contentType } = await clientService.documentFile(
+    await cid(req),
+    req.params.documentId,
+    req.query.signed === '1'
+  );
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.send(data);
+});
+
 export const signDocument = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) throw ApiError.badRequest('No signed document was uploaded');
   const doc = await clientService.signDocument(await cid(req), req.params.documentId, req.file);

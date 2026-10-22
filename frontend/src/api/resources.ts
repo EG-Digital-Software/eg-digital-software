@@ -51,11 +51,12 @@ export const customerApi = {
   },
   get: async (clientId: string) =>
     (await api.get<ApiEnvelope<Customer>>(`/customers/${clientId}`)).data.data,
-  /** Mint a read-only impersonation session to view this client's portal. */
-  impersonate: async (clientId: string) =>
+  /** Mint an impersonation session for this client's portal — read-only ('view') or editable ('edit'). */
+  impersonate: async (clientId: string, mode: 'view' | 'edit' = 'view') =>
     (
       await api.post<ApiEnvelope<{ accessToken: string; user: User; company: { clientId: string; companyName: string | null } }>>(
-        `/customers/${clientId}/impersonate`
+        `/customers/${clientId}/impersonate`,
+        { mode }
       )
     ).data.data,
   nextClientId: async () =>
