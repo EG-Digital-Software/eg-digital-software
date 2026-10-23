@@ -59,6 +59,7 @@ const itContactSchema = z.object({
 export const assignedProductSchema = z.object({
   productId: z.string().uuid(),
   price: z.coerce.number().min(0).optional(),
+  discountPercent: z.coerce.number().min(0).max(100).optional(),
   unit: z.string().max(30).optional(),
   unitHoursEnabled: z.boolean().optional(),
   unitHours: z.coerce.number().min(0).optional(),
@@ -100,6 +101,7 @@ export const updateProductGroupSchema = z.object({
       z.object({
         productId: z.string().uuid(),
         price: z.coerce.number().min(0).optional(),
+        discountPercent: z.coerce.number().min(0).max(100).optional(),
         // Qty/Hours is now per product (defaults to 1); accepted per line so
         // each product in the group can carry its own multiplier.
         unitHoursEnabled: z.boolean().optional(),

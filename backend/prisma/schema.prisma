@@ -480,6 +480,9 @@ model CustomerProduct {
   price            Decimal       @default(0) @db.Decimal(12, 2)
   /// Per-customer agreed price entered when the product is assigned (products no
   /// longer carry their own price).
+  /// Percentage taken off the agreed price (0–100). The billed net is
+  /// agreed price × (1 − discount/100) × Unit/Hours, before GST.
+  discountPercent  Decimal       @default(0) @db.Decimal(5, 2)
   unit             String?
   /// Optional Unit/Hours multiplier. When enabled, the total is agreed price ×
   /// unitHours (+ GST); when disabled it is the agreed price as-is. Shared across

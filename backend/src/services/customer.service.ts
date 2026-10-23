@@ -486,6 +486,7 @@ type CreateInput = {
   assignedProducts?: Array<{
     productId: string;
     price?: number;
+    discountPercent?: number;
     unit?: string;
     unitHoursEnabled?: boolean;
     unitHours?: number;
@@ -804,11 +805,19 @@ async function assignProducts(
   for (const ap of assignedProducts ?? []) {
     await reserveStock(tx, ap.productId, 1);
     const status = (ap.status as LicenceStatus) ?? computeLicenceStatus(ap.expiryDate);
+    // No agreed price given → fall back to the product's own list price.
+    const price =
+      ap.price ??
+      Number(
+        (await tx.product.findUnique({ where: { id: ap.productId }, select: { pricePerQty: true } }))
+          ?.pricePerQty ?? 0
+      );
     const cp = await tx.customerProduct.create({
       data: {
         customerId,
         productId: ap.productId,
-        price: new Prisma.Decimal(ap.price ?? 0),
+        price: new Prisma.Decimal(price),
+        discountPercent: new Prisma.Decimal(ap.discountPercent ?? 0),
         unit: ap.unit ?? null,
         unitHoursEnabled: ap.unitHoursEnabled ?? false,
         unitHours: ap.unitHours != null ? new Prisma.Decimal(ap.unitHours) : null,
@@ -817,7 +826,7 @@ async function assignProducts(
         // period runs from here to its end (pro-rated for a mid-month monthly
         // start). Null when advance billing is off.
         nextInvoiceDate: ap.advancePayment ? (ap.issueDate ?? new Date()) : null,
-        taxRate: new Prisma.Decimal(ap.taxRate ?? 0),
+        taxRate: new Prisma.Decimal(ap.taxRate ?? 10), // GST — fixed at 10%
         contractType: ap.contractType ?? 'LOCKED',
         gstType: ap.gstType ?? 'EXCLUSIVE',
         invoicingTerm: ap.invoicingTerm?.trim() || null,
@@ -904,6 +913,7 @@ export async function updateCustomerProduct(
   input: {
     productId?: string;
     price?: number;
+    discountPercent?: number;
     unit?: string;
     taxRate?: number;
     contractType?: 'LOCKED' | 'TRIAL';
@@ -945,6 +955,7 @@ export async function updateCustomerProduct(
       data: {
         ...(input.productId ? { productId: input.productId } : {}),
         ...(input.price !== undefined ? { price: new Prisma.Decimal(input.price) } : {}),
+        ...(input.discountPercent !== undefined ? { discountPercent: new Prisma.Decimal(input.discountPercent) } : {}),
         ...(input.unit !== undefined ? { unit: input.unit || null } : {}),
         ...(input.taxRate !== undefined ? { taxRate: new Prisma.Decimal(input.taxRate) } : {}),
         ...(input.contractType !== undefined ? { contractType: input.contractType } : {}),
@@ -1007,7 +1018,13 @@ export async function updateProductGroup(
     issueDate?: Date;
     expiryDate?: Date;
     status?: 'ACTIVE' | 'SUSPENDED';
-    products: Array<{ productId: string; price?: number; unitHoursEnabled?: boolean; unitHours?: number }>;
+    products: Array<{
+      productId: string;
+      price?: number;
+      discountPercent?: number;
+      unitHoursEnabled?: boolean;
+      unitHours?: number;
+    }>;
   }
 ) {
   const existing = await prisma.customer.findUnique({ where: { clientId } });
@@ -1059,7 +1076,19 @@ export async function updateProductGroup(
             : issueDate
           : null;
         const data = {
-          price: new Prisma.Decimal(p.price ?? Number(cur?.price ?? 0)),
+          // GST is fixed at 10% — set it explicitly so products added here don't
+          // fall back to the column's 0 default (which drops GST from totals/invoices).
+          taxRate: new Prisma.Decimal(10),
+          price: new Prisma.Decimal(
+            p.price ??
+              (cur
+                ? Number(cur.price)
+                : Number(
+                    (await tx.product.findUnique({ where: { id: p.productId }, select: { pricePerQty: true } }))
+                      ?.pricePerQty ?? 0
+                  ))
+          ),
+          discountPercent: new Prisma.Decimal(p.discountPercent ?? Number(cur?.discountPercent ?? 0)),
           contractType: input.contractType ?? cur?.contractType ?? 'LOCKED',
           gstType: input.gstType ?? cur?.gstType ?? 'EXCLUSIVE',
           invoicingTerm:

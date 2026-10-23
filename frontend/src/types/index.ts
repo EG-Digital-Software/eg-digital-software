@@ -110,6 +110,8 @@ export interface Address {
 export interface CustomerProduct {
   id: string;
   price: string;
+  /** Percentage taken off the agreed price (0–100), before GST. */
+  discountPercent?: string | null;
   unit?: string | null;
   /** Optional Unit/Hours multiplier (shared across a licence group). */
   unitHoursEnabled?: boolean;

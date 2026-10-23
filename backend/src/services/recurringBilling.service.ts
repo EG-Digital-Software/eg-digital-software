@@ -112,7 +112,8 @@ async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
 
     const items = group.map((cp) => {
       const units = cp.unitHoursEnabled ? Number(cp.unitHours) || 0 : 1;
-      const net = round2((Number(cp.price) || 0) * units * period.fraction);
+      const discount = Number(cp.discountPercent) || 0;
+      const net = round2((Number(cp.price) || 0) * (1 - discount / 100) * units * period.fraction);
       const partial = period.fraction < 1 ? ` (${Math.round(period.fraction * 100)}% pro-rata)` : '';
       return {
         productId: cp.productId,

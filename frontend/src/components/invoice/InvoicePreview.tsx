@@ -15,6 +15,7 @@ import {
   licenceGroupNet,
   productUnits,
   productNet,
+  discountedPrice,
   round2,
   type LicenceGroup,
 } from '@/lib/proration';
@@ -535,7 +536,7 @@ function buildFromAssignments(
     sku: cp.product.sku || cp.product.productCode,
     unit: cp.unit,
     units: productUnits(cp),
-    agreedPrice: Number(cp.price) || 0,
+    agreedPrice: discountedPrice(cp),
     taxRate: cp.taxRate != null ? Number(cp.taxRate) || 0 : lineRate,
     inclusive: cp.gstType ? cp.gstType === 'INCLUSIVE' : lineInclusive,
     amount: amounts[i],

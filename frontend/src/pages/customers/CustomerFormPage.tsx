@@ -150,6 +150,7 @@ const schema = z
         z.object({
           productId: z.string().min(1, 'Select a product'),
           price: z.coerce.number().min(0).optional(),
+          discountPercent: z.coerce.number().min(0).max(100).optional(),
           unit: z.string().optional(),
           taxRate: z.coerce.number().min(0).max(100).optional(),
           licence: z.string().optional(),
@@ -1876,7 +1877,7 @@ export default function CustomerFormPage() {
             <div className="space-y-4">
               {fields.map((field, index) => {
                 const row = assigned?.[index];
-                const rowNet = Number(row?.price) || 0;
+                const rowNet = (Number(row?.price) || 0) * (1 - (Number(row?.discountPercent) || 0) / 100);
                 const rowTotal = rowNet + rowNet * ((Number(row?.taxRate) || 0) / 100);
                 return (
                   <div key={field.id} className="rounded-lg border border-border bg-secondary/30 p-4">
@@ -1905,6 +1906,15 @@ export default function CustomerFormPage() {
                       </Field>
                       <Field label="Agreed Price">
                         <Input {...numericField(register(`assignedProducts.${index}.price`), 'decimal')} />
+                      </Field>
+                      <Field
+                        label="Discount (%)"
+                        error={errors.assignedProducts?.[index]?.discountPercent?.message}
+                      >
+                        <Input
+                          placeholder="0"
+                          {...numericField(register(`assignedProducts.${index}.discountPercent`), 'decimal')}
+                        />
                       </Field>
                       <Field label="Unit">
                         <Input placeholder="unit / seat / licence" {...register(`assignedProducts.${index}.unit`)} />
@@ -1940,7 +1950,7 @@ export default function CustomerFormPage() {
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  append({ productId: '', price: 0, unit: '', taxRate: 0, licence: '', issueDate: '', expiryDate: '' })
+                  append({ productId: '', price: 0, discountPercent: 0, unit: '', taxRate: 0, licence: '', issueDate: '', expiryDate: '' })
                 }
               >
                 <Plus className="h-4 w-4" /> Add Product

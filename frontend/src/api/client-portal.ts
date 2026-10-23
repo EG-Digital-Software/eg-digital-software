@@ -17,6 +17,8 @@ export interface ClientProduct {
   sku: string;
   licence: string;
   price: string;
+  /** Percentage taken off the agreed price (0–100), before GST. */
+  discountPercent?: string | null;
   /** Optional Unit/Hours multiplier. */
   unitHoursEnabled?: boolean;
   unitHours?: string | null;

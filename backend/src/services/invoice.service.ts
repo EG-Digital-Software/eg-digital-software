@@ -250,6 +250,7 @@ type Assignment = {
   id: string;
   productId: string;
   price: Prisma.Decimal;
+  discountPercent: Prisma.Decimal | null;
   unit: string | null;
   unitHoursEnabled: boolean;
   unitHours: Prisma.Decimal | null;
@@ -270,6 +271,7 @@ async function loadAssignments(customerId: string): Promise<Assignment[]> {
       id: true,
       productId: true,
       price: true,
+      discountPercent: true,
       unit: true,
       unitHoursEnabled: true,
       unitHours: true,
@@ -283,8 +285,11 @@ async function loadAssignments(customerId: string): Promise<Assignment[]> {
 
 /** The Unit/Hours multiplier on an assignment (1 when it is not unit-priced). */
 const assignmentUnits = (a: Assignment): Money => (a.unitHoursEnabled ? D(a.unitHours ?? 0) : D(1));
-/** An assignment's agreed net: agreed price x Unit/Hours. */
-const assignmentNet = (a: Assignment): Money => D(a.price ?? 0).mul(assignmentUnits(a));
+/** The agreed price after the assignment's discount (%). */
+const assignmentUnitPrice = (a: Assignment): Money =>
+  D(a.price ?? 0).mul(D(100).sub(D(a.discountPercent ?? 0))).div(100);
+/** An assignment's agreed net: discounted agreed price x Unit/Hours. */
+const assignmentNet = (a: Assignment): Money => assignmentUnitPrice(a).mul(assignmentUnits(a));
 
 /**
  * The per-product snapshot rows for one line.
@@ -334,7 +339,8 @@ function snapshotLineProducts(
     name: a.product.name,
     sku: a.product.sku || a.product.productCode || null,
     unit: a.unit,
-    agreedPrice: round2(D(a.price ?? 0)),
+    // Net of any discount, so agreed price x Unit/Hours reads true on the invoice.
+    agreedPrice: round2(assignmentUnitPrice(a)),
     unitHours: a.unitHoursEnabled ? round2(D(a.unitHours ?? 0)) : null,
     // Each assignment agrees its own GST, so the invoice can state it per product.
     taxRate: a.taxRate != null ? round2(D(a.taxRate)) : null,

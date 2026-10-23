@@ -86,6 +86,9 @@ export function LineItemProduct({
                 <div className="grid grid-cols-3 gap-3 tabular-nums">
                   <span>
                     Agreed: <span className="text-foreground">{formatCurrency(Number(cp.price) || 0)}</span>
+                    {Number(cp.discountPercent) > 0 && (
+                      <span className="ml-1 text-emerald-600">−{Number(cp.discountPercent)}%</span>
+                    )}
                   </span>
                   <span className="text-center">
                     Unit/Hours: <span className="text-foreground">{units}</span>

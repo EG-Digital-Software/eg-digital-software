@@ -21,9 +21,14 @@ export function productUnits(cp: CustomerProduct): number {
   return cp.unitHoursEnabled ? Number(cp.unitHours) || 0 : 1;
 }
 
-/** Net line value for a product = agreed price × units. */
+/** Agreed price after the product's discount (%). */
+export function discountedPrice(cp: Pick<CustomerProduct, 'price' | 'discountPercent'>): number {
+  return (Number(cp.price) || 0) * (1 - (Number(cp.discountPercent) || 0) / 100);
+}
+
+/** Net line value for a product = discounted agreed price × units. */
 export function productNet(cp: CustomerProduct): number {
-  return (Number(cp.price) || 0) * productUnits(cp);
+  return discountedPrice(cp) * productUnits(cp);
 }
 
 /** A licence group = all products that share one licence key — one "row" in the

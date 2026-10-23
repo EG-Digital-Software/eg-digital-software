@@ -906,6 +906,10 @@ export default function CustomerDetailPage() {
 
 /** Per-product Qty/Hours multiplier (defaults to 1 when off or unset). */
 const cpUnits = (cp: CustomerProduct) => (cp.unitHoursEnabled ? Number(cp.unitHours) || 0 : 1);
+/** Discount (%) on an assigned product, 0 when none. */
+const cpDiscount = (cp: CustomerProduct) => Number(cp.discountPercent) || 0;
+/** Net before GST = agreed price less discount × Qty/Hours. */
+const cpNet = (cp: CustomerProduct) => (Number(cp.price) || 0) * (1 - cpDiscount(cp) / 100) * cpUnits(cp);
 
 const EMPTY_ASSIGN = {
   productId: '',
@@ -1106,6 +1110,8 @@ function ProductsTab({ customer }: { customer: Customer }) {
   // Per-product Qty/Hours (productId -> string). Defaults to '1' when a product
   // is ticked; the net becomes agreed price × qty/hours (+ GST).
   const [units, setUnits] = useState<Record<string, string>>({});
+  // Per-product Discount % (productId -> string), taken off the agreed price.
+  const [discounts, setDiscounts] = useState<Record<string, string>>({});
   // Advance recurring billing for this licence group. When on, invoices
   // auto-generate at the start of each billing period and email to the client.
   const [advancePay, setAdvancePay] = useState(false);
@@ -1142,9 +1148,14 @@ function ProductsTab({ customer }: { customer: Customer }) {
   const withGst = (netAmt: number) =>
     form.gstType === 'INCLUSIVE' ? netAmt : netAmt + netAmt * ((Number(form.taxRate) || 0) / 100);
 
-  // Each product's net = its agreed price × its own Qty/Hours (default 1) + GST.
+  // Discount % for a ticked product, clamped to 0–100.
+  const discountOf = (id: string) => Math.min(100, Math.max(0, Number(discounts[id]) || 0));
+
+  // Each product's net = its agreed price less discount × its own Qty/Hours
+  // (default 1) + GST.
   const total = selectedIds.reduce(
-    (sum, id) => sum + withGst((Number(selected[id]) || 0) * (Number(units[id]) || 1)),
+    (sum, id) =>
+      sum + withGst((Number(selected[id]) || 0) * (1 - discountOf(id) / 100) * (Number(units[id]) || 1)),
     0
   );
 
@@ -1168,6 +1179,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
         // Qty/Hours is per product (defaults to 1).
         unitHoursEnabled: true,
         unitHours: Number(units[id]) || 1,
+        discountPercent: discountOf(id),
         ...(selected[id] !== '' ? { price: Number(selected[id]) } : {}),
         ...(selectedIds.length === 1 && form.licence.trim() ? { licence: form.licence.trim() } : {}),
       }));
@@ -1179,6 +1191,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       setForm({ ...EMPTY_ASSIGN });
       setSelected({});
       setUnits({});
+      setDiscounts({});
       setAdvancePay(false);
       setAdding(false);
     },
@@ -1194,6 +1207,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       const products = selectedIds.map((id) => ({
         productId: id,
         price: Number(selected[id]) || 0,
+        discountPercent: discountOf(id),
         // Qty/Hours is per product (defaults to 1).
         unitHoursEnabled: true,
         unitHours: Number(units[id]) || 1,
@@ -1216,6 +1230,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
       setForm({ ...EMPTY_ASSIGN });
       setSelected({});
       setUnits({});
+      setDiscounts({});
       setAdvancePay(false);
       setEditingKey(null);
     },
@@ -1232,6 +1247,9 @@ function ProductsTab({ customer }: { customer: Customer }) {
     // Per-product Qty/Hours — default to 1 when a product had it off/unset.
     setUnits(
       Object.fromEntries(group.items.map((cp) => [cp.product.id, String(cpUnits(cp) || 1)]))
+    );
+    setDiscounts(
+      Object.fromEntries(group.items.map((cp) => [cp.product.id, cpDiscount(cp) ? String(cpDiscount(cp)) : '']))
     );
     setAdvancePay(rep.advancePayment ?? false);
     setForm({
@@ -1252,17 +1270,25 @@ function ProductsTab({ customer }: { customer: Customer }) {
     setForm({ ...EMPTY_ASSIGN });
     setSelected({});
     setUnits({});
+    setDiscounts({});
     setAdvancePay(false);
   }
   const toggleProduct = (id: string) => {
     const picked = id in selected;
+    // Pre-fill the agreed price from the product's own price when it has one
+    // (products priced per customer carry 0 and stay blank).
+    const product = products?.items.find((p) => p.id === id);
+    const listPrice = Number(product?.pricePerQty) || 0;
+    // GST type is shared across the form, so ticking a product that has its own
+    // takes it over.
+    if (!picked && product?.gstType) set('gstType', product.gstType);
     setSelected((s) => {
       if (id in s) {
         const { [id]: _drop, ...rest } = s;
         void _drop;
         return rest;
       }
-      return { ...s, [id]: '' };
+      return { ...s, [id]: listPrice > 0 ? String(listPrice) : '' };
     });
     setUnits((u) => {
       if (picked) {
@@ -1272,7 +1298,15 @@ function ProductsTab({ customer }: { customer: Customer }) {
       }
       return { ...u, [id]: u[id] ?? '1' }; // default Qty/Hours = 1
     });
+    setDiscounts((d) => {
+      if (!picked) return d;
+      const { [id]: _drop, ...rest } = d;
+      void _drop;
+      return rest;
+    });
   };
+  const setProductDiscount = (id: string, v: string) =>
+    setDiscounts((d) => ({ ...d, [id]: v }));
   const setProductPrice = (id: string, price: string) =>
     setSelected((s) => ({ ...s, [id]: price }));
   const setProductUnits = (id: string, v: string) =>
@@ -1349,6 +1383,17 @@ function ProductsTab({ customer }: { customer: Customer }) {
                                   onChange={(e) => setProductPrice(p.id, e.target.value)}
                                   placeholder="0.00"
                                   className="h-8 w-24"
+                                />
+                                <span className="text-xs text-muted-foreground">Discount %</span>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step="0.01"
+                                  value={discounts[p.id] ?? ''}
+                                  onChange={(e) => setProductDiscount(p.id, e.target.value)}
+                                  placeholder="0"
+                                  className="h-8 w-20"
                                 />
                                 <span className="text-xs text-muted-foreground">Qty/Hours</span>
                                 <Input
@@ -1473,6 +1518,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
                   <TableHead className="whitespace-nowrap text-center">Expiry</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Days Left</TableHead>
                   <TableHead className="whitespace-nowrap text-center">Agreed Amount</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">Discount</TableHead>
                   {showUnitColumn && <TableHead className="whitespace-nowrap text-center">Unit/Hours</TableHead>}
                   <TableHead className="whitespace-nowrap text-center">Contract</TableHead>
                   <TableHead className="whitespace-nowrap text-center">GST</TableHead>
@@ -1485,10 +1531,10 @@ function ProductsTab({ customer }: { customer: Customer }) {
                 {groups.map((group) => {
                   const rep = group.items[0];
                   const pending = group.items.some((it) => it.approvalStatus === 'PENDING');
-                  // Each product's Qty/Hours multiplies its agreed price before GST.
-                  // Total = base(+GST) summed over products.
+                  // Each product's agreed price less its discount, × Qty/Hours, before
+                  // GST. Total = base(+GST) summed over products.
                   const total = group.items.reduce((s, it) => {
-                    const base = (Number(it.price) || 0) * cpUnits(it);
+                    const base = cpNet(it);
                     const rate = Number(it.taxRate ?? 10) || 0;
                     const gst = (it.gstType ?? 'EXCLUSIVE') === 'INCLUSIVE' ? 0 : base * (rate / 100);
                     return s + base + gst;
@@ -1512,6 +1558,13 @@ function ProductsTab({ customer }: { customer: Customer }) {
                         <div className="space-y-1">
                           {group.items.map((it) => (
                             <div key={it.id}>{formatCurrency(it.price)}</div>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-center text-sm tabular-nums align-top">
+                        <div className="space-y-1">
+                          {group.items.map((it) => (
+                            <div key={it.id}>{cpDiscount(it) ? `${cpDiscount(it)}%` : '—'}</div>
                           ))}
                         </div>
                       </TableCell>
@@ -1612,7 +1665,7 @@ function LicenceGroupDetailsDialog({
 }) {
   const rep = group?.items[0];
   const lineTotals = (cp: CustomerProduct) => {
-    const net = (Number(cp.price) || 0) * cpUnits(cp);
+    const net = cpNet(cp);
     const rate = Number(cp.taxRate ?? 10) || 0;
     const gst = cp.gstType === 'INCLUSIVE' ? 0 : net * (rate / 100);
     return { net, gst, total: net + gst };
@@ -1651,6 +1704,7 @@ function LicenceGroupDetailsDialog({
                   <tr>
                     <th className="px-3 py-2 text-left">Product</th>
                     <th className="px-3 py-2 text-right">Agreed Price</th>
+                    <th className="px-3 py-2 text-right">Discount</th>
                     <th className="px-3 py-2 text-right">Qty/Hours</th>
                     <th className="px-3 py-2 text-right">Net</th>
                     <th className="px-3 py-2 text-right">GST</th>
@@ -1674,6 +1728,7 @@ function LicenceGroupDetailsDialog({
                           </div>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(cp.price)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{cpDiscount(cp) ? `${cpDiscount(cp)}%` : '—'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{cpUnits(cp)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(net)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(gst)}</td>
@@ -1684,7 +1739,7 @@ function LicenceGroupDetailsDialog({
                 </tbody>
                 <tfoot className="border-t border-border bg-secondary/30 font-medium">
                   <tr>
-                    <td className="px-3 py-2" colSpan={3}>Totals</td>
+                    <td className="px-3 py-2" colSpan={4}>Totals</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totals.net)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totals.gst)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totals.total)}</td>

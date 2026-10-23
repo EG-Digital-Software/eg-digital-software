@@ -18,6 +18,7 @@ import { EmptyState, ErrorState, Spinner } from '@/components/shared/states';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { ProductGlyph } from '@/lib/product-icon';
 import { formatCountryPrice } from '@/lib/currencies';
+import { discountedPrice } from '@/lib/proration';
 import { Linkify } from '@/lib/linkify';
 import { BoldText } from '@/components/shared/BoldTextarea';
 
@@ -210,7 +211,7 @@ export default function ClientLicencesPage() {
                       {p.unitHoursEnabled ? (Number(p.unitHours) || 0) : '—'}
                     </TableCell>
                   )}
-                  <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency((Number(p.price) || 0) * (p.unitHoursEnabled ? Number(p.unitHours) || 0 : 1))}</TableCell>
+                  <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums">{formatCurrency(discountedPrice(p) * (p.unitHoursEnabled ? Number(p.unitHours) || 0 : 1))}</TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(p.contractType ?? 'LOCKED').toLowerCase()}</TableCell>
                   <TableCell className="whitespace-nowrap text-center text-sm capitalize">{(p.gstType ?? 'EXCLUSIVE').toLowerCase()}</TableCell>
                   <TableCell className="text-center">
@@ -296,7 +297,8 @@ function LicenceDetailsDialog({
 }) {
   const unitOn = !!product?.unitHoursEnabled;
   const unitVal = unitOn ? Number(product?.unitHours) || 0 : 1;
-  const net = (Number(product?.price) || 0) * unitVal;
+  const discount = Number(product?.discountPercent) || 0;
+  const net = (product ? discountedPrice(product) : 0) * unitVal;
   // GST is fixed at 10%; INCLUSIVE means it is already in the agreed price.
   const gst = product?.gstType === 'INCLUSIVE' ? 0 : net * 0.1;
   const total = net + gst;
@@ -330,6 +332,7 @@ function LicenceDetailsDialog({
               <Detail label="GST" value={(product.gstType ?? 'EXCLUSIVE').toLowerCase()} className="capitalize" />
               <Detail label="Unit/Hours" value={unitOn ? String(unitVal) : 'Off'} />
               <Detail label="Agreed Price" value={formatCurrency(product.price)} />
+              {discount > 0 && <Detail label="Discount" value={`${discount}%`} />}
               <Detail label="Issued" value={formatDate(product.issueDate)} />
               <Detail label="Expiry" value={formatDate(product.expiryDate)} />
               <Detail

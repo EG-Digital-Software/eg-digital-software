@@ -130,9 +130,12 @@ export default function DashboardPage() {
 
   const s = summaryQ.data;
 
-  // Portfolio health = share of licences that aren't expiring soon or expired.
-  const licTotal = s ? s.licences.active + s.licences.expiringSoon + s.licences.expired : 0;
-  const healthPct = licTotal > 0 ? Math.round((s!.licences.active / licTotal) * 100) : 100;
+  // Portfolio health = share of licences still running. Expiring-soon licences
+  // are live, so they count as healthy (the licence table flags them); only
+  // expired and suspended ones pull the score down.
+  const licLive = s ? s.licences.active + s.licences.expiringSoon : 0;
+  const licTotal = s ? licLive + s.licences.expired + s.licences.suspended : 0;
+  const healthPct = licTotal > 0 ? Math.round((licLive / licTotal) * 100) : 100;
 
   return (
     <div className="space-y-6">
