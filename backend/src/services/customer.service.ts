@@ -805,13 +805,13 @@ async function assignProducts(
   for (const ap of assignedProducts ?? []) {
     await reserveStock(tx, ap.productId, 1);
     const status = (ap.status as LicenceStatus) ?? computeLicenceStatus(ap.expiryDate);
-    // No agreed price given → fall back to the product's own list price.
-    const price =
-      ap.price ??
-      Number(
-        (await tx.product.findUnique({ where: { id: ap.productId }, select: { pricePerQty: true } }))
-          ?.pricePerQty ?? 0
-      );
+    // No agreed price / GST type given → fall back to the product's own.
+    const product = await tx.product.findUnique({
+      where: { id: ap.productId },
+      select: { pricePerQty: true, gstType: true },
+    });
+    const price = ap.price ?? Number(product?.pricePerQty ?? 0);
+    const gstType = ap.gstType ?? (product?.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE');
     const cp = await tx.customerProduct.create({
       data: {
         customerId,
@@ -828,7 +828,7 @@ async function assignProducts(
         nextInvoiceDate: ap.advancePayment ? (ap.issueDate ?? new Date()) : null,
         taxRate: new Prisma.Decimal(ap.taxRate ?? 10), // GST — fixed at 10%
         contractType: ap.contractType ?? 'LOCKED',
-        gstType: ap.gstType ?? 'EXCLUSIVE',
+        gstType,
         invoicingTerm: ap.invoicingTerm?.trim() || null,
         issueDate: ap.issueDate ?? new Date(),
         expiryDate: ap.expiryDate ?? null,

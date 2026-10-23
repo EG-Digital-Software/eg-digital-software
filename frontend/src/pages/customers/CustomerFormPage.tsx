@@ -1878,7 +1878,11 @@ export default function CustomerFormPage() {
               {fields.map((field, index) => {
                 const row = assigned?.[index];
                 const rowNet = (Number(row?.price) || 0) * (1 - (Number(row?.discountPercent) || 0) / 100);
-                const rowTotal = rowNet + rowNet * ((Number(row?.taxRate) || 0) / 100);
+                // The assignment takes the product's GST type; INCLUSIVE prices
+                // already contain GST, so nothing is added on top.
+                const rowInclusive =
+                  products?.items.find((p) => p.id === row?.productId)?.gstType === 'INCLUSIVE';
+                const rowTotal = rowInclusive ? rowNet : rowNet + rowNet * ((Number(row?.taxRate) || 0) / 100);
                 return (
                   <div key={field.id} className="rounded-lg border border-border bg-secondary/30 p-4">
                     <div className="mb-3 flex items-center justify-between">
@@ -1893,7 +1897,19 @@ export default function CustomerFormPage() {
                           control={control}
                           name={`assignedProducts.${index}.productId`}
                           render={({ field: f }) => (
-                            <Select {...f}>
+                            <Select
+                              {...f}
+                              onChange={(e) => {
+                                f.onChange(e);
+                                // Pre-fill the agreed price from the product's own
+                                // price when it has one (editable afterwards).
+                                const listPrice =
+                                  Number(products?.items.find((p) => p.id === e.target.value)?.pricePerQty) || 0;
+                                if (listPrice > 0) {
+                                  setValue(`assignedProducts.${index}.price`, listPrice, { shouldDirty: true });
+                                }
+                              }}
+                            >
                               <option value="">Select product…</option>
                               {products?.items.map((p) => (
                                 <option key={p.id} value={p.id}>
@@ -1950,7 +1966,7 @@ export default function CustomerFormPage() {
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  append({ productId: '', price: 0, discountPercent: 0, unit: '', taxRate: 0, licence: '', issueDate: '', expiryDate: '' })
+                  append({ productId: '', price: 0, discountPercent: 0, unit: '', taxRate: 10, licence: '', issueDate: '', expiryDate: '' })
                 }
               >
                 <Plus className="h-4 w-4" /> Add Product
