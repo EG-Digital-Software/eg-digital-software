@@ -1,22 +1,21 @@
-import { useState } from 'react';
 import { Link, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/store/auth';
 import { toPortal, PORTAL_ROLEKEY, PORTAL_ROLE, ROLE_HOME, authPaths } from '@/lib/portal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLogin } from '@/hooks/useSession';
 import { apiErrorMessage } from '@/api/client';
-import { Spinner } from '@/components/shared/states';
-import { cn } from '@/lib/utils';
+import { brand } from '@/config/brand';
 import {
-  GraphiteShell,
-  GRAPHITE_BUTTON,
-  GRAPHITE_EYEBROW,
-  GRAPHITE_INPUT,
-} from '@/components/auth/GraphiteShell';
+  SpotlightShell,
+  SpotlightPill,
+  SpotlightDivider,
+  SpotlightSubmit,
+  SPOTLIGHT_INPUT,
+  SPOTLIGHT_LINK,
+} from '@/components/auth/SpotlightShell';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -29,39 +28,34 @@ type RoleKey = 'super-admin' | 'client' | 'employee';
 
 type RoleConfig = {
   label: string;
-  description: string;
+  /** Line under the "Sign in" headline. */
+  subtitle: string;
   placeholder: string;
   allowSignup: boolean;
-  /** Caption above the page headline. */
-  eyebrow: string;
 };
 
 const ROLES: Record<RoleKey, RoleConfig> = {
   'super-admin': {
     label: 'Admin',
-    description: 'Administrative access to the EG Eloma control panel.',
+    subtitle: 'Admin console · Always on. Always ready.',
     placeholder: 'admin@egdigital.com.au',
     allowSignup: false,
-    eyebrow: 'Admin Console · Secure sign-in',
   },
   client: {
     label: 'Customer',
-    description: 'Access your invoices, licences and payments.',
+    subtitle: 'Customer portal · Always on. Always ready.',
     placeholder: 'you@company.com.au',
     allowSignup: true,
-    eyebrow: 'Customer Portal · Secure sign-in',
   },
   employee: {
     label: 'Team',
-    description: 'Access your workspace, tasks and internal tools.',
+    subtitle: 'Team workspace · Always on. Always ready.',
     placeholder: 'you@egdigital.com.au',
     allowSignup: true,
-    eyebrow: 'Team Workspace · Secure sign-in',
   },
 };
 
 export default function LoginPage() {
-  const [showPassword, setShowPassword] = useState(false);
   const login = useLogin();
   const navigate = useNavigate();
   const location = useLocation();
@@ -110,101 +104,55 @@ export default function LoginPage() {
     return <Navigate to={ROLE_HOME[sessionUser.role]} replace />;
   }
 
+  const fieldError = errors.email?.message ?? errors.password?.message;
+
   return (
-    <GraphiteShell eyebrow={role.eyebrow}>
-      <div className="flex flex-col gap-2">
-        <div className={GRAPHITE_EYEBROW}>Sign in · {role.label}</div>
-        <h2 className="m-0 text-[34px] !font-bold leading-[1.1] text-white">Welcome back.</h2>
-        <p className="m-0 text-[15px] text-[#a3abb9]">{role.description}</p>
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <label htmlFor="email" className={GRAPHITE_EYEBROW}>
-            Email Address
+    <SpotlightShell subtitle={role.subtitle}>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3.5" noValidate>
+        <SpotlightPill>
+          <label htmlFor="email" className="sr-only">
+            Email address
           </label>
-          <div className="relative">
-            <Mail
-              className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#8b93a3]"
-              strokeWidth={1.8}
-            />
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder={role.placeholder}
-              className={cn(GRAPHITE_INPUT, 'pr-3.5')}
-              {...register('email')}
-            />
-          </div>
-          {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label htmlFor="password" className={GRAPHITE_EYEBROW}>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder={role.placeholder}
+            className={SPOTLIGHT_INPUT}
+            {...register('email')}
+          />
+          <SpotlightDivider />
+          <label htmlFor="password" className="sr-only">
             Password
           </label>
-          <div className="relative">
-            <Lock
-              className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#8b93a3]"
-              strokeWidth={1.8}
-            />
-            <input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              placeholder="Enter your password"
-              className={cn(GRAPHITE_INPUT, 'pr-12')}
-              {...register('password')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[#a3abb9] transition-colors hover:text-white"
-            >
-              {showPassword ? (
-                <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.8} />
-              ) : (
-                <Eye className="h-[18px] w-[18px]" strokeWidth={1.8} />
-              )}
-            </button>
-          </div>
-          {errors.password && <p className="text-xs text-red-400">{errors.password.message}</p>}
-        </div>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="Password"
+            className={SPOTLIGHT_INPUT}
+            {...register('password')}
+          />
+          <SpotlightSubmit loading={isSubmitting} />
+        </SpotlightPill>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm text-[#c7ccd6]">
-            <input type="checkbox" className="m-0 h-4 w-4 accent-white" {...register('rememberMe')} />
-            Keep me signed in
-          </label>
-          <Link
-            to={forgotPath}
-            className="text-sm text-white underline underline-offset-[3px] hover:text-[#cbd5e1]"
-          >
-            Forgot password?
+        {fieldError && <p className="m-0 text-center text-sm text-red-400">{fieldError}</p>}
+
+        <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm">
+          <Link to={forgotPath} className={SPOTLIGHT_LINK}>
+            Forgot password
           </Link>
-        </div>
-
-        <button type="submit" disabled={isSubmitting} className={GRAPHITE_BUTTON}>
-          {isSubmitting ? <Spinner /> : null}
-          Sign In {!isSubmitting && '→'}
-        </button>
-      </form>
-
-      <div className="flex flex-wrap justify-between gap-2 border-t border-[#1f2430] pt-[18px] text-[13px] text-[#a3abb9]">
-        {role.allowSignup ? (
-          <>
-            <span>Don&apos;t have an account?</span>
-            <Link to={authPaths.register(portal)} className="font-semibold text-white hover:text-[#cbd5e1]">
-              Sign up →
+          {role.allowSignup && (
+            <Link to={authPaths.register(portal)} className={SPOTLIGHT_LINK}>
+              Create account
             </Link>
-          </>
-        ) : (
-          <span>Protected area · Unauthorised access is prohibited.</span>
-        )}
-      </div>
-    </GraphiteShell>
+          )}
+          <a href={`mailto:${brand.seller.billingEmail}`} className={SPOTLIGHT_LINK}>
+            Contact IT Support
+          </a>
+        </div>
+      </form>
+    </SpotlightShell>
   );
 }
 
