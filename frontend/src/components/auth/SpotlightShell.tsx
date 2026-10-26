@@ -69,6 +69,7 @@ const KEYFRAMES = `
 .eg-shadow{animation:egShadow 4s ease-in-out infinite}
 .eg-spot{-webkit-mask-image:radial-gradient(circle,#000 0,rgba(0,0,0,0) 260px);mask-image:radial-gradient(circle,#000 0,rgba(0,0,0,0) 260px);-webkit-mask-size:200% 200%;mask-size:200% 200%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;animation:egSpot 14s ease-in-out infinite}
 .eg-input:-webkit-autofill,.eg-input:-webkit-autofill:hover,.eg-input:-webkit-autofill:focus,.eg-input:autofill{-webkit-text-fill-color:var(--eg-text);caret-color:var(--eg-text);-webkit-box-shadow:0 0 0 1000px var(--eg-bg) inset;box-shadow:0 0 0 1000px var(--eg-bg) inset;transition:background-color 9999s ease-in-out 0s}
+@media (max-height:500px){.eg-shell{gap:16px;padding-top:56px;padding-bottom:56px}.eg-bird{height:72px;width:110px;margin-top:-14px}.eg-bird-img{width:72px}.eg-bird-img-light{width:64px}.eg-title{font-size:30px}}
 @media (prefers-reduced-motion:reduce){.eg-float,.eg-shadow,.eg-spot{animation:none}}
 `;
 
@@ -129,7 +130,7 @@ export function SpotlightShell({
 
   return (
     <div
-      className="relative flex min-h-screen flex-col items-center justify-center gap-[30px] overflow-hidden bg-[color:var(--eg-bg)] px-4 pb-24 pt-20 text-[color:var(--eg-text)] transition-colors duration-300 sm:pb-[100px] sm:pt-16"
+      className="eg-shell relative flex min-h-screen min-h-[100dvh] flex-col items-center justify-center gap-[30px] overflow-hidden bg-[color:var(--eg-bg)] px-4 py-20 text-[color:var(--eg-text)] transition-colors duration-300 sm:py-24"
       style={{ ...THEMES[theme], fontFamily: 'Barlow, system-ui, sans-serif', colorScheme: theme } as CSSProperties}
     >
       <style>{KEYFRAMES}</style>
@@ -171,12 +172,12 @@ export function SpotlightShell({
       </button>
 
       {/* Hummingbird */}
-      <div aria-hidden="true" className="relative z-[1] -mb-1.5 h-[110px] w-[150px] sm:h-[140px] sm:w-[200px]">
+      <div aria-hidden="true" className="eg-bird relative z-[1] -mb-1.5 -mt-[25px] h-[110px] w-[150px] sm:-mt-[27px] sm:h-[140px] sm:w-[200px]">
         <div className="eg-float absolute inset-0 flex items-end justify-center">
           {dark ? (
-            <img src={hummingbird} alt="" className="relative block w-[105px] sm:w-[140px]" />
+            <img src={hummingbird} alt="" className="eg-bird-img relative block w-[105px] sm:w-[140px]" />
           ) : (
-            <img src={brand.icon} alt="" className="relative block w-[96px] sm:w-[124px]" />
+            <img src={brand.icon} alt="" className="eg-bird-img-light relative block w-[96px] sm:w-[124px]" />
           )}
         </div>
         <div
@@ -186,7 +187,7 @@ export function SpotlightShell({
       </div>
 
       <div className="relative z-[1] flex flex-col gap-2 text-center">
-        <h1 className="m-0 text-[36px] font-semibold tracking-[-0.02em] text-[color:var(--eg-text)] sm:text-[44px]">{title}</h1>
+        <h1 className="eg-title m-0 text-[36px] font-semibold tracking-[-0.02em] text-[color:var(--eg-text)] sm:text-[44px]">{title}</h1>
         <p className="m-0 mx-auto max-w-[520px] text-[17px] text-[color:var(--eg-muted)]">{subtitle}</p>
       </div>
 
