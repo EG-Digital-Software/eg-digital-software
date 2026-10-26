@@ -1,35 +1,27 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, MailCheck, Clock, Camera, Mail, Lock, User, Hash, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Clock, Camera, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 import { Spinner } from '@/components/shared/states';
 import { registerRequest, type RegisterPayload } from '@/api/auth';
 import { apiErrorMessage } from '@/api/client';
 import { titleCaseField } from '@/lib/input';
 import {
-  AuthShell,
-  AuthField,
-  AuthButton,
-  type AuthAccent,
-  type AuthTab,
-  type AuthVariant,
-  PasswordRules,
-} from '@/components/auth/AuthShell';
+  SpotlightShell,
+  SpotlightPill,
+  SpotlightPasswordRules,
+  SPOTLIGHT_INPUT,
+  SPOTLIGHT_LINK,
+} from '@/components/auth/SpotlightShell';
 
 type RoleCfg = {
   label: string;
   role: RegisterPayload['role'];
   client: boolean;
-  welcome: string;
-  subline: string;
-  accent: AuthAccent;
-  variant: AuthVariant;
+  subtitle: string;
 };
 
 const ROLE_MAP: Record<string, RoleCfg> = {
@@ -37,19 +29,13 @@ const ROLE_MAP: Record<string, RoleCfg> = {
     label: 'Customer',
     role: 'CLIENT',
     client: true,
-    welcome: 'Manage your invoices & licences online',
-    subline: 'Create your EG Eloma client account to view statements and pay securely.',
-    accent: { from: '#0d9488', to: '#10b981' }, // teal → emerald
-    variant: 'client',
+    subtitle: 'Create your customer account to view statements and pay securely.',
   },
   employee: {
     label: 'Team',
     role: 'EMPLOYEE',
     client: false,
-    welcome: 'Set up your EG Eloma workspace',
-    subline: 'Access customers, licences and internal tools in one focused place.',
-    accent: { from: '#0284c7', to: '#38bdf8' }, // sky blue
-    variant: 'employee',
+    subtitle: 'Set up your team workspace account.',
   },
 };
 
@@ -75,6 +61,39 @@ const makeSchema = () =>
     });
 type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 
+/** One pill-shaped field with a screen-reader label and its error/hint below. */
+function Field({
+  id,
+  label,
+  error,
+  hint,
+  children,
+}: {
+  id: string;
+  label: string;
+  error?: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <SpotlightPill single>{children}</SpotlightPill>
+      {error ? (
+        <p className="m-0 px-5 text-xs text-red-400">{error}</p>
+      ) : hint ? (
+        <p className="m-0 px-5 text-xs text-[color:var(--eg-placeholder)]">{hint}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Solid green pill used for the page's main action. */
+const PRIMARY_BUTTON =
+  'inline-flex h-12 items-center justify-center gap-2 rounded-full border-0 bg-[#2EB88A] px-7 text-[15px] font-semibold text-black no-underline transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60';
+
 export default function RegisterPage() {
   const { portal } = useParams();
   const cfg = portal ? ROLE_MAP[portal] : undefined;
@@ -94,11 +113,7 @@ export default function RegisterPage() {
 
   if (!cfg) return <Navigate to="/" replace />;
 
-  const tabs: AuthTab[] = [
-    { label: 'Sign In', to: `/${portal}/login` },
-    { label: 'Sign Up', to: `/${portal}/register`, active: true },
-    { label: 'Password recovery', to: `/${portal}/forgot-password` },
-  ];
+  const loginPath = `/${portal}/login`;
 
   const onPickAvatar = (file?: File | null) => {
     if (!file) return;
@@ -129,177 +144,152 @@ export default function RegisterPage() {
 
   if (submitted) {
     return (
-      <AuthShell tabs={tabs} welcome={cfg.welcome} subline={cfg.subline} accent={cfg.accent} variant={cfg.variant}>
-        <div className="stagger text-center">
-          <div
-            className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg"
-            style={{ background: `linear-gradient(120deg, ${cfg.accent.from}, ${cfg.accent.to})` }}
-          >
-            <MailCheck className="h-7 w-7" />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Request Submitted</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Your {cfg.label} account is{' '}
-            <span className="font-medium text-foreground">awaiting EG approval</span>. You&apos;ll
-            be able to sign in once it&apos;s approved.
-          </p>
-          <div className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-border bg-secondary/40 px-4 py-2.5 text-sm text-muted-foreground">
+      <SpotlightShell
+        title="Request submitted"
+        subtitle={
+          <>
+            Your {cfg.label} account is awaiting EG approval. You&apos;ll be able to sign in once it&apos;s
+            approved.
+          </>
+        }
+      >
+        <div className="flex flex-col items-center gap-5">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--eg-border)] px-4 py-2 text-sm text-[color:var(--eg-muted)]">
             <Clock className="h-4 w-4" /> Pending approval
-          </div>
-          <Button asChild className="mt-6 w-full" size="lg">
-            <Link to={`/${portal}/login`}>Back to {cfg.label} login</Link>
-          </Button>
+          </span>
+          <Link to={loginPath} className={PRIMARY_BUTTON}>
+            <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={2.2} />
+            Back to {cfg.label} sign in
+          </Link>
         </div>
-      </AuthShell>
+      </SpotlightShell>
     );
   }
 
   return (
-    <AuthShell tabs={tabs} welcome={cfg.welcome} subline={cfg.subline} accent={cfg.accent} variant={cfg.variant}>
-      <div className="stagger">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Sign Up</h1>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-5">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Avatar className="h-16 w-16 ring-2 ring-white">
-                {avatarPreview && <AvatarImage src={avatarPreview} alt="" />}
-                <AvatarFallback className="text-lg">
-                  <Camera className="h-5 w-5 text-muted-foreground" />
-                </AvatarFallback>
-              </Avatar>
+    <SpotlightShell title="Create account" subtitle={cfg.subtitle}>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3.5" noValidate>
+        {/* Optional profile picture */}
+        <div className="flex items-center justify-center gap-4 pb-1">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            aria-label="Upload profile picture"
+            className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-dashed border-[color:var(--eg-border-focus)] bg-transparent p-0 text-[color:var(--eg-placeholder)] transition-colors hover:border-[#2EB88A] hover:text-[#2EB88A]"
+          >
+            {avatarPreview ? (
+              <img src={avatarPreview} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <Camera className="h-5 w-5" strokeWidth={1.8} />
+            )}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => onPickAvatar(e.target.files?.[0])}
+          />
+          <div className="text-left">
+            <p className="m-0 text-sm text-[color:var(--eg-text)]">Profile picture</p>
+            <p className="m-0 text-xs text-[color:var(--eg-placeholder)]">Optional · PNG/JPG/WEBP, up to 3MB</p>
+            {avatar && (
               <button
                 type="button"
-                onClick={() => fileRef.current?.click()}
-                className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-card text-white shadow-sm"
-                style={{ background: cfg.accent.from }}
-                aria-label="Upload profile picture"
+                onClick={() => {
+                  setAvatar(null);
+                  setAvatarPreview(null);
+                }}
+                className="mt-0.5 border-0 bg-transparent p-0 text-xs text-red-400 hover:underline"
               >
-                <Camera className="h-3.5 w-3.5" />
+                Remove
               </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                className="hidden"
-                onChange={(e) => onPickAvatar(e.target.files?.[0])}
-              />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Profile picture</p>
-              <p className="text-xs text-muted-foreground">Optional · PNG/JPG/WEBP, up to 3MB</p>
-              {avatar && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAvatar(null);
-                    setAvatarPreview(null);
-                  }}
-                  className="mt-1 text-xs font-medium text-destructive hover:underline"
-                >
-                  Remove
-                </button>
-              )}
-            </div>
+            )}
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="firstName">First name</Label>
-              <AuthField id="firstName" icon={User} {...titleCaseField(register('firstName'))} />
-              {errors.firstName && (
-                <p className="text-xs text-destructive">{errors.firstName.message}</p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="lastName">Last name</Label>
-              <AuthField id="lastName" icon={User} {...titleCaseField(register('lastName'))} />
-              {errors.lastName && (
-                <p className="text-xs text-destructive">{errors.lastName.message}</p>
-              )}
-            </div>
-          </div>
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <Field id="firstName" label="First name" error={errors.firstName?.message}>
+            <input id="firstName" placeholder="First name" className={SPOTLIGHT_INPUT} {...titleCaseField(register('firstName'))} />
+          </Field>
+          <Field id="lastName" label="Last name" error={errors.lastName?.message}>
+            <input id="lastName" placeholder="Last name" className={SPOTLIGHT_INPUT} {...titleCaseField(register('lastName'))} />
+          </Field>
+        </div>
 
-          {cfg.client && (
-            <div className="space-y-1.5">
-              <Label htmlFor="clientId">Customer ID (Optional)</Label>
-              <AuthField id="clientId" icon={Hash} placeholder="EGD-2627-5000" {...register('clientId')} />
-              {errors.clientId ? (
-                <p className="text-xs text-destructive">{errors.clientId.message}</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Leave blank to auto-link your account using your email address.
-                </p>
-              )}
-            </div>
-          )}
+        {cfg.client && (
+          <Field
+            id="clientId"
+            label="Customer ID (optional)"
+            error={errors.clientId?.message}
+            hint="e.g. EGD-2627-5000 · Leave blank to auto-link your account using your email address."
+          >
+            <input id="clientId" placeholder="Customer ID (optional)" className={SPOTLIGHT_INPUT} {...register('clientId')} />
+          </Field>
+        )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <AuthField
-              id="email"
-              icon={Mail}
-              type="email"
-              autoComplete="email"
-              placeholder="you@company.com.au"
-              {...register('email')}
-            />
-            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-          </div>
+        <Field id="email" label="Email" error={errors.email?.message}>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder={cfg.client ? 'you@company.com.au' : 'you@egdigital.com.au'}
+            className={SPOTLIGHT_INPUT}
+            {...register('email')}
+          />
+        </Field>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
-            <AuthField
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <Field id="password" label="Password" error={errors.password?.message}>
+            <input
               id="password"
-              icon={Lock}
               type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
-              placeholder="Create a password"
+              placeholder="Password"
+              className={SPOTLIGHT_INPUT}
               {...register('password')}
-              trailing={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              }
             />
-            {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-            <PasswordRules value={password} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="confirm">Confirm password</Label>
-            <AuthField
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-[color:var(--eg-placeholder)] transition-colors hover:text-[color:var(--eg-text)]"
+            >
+              {showPassword ? (
+                <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.8} />
+              ) : (
+                <Eye className="h-[18px] w-[18px]" strokeWidth={1.8} />
+              )}
+            </button>
+          </Field>
+          <Field id="confirm" label="Confirm password" error={errors.confirm?.message}>
+            <input
               id="confirm"
-              icon={Lock}
               type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
-              placeholder="Re-enter your password"
+              placeholder="Confirm password"
+              className={SPOTLIGHT_INPUT}
               {...register('confirm')}
             />
-            {errors.confirm && <p className="text-xs text-destructive">{errors.confirm.message}</p>}
-          </div>
+          </Field>
+        </div>
 
-          <AuthButton type="submit" accent={cfg.accent} disabled={isSubmitting}>
-            {isSubmitting ? <Spinner /> : null}
-            Submit for approval
-            {!isSubmitting && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
-          </AuthButton>
-        </form>
+        <SpotlightPasswordRules value={password} />
 
-        <p className="mt-8 text-center text-sm text-muted-foreground">
-          Already approved?{' '}
-          <Link to={`/${portal}/login`} className="font-semibold text-primary hover:underline">
-            Sign in
-          </Link>
-        </p>
-      </div>
-    </AuthShell>
+        <button type="submit" disabled={isSubmitting} className={`${PRIMARY_BUTTON} mt-1 w-full`}>
+          {isSubmitting ? <Spinner /> : null}
+          Submit for approval
+        </button>
+
+        <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm">
+          <span className="text-[color:var(--eg-placeholder)]">
+            Already approved?{' '}
+            <Link to={loginPath} className={SPOTLIGHT_LINK}>
+              Sign in
+            </Link>
+          </span>
+        </div>
+      </form>
+    </SpotlightShell>
   );
 }

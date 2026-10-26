@@ -3,16 +3,17 @@ import { Link, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { forgotPasswordRequest, type Portal } from '@/api/auth';
+import { brand } from '@/config/brand';
 import { toPortal, PORTAL_ROLEKEY } from '@/lib/portal';
-import { Spinner } from '@/components/shared/states';
 import {
-  GraphiteShell,
-  GRAPHITE_BUTTON,
-  GRAPHITE_EYEBROW,
-  GRAPHITE_INPUT,
-} from '@/components/auth/GraphiteShell';
+  SpotlightShell,
+  SpotlightPill,
+  SpotlightSubmit,
+  SPOTLIGHT_INPUT,
+  SPOTLIGHT_LINK,
+} from '@/components/auth/SpotlightShell';
 
 const schema = z.object({ email: z.string().email('Enter a valid email') });
 type FormValues = z.infer<typeof schema>;
@@ -23,8 +24,6 @@ type RecoveryConfig = {
   label: string;
   portal: Portal;
   placeholder: string;
-  /** Caption above the page headline. */
-  eyebrow: string;
   /** Where "Back to sign in" goes. */
   signInPath: string;
 };
@@ -34,21 +33,18 @@ const ROLES: Record<RoleKey, RecoveryConfig> = {
     label: 'Admin',
     portal: 'SUPER_ADMIN',
     placeholder: 'admin@egdigital.com.au',
-    eyebrow: 'Admin Console · Secure sign-in',
     signInPath: '/admin/login',
   },
   client: {
     label: 'Customer',
     portal: 'CLIENT',
     placeholder: 'you@company.com.au',
-    eyebrow: 'Customer Portal · Secure sign-in',
     signInPath: '/',
   },
   employee: {
     label: 'Team',
     portal: 'EMPLOYEE',
     placeholder: 'you@egdigital.com.au',
-    eyebrow: 'Team Workspace · Secure sign-in',
     signInPath: '/',
   },
 };
@@ -72,67 +68,54 @@ export default function ForgotPasswordPage() {
     setSent(true);
   };
 
-  return (
-    <GraphiteShell eyebrow={role.eyebrow}>
-      {sent ? (
-        <>
-          <div className="flex flex-col gap-2">
-            <div className={GRAPHITE_EYEBROW}>Password recovery</div>
-            <h2 className="m-0 text-[34px] !font-bold leading-[1.1] text-white">Check your email.</h2>
-            <p className="m-0 text-[15px] text-[#a3abb9]">
-              If a {role.label} account exists for that address, we&apos;ve sent a password reset link.
-            </p>
-          </div>
-          <Link to={role.signInPath} className={GRAPHITE_BUTTON}>
-            Back to sign in →
-          </Link>
-        </>
-      ) : (
-        <>
-          <div className="flex flex-col gap-2">
-            <div className={GRAPHITE_EYEBROW}>Password recovery · {role.label}</div>
-            <h2 className="m-0 text-[34px] !font-bold leading-[1.1] text-white">Reset your password.</h2>
-            <p className="m-0 text-[15px] text-[#a3abb9]">We&apos;ll email you a secure link to reset it.</p>
-          </div>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="email" className={GRAPHITE_EYEBROW}>
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail
-                  className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#8b93a3]"
-                  strokeWidth={1.8}
-                />
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder={role.placeholder}
-                  className={`${GRAPHITE_INPUT} pr-3.5`}
-                  {...register('email')}
-                />
-              </div>
-              {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
-            </div>
-
-            <button type="submit" disabled={isSubmitting} className={GRAPHITE_BUTTON}>
-              {isSubmitting ? <Spinner /> : null}
-              Send reset link {!isSubmitting && '→'}
-            </button>
-          </form>
-        </>
-      )}
-
-      {!sent && (
-        <div className="flex flex-wrap justify-between gap-2 border-t border-[#1f2430] pt-[18px] text-[13px] text-[#a3abb9]">
-          <span>Remembered it?</span>
-          <Link to={role.signInPath} className="font-semibold text-white hover:text-[#cbd5e1]">
-            Back to sign in →
+  if (sent) {
+    return (
+      <SpotlightShell
+        title="Check your email"
+        subtitle={<>If a {role.label} account exists for that address, we&apos;ve sent a password reset link.</>}
+      >
+        <div className="flex justify-center">
+          <Link
+            to={role.signInPath}
+            className="inline-flex h-12 items-center gap-2 rounded-full bg-[#2EB88A] px-7 text-[15px] font-semibold text-black no-underline transition-[filter] hover:brightness-110"
+          >
+            <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={2.2} />
+            Back to sign in
           </Link>
         </div>
-      )}
-    </GraphiteShell>
+      </SpotlightShell>
+    );
+  }
+
+  return (
+    <SpotlightShell title="Reset password" subtitle="We'll email you a secure link to reset it.">
+      <form onSubmit={handleSubmit(onSubmit)} className="mx-auto flex max-w-[480px] flex-col gap-3.5" noValidate>
+        <SpotlightPill single>
+          <label htmlFor="email" className="sr-only">
+            Email address
+          </label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder={role.placeholder}
+            className={SPOTLIGHT_INPUT}
+            {...register('email')}
+          />
+          <SpotlightSubmit loading={isSubmitting} label="Send reset link" />
+        </SpotlightPill>
+
+        {errors.email && <p className="m-0 text-center text-sm text-red-400">{errors.email.message}</p>}
+
+        <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm">
+          <Link to={role.signInPath} className={SPOTLIGHT_LINK}>
+            Back to sign in
+          </Link>
+          <a href={`mailto:${brand.seller.billingEmail}`} className={SPOTLIGHT_LINK}>
+            Contact IT Support
+          </a>
+        </div>
+      </form>
+    </SpotlightShell>
   );
 }

@@ -4,6 +4,7 @@ import { ArrowRight, Moon, Sun } from 'lucide-react';
 import { brand } from '@/config/brand';
 import { Logo } from '@/components/layout/Logo';
 import { Spinner } from '@/components/shared/states';
+import { cn } from '@/lib/utils';
 import hummingbird from '@/assets/eg-hummingbird.png';
 
 /** Brand green used for the spotlight dots, glow and submit button. */
@@ -72,13 +73,21 @@ const KEYFRAMES = `
 `;
 
 /** Round green arrow button that submits the sign-in pill. */
-export function SpotlightSubmit({ loading }: { loading?: boolean }) {
+export function SpotlightSubmit({
+  loading,
+  disabled,
+  label = 'Sign in',
+}: {
+  loading?: boolean;
+  disabled?: boolean;
+  label?: string;
+}) {
   return (
     <button
       type="submit"
-      disabled={loading}
-      aria-label="Sign in"
-      className="flex h-12 w-12 shrink-0 items-center justify-center self-end rounded-full border-0 text-black transition-[filter] hover:brightness-110 disabled:opacity-70 sm:self-auto"
+      disabled={loading || disabled}
+      aria-label={label}
+      className="flex h-12 w-12 shrink-0 items-center justify-center self-end rounded-full border-0 text-black transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
       style={{ background: ACCENT }}
     >
       {loading ? <Spinner /> : <ArrowRight className="h-5 w-5" strokeWidth={2.4} />}
@@ -178,7 +187,7 @@ export function SpotlightShell({
 
       <div className="relative z-[1] flex flex-col gap-2 text-center">
         <h1 className="m-0 text-[36px] font-semibold tracking-[-0.02em] text-[color:var(--eg-text)] sm:text-[44px]">{title}</h1>
-        <p className="m-0 text-[17px] text-[color:var(--eg-muted)]">{subtitle}</p>
+        <p className="m-0 mx-auto max-w-[520px] text-[17px] text-[color:var(--eg-muted)]">{subtitle}</p>
       </div>
 
       <div className="relative z-[1] w-full max-w-[640px]">{children}</div>
@@ -197,10 +206,46 @@ export function SpotlightShell({
 
 /** The bordered pill that holds email, password and the submit arrow. Stacks
  *  into a rounded card on narrow screens. */
-export function SpotlightPill({ children }: { children: ReactNode }) {
+export function SpotlightPill({ children, single = false }: { children: ReactNode; /** One field: stay a pill on phones too. */ single?: boolean }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-[28px] border border-[color:var(--eg-border)] bg-[color:var(--eg-bg)] p-1.5 transition-colors focus-within:border-[color:var(--eg-border-focus)] sm:flex-row sm:items-center sm:rounded-full">
+    <div
+      className={cn(
+        'flex gap-1.5 border border-[color:var(--eg-border)] bg-[color:var(--eg-bg)] p-1.5 transition-colors focus-within:border-[color:var(--eg-border-focus)]',
+        single
+          ? 'flex-row items-center rounded-full [&>button]:self-auto [&>input]:flex-1'
+          : 'flex-col rounded-[28px] sm:flex-row sm:items-center sm:rounded-full',
+      )}
+    >
       {children}
     </div>
+  );
+}
+
+/** Live checklist so the password rule is visible before submitting. */
+export function SpotlightPasswordRules({ value }: { value: string }) {
+  if (!value) return null;
+  const rules = [
+    { label: 'At least 8 characters', ok: value.length >= 8 },
+    { label: 'Contains a letter', ok: /[a-zA-Z]/.test(value) },
+    { label: 'Contains a number', ok: /\d/.test(value) },
+  ];
+  return (
+    <ul className="m-0 flex list-none flex-wrap justify-center gap-x-5 gap-y-1.5 p-0 text-[13px]">
+      {rules.map((r) => (
+        <li
+          key={r.label}
+          className={cn(
+            'flex items-center gap-1.5',
+            r.ok ? 'text-[#2EB88A]' : 'text-[color:var(--eg-placeholder)]',
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn('inline-block h-1.5 w-1.5 rounded-full', r.ok ? 'bg-[#2EB88A]' : 'bg-[color:var(--eg-border)]')}
+          />
+          {r.label}
+        </li>
+      ))}
+    </ul>
   );
 }
