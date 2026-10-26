@@ -87,6 +87,8 @@ export function buildTaskRouter(readOnly = false): Router {
   router.patch('/tasks/:taskId/approvals/:approvalId', validate({ body: decideApprovalSchema }), ctrl.decideApproval);
   // Re-open a decided approval (admin-only, enforced in the controller).
   router.post('/tasks/:taskId/approvals/:approvalId/reopen', ctrl.reopenApproval);
+  // Re-open an expired 48-hour resubmission window (admin-only, enforced in the controller).
+  router.post('/tasks/:taskId/approvals/:approvalId/reopen-resubmit', ctrl.reopenResubmitWindow);
   router.delete('/tasks/:taskId/approvals/:approvalId', ctrl.deleteApproval);
 
   if (!readOnly) {

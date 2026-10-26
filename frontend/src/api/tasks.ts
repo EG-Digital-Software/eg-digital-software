@@ -284,6 +284,9 @@ export function taskApi(base: string) {
     // Re-open a decided approval back to pending — admin-only (403 otherwise).
     reopenApproval: (taskId: string, approvalId: string) =>
       unwrap<TaskApproval>(api.post(`${base}/tasks/${taskId}/approvals/${approvalId}/reopen`, {})),
+    // Give the team a fresh 48-hour resubmission window once it has run out (admin-only).
+    reopenResubmitWindow: (taskId: string, approvalId: string) =>
+      unwrap<TaskApproval>(api.post(`${base}/tasks/${taskId}/approvals/${approvalId}/reopen-resubmit`, {})),
     deleteApproval: (taskId: string, approvalId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/approvals/${approvalId}`)),
 

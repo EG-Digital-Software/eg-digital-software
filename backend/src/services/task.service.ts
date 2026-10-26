@@ -998,6 +998,28 @@ async function verifyUploads(taskId: string, uploaded: UploadedApprovalFile[]) {
 const RESUBMIT_WINDOW_HOURS = 48;
 const RESUBMIT_WINDOW_MS = RESUBMIT_WINDOW_HOURS * 60 * 60 * 1000;
 
+/** When a rejected entry's resubmission window closes: 48h from the rejection,
+ *  or from the latest admin re-open of the window, whichever is later. */
+function resubmitDeadline(a: { decidedAt: Date | null; updatedAt: Date; resubmitReopenedAt: Date | null }): number {
+  const rejectedAt = (a.decidedAt ?? a.updatedAt).getTime();
+  const reopenedAt = a.resubmitReopenedAt?.getTime() ?? 0;
+  return Math.max(rejectedAt, reopenedAt) + RESUBMIT_WINDOW_MS;
+}
+
+/** The top-level request of an approval's chain and its newest submission. */
+async function approvalChain(taskId: string, approvalId: string) {
+  const target = await prisma.taskApproval.findFirst({ where: { id: approvalId, taskId } });
+  if (!target) throw ApiError.notFound('Approval request not found');
+  // Resubmissions always hang off the top-level request, keeping one level.
+  const rootId = target.parentId ?? target.id;
+  const root = await prisma.taskApproval.findFirst({
+    where: { id: rootId, taskId },
+    include: { resubmissions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+  });
+  if (!root) throw ApiError.notFound('Approval request not found');
+  return { root, latest: root.resubmissions[0] ?? root };
+}
+
 export async function createApproval(
   customerId: string,
   taskId: string,
@@ -1028,23 +1050,13 @@ export async function resubmitApproval(
   uploaded: UploadedApprovalFile[] = []
 ) {
   await ensureTask(customerId, taskId);
-  const target = await prisma.taskApproval.findFirst({ where: { id: approvalId, taskId } });
-  if (!target) throw ApiError.notFound('Approval request not found');
-  // Resubmissions always hang off the top-level request, keeping one level.
-  const rootId = target.parentId ?? target.id;
-  const root = await prisma.taskApproval.findFirst({
-    where: { id: rootId, taskId },
-    include: { resubmissions: { orderBy: { createdAt: 'desc' }, take: 1 } },
-  });
-  if (!root) throw ApiError.notFound('Approval request not found');
-  const latest = root.resubmissions[0] ?? root;
+  const { root, latest } = await approvalChain(taskId, approvalId);
   if (latest.status !== 'REJECTED') {
     throw ApiError.badRequest('Only a rejected approval request can be resubmitted');
   }
   // The team has a fixed window after the rejection to resubmit; after that
-  // the request stays closed.
-  const rejectedAt = latest.decidedAt ?? latest.updatedAt;
-  if (Date.now() > rejectedAt.getTime() + RESUBMIT_WINDOW_MS) {
+  // the request stays closed until an admin re-opens the window.
+  if (Date.now() > resubmitDeadline(latest)) {
     throw ApiError.badRequest(`The ${RESUBMIT_WINDOW_HOURS}-hour resubmission window for this request has closed`);
   }
   const verified = await verifyUploads(taskId, uploaded);
@@ -1156,6 +1168,32 @@ export async function reopenApproval(customerId: string, taskId: string, approva
       decidedByName: null,
       decidedAt: null,
     },
+  });
+}
+
+/**
+ * Re-open an expired resubmission window for another 48 hours — admin-only
+ * (enforced in the controller). Applies to the newest submission in the chain,
+ * and only once its window has run out while it is still REJECTED. Only the
+ * re-open stamp is written; the rejection, feedback and files stay as they are.
+ */
+export async function reopenResubmitWindow(
+  customerId: string,
+  taskId: string,
+  approvalId: string,
+  admin: ApprovalRequester
+) {
+  await ensureTask(customerId, taskId);
+  const { latest } = await approvalChain(taskId, approvalId);
+  if (latest.status !== 'REJECTED') {
+    throw ApiError.badRequest('Only a rejected approval request can have its resubmission window re-opened');
+  }
+  if (Date.now() <= resubmitDeadline(latest)) {
+    throw ApiError.badRequest('The resubmission window for this request is still open');
+  }
+  return prisma.taskApproval.update({
+    where: { id: latest.id },
+    data: { resubmitReopenedAt: new Date(), resubmitReopenedByName: admin.name },
   });
 }
 

@@ -575,6 +575,12 @@ export function TaskDialog({
     onSuccess: () => toast.success('Re-opened for a new decision'),
     onSettled: () => { invalidateTask(); invalidate(); },
   });
+  const reopenResubmitWindow = useMutation({
+    mutationFn: (id: string) => api.reopenResubmitWindow(task!.id, id),
+    onSuccess: () => toast.success('Resubmission re-opened for 48 hours'),
+    onError: (e) => toast.error(apiErrorMessage(e)),
+    onSettled: () => { invalidateTask(); invalidate(); },
+  });
 
   function update(partial: Partial<Draft>, persist?: TaskInput) {
     setDraft((d) => ({ ...d, ...partial }));
@@ -1165,6 +1171,8 @@ export function TaskDialog({
                 deciding={decideApproval.isPending ? decideApproval.variables?.id : undefined}
                 onRemove={(id) => removeApproval.mutate(id)}
                 onReopen={(id) => reopenApproval.mutate(id)}
+                onReopenResubmit={(id) => reopenResubmitWindow.mutate(id)}
+                reopeningResubmit={reopenResubmitWindow.isPending ? reopenResubmitWindow.variables : undefined}
                 onResubmit={(id, v) => resubmitApproval.mutateAsync({ id, ...v })}
                 resubmitting={resubmitApproval.isPending}
               />
@@ -2039,9 +2047,12 @@ const APPROVAL_META: Record<TaskApprovalStatus, { label: string; icon: typeof Cl
 /** How long after a rejection the team may resubmit (kept in sync with the backend). */
 const RESUBMIT_WINDOW_MS = 48 * 60 * 60 * 1000;
 
-/** When the resubmission window of a rejected entry closes (ms since epoch). */
+/** When the resubmission window of a rejected entry closes (ms since epoch):
+ *  48h from the rejection, or from an admin re-open of the window if later. */
 function resubmitDeadline(a: TaskApproval): number {
-  return new Date(a.decidedAt ?? a.updatedAt).getTime() + RESUBMIT_WINDOW_MS;
+  const rejectedAt = new Date(a.decidedAt ?? a.updatedAt).getTime();
+  const reopenedAt = a.resubmitReopenedAt ? new Date(a.resubmitReopenedAt).getTime() : 0;
+  return Math.max(rejectedAt, reopenedAt) + RESUBMIT_WINDOW_MS;
 }
 
 function formatTimeLeft(ms: number): string {
@@ -2086,6 +2097,8 @@ function ApprovalPanel({
   deciding,
   onRemove,
   onReopen,
+  onReopenResubmit,
+  reopeningResubmit,
   onResubmit,
   resubmitting,
 }: {
@@ -2108,6 +2121,9 @@ function ApprovalPanel({
   deciding?: string;
   onRemove: (id: string) => void;
   onReopen: (id: string) => void;
+  onReopenResubmit: (id: string) => void;
+  /** Id of the entry whose resubmission window is being re-opened. */
+  reopeningResubmit?: string;
   onResubmit: (id: string, v: { subject: string; message: string; files: File[] }) => Promise<unknown>;
   resubmitting: boolean;
 }) {
@@ -2310,6 +2326,25 @@ function ApprovalPanel({
                     ? `Resubmit within ${formatTimeLeft(deadline - now)}`
                     : 'Resubmission window closed'}
                 </div>
+              )}
+              {a.resubmitReopenedAt && (
+                <div className="text-[11px] text-muted-foreground">
+                  Window re-opened{a.resubmitReopenedByName ? ` by ${a.resubmitReopenedByName}` : ''} ·{' '}
+                  {formatDate(a.resubmitReopenedAt, 'dd MMM, HH:mm')}
+                </div>
+              )}
+              {/* Once the window has run out without a resubmission, an admin can
+                  give the team another 48 hours. */}
+              {isAdmin && deadline !== null && deadline <= now && (
+                <button
+                  type="button"
+                  disabled={reopeningResubmit === a.id}
+                  onClick={() => onReopenResubmit(a.id)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary transition hover:underline disabled:opacity-60"
+                >
+                  <Hourglass className="h-3 w-3" />
+                  {reopeningResubmit === a.id ? 'Re-opening…' : 'Re-open resubmission (48h)'}
+                </button>
               )}
               {resubmitRoot && resubmitFor !== resubmitRoot.id && (
                 <div>

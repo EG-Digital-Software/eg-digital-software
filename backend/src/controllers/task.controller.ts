@@ -365,6 +365,20 @@ export const reopenApproval = asyncHandler(async (req: Request, res: Response) =
   );
 });
 
+export const reopenResubmitWindow = asyncHandler(async (req: Request, res: Response) => {
+  // Only admins may give the team a fresh 48-hour resubmission window once the
+  // original one has run out. Clients/team members can't.
+  if (req.user!.role !== 'SUPER_ADMIN') {
+    throw ApiError.forbidden('Only an admin can re-open a resubmission window');
+  }
+  const customerId = await resolve(req);
+  return ok(
+    res,
+    await taskService.reopenResubmitWindow(customerId, req.params.taskId, req.params.approvalId, await author(req)),
+    'Resubmission window re-opened for 48 hours'
+  );
+});
+
 export const deleteApproval = asyncHandler(async (req: Request, res: Response) => {
   // Only admins may delete an approval request — at any status (pending,
   // approved or rejected). Clients and team members cannot.

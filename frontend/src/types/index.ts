@@ -524,6 +524,9 @@ export interface TaskApproval {
   decidedByType?: Role | null;
   decidedByName?: string | null;
   decidedAt?: string | null;
+  /** When an admin re-opened this rejected entry's expired resubmission window. */
+  resubmitReopenedAt?: string | null;
+  resubmitReopenedByName?: string | null;
   createdAt: string;
   updatedAt: string;
   /** Images/files uploaded with the request; downloadable at original size. */

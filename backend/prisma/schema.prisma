@@ -987,6 +987,11 @@ model TaskApproval {
   decidedByType   Role?
   decidedByName   String?
   decidedAt       DateTime?
+  /// Set when an admin re-opens the resubmission window of a rejected entry
+  /// after it ran out; the team gets a fresh window from this moment. The
+  /// rejection itself (status, decidedAt, feedback) is left untouched.
+  resubmitReopenedAt     DateTime?
+  resubmitReopenedByName String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
