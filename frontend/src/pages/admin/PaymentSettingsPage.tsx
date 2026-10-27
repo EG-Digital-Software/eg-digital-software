@@ -1,12 +1,24 @@
-import { useEffect, forwardRef, type ReactNode, type InputHTMLAttributes } from 'react';
+import { useEffect, useState, forwardRef, type ReactNode, type InputHTMLAttributes } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { CreditCard, Landmark, KeyRound, Save, ShieldCheck, Smartphone } from 'lucide-react';
+import {
+  CreditCard,
+  Landmark,
+  KeyRound,
+  Save,
+  ShieldCheck,
+  Smartphone,
+  Copy,
+  Check,
+  PlugZap,
+  CircleCheck,
+  CircleAlert,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { settingsApi, type PaymentSettingsInput } from '@/api/resources';
-import { apiErrorMessage } from '@/api/client';
+import { api, apiErrorMessage } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Textarea, Select } from '@/components/ui/input';
 import { numericField, titleCaseField } from '@/lib/input';
@@ -15,11 +27,16 @@ import { Button } from '@/components/ui/button';
 import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
 
 const schema = z.object({
-  provider: z.enum(['mock', 'stripe', 'razorpay']),
+  provider: z.enum(['worldline', 'mock', 'stripe', 'razorpay']),
   publishableKey: z.string().max(255).optional(),
   secretKey: z.string().max(255).optional(),
+  worldlineEnvironment: z.enum(['live', 'test']),
+  worldlineMerchantId: z.string().max(60).optional(),
+  worldlineApiKeyId: z.string().max(120).optional(),
+  worldlineApiSecret: z.string().max(255).optional(),
+  worldlineWebhookKeyId: z.string().max(120).optional(),
+  worldlineWebhookSecret: z.string().max(255).optional(),
   cardPaymentsEnabled: z.boolean(),
-  cardSurchargePct: z.coerce.number().min(0, 'Must be 0 or more').max(100, 'Too high'),
   upiEnabled: z.boolean(),
   upiId: z.string().max(120).optional(),
   bankTransferEnabled: z.boolean(),
@@ -30,6 +47,9 @@ const schema = z.object({
   payInstructions: z.string().max(2000).optional(),
 });
 type FormValues = z.infer<typeof schema>;
+
+/** Where Worldline must send webhooks — pasted into the Merchant Portal. */
+const WORLDLINE_WEBHOOK_URL = `${String(api.defaults.baseURL ?? '').replace(/\/$/, '')}/payments/webhook/worldline`;
 
 export default function PaymentSettingsForm() {
   const qc = useQueryClient();
@@ -47,9 +67,9 @@ export default function PaymentSettingsForm() {
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      provider: 'mock',
+      provider: 'worldline',
+      worldlineEnvironment: 'live',
       cardPaymentsEnabled: true,
-      cardSurchargePct: 0,
       upiEnabled: false,
       bankTransferEnabled: false,
     },
@@ -62,8 +82,13 @@ export default function PaymentSettingsForm() {
       provider: data.provider,
       publishableKey: data.publishableKey ?? '',
       secretKey: '',
+      worldlineEnvironment: data.worldlineEnvironment ?? 'live',
+      worldlineMerchantId: data.worldlineMerchantId ?? '',
+      worldlineApiKeyId: data.worldlineApiKeyId ?? '',
+      worldlineApiSecret: '',
+      worldlineWebhookKeyId: data.worldlineWebhookKeyId ?? '',
+      worldlineWebhookSecret: '',
       cardPaymentsEnabled: data.cardPaymentsEnabled,
-      cardSurchargePct: data.cardSurchargePct ?? 0,
       upiEnabled: data.upiEnabled,
       upiId: data.upiId ?? '',
       bankTransferEnabled: data.bankTransferEnabled,
@@ -86,17 +111,27 @@ export default function PaymentSettingsForm() {
   });
 
   const onSubmit = (values: FormValues) => {
-    // Only send the secret key when the admin actually typed a new one.
+    // Only send a secret when the admin actually typed a new one.
     const body: PaymentSettingsInput = { ...values };
     if (!values.secretKey) delete body.secretKey;
+    if (!values.worldlineApiSecret) delete body.worldlineApiSecret;
+    if (!values.worldlineWebhookSecret) delete body.worldlineWebhookSecret;
     return save.mutateAsync(body);
   };
+
+  const test = useMutation({
+    mutationFn: settingsApi.testWorldline,
+    onSuccess: (r) =>
+      r.ok
+        ? toast.success(`Connected to ANZ Worldline (${r.environment}) as ${r.merchantId}`)
+        : toast.error(`Worldline answered "${r.result ?? 'unknown'}"`),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Could not reach ANZ Worldline')),
+  });
 
   if (isLoading) return <LoadingBlock label="Loading payment settings…" />;
   if (isError || !data) return <ErrorState onRetry={refetch} />;
 
   const provider = watch('provider');
-  const cardOn = watch('cardPaymentsEnabled');
   const upiOn = watch('upiEnabled');
   const bankOn = watch('bankTransferEnabled');
 
@@ -104,8 +139,8 @@ export default function PaymentSettingsForm() {
     <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Configure your payment gateway, bank transfer details and card surcharge. These appear on
-          invoices and the pay page.
+          Configure your payment gateway and bank transfer details. These appear on invoices and the
+          pay page. Card surcharges are not charged — they are banned in Australia from 1 October 2026.
         </p>
         <Button type="submit" disabled={isSubmitting || save.isPending || !isDirty}>
           {save.isPending ? <Spinner /> : <Save className="h-4 w-4" />} Save changes
@@ -122,11 +157,112 @@ export default function PaymentSettingsForm() {
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Provider" error={errors.provider?.message}>
             <Select {...register('provider')}>
+              <option value="worldline">ANZ Worldline (Global Online Pay)</option>
               <option value="mock">Mock (development)</option>
               <option value="stripe">Stripe</option>
               <option value="razorpay">Razorpay</option>
             </Select>
           </Field>
+          {provider === 'worldline' ? (
+            <>
+              <Field label="Environment" error={errors.worldlineEnvironment?.message}>
+                <Select {...register('worldlineEnvironment')}>
+                  <option value="live">Live — real payments</option>
+                  <option value="test">Test (pre-production)</option>
+                </Select>
+              </Field>
+              <Field
+                label="Merchant ID (PSPID)"
+                hint="Top of the Merchant Portal"
+                error={errors.worldlineMerchantId?.message}
+              >
+                <Input autoComplete="off" placeholder="e.g. EGEloma" {...register('worldlineMerchantId')} />
+              </Field>
+              <div className="hidden sm:block" />
+              <Field
+                label="API Key ID"
+                hint="Developer › Payment API"
+                error={errors.worldlineApiKeyId?.message}
+              >
+                <Input autoComplete="off" {...register('worldlineApiKeyId')} />
+              </Field>
+              <Field
+                label="API Secret"
+                hint={
+                  data.hasWorldlineApiSecret
+                    ? `Saved · ends ••${data.worldlineApiSecretLast4}`
+                    : 'Not set'
+                }
+                error={errors.worldlineApiSecret?.message}
+              >
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={data.hasWorldlineApiSecret ? 'Leave blank to keep current' : ''}
+                  {...register('worldlineApiSecret')}
+                />
+              </Field>
+              <Field
+                label="Webhook Key ID"
+                hint="Developer › Webhooks"
+                error={errors.worldlineWebhookKeyId?.message}
+              >
+                <Input autoComplete="off" {...register('worldlineWebhookKeyId')} />
+              </Field>
+              <Field
+                label="Webhook Secret"
+                hint={
+                  data.hasWorldlineWebhookSecret
+                    ? `Saved · ends ••${data.worldlineWebhookSecretLast4}`
+                    : 'Not set'
+                }
+                error={errors.worldlineWebhookSecret?.message}
+              >
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={data.hasWorldlineWebhookSecret ? 'Leave blank to keep current' : ''}
+                  {...register('worldlineWebhookSecret')}
+                />
+              </Field>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Webhook URL</Label>
+                <div className="flex items-center gap-2">
+                  <Input readOnly value={WORLDLINE_WEBHOOK_URL} className="font-mono text-xs" />
+                  <CopyButton value={WORLDLINE_WEBHOOK_URL} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Add this under Developer › Webhooks › Add webhook endpoint in the Worldline
+                  Merchant Portal.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-4 py-3 sm:col-span-2">
+                <span className="flex items-center gap-2 text-sm">
+                  {data.worldlineReady ? (
+                    <>
+                      <CircleCheck className="h-4 w-4 text-success" /> Card payments go through
+                      ANZ Worldline
+                    </>
+                  ) : (
+                    <>
+                      <CircleAlert className="h-4 w-4 text-destructive" /> Enter the PSPID, API
+                      Key ID and API Secret, then save
+                    </>
+                  )}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!data.worldlineReady || isDirty || test.isPending}
+                  title={isDirty ? 'Save your changes first' : undefined}
+                  onClick={() => test.mutate()}
+                >
+                  {test.isPending ? <Spinner /> : <PlugZap className="h-4 w-4" />} Test connection
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
           <div className="hidden sm:block" />
           <Field label="Publishable / public key" error={errors.publishableKey?.message}>
             <Input
@@ -146,6 +282,8 @@ export default function PaymentSettingsForm() {
               {...register('secretKey')}
             />
           </Field>
+            </>
+          )}
           <p className="sm:col-span-2 flex items-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5" /> Secret keys are stored securely and never shown
             again after saving. Live charges require a real gateway; “Mock” simulates payments for
@@ -167,17 +305,6 @@ export default function PaymentSettingsForm() {
             description="Show card options (Visa, Mastercard, Amex, Google Pay) on invoices and the pay page."
             {...register('cardPaymentsEnabled')}
           />
-          <Field
-            label="Card surcharge (%)"
-            hint="Fee shown to the customer on card payments. Leave 0 for none."
-            error={errors.cardSurchargePct?.message}
-          >
-            <Input
-              disabled={!cardOn}
-              className="max-w-[160px]"
-              {...numericField(register('cardSurchargePct'), 'decimal')}
-            />
-          </Field>
         </CardContent>
       </Card>
 
@@ -261,6 +388,25 @@ export default function PaymentSettingsForm() {
         </Button>
       </div>
     </form>
+  );
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      toast.success('Webhook URL copied');
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Could not copy — please select the text manually');
+    }
+  };
+  return (
+    <Button type="button" variant="outline" size="icon" onClick={copy} aria-label="Copy webhook URL">
+      {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+    </Button>
   );
 }
 

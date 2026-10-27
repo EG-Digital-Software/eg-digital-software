@@ -29,12 +29,18 @@ export const organisationSettingsSchema = z.object({
 });
 
 export const paymentSettingsSchema = z.object({
-  provider: z.enum(['mock', 'stripe', 'razorpay']).optional(),
+  provider: z.enum(['worldline', 'mock', 'stripe', 'razorpay']).optional(),
   publishableKey: z.string().max(255).optional(),
   // Only sent when the admin wants to change it; blank keeps the stored value.
   secretKey: z.string().max(255).optional(),
+  worldlineEnvironment: z.enum(['live', 'test']).optional(),
+  worldlineMerchantId: z.string().max(60).optional(),
+  worldlineApiKeyId: z.string().max(120).optional(),
+  // Secrets, like secretKey, are blank unless the admin is replacing them.
+  worldlineApiSecret: z.string().max(255).optional(),
+  worldlineWebhookKeyId: z.string().max(120).optional(),
+  worldlineWebhookSecret: z.string().max(255).optional(),
   cardPaymentsEnabled: z.boolean().optional(),
-  cardSurchargePct: z.number().min(0).max(100).optional(),
   upiEnabled: z.boolean().optional(),
   upiId: z.string().max(120).optional(),
   bankTransferEnabled: z.boolean().optional(),

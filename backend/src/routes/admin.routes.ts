@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Role } from '@prisma/client';
 import * as approvals from '../controllers/approval.controller.js';
 import * as settings from '../controllers/settings.controller.js';
+import * as payments from '../controllers/payment.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
@@ -40,12 +41,13 @@ router.patch(
 // Open a team member's portal AS them (impersonation) without their password.
 router.post('/employees/:id/impersonate', approvals.impersonateEmployee);
 
-// Payment configuration (gateway keys, bank transfer details, card surcharge).
+// Payment configuration (gateway keys, bank transfer details).
 // Diagnostics — is outgoing email actually configured?
 router.get('/email-status', settings.getEmailStatus);
 
 router.get('/payment-settings', settings.getPayment);
 router.put('/payment-settings', validate({ body: paymentSettingsSchema }), settings.updatePayment);
+router.post('/payment-settings/worldline/test', payments.testWorldline);
 
 // Organisation / issuing entity shown on invoices.
 router.get('/organisation', settings.getOrganisation);

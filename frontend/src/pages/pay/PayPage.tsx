@@ -1,7 +1,17 @@
-import { useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ShieldCheck, CreditCard, Smartphone, AlertTriangle, Copy, Check } from 'lucide-react';
+import {
+  ShieldCheck,
+  CreditCard,
+  Smartphone,
+  AlertTriangle,
+  Copy,
+  Check,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { paymentApi, settingsApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
@@ -45,14 +55,20 @@ const CARD_METHODS: Array<{ method: string; label: string; node: ReactNode }> = 
   },
 ];
 
+type CheckoutResult = 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'PENDING';
+
 /**
- * Public, unauthenticated pay page. In production this is where the selected
- * payment provider's hosted checkout / QR would be embedded. Secret keys are
- * never exposed here — only the public payment URL is used.
+ * Public, unauthenticated pay page. With ANZ Worldline the card button sends
+ * the payer to Worldline's hosted checkout; they come back here with a
+ * `hostedCheckoutId`, and the API asks Worldline for the real outcome. Secret
+ * keys are never exposed here.
  */
 export default function PayPage() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [paying, setPaying] = useState(false);
+  const [result, setResult] = useState<CheckoutResult | null>(null);
+  const confirmedRef = useRef(false);
   const { data: invoice, isLoading, isError, refetch } = useQuery({
     queryKey: ['public-invoice', id],
     queryFn: () => paymentApi.publicInvoice(id!),
@@ -67,13 +83,37 @@ export default function PayPage() {
     queryFn: settingsApi.publicOrganisation,
     staleTime: 5 * 60 * 1000,
   });
-  // The exact figure the API will charge for a card payment — the page used to
-  // advertise a surcharge that was never actually added.
+  // The exact figure the API will charge for a card payment.
   const { data: quote } = useQuery({
     queryKey: ['public-quote', id],
-    queryFn: () => paymentApi.quote(id!, 'card'),
+    queryFn: () => paymentApi.quote(id!),
     enabled: !!id,
   });
+
+  // Back from Worldline: confirm once, then drop the ids from the address bar
+  // so a refresh does not re-confirm.
+  const hostedCheckoutId = searchParams.get('hostedCheckoutId');
+  useEffect(() => {
+    if (!id || !hostedCheckoutId || confirmedRef.current) return;
+    confirmedRef.current = true;
+    setPaying(true);
+    paymentApi
+      .confirmCheckout(id, hostedCheckoutId)
+      .then((r) => {
+        const status: CheckoutResult =
+          r.status === 'SUCCESS' || r.status === 'FAILED' || r.status === 'CANCELLED'
+            ? r.status
+            : 'PENDING';
+        setResult(status);
+        if (status === 'SUCCESS') toast.success('Payment successful — thank you!');
+      })
+      .catch((err) => toast.error(apiErrorMessage(err, 'Could not confirm the payment')))
+      .finally(() => {
+        setPaying(false);
+        setSearchParams({}, { replace: true });
+        refetch();
+      });
+  }, [id, hostedCheckoutId, refetch, setSearchParams]);
 
   if (isLoading) return <LoadingBlock label="Loading invoice…" />;
   if (isError || !invoice) return <div className="p-10"><ErrorState onRetry={refetch} /></div>;
@@ -81,10 +121,23 @@ export default function PayPage() {
   const balance = Number(invoice.total) - Number(invoice.amountPaid);
   const paid = balance <= 0;
   const overdue = daysOverdue(invoice);
+  const isWorldline = pay?.provider === 'worldline';
+  const cardAvailable = (!pay || pay.cardPaymentsEnabled) && pay?.cardGatewayReady !== false;
 
   const handlePay = async (method: string) => {
     if (!id) return;
     setPaying(true);
+    if (isWorldline) {
+      try {
+        const { redirectUrl } = await paymentApi.startCheckout(id);
+        // Leave `paying` on — the browser is navigating to Worldline.
+        window.location.assign(redirectUrl);
+      } catch (err) {
+        toast.error(apiErrorMessage(err, 'Could not open the secure checkout'));
+        setPaying(false);
+      }
+      return;
+    }
     try {
       await paymentApi.pay(id, method);
       toast.success('Payment successful — thank you!');
@@ -111,6 +164,8 @@ export default function PayPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {result && <CheckoutBanner result={paid ? 'SUCCESS' : result} />}
+
             <div className="rounded-xl bg-secondary/50 p-6 text-center">
               <p className="text-sm text-muted-foreground">{paid ? 'Amount paid' : 'Amount due'}</p>
               <p className="mt-1 text-4xl font-semibold tracking-tight">
@@ -138,7 +193,14 @@ export default function PayPage() {
                   </div>
                 )}
 
-                {(!pay || pay.cardPaymentsEnabled) && (
+                {pay?.cardPaymentsEnabled && !cardAvailable && (
+                  <p className="rounded-lg border border-border bg-secondary/30 px-4 py-3 text-center text-sm text-muted-foreground">
+                    Card payments are temporarily unavailable. Please use one of the options below
+                    or contact us.
+                  </p>
+                )}
+
+                {cardAvailable && (
                   <>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="h-px flex-1 bg-border" /> or pay with card{' '}
@@ -161,36 +223,14 @@ export default function PayPage() {
                       ))}
                     </div>
 
-                    {quote && quote.surcharge > 0 && (
-                      <dl className="space-y-1 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm">
-                        <div className="flex justify-between">
-                          <dt className="text-muted-foreground">Invoice balance</dt>
-                          <dd className="tabular-nums">{formatCurrency(quote.balance)}</dd>
-                        </div>
-                        <div className="flex justify-between">
-                          <dt className="text-muted-foreground">
-                            Card surcharge ({quote.surchargePct}%)
-                          </dt>
-                          <dd className="tabular-nums">{formatCurrency(quote.surcharge)}</dd>
-                        </div>
-                        <div className="flex justify-between border-t border-border pt-1 font-semibold">
-                          <dt>Total charged</dt>
-                          <dd className="tabular-nums">{formatCurrency(quote.total)}</dd>
-                        </div>
-                      </dl>
-                    )}
-
                     <Button className="w-full" size="lg" disabled={paying} onClick={() => handlePay('card')}>
                       {paying ? <Spinner /> : <CreditCard className="h-4 w-4" />}
                       {paying
-                        ? 'Processing…'
+                        ? isWorldline
+                          ? 'Opening secure checkout…'
+                          : 'Processing…'
                         : `Pay ${formatCurrency(quote?.total ?? balance)} now`}
                     </Button>
-                    {quote && quote.surcharge > 0 && (
-                      <p className="-mt-2 text-center text-xs text-muted-foreground">
-                        Bank transfer and UPI have no surcharge.
-                      </p>
-                    )}
                   </>
                 )}
 
@@ -206,14 +246,17 @@ export default function PayPage() {
                           <CopyButton value={pay.upiId} label="UPI ID" />
                         </p>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={paying}
-                        onClick={() => handlePay('upi')}
-                      >
-                        <Smartphone className="h-4 w-4" /> Pay via UPI
-                      </Button>
+                      {/* Marks the invoice paid on trust — only for the mock checkout. */}
+                      {pay.provider === 'mock' && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={paying}
+                          onClick={() => handlePay('upi')}
+                        >
+                          <Smartphone className="h-4 w-4" /> Pay via UPI
+                        </Button>
+                      )}
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
                       Google Pay · PhonePe · Paytm · any UPI app. Use{' '}
@@ -244,7 +287,9 @@ export default function PayPage() {
                 <p className="text-center text-xs text-muted-foreground">
                   {pay?.provider === 'mock'
                     ? 'Test checkout — no real funds are transferred.'
-                    : 'Secure checkout'}{' '}
+                    : isWorldline
+                      ? 'Card details are entered on the secure ANZ Worldline page.'
+                      : 'Secure checkout'}{' '}
                   · You can also scan the QR from your invoice to pay.
                 </p>
               </>
@@ -255,6 +300,47 @@ export default function PayPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+const BANNERS: Record<CheckoutResult, { icon: ReactNode; title: string; body: string; tone: string }> = {
+  SUCCESS: {
+    icon: <CheckCircle2 className="h-5 w-5" />,
+    title: 'Payment received',
+    body: 'Thank you — your payment has been processed.',
+    tone: 'border-success/30 bg-success/10 text-success',
+  },
+  PENDING: {
+    icon: <Clock className="h-5 w-5" />,
+    title: 'Payment processing',
+    body: 'Your bank is still confirming the payment. This page will show it as paid once it clears.',
+    tone: 'border-border bg-secondary/50 text-foreground',
+  },
+  FAILED: {
+    icon: <XCircle className="h-5 w-5" />,
+    title: 'Payment declined',
+    body: 'Your card was not charged. Please try again or use another card.',
+    tone: 'border-destructive/30 bg-destructive/10 text-destructive',
+  },
+  CANCELLED: {
+    icon: <XCircle className="h-5 w-5" />,
+    title: 'Payment cancelled',
+    body: 'No payment was taken. You can try again whenever you are ready.',
+    tone: 'border-border bg-secondary/50 text-foreground',
+  },
+};
+
+/** Outcome of a Worldline checkout, shown once the payer returns. */
+function CheckoutBanner({ result }: { result: CheckoutResult }) {
+  const b = BANNERS[result];
+  return (
+    <div className={`flex items-start gap-3 rounded-xl border p-4 ${b.tone}`} role="status">
+      <span className="mt-0.5 shrink-0">{b.icon}</span>
+      <div>
+        <p className="text-sm font-semibold">{b.title}</p>
+        <p className="text-xs opacity-90">{b.body}</p>
       </div>
     </div>
   );

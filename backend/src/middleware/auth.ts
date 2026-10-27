@@ -8,6 +8,8 @@ declare global {
   namespace Express {
     interface Request {
       user?: AccessPayload;
+      /** Raw JSON body, kept only for signed gateway webhooks. */
+      rawBody?: Buffer;
     }
   }
 }

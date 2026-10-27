@@ -28,7 +28,17 @@ export function createApp() {
       credentials: true,
     })
   );
-  app.use(express.json({ limit: '2mb' }));
+  app.use(
+    express.json({
+      limit: '2mb',
+      // Gateway webhooks are signed over the exact bytes received, so keep them.
+      verify: (req, _res, buf) => {
+        if (req.url?.startsWith('/api/payments/webhook/')) {
+          (req as express.Request).rawBody = buf;
+        }
+      },
+    })
+  );
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use(pinoHttp({ logger, autoLogging: env.NODE_ENV !== 'production' }));

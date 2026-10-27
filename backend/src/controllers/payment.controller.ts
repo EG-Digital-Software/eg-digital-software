@@ -43,16 +43,39 @@ export const record = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, result, 'Payment recorded', 201);
 });
 
-// What the pay page will actually be charged, surcharge included.
+// What the pay page will charge — the balance; card surcharges are banned.
 export const publicQuote = asyncHandler(async (req: Request, res: Response) => {
-  const method = (req.query.method as string) || 'card';
-  return ok(res, await paymentService.quotePublicPayment(req.params.id, method));
+  return ok(res, await paymentService.quotePublicPayment(req.params.id));
 });
 
 // Public webhook endpoint (no auth) — verify signature in production.
 export const webhook = asyncHandler(async (req: Request, res: Response) => {
   const result = await paymentService.handleWebhook(req.body);
   return ok(res, result, 'Webhook processed');
+});
+
+// Pay page → open an ANZ Worldline hosted checkout for the invoice balance.
+export const startCheckout = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await paymentService.startWorldlineCheckout(req.params.id), 'Checkout created');
+});
+
+// Payer is back from Worldline — read the real result from Worldline.
+export const confirmCheckout = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.confirmWorldlineCheckout(
+    req.params.id,
+    req.body.hostedCheckoutId
+  );
+  return ok(res, result);
+});
+
+// Signed Worldline webhook (no auth — the HMAC signature is the auth).
+export const worldlineWebhook = asyncHandler(async (req: Request, res: Response) => {
+  const result = await paymentService.handleWorldlineWebhook(req.rawBody, req.headers);
+  return ok(res, result, 'Webhook processed');
+});
+
+export const testWorldline = asyncHandler(async (_req: Request, res: Response) => {
+  return ok(res, await paymentService.testWorldlineConnection());
 });
 
 // Public pay endpoint used by the invoice QR / pay page (mock provider only).

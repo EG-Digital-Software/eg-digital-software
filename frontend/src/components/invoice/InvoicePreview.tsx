@@ -38,7 +38,7 @@ import { Linkify } from '@/lib/linkify';
 export function InvoicePreview({ invoice }: { invoice: Invoice }) {
   const c = invoice.customer;
 
-  // Non-sensitive payment config (bank details, surcharge) — cached across views.
+  // Non-sensitive payment config (bank details) — cached across views.
   const { data: pay } = useQuery({
     queryKey: ['public-payment-settings'],
     queryFn: settingsApi.publicPayment,
@@ -268,11 +268,6 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
                         <div className="mt-2.5">
                           <CardMarks href={payUrl} />
                         </div>
-                      )}
-                      {pay && pay.cardSurchargePct > 0 && (
-                        <p className="mt-2 text-[10px] text-muted-foreground">
-                          {pay.cardSurchargePct}% surcharge on card payments.
-                        </p>
                       )}
                     </div>
                   </div>

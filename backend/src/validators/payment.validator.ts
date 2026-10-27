@@ -15,6 +15,10 @@ export const publicPaySchema = z.object({
   method: z.string().max(50).optional(),
 });
 
+export const confirmCheckoutSchema = z.object({
+  hostedCheckoutId: z.string().min(1).max(100),
+});
+
 export const PAYMENT_STATUSES = ['PENDING', 'SUCCESS', 'FAILED', 'REFUNDED', 'CANCELLED'] as const;
 
 export const listPaymentQuerySchema = z.object({

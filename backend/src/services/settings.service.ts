@@ -1,18 +1,31 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
+import { encryptSecret, decryptSecret } from '../utils/secretBox.js';
 
 /**
  * Payment configuration for EG Eloma. Stored as a single Setting row under the
  * `payment` key. Secret keys are persisted but NEVER returned in full — admin
  * reads get a masked hint (last 4 chars) instead.
  */
+export type PaymentProviderName = 'worldline' | 'mock' | 'stripe' | 'razorpay';
+export type WorldlineEnvironment = 'live' | 'test';
+
 export interface PaymentSettings {
-  provider: 'mock' | 'stripe' | 'razorpay';
+  provider: PaymentProviderName;
   publishableKey: string;
   secretKey: string;
+  /**
+   * ANZ Worldline (Global Online Pay). The PSPID and key ids are identifiers;
+   * the two secrets are encrypted at rest when CREDENTIAL_ENC_KEY is set.
+   */
+  worldlineEnvironment: WorldlineEnvironment;
+  worldlineMerchantId: string;
+  worldlineApiKeyId: string;
+  worldlineApiSecret: string;
+  worldlineWebhookKeyId: string;
+  worldlineWebhookSecret: string;
   cardPaymentsEnabled: boolean;
-  cardSurchargePct: number;
   upiEnabled: boolean;
   upiId: string;
   bankTransferEnabled: boolean;
@@ -26,11 +39,17 @@ export interface PaymentSettings {
 const PAYMENT_KEY = 'payment';
 
 const DEFAULTS: PaymentSettings = {
-  provider: 'mock',
+  // Every invoice payment goes through ANZ Worldline unless an admin changes it.
+  provider: 'worldline',
   publishableKey: '',
   secretKey: '',
+  worldlineEnvironment: 'live',
+  worldlineMerchantId: '',
+  worldlineApiKeyId: '',
+  worldlineApiSecret: '',
+  worldlineWebhookKeyId: '',
+  worldlineWebhookSecret: '',
   cardPaymentsEnabled: true,
-  cardSurchargePct: 0,
   upiEnabled: false,
   upiId: '',
   bankTransferEnabled: false,
@@ -44,22 +63,75 @@ const DEFAULTS: PaymentSettings = {
 async function readRaw(): Promise<PaymentSettings> {
   const row = await prisma.setting.findUnique({ where: { key: PAYMENT_KEY } });
   if (!row) return { ...DEFAULTS };
-  return { ...DEFAULTS, ...(row.value as Partial<PaymentSettings>) };
+  // A card surcharge % saved before the RBA ban (1 Oct 2026) is dropped on read
+  // so it can never reach an invoice or the pay page again.
+  const { cardSurchargePct: _banned, ...stored } = row.value as Partial<PaymentSettings> & {
+    cardSurchargePct?: unknown;
+  };
+  return { ...DEFAULTS, ...stored };
 }
 
-/** Mask the secret key for admin display. */
+/** Secrets that are only ever written, never read back to a browser. */
+const SECRET_FIELDS = ['secretKey', 'worldlineApiSecret', 'worldlineWebhookSecret'] as const;
+type SecretField = (typeof SECRET_FIELDS)[number];
+
+// Encrypted values carry this prefix so plaintext saved before encryption was
+// configured (or while CREDENTIAL_ENC_KEY is unset) still reads back.
+const ENC_PREFIX = 'enc:';
+
+function sealSecret(plain: string): string {
+  const sealed = encryptSecret(plain);
+  return sealed ? `${ENC_PREFIX}${sealed}` : plain;
+}
+
+function openSecret(stored: string): string {
+  if (!stored.startsWith(ENC_PREFIX)) return stored;
+  return decryptSecret(stored.slice(ENC_PREFIX.length)) ?? '';
+}
+
+/** Last four characters of a stored secret, for the "Saved · ends ••1234" hint. */
+function last4(stored: string): string {
+  const plain = openSecret(stored);
+  return plain ? plain.slice(-4) : '';
+}
+
+/** Whether ANZ Worldline has everything it needs to take a card payment. */
+export function worldlineReady(s: PaymentSettings): boolean {
+  return Boolean(s.worldlineMerchantId && s.worldlineApiKeyId && openSecret(s.worldlineApiSecret));
+}
+
+/** Mask every secret for admin display. */
 function mask(settings: PaymentSettings) {
-  const { secretKey, ...rest } = settings;
+  const { secretKey, worldlineApiSecret, worldlineWebhookSecret, ...rest } = settings;
   return {
     ...rest,
     hasSecretKey: Boolean(secretKey),
-    secretKeyLast4: secretKey ? secretKey.slice(-4) : '',
+    secretKeyLast4: last4(secretKey),
+    hasWorldlineApiSecret: Boolean(worldlineApiSecret),
+    worldlineApiSecretLast4: last4(worldlineApiSecret),
+    hasWorldlineWebhookSecret: Boolean(worldlineWebhookSecret),
+    worldlineWebhookSecretLast4: last4(worldlineWebhookSecret),
+    worldlineReady: worldlineReady(settings),
   };
 }
 
-/** Admin read — secret key masked. */
+/** Admin read — secrets masked. */
 export async function getPaymentSettings() {
   return mask(await readRaw());
+}
+
+/**
+ * Server-only read with secrets decrypted, for the gateway client. Never pass
+ * the result to a response.
+ */
+export async function getPaymentSettingsWithSecrets(): Promise<PaymentSettings> {
+  const s = await readRaw();
+  return {
+    ...s,
+    secretKey: openSecret(s.secretKey),
+    worldlineApiSecret: openSecret(s.worldlineApiSecret),
+    worldlineWebhookSecret: openSecret(s.worldlineWebhookSecret),
+  };
 }
 
 /**
@@ -71,8 +143,9 @@ export async function getPublicPaymentSettings() {
   return {
     provider: s.provider,
     publishableKey: s.publishableKey,
+    // The pay page hides the card button rather than failing at checkout.
+    cardGatewayReady: s.provider === 'worldline' ? worldlineReady(s) : true,
     cardPaymentsEnabled: s.cardPaymentsEnabled,
-    cardSurchargePct: s.cardSurchargePct,
     upiEnabled: s.upiEnabled,
     upiId: s.upiId,
     bankTransferEnabled: s.bankTransferEnabled,
@@ -85,16 +158,20 @@ export async function getPublicPaymentSettings() {
 }
 
 /**
- * Update settings. `secretKey` is only overwritten when a non-empty value is
- * provided, so admins can save the form without re-typing the secret each time.
+ * Update settings. A secret is only overwritten when a non-empty value is
+ * provided, so admins can save the form without re-typing secrets each time.
  */
 export async function updatePaymentSettings(input: Partial<PaymentSettings>) {
   const current = await readRaw();
-  const next: PaymentSettings = {
-    ...current,
-    ...input,
-    secretKey: input.secretKey ? input.secretKey : current.secretKey,
-  };
+  const next: PaymentSettings = { ...current, ...input };
+  for (const field of SECRET_FIELDS as readonly SecretField[]) {
+    const typed = input[field]?.trim();
+    next[field] = typed ? sealSecret(typed) : current[field];
+  }
+  // Identifiers are copied from the portal — stray whitespace breaks the HMAC.
+  next.worldlineMerchantId = next.worldlineMerchantId.trim();
+  next.worldlineApiKeyId = next.worldlineApiKeyId.trim();
+  next.worldlineWebhookKeyId = next.worldlineWebhookKeyId.trim();
   await prisma.setting.upsert({
     where: { key: PAYMENT_KEY },
     create: { key: PAYMENT_KEY, value: next as unknown as Prisma.InputJsonValue },

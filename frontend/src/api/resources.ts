@@ -302,18 +302,27 @@ export const paymentApi = {
     (await api.post('/payments/record', { invoiceId, amount, method })).data,
   publicInvoice: async (id: string) =>
     (await api.get<ApiEnvelope<Invoice>>(`/payments/public/invoice/${id}`)).data.data,
-  /** What the pay page will actually be charged, surcharge included. */
-  quote: async (id: string, method = 'card') =>
+  /** What the pay page will charge — the balance; card surcharges are banned. */
+  quote: async (id: string) =>
     (
-      await api.get<
+      await api.get<ApiEnvelope<{ balance: number; total: number; currency: string }>>(
+        `/payments/public/quote/${id}`
+      )
+    ).data.data,
+  /** Open an ANZ Worldline hosted checkout for the invoice balance. */
+  startCheckout: async (id: string) =>
+    (await api.post<ApiEnvelope<{ redirectUrl: string }>>(`/payments/public/checkout/${id}`)).data
+      .data,
+  /** Back from Worldline — the API reads the real result from the gateway. */
+  confirmCheckout: async (id: string, hostedCheckoutId: string) =>
+    (
+      await api.post<
         ApiEnvelope<{
-          balance: number;
-          surchargePct: number;
-          surcharge: number;
-          total: number;
-          currency: string;
+          status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'REFUNDED' | null;
+          invoiceNumber?: string;
+          invoiceStatus?: string;
         }>
-      >(`/payments/public/quote/${id}?method=${encodeURIComponent(method)}`)
+      >(`/payments/public/checkout/${id}/confirm`, { hostedCheckoutId })
     ).data.data,
   /** Client-initiated payment from the invoice QR / pay page (mock provider). */
   pay: async (id: string, method = 'card') =>
@@ -322,11 +331,16 @@ export const paymentApi = {
 };
 
 // ── Payment settings ─────────────────────────────────────
+export type PaymentProviderName = 'worldline' | 'mock' | 'stripe' | 'razorpay';
+
 export interface PaymentSettings {
-  provider: 'mock' | 'stripe' | 'razorpay';
+  provider: PaymentProviderName;
   publishableKey: string;
+  worldlineEnvironment: 'live' | 'test';
+  worldlineMerchantId: string;
+  worldlineApiKeyId: string;
+  worldlineWebhookKeyId: string;
   cardPaymentsEnabled: boolean;
-  cardSurchargePct: number;
   upiEnabled: boolean;
   upiId: string;
   bankTransferEnabled: boolean;
@@ -338,12 +352,37 @@ export interface PaymentSettings {
   // Admin read only — secret key is masked.
   hasSecretKey?: boolean;
   secretKeyLast4?: string;
+  hasWorldlineApiSecret?: boolean;
+  worldlineApiSecretLast4?: string;
+  hasWorldlineWebhookSecret?: boolean;
+  worldlineWebhookSecretLast4?: string;
+  worldlineReady?: boolean;
 }
 
-export type PaymentSettingsInput = Partial<PaymentSettings> & { secretKey?: string };
+export type PaymentSettingsInput = Partial<PaymentSettings> & {
+  secretKey?: string;
+  worldlineApiSecret?: string;
+  worldlineWebhookSecret?: string;
+};
 
 /** Non-sensitive settings surfaced on the invoice / pay page. */
-export type PublicPaymentSettings = Omit<PaymentSettings, 'hasSecretKey' | 'secretKeyLast4'>;
+export type PublicPaymentSettings = Omit<
+  PaymentSettings,
+  | 'hasSecretKey'
+  | 'secretKeyLast4'
+  | 'worldlineEnvironment'
+  | 'worldlineMerchantId'
+  | 'worldlineApiKeyId'
+  | 'worldlineWebhookKeyId'
+  | 'hasWorldlineApiSecret'
+  | 'worldlineApiSecretLast4'
+  | 'hasWorldlineWebhookSecret'
+  | 'worldlineWebhookSecretLast4'
+  | 'worldlineReady'
+> & {
+  /** False when the gateway is selected but its credentials are incomplete. */
+  cardGatewayReady: boolean;
+};
 
 export interface OrganisationSettings {
   companyName: string;
@@ -376,6 +415,12 @@ export const settingsApi = {
     (await api.get<ApiEnvelope<PaymentSettings>>('/admin/payment-settings')).data.data,
   updatePayment: async (body: PaymentSettingsInput) =>
     (await api.put<ApiEnvelope<PaymentSettings>>('/admin/payment-settings', body)).data.data,
+  testWorldline: async () =>
+    (
+      await api.post<
+        ApiEnvelope<{ ok: boolean; result?: string; environment: string; merchantId: string }>
+      >('/admin/payment-settings/worldline/test')
+    ).data.data,
   publicPayment: async () =>
     (await api.get<ApiEnvelope<PublicPaymentSettings>>('/payments/public/settings')).data.data,
   getAccountManager: async () =>
