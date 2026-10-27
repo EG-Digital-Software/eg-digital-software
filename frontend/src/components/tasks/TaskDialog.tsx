@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
@@ -105,6 +105,17 @@ interface Draft {
   checklist: { text: string; done: boolean }[];
 }
 
+
+/** Grow a composer textarea with its text so every line stays visible — no inner scroll. */
+function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: string) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.overflowY = 'hidden';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [ref, value]);
+}
 
 const toDateInput = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : '');
 const toIso = (d: string) => (d ? new Date(d + 'T00:00:00').toISOString() : '');
@@ -219,6 +230,7 @@ export function TaskDialog({
   // the caret sits inside a `@query` token; index tracks the highlighted row.
   const [mention, setMention] = useState<{ start: number; query: string; index: number } | null>(null);
   const commentRef = useRef<HTMLTextAreaElement>(null);
+  useAutoGrow(commentRef, comment);
   const fileRef = useRef<HTMLInputElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
   const archiveRef = useRef<HTMLInputElement>(null);
@@ -1652,6 +1664,8 @@ function NotesThread({
   scrollClass?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  useAutoGrow(composerRef, value);
   const hasOriginal = !!originalNote?.trim();
   // Which of my notes is being edited, and its working text.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1729,6 +1743,7 @@ function NotesThread({
       {/* Composer — add a note (Enter to send, Shift+Enter for a new line). */}
       <div className="flex items-end gap-2 rounded-xl border border-border bg-card px-3 py-2">
         <Textarea
+          ref={composerRef}
           value={value}
           placeholder={canAdd ? 'Write a note…' : 'Available after the task is created'}
           rows={1}
