@@ -2464,6 +2464,20 @@ function ApprovalPanel({
                 // Each request starts minimised to a summary row; clicking it shows the request and its resubmissions.
                 const open = expanded[root.id] ?? false;
                 const canResubmit = canSubmit && windowOpen;
+                // An admin re-opened the resubmission window: the request now waits
+                // on the next resubmission, so the summary shows it as pending under
+                // that number. The rejected entry itself is left as it was.
+                const awaitingResubmit = windowOpen && !!latest.resubmitReopenedAt;
+                const headStatus: TaskApprovalStatus = awaitingResubmit ? 'PENDING' : latest.status;
+                const headSub = awaitingResubmit ? subs.length + 1 : subs.length;
+                // Every decision in the chain, oldest first, so a client's approve/reject on
+                // each resubmission stays visible — plus the awaited one once re-opened.
+                const no = rootNo.get(root.id);
+                const trail: { key: string; label: string; status: TaskApprovalStatus }[] = [
+                  { key: root.id, label: `#${no}`, status: root.status },
+                  ...subs.map((sub, i) => ({ key: sub.id, label: `#${no}.${i + 1}`, status: sub.status })),
+                  ...(awaitingResubmit ? [{ key: 'awaiting', label: `#${no}.${headSub}`, status: 'PENDING' as const }] : []),
+                ];
                 const rowDeadline = (a: TaskApproval) => (a.id === latest.id ? deadline : null);
                 return (
                   <Fragment key={root.id}>
@@ -2474,8 +2488,9 @@ function ApprovalPanel({
                           type="button"
                           onClick={() => setExpanded((e) => ({ ...e, [root.id]: !open }))}
                           aria-expanded={open}
-                          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
+                          className="block w-full px-3 py-2.5 text-left text-sm"
                         >
+                          <span className="flex w-full items-center gap-2">
                           {open ? <ChevronDown className="h-4 w-4 shrink-0 text-primary" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
                           <span className="shrink-0 font-semibold">Approval #{rootNo.get(root.id)}</span>
                           <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground">{root.subject}</span>
@@ -2487,13 +2502,30 @@ function ApprovalPanel({
                           <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">{formatDate(latest.createdAt, 'dd MMM yyyy')}</span>
                           {/* Status of the latest entry, naming the resubmission it belongs to. */}
                           <span className="inline-flex shrink-0 items-center gap-1.5">
-                            {subs.length > 0 && (
-                              <span className={cn('text-xs font-semibold', latest.status === 'PENDING' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
-                                Resubmission #{rootNo.get(root.id)}.{subs.length}
+                            {headSub > 0 && (
+                              <span className={cn('text-xs font-semibold', headStatus === 'PENDING' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
+                                Resubmission #{rootNo.get(root.id)}.{headSub}
                               </span>
                             )}
-                            <ApprovalStatusBadge status={latest.status} />
+                            <ApprovalStatusBadge status={headStatus} />
                           </span>
+                          </span>
+                          {trail.length > 1 && (
+                            <span className="mt-1.5 flex flex-wrap items-center gap-1 pl-6">
+                              {trail.map((t, i) => {
+                                const m = APPROVAL_META[t.status];
+                                const Icon = m.icon;
+                                return (
+                                  <Fragment key={t.key}>
+                                    {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
+                                    <span className={cn('inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold', m.badge)}>
+                                      <Icon className="h-3 w-3" /> {t.label} {m.label}
+                                    </span>
+                                  </Fragment>
+                                );
+                              })}
+                            </span>
+                          )}
                         </button>
                       </td>
                     </tr>
