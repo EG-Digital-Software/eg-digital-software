@@ -37,7 +37,7 @@ import {
   labelColor,
   LABEL_COLOR_TOKENS,
 } from '@/lib/tasks';
-import { isTaskUnseen, taskActivityMeta, taskRowSeenKey, writeSeen } from '@/lib/taskSeen';
+import { isTaskUnseen, newSinceFromSig, taskActivityMeta, taskRowSeenKey, writeSeen, type NewSince } from '@/lib/taskSeen';
 import { GridView } from './GridView';
 import { ScheduleView } from './ScheduleView';
 import { ChartsView } from './ChartsView';
@@ -71,7 +71,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   // company tabs. Holds the selected company's id; empty until one is picked, at
   // which point it defaults to the first company.
   const [activeGroup, setActiveGroup] = useState<string>('');
-  const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string } | null>(null);
+  const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string; newSince?: NewSince | null } | null>(null);
 
   const meId = useAuth((s) => s.user?.id);
   // Poll the board so another person's change surfaces here (and lights up the
@@ -155,6 +155,10 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
     if (!m) return false;
     return isTaskUnseen(taskId, m, seenTasks, meId);
   };
+  // Opening a task remembers where its unseen activity starts (from the signature
+  // last seen, before opening overwrites it), so the dialog can list what's new.
+  const openTask = (t: { id: string }) =>
+    setDialog({ mode: 'edit', taskId: t.id, newSince: isTaskUpdated(t.id) ? newSinceFromSig(seenTasks[t.id]) : null });
   // Employee portal customer selector: a customer's box stays red while any of
   // its tasks has activity the user hasn't opened — same rule as the rows.
   const bucketBoxRed = (bucketId: string) =>
@@ -334,7 +338,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
         <GridView
           buckets={visibleBuckets}
           readOnly={readOnly}
-          onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
+          onOpenTask={openTask}
           onDeleteTask={(id) => delTask.mutate(id)}
           isUpdated={isTaskUpdated}
         />
@@ -342,7 +346,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
       {view === 'schedule' && (
         <ScheduleView
           buckets={visibleBuckets}
-          onOpenTask={(t) => setDialog({ mode: 'edit', taskId: t.id })}
+          onOpenTask={openTask}
           appointments={apptQ.data ?? []}
           users={users as AssignableUser[]}
           onBook={(input) => bookAppt.mutate(input)}
@@ -366,6 +370,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
           customerName={customerName}
           nextTaskNumber={board.nextTaskNumber}
           readOnly={readOnly}
+          newSince={dialog.newSince}
         />
       )}
     </div>

@@ -37,6 +37,7 @@ import {
   Hourglass,
   Lock,
   Reply,
+  Sparkles,
 } from 'lucide-react';
 import type {
   AssignableUser,
@@ -53,6 +54,8 @@ import type {
   TaskProgress,
 } from '@/types';
 import type { TaskApi, TaskInput } from '@/api/tasks';
+import type { NewSince } from '@/lib/taskSeen';
+import { markFeaturesSeen, unseenFeatures } from '@/lib/featureUpdates';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
 import { TimeSheetPanel } from './TimeSheetPanel';
@@ -90,6 +93,81 @@ interface Props {
   /** Previewed number the next created task will receive. */
   nextTaskNumber?: string;
   readOnly?: boolean;
+  /** Set when the task had activity this user hadn't seen: lists what's new. */
+  newSince?: NewSince | null;
+}
+
+type WhatsNewTarget = 'chat' | 'details' | 'attachments' | 'approval' | 'access' | 'archive' | 'performance' | 'timesheet' | null;
+interface WhatsNewItem {
+  key: string;
+  icon: React.ElementType;
+  /** What happened, e.g. "New message" or "Approval #1 approved". */
+  title: string;
+  /** Who did it — names only. */
+  by?: string;
+  target: WhatsNewTarget;
+}
+
+/** Distinct names, comma-separated. */
+const names = (list: (string | null | undefined)[]) => [...new Set(list.filter(Boolean) as string[])].join(', ');
+
+/**
+ * Everything someone else did on a task since this user last opened it — one
+ * short line per kind ("New message — by Rahul") — so the red dot that clears on
+ * open still tells them what arrived.
+ */
+function whatsNewItems(task: Task, since: NewSince, meId: string | undefined): WhatsNewItem[] {
+  const isNew = (ts?: string | null, actor?: string | null) => !!ts && ts > since.ts && actor !== meId;
+  const items: WhatsNewItem[] = [];
+  const group = (key: string, icon: React.ElementType, one: string, many: string, by: (string | null | undefined)[], target: WhatsNewTarget) => {
+    if (by.length) items.push({ key, icon, title: by.length === 1 ? one : `${by.length} ${many}`, by: names(by), target });
+  };
+
+  if (isNew(task.createdAt, task.createdById)) {
+    items.push({ key: 'task', icon: Sparkles, title: 'New task added', target: null });
+  }
+  const notes = task.notes ?? [];
+  group('chat', MessageSquareText, 'New message', 'new messages',
+    (task.comments ?? []).filter((c) => isNew(c.createdAt, c.authorId)).map((c) => c.authorName), 'chat');
+  group('notes', FileText, 'New note added', 'new notes added',
+    notes.filter((n) => (n.kind ?? 'NOTE') === 'NOTE' && isNew(n.createdAt, n.authorId)).map((n) => n.authorName), 'details');
+  group('access', KeyRound, 'New access point added', 'new access points added',
+    notes.filter((n) => n.kind === 'ACCESS_POINT' && isNew(n.createdAt, n.authorId)).map((n) => n.authorName), 'access');
+  group('files', Paperclip, 'New file uploaded', 'new files uploaded',
+    (task.attachments ?? []).filter((f) => isNew(f.createdAt, f.uploadedById)).map((f) => f.uploadedByName), 'attachments');
+  group('archive', Archive, 'New archive file uploaded', 'new archive files uploaded',
+    (task.archive ?? []).filter((f) => isNew(f.createdAt, f.uploadedById)).map((f) => f.uploadedByName), 'archive');
+
+  // Approvals are numbered as on the Approval tab: #1, #2 … and #1.1, #1.2 … for resubmissions.
+  const approvals = task.approvals ?? [];
+  const rootNo = new Map(
+    approvals.filter((a) => !a.parentId).sort((x, y) => x.createdAt.localeCompare(y.createdAt)).map((a, i) => [a.id, i + 1]),
+  );
+  const label = (a: TaskApproval) => {
+    if (!a.parentId) return `Approval #${rootNo.get(a.id) ?? '?'}`;
+    const subs = approvals.filter((x) => x.parentId === a.parentId).sort((x, y) => x.createdAt.localeCompare(y.createdAt));
+    return `Resubmission #${rootNo.get(a.parentId) ?? '?'}.${subs.findIndex((x) => x.id === a.id) + 1}`;
+  };
+  for (const a of [...approvals].sort((x, y) => x.createdAt.localeCompare(y.createdAt))) {
+    if (isNew(a.createdAt, a.requestedById)) {
+      items.push({ key: `ap-new-${a.id}`, icon: Clock, title: `New ${a.parentId ? 'resubmission' : 'approval request'} (${label(a)})`, by: a.requestedByName, target: 'approval' });
+    }
+    if (a.status !== 'PENDING' && isNew(a.decidedAt, a.decidedById)) {
+      items.push({
+        key: `ap-dec-${a.id}`,
+        icon: a.status === 'APPROVED' ? CheckCircle2 : XCircle,
+        title: `${label(a)} ${a.status === 'APPROVED' ? 'approved' : 'rejected'}`,
+        by: a.decidedByName ?? undefined,
+        target: 'approval',
+      });
+    }
+  }
+  // A re-open changes a status without a new timestamp — still worth a line.
+  const statuses = approvals.map((a) => a.status).join(',');
+  if (!items.some((i) => i.target === 'approval') && since.statuses !== null && since.statuses !== statuses) {
+    items.push({ key: 'ap-status', icon: RotateCcw, title: 'Approval status changed', target: 'approval' });
+  }
+  return items;
 }
 
 interface Draft {
@@ -179,6 +257,7 @@ export function TaskDialog({
   customerName,
   nextTaskNumber,
   readOnly = false,
+  newSince = null,
 }: Props) {
   const qc = useQueryClient();
   const isEdit = mode === 'edit';
@@ -819,6 +898,31 @@ export function TaskDialog({
 
   const tabHasDot = (t: string) => seen[t] !== undefined && seen[t] !== signatures[t];
 
+  // "What's new" since this user last opened the task — shown until dismissed.
+  const [whatsNewHidden, setWhatsNewHidden] = useState(false);
+  // New features of the task form this user hasn't been told about — read once
+  // per opening, then remembered as seen so each is announced only once.
+  const [features] = useState(() => (isEdit ? unseenFeatures(meId) : []));
+  useEffect(() => {
+    markFeaturesSeen(meId, features.map((f) => f.id));
+  }, [features, meId]);
+  const whatsNew = useMemo<WhatsNewItem[]>(
+    () => [
+      // Features are announced as added by "admin" — never a person's name.
+      ...features.map((f) => ({ key: `feature-${f.id}`, icon: Sparkles, title: `New feature "${f.name}" added`, by: 'admin', target: f.tab ?? null })),
+      ...(isEdit && liveTask && newSince ? whatsNewItems(liveTask, newSince, meId) : []),
+    ],
+    [features, isEdit, liveTask, newSince, meId],
+  );
+  const goToWhatsNew = (target: WhatsNewTarget) => {
+    if (target === 'chat') {
+      setShowChat(true);
+      markChatSeen();
+    } else if (target) {
+      setTab(target);
+    }
+  };
+
   // Mark the chat as seen for this user — clears the red dot on the chat icon.
   // Called on real interaction (sending a message, clicking into the panel),
   // never merely because the panel is visible.
@@ -908,6 +1012,47 @@ export function TaskDialog({
                 Created {formatDate(task.createdAt)} · Last changed {formatDate(task.updatedAt)}
                 <Info className="h-3.5 w-3.5" />
               </p>
+            )}
+
+            {/* What's new since this user last opened the task */}
+            {whatsNew.length > 0 && !whatsNewHidden && (
+              <div className="mt-3 rounded-xl border border-white bg-black p-3 text-white">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-rose-500" />
+                  <span className="text-sm font-semibold">What's new</span>
+                  <button
+                    type="button"
+                    onClick={() => setWhatsNewHidden(true)}
+                    className="ml-auto text-white/60 transition hover:text-white"
+                    title="Dismiss"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <ul className="space-y-1">
+                  {whatsNew.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <li key={item.key} className="flex items-start gap-2 text-sm">
+                        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
+                        <span className="min-w-0 flex-1 break-words">
+                          <span className="font-semibold">{item.title}</span>
+                          {item.by && <span className="text-white/70"> — by {item.by}</span>}
+                        </span>
+                        {item.target && (
+                          <button
+                            type="button"
+                            onClick={() => goToWhatsNew(item.target)}
+                            className="shrink-0 text-xs font-medium text-sky-300 hover:underline"
+                          >
+                            View
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             )}
 
             {/* Assignees */}

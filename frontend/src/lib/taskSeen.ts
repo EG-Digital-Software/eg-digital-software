@@ -90,6 +90,21 @@ export function taskActivityMeta(tasks: ActivityTask[]): TaskActivityMeta {
   return map;
 }
 
+/** What new activity is measured from when a task is opened: the latest activity
+ *  time and approval statuses in the signature the user last saw (`ts` is '' when
+ *  they never opened it, so everything by others counts as new). */
+export type NewSince = { ts: string; statuses: string | null };
+
+/** Reads a seen-signature (`count:lastTs:statuses`) back into a NewSince. */
+export function newSinceFromSig(sig: string | undefined): NewSince {
+  if (!sig) return { ts: '', statuses: null };
+  const a = sig.indexOf(':');
+  const b = sig.lastIndexOf(':');
+  if (a < 0 || b <= a) return { ts: '', statuses: null };
+  // The timestamp itself contains colons; statuses never do.
+  return { ts: sig.slice(a + 1, b), statuses: sig.slice(b + 1) };
+}
+
 /**
  * True when a task has activity this user hasn't opened: its signature changed
  * since they last opened it, or they never opened it at all — unless the latest
