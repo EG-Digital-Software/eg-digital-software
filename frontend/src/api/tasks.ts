@@ -13,10 +13,7 @@ import type {
   TaskCommentReaction,
   TaskLabel,
   TaskPriority,
-  TaskHourProduct,
   TaskProgress,
-  TaskTimeEntry,
-  TimeEntryInput,
 } from '@/types';
 
 export interface TaskInput {
@@ -131,16 +128,6 @@ export function taskApi(base: string) {
     mentionableUsers: (taskId: string) =>
       unwrap<AssignableUser[]>(api.get(`${base}/tasks/${taskId}/mentionable-users`)),
     getTask: (taskId: string) => unwrap<Task>(api.get(`${base}/tasks/${taskId}`)),
-    // Hours the task's customer has bought — the Time Sheet tab's summary.
-    hourProducts: (taskId: string) => unwrap<TaskHourProduct[]>(api.get(`${base}/tasks/${taskId}/hour-products`)),
-    // Time sheet entries — everyone views; admins and the team log and change them.
-    timeEntries: (taskId: string) => unwrap<TaskTimeEntry[]>(api.get(`${base}/tasks/${taskId}/time-entries`)),
-    addTimeEntry: (taskId: string, input: TimeEntryInput) =>
-      unwrap<TaskTimeEntry>(api.post(`${base}/tasks/${taskId}/time-entries`, input)),
-    updateTimeEntry: (taskId: string, entryId: string, input: Partial<TimeEntryInput>) =>
-      unwrap<TaskTimeEntry>(api.patch(`${base}/tasks/${taskId}/time-entries/${entryId}`, input)),
-    deleteTimeEntry: (taskId: string, entryId: string) =>
-      unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/time-entries/${entryId}`)),
 
     // Buckets
     createBucket: (name: string) => unwrap<TaskBucket>(api.post(`${base}/buckets`, { name })),
