@@ -155,7 +155,8 @@ export const productApi = {
     (await api.post<ApiEnvelope<Product>>('/products', body)).data.data,
   update: async (id: string, body: unknown) =>
     (await api.put<ApiEnvelope<Product>>(`/products/${id}`, body)).data.data,
-  remove: async (id: string) => (await api.delete(`/products/${id}`)).data,
+  remove: async (id: string) =>
+    (await api.delete<ApiEnvelope<{ unassigned: number; invoicesUpdated: number }>>(`/products/${id}`)).data.data,
   bulkImport: async (file: File, dryRun = false) => {
     const form = new FormData();
     form.append('file', file);

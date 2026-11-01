@@ -1,6 +1,7 @@
-import { Prisma, ProductStatus } from '@prisma/client';
+import { InvoiceStatus, Prisma, ProductStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
+import { computeInvoiceTotals, computeLine, D, round2, type LineInput } from '../utils/money.js';
 import type { PageQuery } from '../utils/http.js';
 import { nextSequence, formatSku } from '../utils/sequence.js';
 
@@ -173,13 +174,110 @@ export async function updateProduct(id: string, data: Record<string, unknown>) {
   return prisma.product.update({ where: { id }, data: patch });
 }
 
-export async function deleteProduct(id: string) {
-  const assigned = await prisma.customerProduct.count({ where: { productId: id } });
-  if (assigned > 0) {
-    // Preserve history — deactivate instead of hard delete.
-    return prisma.product.update({ where: { id }, data: { status: ProductStatus.INACTIVE } });
+/** Invoices still awaiting payment — a deleted product is taken off these. */
+const UNPAID_STATUSES: InvoiceStatus[] = [
+  InvoiceStatus.DRAFT,
+  InvoiceStatus.SENT,
+  InvoiceStatus.PENDING,
+  InvoiceStatus.OVERDUE,
+];
+
+/**
+ * Take a product off every unpaid invoice (no payment received yet). A line that
+ * bills only this product is removed; a licence-group line drops this product's
+ * share and keeps the rest. Each touched invoice's totals are recomputed.
+ * Paid, part-paid and cancelled invoices are left exactly as issued.
+ * Returns how many invoices were changed.
+ */
+async function removeProductFromUnpaidInvoices(tx: Prisma.TransactionClient, productId: string) {
+  const invoices = await tx.invoice.findMany({
+    where: {
+      status: { in: UNPAID_STATUSES },
+      amountPaid: { lte: 0 },
+      items: { some: { OR: [{ productId }, { products: { some: { productId } } }] } },
+    },
+    include: { items: { include: { products: { orderBy: { position: 'asc' } } } } },
+  });
+
+  for (const inv of invoices) {
+    const remaining: LineInput[] = [];
+    for (const item of inv.items) {
+      const line: LineInput = {
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate,
+        gstType: item.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE',
+      };
+      const keep = item.products.filter((s) => s.productId !== productId);
+      const touched = keep.length < item.products.length;
+
+      // Older lines have no per-product snapshot — they bill their own product.
+      const billsOnlyThis = touched ? !keep.length : !item.products.length && item.productId === productId;
+      if (billsOnlyThis) {
+        await tx.invoiceItem.delete({ where: { id: item.id } }); // snapshot rows cascade
+        continue;
+      }
+      if (!touched) {
+        remaining.push(line);
+        continue;
+      }
+
+      // Shrink the group line to what its remaining products bill.
+      const oldTotal = D(item.lineTotal);
+      const keptTotal = keep.reduce((sum, s) => sum.add(s.amount), D(0));
+      if (oldTotal.gt(0)) line.unitPrice = round2(D(item.unitPrice).mul(keptTotal).div(oldTotal));
+      const { taxAmount, lineTotal } = computeLine(line);
+      await tx.invoiceItemProduct.deleteMany({ where: { itemId: item.id, productId } });
+      // The last remaining product absorbs the rounding so shares sum to the line.
+      const last = keep[keep.length - 1];
+      const othersTotal = keptTotal.sub(last.amount);
+      await tx.invoiceItemProduct.update({
+        where: { id: last.id },
+        data: { amount: round2(lineTotal.sub(othersTotal)) },
+      });
+      await tx.invoiceItem.update({
+        where: { id: item.id },
+        data: {
+          unitPrice: D(line.unitPrice),
+          taxAmount,
+          lineTotal,
+          ...(item.productId === productId ? { productId: keep[0].productId } : {}),
+        },
+      });
+      remaining.push(line);
+    }
+
+    // A discount can't exceed what is left to bill.
+    const gross = computeInvoiceTotals(remaining, 0);
+    const discount = D(inv.discount).gt(gross.total) ? gross.total : inv.discount;
+    const totals = computeInvoiceTotals(remaining, discount);
+    await tx.invoice.update({
+      where: { id: inv.id },
+      data: { subtotal: totals.subtotal, tax: totals.tax, discount: totals.discount, total: totals.total },
+    });
   }
-  return prisma.product.delete({ where: { id } });
+  return invoices.length;
+}
+
+/**
+ * Permanently delete a product. Every customer it is assigned to loses that
+ * assignment (its licence cascades; task time entries keep their hours with the
+ * link set to NULL), and it is taken off every unpaid invoice. Paid and
+ * part-paid invoices keep their line snapshots, with the product link set to
+ * NULL. Returns how many assignments and invoices were changed.
+ */
+export async function deleteProduct(id: string) {
+  const existing = await prisma.product.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) throw ApiError.notFound('Product not found');
+  return prisma.$transaction(
+    async (tx) => {
+      const invoicesUpdated = await removeProductFromUnpaidInvoices(tx, id);
+      const { count: unassigned } = await tx.customerProduct.deleteMany({ where: { productId: id } });
+      await tx.product.delete({ where: { id } });
+      return { unassigned, invoicesUpdated };
+    },
+    { timeout: 30_000 }
+  );
 }
 
 /**

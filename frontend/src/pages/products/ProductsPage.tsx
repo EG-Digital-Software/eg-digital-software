@@ -52,9 +52,15 @@ export default function ProductsPage() {
 
   const del = useMutation({
     mutationFn: (id: string) => productApi.remove(id),
-    onSuccess: () => {
+    onSuccess: ({ unassigned, invoicesUpdated }) => {
       qc.invalidateQueries({ queryKey: ['products'] });
-      toast.success('Product removed');
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      const parts = [
+        unassigned && `unassigned from ${unassigned} customer ${unassigned === 1 ? 'product' : 'products'}`,
+        invoicesUpdated && `removed from ${invoicesUpdated} unpaid ${invoicesUpdated === 1 ? 'invoice' : 'invoices'}`,
+      ].filter(Boolean);
+      toast.success(parts.length ? `Product deleted — ${parts.join(', ')}` : 'Product deleted');
       setDeleting(null);
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -236,9 +242,9 @@ export default function ProductsPage() {
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(v) => !v && setDeleting(null)}
-        title="Remove Product?"
-        description={`"${deleting?.name}" will be removed. Products assigned to customers are deactivated instead of deleted.`}
-        confirmLabel="Remove"
+        title="Delete Product?"
+        description={`"${deleting?.name}" will be permanently deleted. It will also be removed from every customer it is assigned to, along with those licences, and taken off every unpaid invoice (totals are recalculated). Paid and part-paid invoices stay as issued. This cannot be undone.`}
+        confirmLabel="Delete"
         destructive
         loading={del.isPending}
         onConfirm={() => deleting && del.mutate(deleting.id)}

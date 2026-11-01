@@ -63,8 +63,8 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const remove = asyncHandler(async (req: Request, res: Response) => {
-  await productService.deleteProduct(req.params.id);
-  return ok(res, null, 'Product removed');
+  const result = await productService.deleteProduct(req.params.id);
+  return ok(res, result, 'Product deleted');
 });
 
 export const bulkImport = asyncHandler(async (req: Request, res: Response) => {
