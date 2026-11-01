@@ -875,6 +875,8 @@ export async function assignProductToCustomer(
   await prisma.$transaction((tx) => assignProducts(tx, existing.id, [ap]));
   // Send the first advance invoice straight away if this assignment opted in.
   await billCustomerNow(existing.id);
+  // A product assigned while the latest invoice is unpaid joins it straight away.
+  await syncUnpaidInvoicesSafely({ customerIds: [existing.id] });
   return getCustomerByClientId(clientId);
 }
 
@@ -899,6 +901,8 @@ export async function assignProductsToCustomer(
   });
   // Send the first advance invoice straight away for any opted-in group.
   await billCustomerNow(existing.id);
+  // A product assigned while the latest invoice is unpaid joins it straight away.
+  await syncUnpaidInvoicesSafely({ customerIds: [existing.id] });
   return getCustomerByClientId(clientId);
 }
 

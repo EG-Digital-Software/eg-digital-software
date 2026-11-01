@@ -263,6 +263,11 @@ type Assignment = {
   taxRate: Prisma.Decimal | null;
   gstType: string | null;
   contractType: string;
+  status: string;
+  approvalStatus: string;
+  advancePayment: boolean;
+  issueDate: Date;
+  expiryDate: Date | null;
   product: { name: string; sku: string | null; productCode: string; billingPeriod: string | null };
   licence: { licenceKey: string } | null;
 };
@@ -290,6 +295,11 @@ async function loadAssignments(
       taxRate: true,
       gstType: true,
       contractType: true,
+      status: true,
+      approvalStatus: true,
+      advancePayment: true,
+      issueDate: true,
+      expiryDate: true,
       product: { select: { name: true, sku: true, productCode: true, billingPeriod: true } },
       licence: { select: { licenceKey: true } },
     },
@@ -726,14 +736,88 @@ export interface InvoiceSyncChange {
 type SyncScope = { customerIds?: string[]; productId?: string };
 type SnapshotRow = ReturnType<typeof snapshotLineProducts>[number];
 
+const gstOf = (v: string | null) => (v === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE';
+
+/**
+ * One invoice line billing a whole licence group for a period — the same line
+ * the invoice form builds when the group is picked: priced at what the group
+ * bills for the period, named after its products, keyed by its licence.
+ */
+function groupLine(group: Assignment[], period: BilledPeriod, quantity = 1) {
+  const rep = group[0];
+  const calc = {
+    quantity,
+    unitPrice: round2(group.reduce((sum, a) => sum.add(assignmentBilled(a, period)), D(0))),
+    taxRate: round2(D(rep.taxRate ?? 10)),
+    gstType: gstOf(rep.gstType),
+  };
+  const line = computeLine(calc);
+  const data = {
+    productId: rep.productId,
+    sku: rep.licence?.licenceKey || rep.product.sku || rep.product.productCode || null,
+    description: group.map((a) => a.product.name).join('\n'),
+    quantity,
+    unitPrice: calc.unitPrice,
+    taxRate: calc.taxRate,
+    gstType: calc.gstType,
+    contractType: rep.contractType === 'TRIAL' ? 'TRIAL' : 'LOCKED',
+    taxAmount: line.taxAmount,
+    lineTotal: line.lineTotal,
+  };
+  return { calc, data };
+}
+
+/** A licence group's identity: its licence key, or the lone assignment. */
+const groupKeyOf = (a: Assignment) => a.licence?.licenceKey || a.id;
+
+/** Licence statuses that still bill (expired and suspended ones don't). */
+const BILLABLE_LICENCE = ['ACTIVE', 'EXPIRING_SOON', 'CRITICAL'];
+
+/**
+ * The customer's licence groups that bill for the period [start, end): approved
+ * and live, issued before the period ends and not expired before it starts.
+ * Groups on advance billing are left out — recurringBilling invoices those on
+ * their own cycle, so including them here would bill them twice.
+ */
+function billableGroups(assignments: Assignment[], start: Date, end: Date): Assignment[][] {
+  const groups = new Map<string, Assignment[]>();
+  for (const a of assignments) {
+    const k = groupKeyOf(a);
+    (groups.get(k) ?? groups.set(k, []).get(k)!).push(a);
+  }
+  const bills = (a: Assignment) =>
+    BILLABLE_LICENCE.includes(a.status) &&
+    a.approvalStatus === 'APPROVED' &&
+    !a.advancePayment &&
+    a.issueDate < end &&
+    (!a.expiryDate || a.expiryDate >= start);
+  return [...groups.values()].filter((g) => g.some(bills));
+}
+
+/** Each customer's most recent invoice (cancelled ones aside). */
+async function latestInvoiceIds(customerIds: string[]): Promise<Set<string>> {
+  const latest = await prisma.invoice.findMany({
+    where: { customerId: { in: customerIds }, status: { not: InvoiceStatus.CANCELLED } },
+    orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
+    distinct: ['customerId'],
+    select: { id: true },
+  });
+  return new Set(latest.map((i) => i.id));
+}
+
 /**
  * Re-price every unpaid invoice (no payment received yet) against the current
  * product assignments, so a change to a product or a customer's agreed terms
  * shows on those invoices straight away — the same result as opening the
  * invoice, letting the form re-price it and saving. Each line backed by a
  * licence group gets that group's current billed amount, names, licence key,
- * GST and per-product snapshot; manual lines are left alone. Paid, part-paid
- * and cancelled invoices are never touched.
+ * GST and per-product snapshot; manual lines are left alone.
+ *
+ * The customer's latest invoice, while unpaid, also picks up any billable
+ * licence group it doesn't bill yet (e.g. a product assigned after it was
+ * raised), as a new line for its period. Once that invoice is paid, new
+ * products wait for the next cycle's invoice instead. Paid, part-paid and
+ * cancelled invoices are never touched.
  *
  * Scope with `customerIds` and/or `productId` (any customer holding it). With
  * `dryRun`, nothing is written — it only reports what would change.
@@ -753,6 +837,7 @@ export async function syncUnpaidInvoices(
       items: { orderBy: { id: 'asc' }, include: { products: { orderBy: { position: 'asc' } } } },
     },
   });
+  const latest = await latestInvoiceIds([...new Set(invoices.map((i) => i.customerId))]);
 
   const assignmentsByCustomer = new Map<string, Assignment[]>();
   const changes: InvoiceSyncChange[] = [];
@@ -763,7 +848,8 @@ export async function syncUnpaidInvoices(
       assignments = await loadAssignments(inv.customerId);
       assignmentsByCustomer.set(inv.customerId, assignments);
     }
-    const period = billedPeriod(inv.invoiceDate, inv.nextBillingDate ?? defaultNextBillingDate(inv.invoiceDate));
+    const nextBillingDate = inv.nextBillingDate ?? defaultNextBillingDate(inv.invoiceDate);
+    const period = billedPeriod(inv.invoiceDate, nextBillingDate);
 
     let changed = false;
     const lines: Array<{
@@ -771,9 +857,9 @@ export async function syncUnpaidInvoices(
       calc: Parameters<typeof computeLine>[0];
       update: { data: Prisma.InvoiceItemUncheckedUpdateInput; snapshot: SnapshotRow[] } | null;
     }> = [];
+    const billedGroups = new Set<string>();
 
     for (const item of inv.items) {
-      const gstOf = (v: string | null) => (v === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE';
       const group = lineGroup(assignments, item);
       if (!group.length) {
         lines.push({
@@ -783,31 +869,10 @@ export async function syncUnpaidInvoices(
         });
         continue;
       }
+      billedGroups.add(groupKeyOf(group[0]));
 
-      // Same as picking the group on the invoice form: one line for the whole
-      // group, priced at what it bills for this invoice's period.
-      const rep = group[0];
-      const calc = {
-        quantity: item.quantity,
-        unitPrice: round2(group.reduce((sum, a) => sum.add(assignmentBilled(a, period)), D(0))),
-        taxRate: round2(D(rep.taxRate ?? 10)),
-        gstType: gstOf(rep.gstType),
-      };
-      const line = computeLine(calc);
-      const sku = rep.licence?.licenceKey || rep.product.sku || rep.product.productCode || null;
-      const data = {
-        productId: rep.productId,
-        sku,
-        description: group.map((a) => a.product.name).join('\n'),
-        unitPrice: calc.unitPrice,
-        taxRate: calc.taxRate,
-        gstType: calc.gstType,
-        contractType: rep.contractType === 'TRIAL' ? 'TRIAL' : 'LOCKED',
-        taxAmount: line.taxAmount,
-        lineTotal: line.lineTotal,
-      };
-      const snapshot = snapshotLineProducts(assignments, { productId: rep.productId, sku }, line.lineTotal, period);
-
+      const { calc, data } = groupLine(group, period, item.quantity);
+      const snapshot = snapshotLineProducts(assignments, data, data.lineTotal, period);
       const same =
         item.productId === data.productId &&
         item.sku === data.sku &&
@@ -821,10 +886,21 @@ export async function syncUnpaidInvoices(
       if (!same) changed = true;
       lines.push({ id: item.id, calc, update: same ? null : { data, snapshot } });
     }
+
+    // The current (latest) invoice also bills any group it is missing.
+    const additions = latest.has(inv.id)
+      ? billableGroups(assignments, inv.invoiceDate, nextBillingDate)
+          .filter((g) => !billedGroups.has(groupKeyOf(g[0])))
+          .map((g) => {
+            const { calc, data } = groupLine(g, period);
+            return { calc, data, snapshot: snapshotLineProducts(assignments, data, data.lineTotal, period) };
+          })
+      : [];
+    if (additions.length) changed = true;
     if (!changed) continue;
 
     // A discount can't exceed what is left to bill.
-    const calcs = lines.map((l) => l.calc);
+    const calcs = [...lines.map((l) => l.calc), ...additions.map((a) => a.calc)];
     const gross = computeInvoiceTotals(calcs, 0);
     const discount = D(inv.discount).gt(gross.total) ? gross.total : inv.discount;
     const totals = computeInvoiceTotals(calcs, discount);
@@ -846,6 +922,11 @@ export async function syncUnpaidInvoices(
             data: l.update.snapshot.map((s) => ({ ...s, itemId: l.id })),
           });
         }
+      }
+      for (const a of additions) {
+        await tx.invoiceItem.create({
+          data: { ...a.data, invoiceId: inv.id, products: { create: a.snapshot } },
+        });
       }
       await tx.invoice.update({
         where: { id: inv.id },
@@ -972,4 +1053,125 @@ export async function syncUnpaidInvoicesSafely(scope: SyncScope) {
   } catch (err) {
     logger.error({ err, scope }, 'Unpaid invoice sync failed');
   }
+}
+
+export interface RolloverInvoice {
+  clientId: string;
+  /** The invoice whose next billing date has arrived. */
+  from: string;
+  /** The new invoice's number, or null on a dry run. */
+  invoiceNumber: string | null;
+  periodStart: string;
+  periodEnd: string;
+  total: string;
+  products: string[];
+}
+
+/** YYYY-MM-DD from local date parts (billing dates are local midnights). */
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Advance billing for every customer: once the next billing date on a
+ * customer's latest invoice arrives, raise the next period's invoice — dated
+ * that day, running to the 1st of the following month — billing every licence
+ * group that is billable for the period (see billableGroups), priced for it.
+ * The new invoice is sent and emailed to the client. Earlier invoices, paid or
+ * not, are never changed or removed.
+ *
+ * Safe to re-run: a customer's latest invoice moves forward with each one
+ * raised, so a period is only ever billed once, and a lapsed run catches up
+ * one period at a time. A customer with nothing billable for a period gets no
+ * invoice. With `dryRun`, nothing is written — it reports what would be raised.
+ */
+export async function runInvoiceRollover(
+  asOf: Date = new Date(),
+  opts: { dryRun?: boolean } = {}
+): Promise<RolloverInvoice[]> {
+  const today = new Date(asOf);
+  today.setHours(23, 59, 59, 999);
+  const raised: RolloverInvoice[] = [];
+
+  const latest = await prisma.invoice.findMany({
+    where: { status: { not: InvoiceStatus.CANCELLED } },
+    orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
+    distinct: ['customerId'],
+    select: {
+      invoiceNumber: true,
+      invoiceDate: true,
+      nextBillingDate: true,
+      term: true,
+      customerId: true,
+      customer: { select: { clientId: true } },
+    },
+  });
+
+  for (const prev of latest) {
+    try {
+      let from = prev.invoiceNumber;
+      let start = prev.nextBillingDate ?? defaultNextBillingDate(prev.invoiceDate);
+      // Capped so a bad date can never spin forever.
+      for (let guard = 0; guard < 12 && start <= today; guard++) {
+        const end = defaultNextBillingDate(start);
+        const assignments = await loadAssignments(prev.customerId);
+        const groups = billableGroups(assignments, start, end);
+        if (!groups.length) break; // nothing to bill — check again on the next run
+
+        const period = billedPeriod(start, end);
+        const items = groups.map((g) => {
+          const { data } = groupLine(g, period);
+          return {
+            productId: data.productId,
+            sku: data.sku ?? undefined,
+            description: data.description,
+            quantity: data.quantity,
+            unitPrice: Number(data.unitPrice),
+            taxRate: Number(data.taxRate),
+            contractType: data.contractType as 'LOCKED' | 'TRIAL',
+            gstType: data.gstType,
+          };
+        });
+        const periodEnd = new Date(end.getTime() - 86_400_000);
+        const entry: RolloverInvoice = {
+          clientId: prev.customer.clientId,
+          from,
+          invoiceNumber: null,
+          periodStart: ymd(start),
+          periodEnd: ymd(periodEnd),
+          total: computeInvoiceTotals(items, 0).total.toFixed(2),
+          products: groups.flatMap((g) => g.map((a) => a.product.name)),
+        };
+        if (opts.dryRun) {
+          raised.push(entry);
+          break; // later periods depend on this one being raised
+        }
+
+        const invoice = await createInvoice({
+          clientId: prev.customer.clientId,
+          invoiceDate: start,
+          nextBillingDate: end,
+          term: prev.term ?? undefined,
+          discount: 0,
+          status: 'SENT',
+          notes: `Advance billing — ${ymd(start)} to ${ymd(periodEnd)}`,
+          items,
+        });
+        entry.invoiceNumber = invoice.invoiceNumber;
+        raised.push(entry);
+        // Best-effort: the invoice exists and is payable in the portal even if
+        // the email fails.
+        try {
+          await sendInvoiceEmail(invoice.id);
+        } catch (err) {
+          logger.warn({ err, invoiceId: invoice.id }, 'Rollover invoice email failed (invoice kept)');
+        }
+        from = invoice.invoiceNumber;
+        start = end;
+      }
+    } catch (err) {
+      logger.error({ err, clientId: prev.customer.clientId }, 'Invoice rollover failed for a customer');
+    }
+  }
+  if (raised.length && !opts.dryRun) logger.info({ invoices: raised.length }, 'Invoice rollover run complete');
+  return raised;
 }

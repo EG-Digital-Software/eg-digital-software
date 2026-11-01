@@ -5,6 +5,7 @@ import { runLicenceReminders } from '../services/reminder.service.js';
 import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
 import { runTokenCleanup } from '../services/housekeeping.service.js';
 import { runAdvanceBilling } from '../services/recurringBilling.service.js';
+import { runInvoiceRollover } from '../services/invoice.service.js';
 
 /**
  * Registers scheduled jobs. Runs in the app process (fine for a single App
@@ -46,7 +47,15 @@ export function startScheduler() {
     runAdvanceBilling().catch((err) => logger.error({ err }, 'Advance billing job failed'));
   });
 
+  // Daily invoice rollover at 06:15, after advance billing: when the next
+  // billing date on a customer's latest invoice arrives, raise and email the
+  // next period's invoice. Idempotent, so a missed day catches up.
+  cron.schedule('15 6 * * *', () => {
+    logger.info('⏰ Running daily invoice rollover');
+    runInvoiceRollover().catch((err) => logger.error({ err }, 'Invoice rollover job failed'));
+  });
+
   logger.info(
-    'Scheduler started — token cleanup 03:00, advance billing 06:00, invoice overdue sweep 07:30, licence reminders 08:00'
+    'Scheduler started — token cleanup 03:00, advance billing 06:00, invoice rollover 06:15, invoice overdue sweep 07:30, licence reminders 08:00'
   );
 }
