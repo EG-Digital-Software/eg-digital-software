@@ -4,6 +4,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { computeInvoiceTotals, computeLine, D, round2, type LineInput } from '../utils/money.js';
 import type { PageQuery } from '../utils/http.js';
 import { nextSequence, formatSku } from '../utils/sequence.js';
+import { syncUnpaidInvoicesSafely } from './invoice.service.js';
 
 /** The SKU the next created product will get, without consuming it (preview). */
 export async function previewNextSku(): Promise<string> {
@@ -171,7 +172,10 @@ export async function updateProduct(id: string, data: Record<string, unknown>) {
     patch.availableStock = Math.max(0, existing.availableStock + delta);
   }
 
-  return prisma.product.update({ where: { id }, data: patch });
+  const product = await prisma.product.update({ where: { id }, data: patch });
+  // Unpaid invoices billing this product follow the change straight away.
+  await syncUnpaidInvoicesSafely({ productId: id });
+  return product;
 }
 
 /** Invoices still awaiting payment — a deleted product is taken off these. */

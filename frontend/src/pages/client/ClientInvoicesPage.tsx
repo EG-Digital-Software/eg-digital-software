@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/misc';
 import { InvoiceBadge } from '@/components/shared/status';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
+import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
 
 
 export default function ClientInvoicesPage() {
@@ -24,6 +25,8 @@ export default function ClientInvoicesPage() {
   const debounced = useDebounce(search);
 
   const { data, isLoading, isError, refetch } = useQuery({
+    // Unpaid invoices re-price live when products change — always show the latest.
+    ...LIVE_INVOICE_QUERY,
     queryKey: ['client', 'invoices', { page, tab, debounced }],
     queryFn: () => clientApi.invoices({ page, pageSize: 10, filter: tab, search: debounced }),
   });

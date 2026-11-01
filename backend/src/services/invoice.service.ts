@@ -14,6 +14,7 @@ import { notify } from './notification.service.js';
 import { deliverEmail } from './email/index.js';
 import { buildInvoiceEmail } from './email/templates.js';
 import { env } from '../config/env.js';
+import { logger } from '../config/logger.js';
 
 interface ListParams extends PageQuery {
   search?: string;
@@ -261,6 +262,7 @@ type Assignment = {
   unitHours: Prisma.Decimal | null;
   taxRate: Prisma.Decimal | null;
   gstType: string | null;
+  contractType: string;
   product: { name: string; sku: string | null; productCode: string; billingPeriod: string | null };
   licence: { licenceKey: string } | null;
 };
@@ -272,6 +274,8 @@ type Assignment = {
 async function loadAssignments(customerId: string): Promise<Assignment[]> {
   return prisma.customerProduct.findMany({
     where: { customerId },
+    // Stable order, so a group's products (and its representative) never shuffle.
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: {
       id: true,
       productId: true,
@@ -282,6 +286,7 @@ async function loadAssignments(customerId: string): Promise<Assignment[]> {
       unitHours: true,
       taxRate: true,
       gstType: true,
+      contractType: true,
       product: { select: { name: true, sku: true, productCode: true, billingPeriod: true } },
       licence: { select: { licenceKey: true } },
     },
@@ -698,4 +703,215 @@ export async function getPublicInvoice(id: string) {
   });
   if (!invoice) throw ApiError.notFound('Invoice not found');
   return invoice;
+}
+
+/** Invoices still awaiting payment — these follow live changes to what they bill. */
+const LIVE_STATUSES: InvoiceStatus[] = [
+  InvoiceStatus.DRAFT,
+  InvoiceStatus.SENT,
+  InvoiceStatus.PENDING,
+  InvoiceStatus.OVERDUE,
+];
+
+export interface InvoiceSyncChange {
+  invoiceNumber: string;
+  clientId: string;
+  oldTotal: string;
+  newTotal: string;
+}
+
+type SyncScope = { customerIds?: string[]; productId?: string };
+type SnapshotRow = ReturnType<typeof snapshotLineProducts>[number];
+
+/**
+ * Re-price every unpaid invoice (no payment received yet) against the current
+ * product assignments, so a change to a product or a customer's agreed terms
+ * shows on those invoices straight away — the same result as opening the
+ * invoice, letting the form re-price it and saving. Each line backed by a
+ * licence group gets that group's current billed amount, names, licence key,
+ * GST and per-product snapshot; manual lines are left alone. Paid, part-paid
+ * and cancelled invoices are never touched.
+ *
+ * Scope with `customerIds` and/or `productId` (any customer holding it). With
+ * `dryRun`, nothing is written — it only reports what would change.
+ */
+export async function syncUnpaidInvoices(
+  scope: SyncScope,
+  opts: { dryRun?: boolean } = {}
+): Promise<InvoiceSyncChange[]> {
+  const where: Prisma.InvoiceWhereInput = { status: { in: LIVE_STATUSES }, amountPaid: { lte: 0 } };
+  if (scope.customerIds) where.customerId = { in: scope.customerIds };
+  if (scope.productId) where.customer = { customerProducts: { some: { productId: scope.productId } } };
+
+  const invoices = await prisma.invoice.findMany({
+    where,
+    include: {
+      customer: { select: { clientId: true } },
+      items: { orderBy: { id: 'asc' }, include: { products: { orderBy: { position: 'asc' } } } },
+    },
+  });
+
+  const assignmentsByCustomer = new Map<string, Assignment[]>();
+  const changes: InvoiceSyncChange[] = [];
+
+  for (const inv of invoices) {
+    let assignments = assignmentsByCustomer.get(inv.customerId);
+    if (!assignments) {
+      assignments = await loadAssignments(inv.customerId);
+      assignmentsByCustomer.set(inv.customerId, assignments);
+    }
+    const period = billedPeriod(inv.invoiceDate, inv.nextBillingDate ?? defaultNextBillingDate(inv.invoiceDate));
+
+    let changed = false;
+    const lines: Array<{
+      id: string;
+      calc: Parameters<typeof computeLine>[0];
+      update: { data: Prisma.InvoiceItemUncheckedUpdateInput; snapshot: SnapshotRow[] } | null;
+    }> = [];
+
+    for (const item of inv.items) {
+      const gstOf = (v: string | null) => (v === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE';
+      const group = lineGroup(assignments, item);
+      if (!group.length) {
+        lines.push({
+          id: item.id,
+          calc: { quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate, gstType: gstOf(item.gstType) },
+          update: null,
+        });
+        continue;
+      }
+
+      // Same as picking the group on the invoice form: one line for the whole
+      // group, priced at what it bills for this invoice's period.
+      const rep = group[0];
+      const calc = {
+        quantity: item.quantity,
+        unitPrice: round2(group.reduce((sum, a) => sum.add(assignmentBilled(a, period)), D(0))),
+        taxRate: round2(D(rep.taxRate ?? 10)),
+        gstType: gstOf(rep.gstType),
+      };
+      const line = computeLine(calc);
+      const sku = rep.licence?.licenceKey || rep.product.sku || rep.product.productCode || null;
+      const data = {
+        productId: rep.productId,
+        sku,
+        description: group.map((a) => a.product.name).join('\n'),
+        unitPrice: calc.unitPrice,
+        taxRate: calc.taxRate,
+        gstType: calc.gstType,
+        contractType: rep.contractType === 'TRIAL' ? 'TRIAL' : 'LOCKED',
+        taxAmount: line.taxAmount,
+        lineTotal: line.lineTotal,
+      };
+      const snapshot = snapshotLineProducts(assignments, { productId: rep.productId, sku }, line.lineTotal, period);
+
+      const same =
+        item.productId === data.productId &&
+        item.sku === data.sku &&
+        item.description === data.description &&
+        D(item.unitPrice).eq(data.unitPrice) &&
+        D(item.taxRate).eq(data.taxRate) &&
+        item.gstType === data.gstType &&
+        item.contractType === data.contractType &&
+        D(item.lineTotal).eq(data.lineTotal) &&
+        sameSnapshot(item.products, snapshot);
+      if (!same) changed = true;
+      lines.push({ id: item.id, calc, update: same ? null : { data, snapshot } });
+    }
+    if (!changed) continue;
+
+    // A discount can't exceed what is left to bill.
+    const calcs = lines.map((l) => l.calc);
+    const gross = computeInvoiceTotals(calcs, 0);
+    const discount = D(inv.discount).gt(gross.total) ? gross.total : inv.discount;
+    const totals = computeInvoiceTotals(calcs, discount);
+    changes.push({
+      invoiceNumber: inv.invoiceNumber,
+      clientId: inv.customer.clientId,
+      oldTotal: D(inv.total).toFixed(2),
+      newTotal: totals.total.toFixed(2),
+    });
+    if (opts.dryRun) continue;
+
+    await prisma.$transaction(async (tx) => {
+      for (const l of lines) {
+        if (!l.update) continue;
+        await tx.invoiceItem.update({ where: { id: l.id }, data: l.update.data });
+        await tx.invoiceItemProduct.deleteMany({ where: { itemId: l.id } });
+        if (l.update.snapshot.length) {
+          await tx.invoiceItemProduct.createMany({
+            data: l.update.snapshot.map((s) => ({ ...s, itemId: l.id })),
+          });
+        }
+      }
+      await tx.invoice.update({
+        where: { id: inv.id },
+        data: { subtotal: totals.subtotal, tax: totals.tax, discount: totals.discount, total: totals.total },
+      });
+    });
+  }
+  return changes;
+}
+
+/**
+ * The licence group a line bills: matched by its licence key (the line's sku),
+ * else by the product it was built from — so a renamed licence key still finds
+ * its group. Empty for a manual line.
+ */
+function lineGroup(assignments: Assignment[], item: { productId: string | null; sku: string | null }): Assignment[] {
+  if (item.sku) {
+    const byKey = assignments.filter((a) => a.licence?.licenceKey && a.licence.licenceKey === item.sku);
+    if (byKey.length) return byKey;
+  }
+  if (!item.productId) return [];
+  const rep = assignments.find((a) => a.productId === item.productId);
+  if (!rep) return [];
+  const key = rep.licence?.licenceKey;
+  return key ? assignments.filter((a) => a.licence?.licenceKey === key) : [rep];
+}
+
+/** Whether a line's stored snapshot already matches the freshly built one. */
+function sameSnapshot(
+  current: Array<{
+    productId: string | null;
+    name: string;
+    sku: string | null;
+    unit: string | null;
+    agreedPrice: Prisma.Decimal;
+    unitHours: Prisma.Decimal | null;
+    taxRate: Prisma.Decimal | null;
+    gstType: string | null;
+    amount: Prisma.Decimal;
+  }>,
+  next: SnapshotRow[]
+): boolean {
+  if (current.length !== next.length) return false;
+  const dec = (a: Prisma.Decimal.Value | null, b: Prisma.Decimal.Value | null) =>
+    a == null || b == null ? a == null && b == null : D(a).eq(b);
+  return current.every((c, i) => {
+    const n = next[i];
+    return (
+      c.productId === n.productId &&
+      c.name === n.name &&
+      c.sku === n.sku &&
+      c.unit === n.unit &&
+      c.gstType === n.gstType &&
+      dec(c.agreedPrice, n.agreedPrice) &&
+      dec(c.unitHours, n.unitHours) &&
+      dec(c.taxRate, n.taxRate) &&
+      dec(c.amount, n.amount)
+    );
+  });
+}
+
+/**
+ * Sync unpaid invoices after a change, without failing the change itself: the
+ * admin's edit is already saved, so a sync error is logged rather than thrown.
+ */
+export async function syncUnpaidInvoicesSafely(scope: SyncScope) {
+  try {
+    await syncUnpaidInvoices(scope);
+  } catch (err) {
+    logger.error({ err, scope }, 'Unpaid invoice sync failed');
+  }
 }

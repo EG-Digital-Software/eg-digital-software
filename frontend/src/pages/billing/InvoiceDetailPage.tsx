@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
 import { linkifyValue } from '@/lib/linkify';
+import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
 
 function Money({ label, value, tone }: { label: string; value: string | number; tone?: 'owed' | 'paid' }) {
   return (
@@ -71,6 +72,8 @@ export default function InvoiceDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: invoice, isLoading, isError, refetch } = useQuery({
+    // Unpaid invoices re-price live when products change — always show the latest.
+    ...LIVE_INVOICE_QUERY,
     queryKey: ['invoice', id],
     queryFn: () => invoiceApi.get(id!),
   });

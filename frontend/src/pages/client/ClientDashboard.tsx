@@ -12,6 +12,7 @@ import type { LicenceStatus } from '@/types';
 import { ProductGlyph } from '@/lib/product-icon';
 import { Panel, ViewAll, GraphiteHero } from '@/components/layout/graphite';
 import { panel, eyebrow, btnLight, btnDark, viewAll } from '@/lib/graphite';
+import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
 
 /* ---- Data presentation helpers (read-only) ------------------------------- */
 
@@ -66,6 +67,8 @@ export default function ClientDashboard() {
   const dashQ = useQuery({ queryKey: ['client', 'dashboard'], queryFn: clientApi.dashboard });
   const tasksQ = useQuery({ queryKey: CLIENT_TASK_SUMMARY_KEY, queryFn: clientApi.taskSummary });
   const invQ = useQuery({
+    // Unpaid invoices re-price live when products change — always show the latest.
+    ...LIVE_INVOICE_QUERY,
     queryKey: ['client', 'invoices', 'recent'],
     queryFn: () => clientApi.invoices({ pageSize: 5 }),
   });

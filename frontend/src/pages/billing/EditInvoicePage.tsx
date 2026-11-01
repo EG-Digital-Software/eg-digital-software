@@ -78,6 +78,9 @@ export default function EditInvoicePage() {
   const qc = useQueryClient();
 
   const { data: invoice, isLoading, isError, refetch } = useQuery({
+    // Open on what the invoice bills now (it re-prices live when products
+    // change), but don't refetch on tab focus — that would reset unsaved edits.
+    staleTime: 0,
     queryKey: ['invoice', id],
     queryFn: () => invoiceApi.get(id!),
   });

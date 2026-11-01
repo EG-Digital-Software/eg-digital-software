@@ -18,6 +18,7 @@ import { InvoiceBadge } from '@/components/shared/status';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
+import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
 
 
 export default function BillingPage() {
@@ -49,6 +50,8 @@ export default function BillingPage() {
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
+    // Unpaid invoices re-price live when products change — always show the latest.
+    ...LIVE_INVOICE_QUERY,
     queryKey: ['invoices', { page, debounced, tab, clientId }],
     queryFn: () =>
       invoiceApi.list({ page, pageSize: 25, search: debounced, filter: tab, clientId, sort: 'client' }),

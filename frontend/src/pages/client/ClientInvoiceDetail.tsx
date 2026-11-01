@@ -6,10 +6,13 @@ import { PageHeader } from '@/components/shared/misc';
 import { Button } from '@/components/ui/button';
 import { InvoicePreview } from '@/components/invoice/InvoicePreview';
 import { LoadingBlock, ErrorState } from '@/components/shared/states';
+import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
 
 export default function ClientInvoiceDetail() {
   const { id } = useParams();
   const { data: invoice, isLoading, isError, refetch } = useQuery({
+    // Unpaid invoices re-price live when products change — always show the latest.
+    ...LIVE_INVOICE_QUERY,
     queryKey: ['client', 'invoice', id],
     queryFn: () => clientApi.invoice(id!),
   });

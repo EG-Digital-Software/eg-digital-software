@@ -16,6 +16,7 @@ import type { PageQuery } from '../utils/http.js';
 import { encryptSecret, decryptSecret } from '../utils/secretBox.js';
 import { reserveStock } from './product.service.js';
 import { billCustomerNow } from './recurringBilling.service.js';
+import { syncUnpaidInvoicesSafely } from './invoice.service.js';
 import { nextSequence, formatClientId, formatLicenceKey } from '../utils/sequence.js';
 import { computeLicenceStatus } from '../utils/licence.js';
 import { effectiveAccountStatus, dormancyCutoff } from '../utils/accountStatus.js';
@@ -980,6 +981,8 @@ export async function updateCustomerProduct(
       });
     }
   });
+  // Unpaid invoices follow the change straight away.
+  await syncUnpaidInvoicesSafely({ customerIds: [existing.id] });
   return getCustomerByClientId(clientId);
 }
 
@@ -994,6 +997,8 @@ export async function removeCustomerProduct(clientId: string, customerProductId:
   // Inventory is unlimited, so nothing to hand back — just remove the row
   // (its licence cascades).
   await prisma.customerProduct.delete({ where: { id: cp.id } });
+  // Unpaid invoices follow the change straight away.
+  await syncUnpaidInvoicesSafely({ customerIds: [existing.id] });
   return getCustomerByClientId(clientId);
 }
 
@@ -1122,6 +1127,8 @@ export async function updateProductGroup(
   );
   // If advance billing was just turned on (or is due), send the invoice now.
   await billCustomerNow(existing.id);
+  // Unpaid invoices follow the change straight away.
+  await syncUnpaidInvoicesSafely({ customerIds: [existing.id] });
   return getCustomerByClientId(clientId);
 }
 
@@ -1133,6 +1140,8 @@ export async function removeProductGroup(clientId: string, licenceKey: string) {
     where: { customerId: existing.id, licence: { licenceKey } },
   });
   if (!result.count) throw ApiError.notFound('Licence group not found');
+  // Unpaid invoices follow the change straight away.
+  await syncUnpaidInvoicesSafely({ customerIds: [existing.id] });
   return getCustomerByClientId(clientId);
 }
 

@@ -9,3 +9,10 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Invoice queries skip the 30s cache: an unpaid invoice is re-priced on the
+ * server whenever a product or a customer's agreed terms change, so opening an
+ * invoice (or returning to the tab) always fetches what it bills now.
+ */
+export const LIVE_INVOICE_QUERY = { staleTime: 0, refetchOnWindowFocus: true } as const;
