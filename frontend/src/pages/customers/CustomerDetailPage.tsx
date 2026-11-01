@@ -1643,7 +1643,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
         open={!!removing}
         onOpenChange={(v) => !v && setRemoving(null)}
         title="Remove this licence?"
-        description="This removes the licence and every product assigned under it from the customer."
+        description="This removes the licence and every product assigned under it from the customer. Its line is also taken off any unpaid invoice (totals are recalculated); paid and part-paid invoices stay as issued."
         confirmLabel="Remove"
         destructive
         loading={remove.isPending}

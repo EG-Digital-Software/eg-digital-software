@@ -16,7 +16,7 @@ import type { PageQuery } from '../utils/http.js';
 import { encryptSecret, decryptSecret } from '../utils/secretBox.js';
 import { reserveStock } from './product.service.js';
 import { billCustomerNow } from './recurringBilling.service.js';
-import { syncUnpaidInvoicesSafely } from './invoice.service.js';
+import { removeAssignmentsFromUnpaidInvoices, syncUnpaidInvoicesSafely } from './invoice.service.js';
 import { nextSequence, formatClientId, formatLicenceKey } from '../utils/sequence.js';
 import { computeLicenceStatus } from '../utils/licence.js';
 import { effectiveAccountStatus, dormancyCutoff } from '../utils/accountStatus.js';
@@ -995,9 +995,14 @@ export async function removeCustomerProduct(clientId: string, customerProductId:
   });
   if (!cp) throw ApiError.notFound('Assigned product not found');
   // Inventory is unlimited, so nothing to hand back — just remove the row
-  // (its licence cascades).
-  await prisma.customerProduct.delete({ where: { id: cp.id } });
-  // Unpaid invoices follow the change straight away.
+  // (its licence cascades). If it was the last product of its group, that
+  // group's line comes off unpaid invoices too.
+  await prisma.$transaction(async (tx) => {
+    await removeAssignmentsFromUnpaidInvoices(tx, existing.id, [cp.id]);
+    await tx.customerProduct.delete({ where: { id: cp.id } });
+  });
+  // Unpaid invoices follow the change straight away (a group that keeps other
+  // products is re-priced without this one).
   await syncUnpaidInvoicesSafely({ customerIds: [existing.id] });
   return getCustomerByClientId(clientId);
 }
@@ -1136,10 +1141,17 @@ export async function updateProductGroup(
 export async function removeProductGroup(clientId: string, licenceKey: string) {
   const existing = await prisma.customer.findUnique({ where: { clientId } });
   if (!existing) throw ApiError.notFound('Customer not found');
-  const result = await prisma.customerProduct.deleteMany({
+  const group = await prisma.customerProduct.findMany({
     where: { customerId: existing.id, licence: { licenceKey } },
+    select: { id: true },
   });
-  if (!result.count) throw ApiError.notFound('Licence group not found');
+  if (!group.length) throw ApiError.notFound('Licence group not found');
+  const ids = group.map((cp) => cp.id);
+  // The group's line comes off unpaid invoices along with the group.
+  await prisma.$transaction(async (tx) => {
+    await removeAssignmentsFromUnpaidInvoices(tx, existing.id, ids);
+    await tx.customerProduct.deleteMany({ where: { id: { in: ids } } });
+  });
   // Unpaid invoices follow the change straight away.
   await syncUnpaidInvoicesSafely({ customerIds: [existing.id] });
   return getCustomerByClientId(clientId);

@@ -271,8 +271,11 @@ type Assignment = {
  * The customer's product assignments, needed to snapshot what each line bills.
  * Fetched once per invoice write.
  */
-async function loadAssignments(customerId: string): Promise<Assignment[]> {
-  return prisma.customerProduct.findMany({
+async function loadAssignments(
+  customerId: string,
+  db: Prisma.TransactionClient = prisma
+): Promise<Assignment[]> {
+  return db.customerProduct.findMany({
     where: { customerId },
     // Stable order, so a group's products (and its representative) never shuffle.
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -851,6 +854,61 @@ export async function syncUnpaidInvoices(
     });
   }
   return changes;
+}
+
+/**
+ * Take lines off a customer's unpaid invoices (no payment received) when the
+ * assignments they bill are being removed. Call inside the removal's
+ * transaction, BEFORE the assignments are deleted, so each line can still be
+ * matched to its licence group. A line is removed only when every product in
+ * the group it bills is among `customerProductIds` — a group that keeps some
+ * products is re-priced by syncUnpaidInvoices instead. Each touched invoice's
+ * totals are recomputed. Returns how many invoices were changed.
+ */
+export async function removeAssignmentsFromUnpaidInvoices(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  customerProductIds: string[]
+): Promise<number> {
+  const removing = new Set(customerProductIds);
+  const assignments = await loadAssignments(customerId, tx);
+  const invoices = await tx.invoice.findMany({
+    where: { customerId, status: { in: LIVE_STATUSES }, amountPaid: { lte: 0 } },
+    include: { items: true },
+  });
+
+  let changed = 0;
+  for (const inv of invoices) {
+    const dropped = new Set(
+      inv.items
+        .filter((item) => {
+          const group = lineGroup(assignments, item);
+          return group.length > 0 && group.every((a) => removing.has(a.id));
+        })
+        .map((item) => item.id)
+    );
+    if (!dropped.size) continue;
+
+    await tx.invoiceItem.deleteMany({ where: { id: { in: [...dropped] } } }); // snapshot rows cascade
+    const remaining = inv.items
+      .filter((item) => !dropped.has(item.id))
+      .map((item) => ({
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate,
+        gstType: (item.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE',
+      }));
+    // A discount can't exceed what is left to bill.
+    const gross = computeInvoiceTotals(remaining, 0);
+    const discount = D(inv.discount).gt(gross.total) ? gross.total : inv.discount;
+    const totals = computeInvoiceTotals(remaining, discount);
+    await tx.invoice.update({
+      where: { id: inv.id },
+      data: { subtotal: totals.subtotal, tax: totals.tax, discount: totals.discount, total: totals.total },
+    });
+    changed++;
+  }
+  return changed;
 }
 
 /**
