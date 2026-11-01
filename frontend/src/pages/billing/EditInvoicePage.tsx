@@ -27,7 +27,7 @@ import {
   toDateInput,
   buildLicenceGroups,
   findLicenceGroup,
-  licenceGroupNet,
+  licenceGroupBilled,
   type LicenceGroup,
 } from '@/lib/proration';
 
@@ -152,10 +152,10 @@ export default function EditInvoicePage() {
     [selectedCustomer]
   );
 
-  // Full agreed net for the licence group a product belongs to (before pro-rata).
-  const groupBaseFor = (productId?: string | null): number | null => {
+  // What the licence group a product belongs to bills for this period.
+  const groupBilledFor = (productId?: string | null): number | null => {
     const g = findLicenceGroup(licenceGroups, productId);
-    return g ? licenceGroupNet(g) : null;
+    return g ? licenceGroupBilled(g, proration) : null;
   };
 
   // Picking a licence group fills this line with the whole group as one row —
@@ -166,17 +166,16 @@ export default function EditInvoicePage() {
     if (!g || !g.items.length) return;
     const rep = g.items[0];
     const grpTerm = g.items.find((cp) => cp.invoicingTerm)?.invoicingTerm;
-    // The fraction comes from the billing period, so picking a product no longer
+    // The amount comes from the billing period, so picking a product no longer
     // depends on the term.
-    const frac = fraction;
-    const base = licenceGroupNet(g);
+    const billed = licenceGroupBilled(g, proration);
     update(index, {
       productId: rep.product.id,
       // Licence number rides along as the line's sku (shown on the invoice).
       sku: g.licenceKey || rep.product.sku || rep.product.productCode || '',
       description: g.items.map((cp) => cp.product.name).join('\n'),
       quantity: 1,
-      unitPrice: round2(base * frac),
+      unitPrice: round2(billed),
       taxRate: Number(rep.taxRate ?? 10) || 0,
       contractType: (rep.contractType === 'TRIAL' ? 'TRIAL' : 'LOCKED') as 'LOCKED' | 'TRIAL',
       gstType: (rep.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE',
@@ -185,25 +184,25 @@ export default function EditInvoicePage() {
   };
 
   // Billing period + pro-ration, driven by the next billing date (NOT the term).
-  // Each product-backed line bills its agreed net × this fraction.
+  // Each product-backed line bills its agreed net pro-rated to these days, per
+  // each product's charge period (daily/weekly/annual/monthly).
   const proration = useMemo(
     () => computeProration(invoiceDate, nextBillingDate),
     [invoiceDate, nextBillingDate]
   );
-  const fraction = proration?.fraction ?? 1;
 
   // The due date is the term's payment window from the invoice date — the only
   // thing the term decides (mirrors the backend + create form).
   const due = useMemo(() => computeDueDate(invoiceDate, term), [invoiceDate, term]);
 
   // The unit price a line actually bills. For a product-backed line it's the
-  // group's agreed net × the current pro-rata fraction — derived live from the
+  // group's agreed net pro-rated to the current period — derived live from the
   // invoice date/term, so the amount reflects instantly (no effect/setValue lag).
   // Manual lines keep their typed price.
   const effectiveUnitPrice = (it?: FormValues['items'][number]): number => {
     if (it?.productId) {
-      const base = groupBaseFor(it.productId);
-      if (base != null) return round2(base * fraction);
+      const billed = groupBilledFor(it.productId);
+      if (billed != null) return round2(billed);
     }
     return Number(it?.unitPrice) || 0;
   };
@@ -225,9 +224,9 @@ export default function EditInvoicePage() {
     }
     const disc = Number(discount) || 0;
     return { subtotal, tax, total: Math.max(0, subtotal + tax - disc) };
-    // effectiveUnitPrice closes over fraction + licenceGroups (both listed).
+    // effectiveUnitPrice closes over proration + licenceGroups (both listed).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, discount, fraction, licenceGroups]);
+  }, [items, discount, proration, licenceGroups]);
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) => invoiceApi.update(id!, values),
@@ -359,7 +358,7 @@ export default function EditInvoicePage() {
             // Product-backed lines bill a pro-rated price derived from the
             // invoice date/term — shown read-only so it always matches the
             // summary; manual lines stay editable.
-            const isProduct = !!it?.productId && groupBaseFor(it.productId) != null;
+            const isProduct = !!it?.productId && groupBilledFor(it.productId) != null;
             const unitPrice = effectiveUnitPrice(it);
             const gross = unitPrice * (Number(it?.quantity) || 0);
             const amount = it?.gstType === 'INCLUSIVE' ? gross : gross * (1 + (Number(it?.taxRate) || 0) / 100);
@@ -374,7 +373,7 @@ export default function EditInvoicePage() {
                       groups={licenceGroups}
                       productId={it?.productId}
                       sku={it?.sku}
-                      fraction={fraction}
+                      proration={proration}
                       hasCustomer={!!clientId}
                       controlClassName={FILLED}
                       onSelectGroup={(groupKey) => selectGroup(index, groupKey)}

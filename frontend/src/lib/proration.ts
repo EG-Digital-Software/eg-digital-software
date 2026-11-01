@@ -65,6 +65,37 @@ export function licenceGroupNet(group: LicenceGroup): number {
   return group.items.reduce((sum, cp) => sum + productNet(cp), 0);
 }
 
+/**
+ * How many of a product's charge periods the billed days cover. The agreed price
+ * is per the product's "Charged" period: DAILY bills it for every billed day,
+ * WEEKLY per 7 days, ANNUALLY per 365 days. Anything else (monthly, or not set)
+ * is pro-rated by the billed days over the month. Mirrors the backend's
+ * periodFactor.
+ */
+export function periodFactor(billingPeriod: string | null | undefined, proration: Proration): number {
+  switch (billingPeriod) {
+    case 'DAILY':
+      return proration.billedDays;
+    case 'WEEKLY':
+      return proration.billedDays / 7;
+    case 'ANNUALLY':
+      return proration.billedDays / 365;
+    default:
+      return proration.fraction;
+  }
+}
+
+/** What a product bills for this invoice's period (see periodFactor). */
+export function productBilled(cp: CustomerProduct, proration: Proration | null): number {
+  if (!proration) return productNet(cp);
+  return productNet(cp) * periodFactor(cp.product?.billingPeriod, proration);
+}
+
+/** What a licence group bills for this invoice's period (sum of its products). */
+export function licenceGroupBilled(group: LicenceGroup, proration: Proration | null): number {
+  return group.items.reduce((sum, cp) => sum + productBilled(cp, proration), 0);
+}
+
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

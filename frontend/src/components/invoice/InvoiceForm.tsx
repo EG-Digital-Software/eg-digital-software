@@ -27,7 +27,7 @@ import {
   toDateInput,
   buildLicenceGroups,
   findLicenceGroup,
-  licenceGroupNet,
+  licenceGroupBilled,
   type LicenceGroup,
 } from '@/lib/proration';
 import { LineItemProduct } from '@/components/invoice/LineItemProduct';
@@ -203,13 +203,13 @@ export function InvoiceForm({
     fixedClientId;
 
   // Billing period + pro-ration, driven by the next billing date (NOT the term).
-  // A product line bills its agreed net × this fraction, so an invoice issued
-  // mid-month covers only the days up to the next billing date.
+  // A product line bills its agreed net pro-rated to these days, per each
+  // product's charge period (daily/weekly/annual/monthly), so an invoice issued mid-month
+  // covers only the days up to the next billing date.
   const proration = useMemo(
     () => computeProration(invoiceDate, nextBillingDate),
     [invoiceDate, nextBillingDate]
   );
-  const fraction = proration?.fraction ?? 1;
   const period = proration ? `${fmtDay(proration.start)} to ${fmtDay(proration.end)}` : '';
 
   // The due date is the term's payment window from the invoice date — the only
@@ -224,10 +224,10 @@ export function InvoiceForm({
     if (next) setValue('nextBillingDate', toDateInput(next));
   }, [invoiceDate, nextBillingDate, setValue]);
 
-  // Full agreed net for the licence group a product belongs to (before pro-rata).
-  const groupBaseFor = (productId?: string): number | null => {
+  // What the licence group a product belongs to bills for this period.
+  const groupBilledFor = (productId?: string): number | null => {
     const g = findLicenceGroup(licenceGroups, productId);
-    return g ? licenceGroupNet(g) : null;
+    return g ? licenceGroupBilled(g, proration) : null;
   };
 
   // Selecting a licence group fills the CURRENT line with the whole group as one
@@ -238,17 +238,16 @@ export function InvoiceForm({
     if (!g || !g.items.length) return;
     const rep = g.items[0];
     const grpTerm = g.items.find((cp) => cp.invoicingTerm)?.invoicingTerm;
-    // Pro-rate the agreed net by the days this invoice covers. The fraction comes
-    // from the billing period, so picking a product no longer depends on the term.
-    const frac = fraction;
-    const base = licenceGroupNet(g);
+    // Pro-rate the agreed net by the days this invoice covers. That comes from
+    // the billing period, so picking a product no longer depends on the term.
+    const billed = licenceGroupBilled(g, proration);
     update(index, {
       productId: rep.product.id,
       // Licence number rides along as the line's sku (shown on the invoice).
       sku: g.licenceKey || rep.product.sku || rep.product.productCode || '',
       description: g.items.map((cp) => cp.product.name).join('\n'),
       quantity: 1,
-      unitPrice: round2(base * frac),
+      unitPrice: round2(billed),
       taxRate: Number(rep.taxRate ?? 10) || 0,
       contractType: (rep.contractType === 'TRIAL' ? 'TRIAL' : 'LOCKED') as 'LOCKED' | 'TRIAL',
       gstType: (rep.gstType === 'INCLUSIVE' ? 'INCLUSIVE' : 'EXCLUSIVE') as 'INCLUSIVE' | 'EXCLUSIVE',
@@ -266,15 +265,15 @@ export function InvoiceForm({
     const its = getValues('items') ?? [];
     its.forEach((it, i) => {
       if (!it.productId) return;
-      const base = groupBaseFor(it.productId);
-      if (base == null) return;
-      const next = round2(base * fraction);
+      const billed = groupBilledFor(it.productId);
+      if (billed == null) return;
+      const next = round2(billed);
       if (Math.abs((Number(it.unitPrice) || 0) - next) > 0.005) {
         setValue(`items.${i}.unitPrice`, next, { shouldDirty: true });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fraction, licenceGroups]);
+  }, [proration, licenceGroups]);
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -419,7 +418,7 @@ export function InvoiceForm({
                       groups={licenceGroups}
                       productId={it?.productId}
                       sku={it?.sku}
-                      fraction={fraction}
+                      proration={proration}
                       hasCustomer={!!selectedClientId}
                       controlClassName={FILLED_CONTROL}
                       onSelectGroup={(groupKey) => selectGroup(index, groupKey)}

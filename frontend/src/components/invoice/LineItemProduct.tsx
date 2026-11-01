@@ -1,6 +1,6 @@
 import { Select } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/utils';
-import { productUnits, productNet, findLicenceGroup, type LicenceGroup } from '@/lib/proration';
+import { productUnits, productBilled, findLicenceGroup, type LicenceGroup, type Proration } from '@/lib/proration';
 
 /**
  * The line-item "Product" field shared by the invoice create and edit forms, so
@@ -18,8 +18,8 @@ export interface LineItemProductProps {
   productId?: string | null;
   /** Licence number stored on the line — shown as the summary's header. */
   sku?: string | null;
-  /** Pro-rata fraction applied to each product's agreed net in the summary. */
-  fraction: number;
+  /** The invoice's billing period, used to pro-rate each product's agreed net. */
+  proration: Proration | null;
   /** False on the create form until a customer is picked. */
   hasCustomer: boolean;
   onSelectGroup: (groupKey: string) => void;
@@ -33,7 +33,7 @@ export function LineItemProduct({
   groups,
   productId,
   sku,
-  fraction,
+  proration,
   hasCustomer,
   onSelectGroup,
   fallback,
@@ -71,8 +71,8 @@ export function LineItemProduct({
           )}
           {selected.items.map((cp) => {
             const units = productUnits(cp);
-            // Net billed for this period = agreed net × pro-rata fraction.
-            const net = productNet(cp) * fraction;
+            // Net billed for this period, per the product's charge period.
+            const net = productBilled(cp, proration);
             return (
               <div key={cp.id} className="space-y-1 border-b border-border/40 pb-1.5 last:border-0 last:pb-0">
                 <div className="flex items-center justify-between gap-2">

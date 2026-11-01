@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
 import { createInvoice, sendInvoiceEmail } from './invoice.service.js';
+import { periodFactor } from '../utils/money.js';
 
 /**
  * Advance recurring billing.
@@ -53,6 +54,10 @@ interface Period {
   end: Date;
   /** Fraction of a full period this covers (1 for full; <1 for a pro-rated first month). */
   fraction: number;
+  /** Days this period covers, inclusive of the start day. */
+  billedDays: number;
+  /** Days in the period's calendar month. */
+  monthDays: number;
   /** Start of the following period — what nextInvoiceDate becomes. */
   nextStart: Date;
 }
@@ -70,6 +75,8 @@ function computePeriod(periodStart: Date): Period {
     start,
     end: lastDayOfMonth(start),
     fraction: billedDays / dim,
+    billedDays,
+    monthDays: dim,
     nextStart: firstOfNextMonth(start),
   };
 }
@@ -113,8 +120,17 @@ async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
     const items = group.map((cp) => {
       const units = cp.unitHoursEnabled ? Number(cp.unitHours) || 0 : 1;
       const discount = Number(cp.discountPercent) || 0;
-      const net = round2((Number(cp.price) || 0) * (1 - discount / 100) * units * period.fraction);
-      const partial = period.fraction < 1 ? ` (${Math.round(period.fraction * 100)}% pro-rata)` : '';
+      // The agreed price is per the product's charge period (daily, weekly,
+      // annual or monthly) — see periodFactor.
+      const bp = cp.product.billingPeriod;
+      const byDays = bp === 'DAILY' || bp === 'WEEKLY' || bp === 'ANNUALLY';
+      const factor = periodFactor(bp, period.billedDays, period.monthDays);
+      const net = round2((Number(cp.price) || 0) * (1 - discount / 100) * units * factor);
+      const partial = byDays
+        ? ` (${period.billedDays} days)`
+        : period.fraction < 1
+          ? ` (${Math.round(period.fraction * 100)}% pro-rata)`
+          : '';
       return {
         productId: cp.productId,
         sku: cp.licence?.licenceKey || cp.product.sku || cp.product.productCode || undefined,

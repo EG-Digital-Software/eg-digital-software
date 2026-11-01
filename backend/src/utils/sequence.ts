@@ -35,9 +35,15 @@ export function formatSku(n: number): string {
   return `SKU-${4999 + n}`;
 }
 
-export function formatInvoiceNumber(n: number, date = new Date()): string {
-  const year = date.getFullYear();
-  return `EGD-INV-${year}-${String(n).padStart(5, '0')}`;
+// Invoice numbers are EGE-INV-2627-<n>, starting at EGE-INV-2627-5555 and
+// incrementing by 1. They draw on their own counter (INVOICE_NUMBER_COUNTER),
+// separate from the old EGD-INV-<year>-<n> series, so the first new invoice is
+// 5555 (nextSequence returns 1, so offset by 5554) and existing invoices keep
+// their numbers.
+export const INVOICE_NUMBER_COUNTER = 'invoiceNumber:EGE-INV-2627';
+
+export function formatInvoiceNumber(n: number): string {
+  return `EGE-INV-2627-${5554 + n}`;
 }
 
 // Every invoice carries a unique reference of its own: REF-EGD-2627-5000,

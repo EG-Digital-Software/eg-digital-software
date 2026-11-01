@@ -357,6 +357,9 @@ html.eg-graphite body {
 .eg-graphite .text-slate-400 { color: #8c93a5; }
 .eg-graphite .bg-slate-50,
 .eg-graphite .bg-slate-100 { background-color: rgb(255 255 255 / 0.06); }
+/* Translucent slate panels (invoice line items) — otherwise near-white. */
+.eg-graphite .bg-slate-50\/50,
+.eg-graphite .bg-slate-50\/60 { background-color: rgb(255 255 255 / 0.03); }
 .eg-graphite .border-slate-200 { border-color: hsl(var(--border)); }
 .eg-graphite [class*='text-[hsl(30_90%_38%)]'] { color: #fcd34d; }
 

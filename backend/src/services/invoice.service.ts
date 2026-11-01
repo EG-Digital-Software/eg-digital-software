@@ -2,8 +2,13 @@ import { Prisma, InvoiceStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { PageQuery } from '../utils/http.js';
-import { computeInvoiceTotals, computeLine, D, round2, type Money } from '../utils/money.js';
-import { nextSequence, formatInvoiceNumber, formatInvoiceReference } from '../utils/sequence.js';
+import { computeInvoiceTotals, computeLine, D, periodFactor, round2, type Money } from '../utils/money.js';
+import {
+  nextSequence,
+  formatInvoiceNumber,
+  formatInvoiceReference,
+  INVOICE_NUMBER_COUNTER,
+} from '../utils/sequence.js';
 import { paymentProvider, generateQrDataUrl } from './payments/index.js';
 import { notify } from './notification.service.js';
 import { deliverEmail } from './email/index.js';
@@ -256,7 +261,7 @@ type Assignment = {
   unitHours: Prisma.Decimal | null;
   taxRate: Prisma.Decimal | null;
   gstType: string | null;
-  product: { name: string; sku: string | null; productCode: string };
+  product: { name: string; sku: string | null; productCode: string; billingPeriod: string | null };
   licence: { licenceKey: string } | null;
 };
 
@@ -277,7 +282,7 @@ async function loadAssignments(customerId: string): Promise<Assignment[]> {
       unitHours: true,
       taxRate: true,
       gstType: true,
-      product: { select: { name: true, sku: true, productCode: true } },
+      product: { select: { name: true, sku: true, productCode: true, billingPeriod: true } },
       licence: { select: { licenceKey: true } },
     },
   }) as unknown as Promise<Assignment[]>;
@@ -291,11 +296,29 @@ const assignmentUnitPrice = (a: Assignment): Money =>
 /** An assignment's agreed net: discounted agreed price x Unit/Hours. */
 const assignmentNet = (a: Assignment): Money => assignmentUnitPrice(a).mul(assignmentUnits(a));
 
+/** The days an invoice bills: invoice date up to (not including) the next billing date. */
+type BilledPeriod = { billedDays: number; periodDays: number };
+function billedPeriod(invoiceDate: Date, nextBillingDate: Date): BilledPeriod {
+  const periodDays = new Date(invoiceDate.getFullYear(), invoiceDate.getMonth() + 1, 0).getDate();
+  const billedDays = Math.round((nextBillingDate.getTime() - invoiceDate.getTime()) / 86_400_000);
+  return { billedDays, periodDays };
+}
+
+/**
+ * What an assignment bills for the period, per its product's charge period (see
+ * periodFactor). Mirrors productBilled in the frontend's lib/proration. An empty
+ * period falls back to the agreed net.
+ */
+function assignmentBilled(a: Assignment, period: BilledPeriod): Money {
+  if (period.billedDays <= 0) return assignmentNet(a);
+  return assignmentNet(a).mul(periodFactor(a.product.billingPeriod, period.billedDays, period.periodDays));
+}
+
 /**
  * The per-product snapshot rows for one line.
  *
  * A line can bill a whole licence group, so it is split across that group's
- * products by each one's agreed net (price x Unit/Hours), with the last row
+ * products by what each bills for the period (see assignmentBilled), with the last row
  * absorbing the rounding so the shares always sum to the line's total. The
  * product's name, SKU, unit and agreed commercials are copied in, so a later
  * change to the assignment cannot rewrite an invoice that has gone out.
@@ -306,7 +329,8 @@ const assignmentNet = (a: Assignment): Money => assignmentUnitPrice(a).mul(assig
 function snapshotLineProducts(
   assignments: Assignment[],
   item: { productId?: string | null; sku?: string | null },
-  lineTotal: Money
+  lineTotal: Money,
+  period: BilledPeriod
 ) {
   // A line carries its licence number as its sku, which is how a group is
   // identified; fall back to the representative product it was built from.
@@ -322,7 +346,7 @@ function snapshotLineProducts(
   }
   if (!group.length) return [];
 
-  const nets = group.map(assignmentNet);
+  const nets = group.map((a) => assignmentBilled(a, period));
   const base = nets.reduce((sum, n) => sum.add(n), D(0));
   const last = group.length - 1;
   const amounts: Money[] = group.map((_, i) =>
@@ -359,12 +383,10 @@ export async function createInvoice(input: CreateInput) {
   const nextBillingDate = input.nextBillingDate ?? defaultNextBillingDate(invoiceDate);
   const totals = computeInvoiceTotals(input.items, input.discount);
   const assignments = await loadAssignments(customer.id);
+  const period = billedPeriod(invoiceDate, nextBillingDate);
 
   const invoice = await prisma.$transaction(async (tx) => {
-    const invoiceNumber = formatInvoiceNumber(
-      await nextSequence(tx, 'invoiceNumber'),
-      invoiceDate
-    );
+    const invoiceNumber = formatInvoiceNumber(await nextSequence(tx, INVOICE_NUMBER_COUNTER));
 
     // Every invoice gets its own unique reference. An admin-supplied reference
     // wins; otherwise one is generated from a dedicated counter. The column is
@@ -405,7 +427,7 @@ export async function createInvoice(input: CreateInput) {
               taxAmount: line.taxAmount,
               lineTotal: line.lineTotal,
               products: {
-                create: snapshotLineProducts(assignments, it, line.lineTotal),
+                create: snapshotLineProducts(assignments, it, line.lineTotal, period),
               },
             };
           }),
@@ -572,6 +594,7 @@ export async function updateInvoice(id: string, input: UpdateInput) {
   // The lines are replaced below, so their per-product snapshot is rebuilt too —
   // an edit re-states what the invoice bills as of the edit.
   const assignments = await loadAssignments(existing.customerId);
+  const period = billedPeriod(invoiceDate, nextBillingDate);
 
   await prisma.$transaction(async (tx) => {
     // Cascades to each line's InvoiceItemProduct snapshot rows.
@@ -605,7 +628,7 @@ export async function updateInvoice(id: string, input: UpdateInput) {
               taxAmount: line.taxAmount,
               lineTotal: line.lineTotal,
               products: {
-                create: snapshotLineProducts(assignments, it, line.lineTotal),
+                create: snapshotLineProducts(assignments, it, line.lineTotal, period),
               },
             };
           }),
