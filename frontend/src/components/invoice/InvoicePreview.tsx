@@ -64,7 +64,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
         ].filter((l): l is string => !!l && l.trim().length > 0)
       : brand.seller.addressLines,
     abn: org?.abn || brand.seller.abn,
-    billingEmail: org?.billingEmail || brand.seller.billingEmail,
+    billingEmail: org?.billingEmail || brand.seller.disputeEmail,
     disputeWindowDays: org?.disputeWindowDays ?? brand.seller.disputeWindowDays,
   };
 

@@ -29,7 +29,9 @@ export const brand = {
     legalName: 'EG Eloma Australia Pty Ltd',
     addressLines: ['71 Gipps Street', 'Collingwood VIC 3066'],
     abn: '76 593 175 012',
-    billingEmail: 'connect@egeloma.com.au',
+    billingEmail: 'connect@egdigital.com.au',
+    /** Printed in the invoice's dispute note (Settings → Organisation overrides it). */
+    disputeEmail: 'connect@egeloma.com.au',
     disputeWindowDays: 10,
   },
 } as const;
