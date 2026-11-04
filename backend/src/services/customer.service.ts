@@ -1283,6 +1283,15 @@ export async function updateDocument(
     data.status = 'APPROVED';
     data.approvedAt = new Date();
     data.approvedById = approvedById ?? null;
+  } else if (changes.status === 'REJECTED') {
+    // Not approved — the client must fill, sign and resubmit. Only a submitted
+    // copy can be turned down; the signed copy is kept so the admin can still view it.
+    if (doc.status !== 'SUBMITTED') {
+      throw ApiError.badRequest('Only a document the client has submitted can be marked not approved');
+    }
+    data.status = 'REJECTED';
+    data.approvedAt = null;
+    data.approvedById = null;
   } else if (changes.status === 'SUBMITTED') {
     // Revoke approval — send it back to the review queue.
     data.status = 'SUBMITTED';

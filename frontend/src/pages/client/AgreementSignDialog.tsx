@@ -82,6 +82,10 @@ export default function AgreementSignDialog({
 
   async function handleSave() {
     setError(null);
+    if (missing > 0) {
+      setError('Please fill in every field and add your signature before submitting.');
+      return;
+    }
     const src = bytes.current;
     if (!src) return;
     try {
@@ -135,6 +139,9 @@ export default function AgreementSignDialog({
   }
 
   const noFields = !loading && !loadError && fields.length === 0;
+  // Every text box filled and every signature added before it can be submitted.
+  const missing = fields.filter((f) => (f.kind === 'text' ? !values[f.id]?.trim() : !sigs[f.id])).length;
+  const rejected = doc.status === 'REJECTED';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -145,6 +152,12 @@ export default function AgreementSignDialog({
             Fill the highlighted fields and add your signature image. Nothing is downloaded until an admin approves it.
           </DialogDescription>
         </DialogHeader>
+
+        {rejected && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2 text-sm font-medium text-destructive">
+            This agreement was not approved. Please fill in all the fields, sign and resubmit it again.
+          </div>
+        )}
 
         <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={onFileChange} />
 
@@ -223,12 +236,22 @@ export default function AgreementSignDialog({
           </>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="items-center">
+          {!loading && !loadError && !noFields && missing > 0 && (
+            <span className="mr-auto text-sm text-muted-foreground">
+              Fill all fields to submit — {missing} of {fields.length} still empty
+            </span>
+          )}
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button type="button" onClick={handleSave} disabled={loading || !!loadError || noFields || submitting}>
-            {submitting ? 'Submitting…' : 'Save & submit'}
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={loading || !!loadError || noFields || missing > 0 || submitting}
+            title={missing > 0 ? 'Fill all fields to submit' : undefined}
+          >
+            {submitting ? 'Submitting…' : rejected ? 'Save & resubmit' : 'Save & submit'}
           </Button>
         </DialogFooter>
       </DialogContent>

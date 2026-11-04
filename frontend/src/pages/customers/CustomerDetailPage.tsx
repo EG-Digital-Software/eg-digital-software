@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { adminApi, customerApi, productApi } from '@/api/resources';
 import { useAuth } from '@/store/auth';
+import { AgreementViewDialog } from '@/components/shared/AgreementViewDialog';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
@@ -958,6 +959,8 @@ function AgreementTab({ customer }: { customer: Customer }) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [fieldsDoc, setFieldsDoc] = useState<CustomerDocument | null>(null);
+  // The client's filled + signed copy open in the read-only viewer.
+  const [viewDoc, setViewDoc] = useState<CustomerDocument | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['customer', clientId] });
   const docs = customer.documents ?? [];
@@ -987,8 +990,18 @@ function AgreementTab({ customer }: { customer: Customer }) {
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const setStatus = useMutation({
-    mutationFn: (v: { id: string; status: 'SUBMITTED' | 'APPROVED' }) => customerApi.updateDocument(clientId, v.id, { status: v.status }),
-    onSuccess: (_d, v) => { refresh(); toast.success(v.status === 'APPROVED' ? 'Document approved' : 'Approval revoked'); },
+    mutationFn: (v: { id: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED' }) => customerApi.updateDocument(clientId, v.id, { status: v.status }),
+    onSuccess: (_d, v) => {
+      refresh();
+      setViewDoc(null);
+      toast.success(
+        v.status === 'APPROVED'
+          ? 'Document approved'
+          : v.status === 'REJECTED'
+            ? 'Marked not approved — the client will be asked to sign and resubmit'
+            : 'Approval revoked'
+      );
+    },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const remove = useMutation({
@@ -1020,6 +1033,7 @@ function AgreementTab({ customer }: { customer: Customer }) {
             {docs.map((d: CustomerDocument) => {
               const approved = d.status === 'APPROVED';
               const submitted = d.status === 'SUBMITTED';
+              const rejected = d.status === 'REJECTED';
               const downloadUrl = mediaUrl(d.signedUrl || d.url) ?? '';
               return (
                 <div key={d.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3.5 py-3 text-sm">
@@ -1042,16 +1056,26 @@ function AgreementTab({ customer }: { customer: Customer }) {
                   ) : (
                     <>
                       <span className="flex-1 truncate text-sm font-medium" title={d.fileName}>{d.fileName}</span>
-                      <Badge variant={approved ? 'success' : submitted ? 'secondary' : 'outline'} className="shrink-0">
-                        {approved ? 'Approved' : submitted ? 'Submitted' : 'Awaiting client'}
+                      <Badge variant={approved ? 'success' : submitted ? 'secondary' : rejected ? 'destructive' : 'outline'} className="shrink-0">
+                        {approved ? 'Approved' : submitted ? 'Submitted' : rejected ? 'Not approved' : 'Awaiting client'}
                       </Badge>
                       {isPdf(d) && !approved && (d.fields?.length ?? 0) === 0 && (
                         <Badge variant="outline" className="shrink-0 border-amber-500 text-amber-600">Needs fields</Badge>
                       )}
-                      {submitted && (
-                        <Button type="button" size="sm" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'APPROVED' })}>
-                          Approve
+                      {d.signedUrl && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setViewDoc(d)} title="View the client's filled copy">
+                          <Eye className="h-4 w-4" /> View
                         </Button>
+                      )}
+                      {submitted && (
+                        <>
+                          <Button type="button" size="sm" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'APPROVED' })}>
+                            Approve
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" className="text-destructive" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'REJECTED' })}>
+                            Not approve
+                          </Button>
+                        </>
                       )}
                       {approved && (
                         <Button type="button" size="sm" variant="outline" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'SUBMITTED' })}>
@@ -1082,6 +1106,31 @@ function AgreementTab({ customer }: { customer: Customer }) {
         )}
       </CardContent>
     </Card>
+    {viewDoc && (
+      <AgreementViewDialog
+        filePath={`/customers/${clientId}/documents/${viewDoc.id}/file?signed=1`}
+        title={viewDoc.fileName}
+        description={
+          viewDoc.status === 'SUBMITTED'
+            ? 'The client’s filled and signed copy. Approve it, or mark it not approved so they sign and resubmit.'
+            : 'The client’s filled and signed copy.'
+        }
+        open={!!viewDoc}
+        onOpenChange={(o) => { if (!o) setViewDoc(null); }}
+        actions={
+          viewDoc.status === 'SUBMITTED' && (
+            <>
+              <Button type="button" variant="outline" className="text-destructive" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: viewDoc.id, status: 'REJECTED' })}>
+                Not approve
+              </Button>
+              <Button type="button" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: viewDoc.id, status: 'APPROVED' })}>
+                Approve
+              </Button>
+            </>
+          )
+        }
+      />
+    )}
     {fieldsDoc && (
       <AgreementFieldsDialog
         clientId={customer.clientId}

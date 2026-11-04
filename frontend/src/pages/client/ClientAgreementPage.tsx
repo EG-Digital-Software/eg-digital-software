@@ -113,6 +113,7 @@ export default function ClientAgreementPage() {
           {shown.map((d) => {
             const approved = d.status === 'APPROVED';
             const submitted = d.status === 'SUBMITTED';
+            const rejected = d.status === 'REJECTED';
             const pdf = isPdf(d);
             const hasFields = (d.fields?.length ?? 0) > 0;
             const downloadUrl = mediaUrl(d.signedUrl || d.url) ?? '';
@@ -139,6 +140,8 @@ export default function ClientAgreementPage() {
                       <ElPill tone="ok">Approved</ElPill>
                     ) : submitted ? (
                       <ElPill tone="info">Awaiting approval</ElPill>
+                    ) : rejected ? (
+                      <ElPill tone="bad">Not approved</ElPill>
                     ) : (
                       <ElPill tone="warn">Signature needed</ElPill>
                     )}
@@ -149,6 +152,11 @@ export default function ClientAgreementPage() {
                   </div>
                   <h3>{title}</h3>
                   <span className="fn">{d.fileName}</span>
+                  {rejected && (
+                    <p className="m-0 text-[13px] font-medium text-[color:var(--bad)]">
+                      Not approved — please sign and resubmit again.
+                    </p>
+                  )}
                   <div className="dfoot">
                     {approved ? (
                       <a
@@ -167,7 +175,7 @@ export default function ClientAgreementPage() {
                       </span>
                     ) : pdf && hasFields ? (
                       <button type="button" className="el-btn sm primary" onClick={() => setSigning(d)}>
-                        <PenLine /> Review and sign
+                        <PenLine /> {rejected ? 'Sign and resubmit' : 'Review and sign'}
                       </button>
                     ) : pdf ? (
                       <span className="el-muted text-xs">Not ready to sign yet</span>

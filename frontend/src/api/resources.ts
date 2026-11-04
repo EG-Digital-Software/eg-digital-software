@@ -95,7 +95,7 @@ export const customerApi = {
   updateDocument: async (
     clientId: string,
     documentId: string,
-    body: { fileName?: string; status?: 'SUBMITTED' | 'APPROVED'; fields?: AgreementField[] }
+    body: { fileName?: string; status?: 'SUBMITTED' | 'APPROVED' | 'REJECTED'; fields?: AgreementField[] }
   ) =>
     (await api.patch<ApiEnvelope<CustomerDocument>>(`/customers/${clientId}/documents/${documentId}`, body)).data.data,
   deleteDocument: async (clientId: string, documentId: string) =>

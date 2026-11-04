@@ -348,7 +348,8 @@ model CustomerDocument {
   /// Lifecycle: AWAITING_CLIENT (admin uploaded a fillable PDF, waiting for the
   /// client to fill + sign) → SUBMITTED (client returned the signed copy, awaiting
   /// admin approval) → APPROVED (admin signed off, client can download the final
-  /// PDF). Legacy rows may still read PENDING; the UI treats that as AWAITING_CLIENT.
+  /// PDF), or REJECTED (admin did not approve — the client fills, signs and
+  /// resubmits). Legacy rows may still read PENDING; the UI treats that as AWAITING_CLIENT.
   status       String    @default("AWAITING_CLIENT")
   /// Editable regions the admin marks on the (usually flat) PDF for the client to
   /// fill: an array of { id, kind: 'text'|'signature', label, page, xPct, yPct,

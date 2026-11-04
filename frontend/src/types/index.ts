@@ -236,9 +236,10 @@ export interface CustomerDocument {
   /**
    * Lifecycle: AWAITING_CLIENT (client must fill + sign) → SUBMITTED (awaiting
    * admin approval) → APPROVED. Legacy rows may still read PENDING, treated the
-   * same as AWAITING_CLIENT.
+   * same as AWAITING_CLIENT. REJECTED = admin did not approve; the client
+   * fills, signs and resubmits.
    */
-  status?: 'AWAITING_CLIENT' | 'SUBMITTED' | 'APPROVED' | 'PENDING';
+  status?: 'AWAITING_CLIENT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'PENDING';
   /** Editable regions the admin placed for the client to fill; null until set. */
   fields?: AgreementField[] | null;
   /** The client's filled + signed PDF; present once submitted. */
