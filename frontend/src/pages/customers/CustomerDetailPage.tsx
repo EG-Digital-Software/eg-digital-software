@@ -24,10 +24,12 @@ import {
   Upload,
   Download,
   SquarePen,
+  RefreshCw,
 } from 'lucide-react';
 import { adminApi, customerApi, productApi } from '@/api/resources';
 import { useAuth } from '@/store/auth';
 import { AgreementViewDialog } from '@/components/shared/AgreementViewDialog';
+import { RenewAccountDialog } from './RenewAccountDialog';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
@@ -486,6 +488,7 @@ export default function CustomerDetailPage() {
   // Creating an invoice stays on this customer (a dialog), then lands on Invoices.
   const [tab, setTab] = useState('overview');
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [renewOpen, setRenewOpen] = useState(false);
 
   if (isLoading) return <LoadingBlock label="Loading customer…" />;
   if (isError || !c) return <ErrorState onRetry={refetch} />;
@@ -606,6 +609,17 @@ export default function CustomerDetailPage() {
               </Select>
             </div>
           </div>
+          <div className="flex shrink-0 flex-wrap items-start gap-3 sm:flex-nowrap">
+          <div className="flex flex-col items-stretch gap-1">
+            <Button type="button" variant="outline" onClick={() => setRenewOpen(true)} className="h-auto py-2.5">
+              <RefreshCw className="h-4 w-4" /> Renew account
+            </Button>
+            {c.accountRenewedUntil && new Date(c.accountRenewedUntil) > new Date() && (
+              <p className="text-center text-xs text-muted-foreground">
+                Renewed until {formatDate(c.accountRenewedUntil)}
+              </p>
+            )}
+          </div>
           {c.creditScore != null && (
             <div
               className={cn(
@@ -627,8 +641,10 @@ export default function CustomerDetailPage() {
               </p>
             </div>
           )}
+          </div>
         </CardContent>
       </Card>
+      <RenewAccountDialog customer={c} open={renewOpen} onOpenChange={setRenewOpen} />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

@@ -15,14 +15,21 @@ export function dormancyCutoff(now: Date = new Date()): Date {
  *
  * A pinned DORMANT or SUSPENDED override always wins. When left at ACTIVE the
  * standing is derived from activity: an account with no invoice in the last
- * {@link DORMANT_AFTER_MONTHS} months (or none at all) reads as DORMANT.
+ * {@link DORMANT_AFTER_MONTHS} months (or none at all) reads as DORMANT —
+ * unless an admin renewed the account and that renewal has not run out yet.
  */
 export function effectiveAccountStatus(
   stored: CustomerAccountStatus,
   invoiceDates: Array<Date | string | null | undefined>,
-  createdAt?: Date | string | null
+  createdAt?: Date | string | null,
+  renewedUntil?: Date | string | null
 ): CustomerAccountStatus {
   if (stored !== CustomerAccountStatus.ACTIVE) return stored;
+
+  // An admin renewal keeps the account active until it runs out.
+  if (renewedUntil && new Date(renewedUntil) > new Date()) {
+    return CustomerAccountStatus.ACTIVE;
+  }
 
   const cutoff = dormancyCutoff();
   

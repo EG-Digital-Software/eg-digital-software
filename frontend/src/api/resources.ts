@@ -100,6 +100,9 @@ export const customerApi = {
     (await api.patch<ApiEnvelope<CustomerDocument>>(`/customers/${clientId}/documents/${documentId}`, body)).data.data,
   deleteDocument: async (clientId: string, documentId: string) =>
     (await api.delete<ApiEnvelope<{ id: string }>>(`/customers/${clientId}/documents/${documentId}`)).data.data,
+  /** Renew the account: ACTIVE for the chosen number of months. */
+  renew: async (clientId: string, months: number) =>
+    (await api.post<ApiEnvelope<Pick<Customer, 'id' | 'clientId' | 'accountStatus' | 'accountRenewedUntil'>>>(`/customers/${clientId}/renew`, { months })).data.data,
   archive: async (clientId: string) => (await api.delete(`/customers/${clientId}`)).data,
   remove: async (clientId: string) =>
     (await api.delete(`/customers/${clientId}/permanent`)).data,

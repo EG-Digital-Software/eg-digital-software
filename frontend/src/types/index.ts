@@ -187,6 +187,8 @@ export interface Customer {
   accountStatus: AccountStatus;
   /** Standing resolved for display: pinned override, else derived from activity. */
   accountStatusEffective?: AccountStatus;
+  /** Admin renewal end — the account reads as ACTIVE until then. */
+  accountRenewedUntil?: string | null;
   createdAt: string;
   addresses?: Address[];
   directors?: Director[];

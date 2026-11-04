@@ -33,6 +33,8 @@ router.get('/next-client-id', ctrl.nextClientId);
 router.get('/:clientId', ctrl.getOne);
 // Read-only "view as client" — mints an impersonation token for the admin.
 router.post('/:clientId/impersonate', ctrl.impersonate);
+// Renew the account (ACTIVE for N months). Body: { months: 1-60 }.
+router.post('/:clientId/renew', ctrl.renewAccount);
 // Reveal the customer's portal password (admin-only, like every route here).
 // Agreement Document uploads (admin-only, like every route here).
 router.post('/:clientId/documents', docUpload.single('file'), ctrl.uploadDocument);

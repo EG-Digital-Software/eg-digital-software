@@ -62,6 +62,8 @@ export async function listCustomers(params: ListParams) {
               accountStatus: CustomerAccountStatus.ACTIVE,
               invoices: { none: { invoiceDate: { gte: dormancyCutoff() } } },
               createdAt: { lt: dormancyCutoff() },
+              // …and no admin renewal still running.
+              OR: [{ accountRenewedUntil: null }, { accountRenewedUntil: { lte: new Date() } }],
             },
           ],
         },
@@ -118,7 +120,8 @@ export async function listCustomers(params: ListParams) {
     accountStatusEffective: effectiveAccountStatus(
       c.accountStatus,
       c.invoices.map((i) => i.invoiceDate),
-      c.createdAt
+      c.createdAt,
+      c.accountRenewedUntil
     ),
   }));
 
@@ -210,7 +213,8 @@ export async function getCustomerByClientId(clientId: string) {
     accountStatusEffective: effectiveAccountStatus(
       customer.accountStatus,
       customer.invoices.map((i) => i.invoiceDate),
-      customer.createdAt
+      customer.createdAt,
+      customer.accountRenewedUntil
     ),
   };
 }
@@ -1364,6 +1368,35 @@ export async function readDocumentFileForClientId(clientId: string, documentId: 
   const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
   if (!customer) throw ApiError.notFound('Customer not found');
   return readDocumentFile(customer.id, documentId, signed);
+}
+
+// ─── Account renewal ──────────────────────────────────────
+// Admin "Renew account": the account becomes ACTIVE (clearing a pinned Dormant /
+// Suspended / Trial standing) and stays active for the chosen number of months.
+// A renewal that is still running is extended from its end, not from today.
+
+export const RENEW_MAX_MONTHS = 60;
+
+export async function renewAccount(clientId: string, months: number) {
+  if (!Number.isInteger(months) || months < 1 || months > RENEW_MAX_MONTHS) {
+    throw ApiError.badRequest(`Choose between 1 and ${RENEW_MAX_MONTHS} months`);
+  }
+  const customer = await prisma.customer.findUnique({
+    where: { clientId },
+    select: { id: true, accountRenewedUntil: true },
+  });
+  if (!customer) throw ApiError.notFound('Customer not found');
+
+  const now = new Date();
+  const current = customer.accountRenewedUntil;
+  const until = new Date(current && current > now ? current : now);
+  until.setMonth(until.getMonth() + months);
+
+  return prisma.customer.update({
+    where: { id: customer.id },
+    data: { accountStatus: CustomerAccountStatus.ACTIVE, accountRenewedUntil: until },
+    select: { id: true, clientId: true, accountStatus: true, accountRenewedUntil: true },
+  });
 }
 
 export async function deleteDocument(clientId: string, documentId: string) {

@@ -206,3 +206,20 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
   });
   return ok(res, deleted, 'Customer permanently deleted');
 });
+
+/** Admin "Renew account": make the account ACTIVE for the chosen number of months. */
+export const renewAccount = asyncHandler(async (req: Request, res: Response) => {
+  const customer = await customerService.renewAccount(req.params.clientId, Number(req.body?.months));
+  logActivity({
+    userId: req.user?.sub,
+    userType: req.user?.role,
+    action: ActivityAction.CUSTOMER_UPDATED,
+    entityType: 'Customer',
+    entityId: customer.id,
+    metadata: {
+      renewedMonths: Number(req.body?.months),
+      renewedUntil: customer.accountRenewedUntil?.toISOString() ?? null,
+    },
+  });
+  return ok(res, customer, 'Account renewed');
+});

@@ -309,6 +309,9 @@ model Customer {
   /// Manual account-standing override. Left at ACTIVE, the effective standing is
   /// auto-derived from invoice activity (see CustomerAccountStatus).
   accountStatus    CustomerAccountStatus @default(ACTIVE)
+  /// Set when an admin renews the account: until this moment the account reads
+  /// as ACTIVE even without recent invoices. Null = never renewed.
+  accountRenewedUntil DateTime?
   /// Team member (EmployeeUser) an admin assigns as this client's account
   /// manager — shown to the client in their portal. Optional.
   accountManagerId String?
