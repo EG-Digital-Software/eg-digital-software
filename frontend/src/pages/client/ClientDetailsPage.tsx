@@ -1,13 +1,12 @@
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Contact, Receipt, MapPin, Users, Lock } from 'lucide-react';
+import { ExternalLink, Lock } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
-import { PageHeader } from '@/components/shared/misc';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/misc';
 import { ErrorState } from '@/components/shared/states';
 import { formatAbn, formatAcn } from '@/lib/customer';
 import type { Address } from '@/types';
 import { Linkify } from '@/lib/linkify';
+import { ElCard, ElPageHead, ElPill, ElSkel, type PillTone } from '@/components/client/eloma';
 
 /** Turn an enum like HOSPITALITY_AND_TOURISM into "Hospitality And Tourism". */
 function prettify(value?: string | null): string {
@@ -19,44 +18,37 @@ function prettify(value?: string | null): string {
     .join(' ');
 }
 
-function Row({ label, value }: { label: string; value?: string | null }) {
+const STATUS: Record<string, { tone: PillTone; label: string }> = {
+  ACTIVE: { tone: 'ok', label: 'Account active' },
+  ACTIVE_TRIAL: { tone: 'info', label: 'Active · trial' },
+  DORMANT: { tone: 'warn', label: 'Account dormant' },
+  SUSPENDED: { tone: 'bad', label: 'Account suspended' },
+};
+
+function Value({ value, mono }: { value?: string | null; mono?: boolean }) {
+  const v = value?.toString().trim();
+  if (!v) return <span className="el-muted">—</span>;
+  return <span className={mono ? 'el-mono' : undefined}><Linkify text={v} /></span>;
+}
+
+/** Address lines: street on the first line, locality on the second. */
+function AddressLines({ a }: { a?: Address }) {
+  if (!a) return <span className="el-muted">—</span>;
+  const street = [a.line1, a.line2].filter((p) => p?.toString().trim()).join(', ');
+  const locality = [a.suburb, a.city, a.state, a.postcode].filter((p) => p?.toString().trim()).join(' ');
+  if (!street && !locality) return <span className="el-muted">—</span>;
   return (
-    <div className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-baseline sm:gap-3">
-      <dt className="w-48 shrink-0 text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="break-words text-sm text-foreground">{value?.toString().trim() ? <Linkify text={value} /> : '—'}</dd>
-    </div>
+    <span className="block">
+      {street}
+      {street && locality && <br />}
+      {locality}
+    </span>
   );
 }
 
-function DetailCard({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: typeof Building2;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center gap-3 space-y-0 border-b border-border/60 bg-secondary/30">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
-        </span>
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-4">
-        <dl className="divide-y divide-border/50">{children}</dl>
-      </CardContent>
-    </Card>
-  );
-}
-
-function oneLineAddress(a?: Address): string {
-  if (!a) return '—';
-  return [a.line1, a.line2, a.suburb, a.city, a.state, a.postcode, a.country]
-    .filter((p) => p && p.toString().trim())
-    .join(', ');
+function monogram(name: string): string {
+  const words = name.replace(/\b(pty|ltd|limited|inc)\b\.?/gi, '').trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? '?').slice(0, 2)).toUpperCase();
 }
 
 export default function ClientDetailsPage() {
@@ -67,10 +59,10 @@ export default function ClientDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <>
+        <ElSkel className="h-24" />
+        <ElSkel className="h-64" />
+      </>
     );
   }
   if (isError || !c) return <ErrorState onRetry={refetch} />;
@@ -78,77 +70,141 @@ export default function ClientDetailsPage() {
   const principal = c.addresses?.find((a) => a.type === 'PRINCIPAL');
   const billing = c.addresses?.find((a) => a.type === 'BILLING');
   const identifiers = c.companyIdentifiers ?? {};
+  const name = c.companyName?.trim() || c.contactPerson?.trim() || c.clientId;
+  const status = STATUS[c.accountStatusEffective ?? c.accountStatus] ?? STATUS.ACTIVE;
+  const manager = c.accountManager;
+  const city = principal && [principal.city || principal.suburb, principal.state].filter(Boolean).join(', ');
+  const heroSub = [c.tradingAs?.trim() && `Trading as ${c.tradingAs.trim()}`, c.businessType && prettify(c.businessType), city]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Company Details"
-        description="Your account details on record. These are managed by EG Eloma — to update anything, please get in touch."
-        icon={Contact}
-        iconTone="violet"
-      />
+    <>
+      <ElPageHead eyebrow="Company" title="Account details" description="The details EG Eloma holds on record for your business." />
 
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2.5 text-sm text-muted-foreground">
-        <Lock className="h-4 w-4 shrink-0" />
-        This information is read-only. You can change your password from{' '}
-        <span className="font-medium text-foreground">My Account</span>.
+      <div className="el-lock">
+        <Lock />
+        <span>
+          These details are managed by EG Eloma. To change anything, message{' '}
+          {manager ? manager.firstName : 'your account manager'}. You can change your password from{' '}
+          <Link to="/client/account">My account</Link>.
+        </span>
       </div>
 
-      <DetailCard icon={Building2} title="Company Information">
-        <Row label="Customer ID" value={c.clientId} />
-        <Row label="Company Name" value={c.companyName} />
-        <Row label="Trading As" value={c.tradingAs} />
-        <Row label="Business Type" value={prettify(c.businessType)} />
-        <Row label="Registration Country" value={c.registrationCountry} />
-        {Object.entries(identifiers).map(([key, val]) => {
-          const k = key.toLowerCase();
-          const display = k === 'abn' ? formatAbn(val) : k === 'acn' ? formatAcn(val) : val;
-          return <Row key={key} label={key.toUpperCase()} value={display} />;
-        })}
-      </DetailCard>
+      <section className="el-card el-co-hero">
+        <span className="el-monogram">{monogram(name)}</span>
+        <div className="grow">
+          <h2>{name}</h2>
+          {heroSub && <p>{heroSub}</p>}
+        </div>
+        <ElPill tone={status.tone}>{status.label}</ElPill>
+      </section>
 
-      <DetailCard icon={Contact} title="Contact Information">
-        <Row label="Contact Person" value={c.contactPerson} />
-        <Row label="Email" value={c.contactEmail} />
-        <Row label="Mobile" value={c.contactMobile} />
-        <Row label="Position" value={c.contactPosition} />
-      </DetailCard>
+      <div className="el-co-grid">
+        <ElCard title="Registration">
+          <dl className="el-kv">
+            <dt>Customer ID</dt>
+            <dd><Value value={c.clientId} mono /></dd>
+            <dt>Legal name</dt>
+            <dd><Value value={c.companyName} /></dd>
+            <dt>Trading as</dt>
+            <dd><Value value={c.tradingAs} /></dd>
+            <dt>Business type</dt>
+            <dd><Value value={c.businessType ? prettify(c.businessType) : null} /></dd>
+            {Object.entries(identifiers).map(([key, val]) => {
+              const k = key.toLowerCase();
+              const display = k === 'abn' ? formatAbn(val) : k === 'acn' ? formatAcn(val) : val;
+              const digits = String(val ?? '').replace(/\D/g, '');
+              return [
+                <dt key={`${key}-k`}>{key.toUpperCase()}</dt>,
+                <dd key={`${key}-v`}>
+                  <Value value={display} mono />
+                  {k === 'abn' && digits.length === 11 && (
+                    <a
+                      href={`https://abr.business.gov.au/ABN/View?abn=${digits}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="el-link"
+                    >
+                      ABN Lookup <ExternalLink />
+                    </a>
+                  )}
+                </dd>,
+              ];
+            })}
+            <dt>Country</dt>
+            <dd><Value value={c.registrationCountry} /></dd>
+          </dl>
+        </ElCard>
 
-      <DetailCard icon={Receipt} title="Invoicing Details">
-        <Row label="Accounts Person Name" value={c.billingContactPerson} />
-        <Row label="Accounts Email" value={c.billingEmail} />
-        <Row label="Accounts Mobile" value={c.billingContactNumber} />
-        <Row label="Invoicing Term" value={c.invoicingTerm} />
-        <Row
-          label="Account Status"
-          value={
-            c.accountStatus
-              ? c.accountStatus
-                  .toLowerCase()
-                  .split('_')
-                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                  .join('-')
-              : null
-          }
-        />
-      </DetailCard>
+        <ElCard title="Primary contact">
+          <dl className="el-kv">
+            <dt>Name</dt>
+            <dd><Value value={c.contactPerson} /></dd>
+            <dt>Position</dt>
+            <dd><Value value={c.contactPosition} /></dd>
+            <dt>Email</dt>
+            <dd><Value value={c.contactEmail} /></dd>
+            <dt>Mobile</dt>
+            <dd><Value value={c.contactMobile} mono /></dd>
+          </dl>
+        </ElCard>
 
-      <DetailCard icon={MapPin} title="Addresses">
-        <Row label="Principal Address" value={oneLineAddress(principal)} />
-        <Row label="Billing Address" value={oneLineAddress(billing)} />
-      </DetailCard>
+        <ElCard title="Invoicing">
+          <dl className="el-kv">
+            <dt>Accounts contact</dt>
+            <dd><Value value={c.billingContactPerson} /></dd>
+            <dt>Accounts email</dt>
+            <dd><Value value={c.billingEmail} /></dd>
+            <dt>Accounts mobile</dt>
+            <dd><Value value={c.billingContactNumber} mono /></dd>
+            <dt>Payment terms</dt>
+            <dd><Value value={c.invoicingTerm} /></dd>
+          </dl>
+        </ElCard>
+
+        <ElCard title="Addresses">
+          <dl className="el-kv">
+            <dt>Principal</dt>
+            <dd><AddressLines a={principal} /></dd>
+            <dt>Billing</dt>
+            <dd><AddressLines a={billing} /></dd>
+          </dl>
+        </ElCard>
+      </div>
 
       {!!c.directors?.length && (
-        <DetailCard icon={Users} title="Company Directors">
-          {c.directors.map((d) => (
-            <Row
-              key={d.id}
-              label={[d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ') || 'Director'}
-              value={[d.email, d.contactNumber].filter(Boolean).join(' · ')}
-            />
-          ))}
-        </DetailCard>
+        <ElCard title="Directors">
+          <div className="el-table-wrap">
+            <table className="el-table" style={{ minWidth: 560 }}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Mobile</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.directors.map((d) => {
+                  const full = [d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ') || 'Director';
+                  return (
+                    <tr key={d.id}>
+                      <td>
+                        <span className="flex items-center gap-2.5">
+                          <span className="el-av">{`${d.firstName?.[0] ?? ''}${d.lastName?.[0] ?? ''}`.toUpperCase() || 'D'}</span>
+                          <span className="font-medium">{full}</span>
+                        </span>
+                      </td>
+                      <td><Value value={d.email} /></td>
+                      <td><Value value={d.contactNumber} mono /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </ElCard>
       )}
-    </div>
+    </>
   );
 }

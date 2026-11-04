@@ -27,20 +27,21 @@ import { Input } from '@/components/ui/input';
 import { Skeleton, Avatar, AvatarFallback } from '@/components/ui/misc';
 import { EmptyState } from '@/components/shared/states';
 import { healthLabel } from '@/components/shared/HeroHealth';
-import { GraphiteHero } from '@/components/layout/graphite';
-import { btnLight, btnDark } from '@/lib/graphite';
 import { customerName } from '@/lib/customer';
 import { ProductGlyph } from '@/lib/product-icon';
 import { formatCurrency, formatNumber, formatDate, cn, initials } from '@/lib/utils';
 
+/** Circumference of the health ring (r = 22). */
+const RING_C = 2 * Math.PI * 22;
+
 // Icon colours for the stat cards (no tile background).
 const TONES: Record<string, string> = {
-  violet: 'text-violet-300',
-  emerald: 'text-emerald-300',
-  blue: 'text-sky-300',
-  amber: 'text-amber-300',
-  rose: 'text-rose-300',
-  cyan: 'text-cyan-300',
+  violet: 'text-violet-600',
+  emerald: 'text-emerald-600',
+  blue: 'text-sky-600',
+  amber: 'text-amber-600',
+  rose: 'text-rose-600',
+  cyan: 'text-cyan-600',
 };
 
 function StatCard({
@@ -139,32 +140,58 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="-mt-4">
-        <GraphiteHero
-          kicker="Admin Portal · EG Eloma"
-          atomClassName="h-[455px] sm:h-[590px]"
-          title={
-            <>
-              {greeting()}, {user?.firstName ?? 'Admin'}.
-            </>
-          }
-          subtitle="Here’s an overview of your business performance."
-          stats={[
-            { label: 'System health', value: s ? `${healthPct}%` : null, sub: healthLabel(healthPct), strong: true },
-            { label: 'Customers', value: s ? formatNumber(s.customers.total) : null, sub: 'Active accounts' },
-            { label: 'Sales (month)', value: s ? formatCurrency(s.totalSales.current) : null, sub: 'Invoiced this month' },
-          ]}
-          actions={
-            <>
-              <Link to="/admin/approvals?role=EMPLOYEE" className={btnLight}>
-                Manage team
-              </Link>
-              <Link to="/admin/customers" className={btnDark}>
-                Manage customers
-              </Link>
-            </>
-          }
-        />
+      <section className="el-hello">
+        <div>
+          <span className="el-eyebrow">Admin portal · EG Eloma</span>
+          <h1 className="el-h1">
+            {greeting()}, {user?.firstName ?? 'Admin'}.
+          </h1>
+          <p className="sub">Here’s an overview of your business performance.</p>
+        </div>
+        <div className="actions">
+          <Link to="/admin/approvals?role=EMPLOYEE" className="el-btn">
+            <Users /> Manage team
+          </Link>
+          <Link to="/admin/customers" className="el-btn primary">
+            <Building2 /> Manage customers
+          </Link>
+        </div>
+      </section>
+
+      <div className="el-kpis" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+        <div className="el-kpi">
+          <span className="el-eyebrow">System health</span>
+          <div className="el-ring">
+            <svg viewBox="0 0 52 52" aria-hidden="true">
+              <circle cx="26" cy="26" r="22" fill="none" stroke="var(--sunk)" strokeWidth="5" />
+              <circle
+                cx="26"
+                cy="26"
+                r="22"
+                fill="none"
+                stroke={healthPct < 50 ? 'var(--bad)' : 'var(--nectar)'}
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray={`${(RING_C * healthPct) / 100} ${RING_C}`}
+                transform="rotate(-90 26 26)"
+              />
+            </svg>
+            <div>
+              <div className="v">{s ? healthPct : '—'}<small>%</small></div>
+              <span className="s">{healthLabel(healthPct)}</span>
+            </div>
+          </div>
+        </div>
+        <Link to="/admin/customers" className="el-kpi">
+          <span className="el-eyebrow">Customers</span>
+          <span className="v">{s ? formatNumber(s.customers.total) : '—'}</span>
+          <span className="s">Active accounts</span>
+        </Link>
+        <Link to="/admin/billing" className="el-kpi">
+          <span className="el-eyebrow">Sales (month)</span>
+          <span className="v">{s ? formatCurrency(s.totalSales.current) : '—'}</span>
+          <span className="s">Invoiced this month</span>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

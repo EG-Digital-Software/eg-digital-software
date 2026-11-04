@@ -21,6 +21,8 @@ const THEMES: Record<Theme, Record<string, string>> = {
     '--eg-text': '#FFFFFF',
     '--eg-muted': '#B5B5B5',
     '--eg-faint': '#5A5A5A',
+    '--eg-link': '#FFFFFF',
+    '--eg-footer': '#FFFFFF',
     '--eg-border': '#3A3A3A',
     '--eg-border-focus': '#5A5A5A',
     '--eg-placeholder': '#8A8A8A',
@@ -34,6 +36,8 @@ const THEMES: Record<Theme, Record<string, string>> = {
     '--eg-text': '#0B223B',
     '--eg-muted': '#4B5563',
     '--eg-faint': '#9CA3AF',
+    '--eg-link': '#000000',
+    '--eg-footer': '#000000',
     '--eg-border': '#D1D5DB',
     '--eg-border-focus': '#9CA3AF',
     '--eg-placeholder': '#9CA3AF',
@@ -55,7 +59,7 @@ function readTheme(): Theme {
 
 /** Underline-free footer link under the sign-in pill. */
 export const SPOTLIGHT_LINK =
-  'text-[color:var(--eg-muted)] no-underline transition-colors hover:text-[color:var(--eg-text)]';
+  'text-[color:var(--eg-link)] no-underline transition-colors hover:text-[color:var(--eg-text)]';
 
 /** Text input sitting inside the sign-in pill. */
 export const SPOTLIGHT_INPUT =
@@ -197,7 +201,7 @@ export function SpotlightShell({
       <Link
         to="/admin/login"
         aria-label="EG staff login"
-        className="absolute bottom-6 z-[1] text-xs uppercase tracking-[0.12em] text-[color:var(--eg-faint)] no-underline transition-colors hover:text-[color:var(--eg-muted)]"
+        className="absolute bottom-6 z-[1] text-xs uppercase tracking-[0.12em] text-[color:var(--eg-footer)] no-underline transition-colors hover:text-[color:var(--eg-text)]"
       >
         © {year} {brand.companyName} By Eloma Group — {brand.legal.country}
       </Link>

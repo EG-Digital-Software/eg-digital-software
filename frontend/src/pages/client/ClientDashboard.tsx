@@ -1,54 +1,51 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { FileText } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpen,
+  ListChecks,
+  MessageSquare,
+  PenLine,
+  Phone,
+  Receipt,
+  Sparkles,
+  Ticket,
+  TriangleAlert,
+} from 'lucide-react';
 import { clientApi, type ClientProduct } from '@/api/client-portal';
 import { CLIENT_TASK_SUMMARY_KEY } from '@/lib/taskSeen';
 import { useAuth } from '@/store/auth';
-import { Skeleton } from '@/components/ui/misc';
-import { InvoiceBadge } from '@/components/shared/status';
-import { formatCurrency, formatDate, cn, mediaUrl } from '@/lib/utils';
-import type { LicenceStatus } from '@/types';
-import { ProductGlyph } from '@/lib/product-icon';
-import { Panel, ViewAll, GraphiteHero } from '@/components/layout/graphite';
-import { panel, eyebrow, btnLight, btnDark, viewAll } from '@/lib/graphite';
+import { formatCurrency, formatDate, mediaUrl } from '@/lib/utils';
+import { discountedPrice } from '@/lib/proration';
 import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
+import { brand } from '@/config/brand';
+import { ElCard, ElPill, ElSkel } from '@/components/client/eloma';
+import { needsSignature } from '@/lib/agreements';
 
 /* ---- Data presentation helpers (read-only) ------------------------------- */
 
-// Account status → health score shown in the hero.
+// Account status → health score shown in the KPI strip.
 const ACCOUNT_HEALTH: Record<string, { pct: number; label: string }> = {
-  ACTIVE: { pct: 98, label: 'Excellent' },
-  ACTIVE_TRIAL: { pct: 90, label: 'Trial' },
-  DORMANT: { pct: 68, label: 'Fair' },
-  SUSPENDED: { pct: 34, label: 'At risk' },
-};
-
-const LICENCE_DOT: Record<LicenceStatus, { label: string; color: string }> = {
-  ACTIVE: { label: 'Active', color: '#7CE3A6' },
-  EXPIRING_SOON: { label: 'Expiring soon', color: '#FCD34D' },
-  CRITICAL: { label: 'Critical', color: '#FDA4AF' },
-  EXPIRED: { label: 'Expired', color: '#FDA4AF' },
-  SUSPENDED: { label: 'Suspended', color: '#FDA4AF' },
+  ACTIVE: { pct: 98, label: 'Excellent standing' },
+  ACTIVE_TRIAL: { pct: 90, label: 'Trial account' },
+  DORMANT: { pct: 68, label: 'Fair standing' },
+  SUSPENDED: { pct: 34, label: 'Needs attention' },
 };
 
 const DAY = 86_400_000;
 
-/** Share of the licence term still left, 0–100 (null when open-ended). */
-function termRemaining(p: ClientProduct, now: number): number | null {
-  if (!p.expiryDate) return null;
-  const start = new Date(p.issueDate).getTime();
-  const end = new Date(p.expiryDate).getTime();
-  if (!(end > start)) return 0;
-  const pct = ((end - now) / (end - start)) * 100;
-  return Math.max(0, Math.min(100, Math.round(pct)));
-}
+const isOngoing = (p: string) => p === 'IN_PROGRESS' || p === 'ONGOING';
+
+/** Net value of one licence = discounted agreed price × units. */
+const productNet = (p: ClientProduct) => discountedPrice(p) * (p.unitHoursEnabled ? Number(p.unitHours) || 0 : 1);
 
 interface ActivityItem {
   id: string;
   title: string;
   sub: string;
   at: number; // epoch ms — for sorting
+  done?: boolean;
 }
 
 function activityWhen(at: number): string {
@@ -56,6 +53,33 @@ function activityWhen(at: number): string {
   const day = dt.toLocaleDateString([], { day: '2-digit', month: 'short' });
   const time = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return `${day} · ${time}`;
+}
+
+function greeting(hour: number): string {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** Month ticks between two dates, as fractions of the span. */
+function monthTicks(start: number, end: number) {
+  const out: { at: number; label: string }[] = [];
+  const d = new Date(start);
+  d.setDate(1);
+  d.setMonth(d.getMonth() + 1);
+  while (d.getTime() < end && out.length < 24) {
+    const m = d.toLocaleDateString([], { month: 'short' });
+    out.push({
+      at: (d.getTime() - start) / (end - start),
+      label: d.getMonth() === 0 ? `${m} ’${String(d.getFullYear()).slice(2)}` : m,
+    });
+    d.setMonth(d.getMonth() + 1);
+  }
+  // Keep the axis readable on long terms.
+  const step = Math.ceil(out.length / 12);
+  return out.filter((_, i) => i % step === 0);
 }
 
 /* ---- Page ---------------------------------------------------------------- */
@@ -72,42 +96,58 @@ export default function ClientDashboard() {
     queryKey: ['client', 'invoices', 'recent'],
     queryFn: () => clientApi.invoices({ pageSize: 5 }),
   });
-  const prodQ = useQuery({ queryKey: ['client', 'products'], queryFn: clientApi.products });
+  const prodQ = useQuery({ queryKey: ['client', 'products'], queryFn: () => clientApi.products() });
   const profileQ = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
-
-  const allTasks = tasksQ.data ?? [];
-  const activeTasks = allTasks.filter((t) => t.progress !== 'COMPLETED').length;
-  const tInProgress = allTasks.filter((t) => t.progress === 'IN_PROGRESS' || t.progress === 'ONGOING').length;
-  const tPending = allTasks.filter((t) => t.progress === 'NOT_STARTED').length;
-  const tCompleted = allTasks.filter((t) => t.progress === 'COMPLETED').length;
-  const upcomingTasks = allTasks
-    .filter((t) => t.progress !== 'COMPLETED')
-    .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
-    .slice(0, 4);
 
   const d = dashQ.data;
   const profile = profileQ.data;
   const manager = profile?.accountManager ?? null;
   const acctStatus = profile?.accountStatusEffective ?? profile?.accountStatus;
+  const suspended = acctStatus === 'SUSPENDED';
   const health = (acctStatus && ACCOUNT_HEALTH[acctStatus]) ?? ACCOUNT_HEALTH.ACTIVE;
   const company = profile?.companyName?.trim();
   const firstName = user?.firstName?.trim();
 
-  const headline =
-    acctStatus === 'SUSPENDED'
-      ? 'Your account needs attention.'
-      : d && d.overdue.count > 0
-        ? `${d.overdue.count} invoice${d.overdue.count === 1 ? ' is' : 's are'} past due.`
-        : 'Everything’s running smoothly.';
+  const allTasks = tasksQ.data ?? [];
+  const tOngoing = allTasks.filter((t) => isOngoing(t.progress)).length;
+  const tNotStarted = allTasks.filter((t) => t.progress === 'NOT_STARTED').length;
+  const tCompleted = allTasks.filter((t) => t.progress === 'COMPLETED').length;
+  const openTasks = allTasks
+    .filter((t) => t.progress !== 'COMPLETED')
+    .sort((a, b) => Number(isOngoing(b.progress)) - Number(isOngoing(a.progress)) || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
+    .slice(0, 4);
 
-  // Next renewal — the soonest upcoming expiry among approved products.
+  const toSign = (profile?.documents ?? []).filter(needsSignature);
+
+  // Service term — from the earliest issue to the latest expiry of approved licences.
   const products = prodQ.data ?? [];
-  const upcoming = products
-    .filter((p) => !p.pending && p.expiryDate && new Date(p.expiryDate).getTime() >= now)
+  const approved = products.filter((p) => !p.pending);
+  const dated = approved.filter((p) => p.expiryDate);
+  const termStart = dated.length ? Math.min(...dated.map((p) => new Date(p.issueDate).getTime())) : null;
+  const termEnd = dated.length ? Math.max(...dated.map((p) => new Date(p.expiryDate!).getTime())) : null;
+  const term =
+    termStart != null && termEnd != null && termEnd > termStart
+      ? {
+          day: Math.max(1, Math.min(Math.ceil((termEnd - termStart) / DAY), Math.floor((now - termStart) / DAY) + 1)),
+          total: Math.ceil((termEnd - termStart) / DAY),
+          pct: Math.max(0, Math.min(1, (now - termStart) / (termEnd - termStart))),
+          ticks: monthTicks(termStart, termEnd),
+        }
+      : null;
+  const upcoming = dated
+    .filter((p) => new Date(p.expiryDate!).getTime() >= now)
     .sort((a, b) => a.expiryDate!.localeCompare(b.expiryDate!));
   const next = upcoming[0];
   const nextDays = next ? Math.max(0, Math.ceil((new Date(next.expiryDate!).getTime() - now) / DAY)) : null;
-  const sameDay = next && upcoming.every((p) => formatDate(p.expiryDate) === formatDate(next.expiryDate));
+
+  const contracted = approved.reduce((s, p) => s + productNet(p), 0);
+  const termDays = profile?.invoicingTerm?.match(/\d+/)?.[0];
+
+  // Headline summary.
+  const owes = d ? d.outstanding.amount > 0 : false;
+  const summary: ReactNode[] = [];
+  if (toSign.length) summary.push(<><b>{plural(toSign.length, 'agreement')}</b> {toSign.length === 1 ? 'needs' : 'need'} your signature</>);
+  if (tOngoing) summary.push(<><b>{plural(tOngoing, 'task')}</b> {tOngoing === 1 ? 'is' : 'are'} in progress</>);
 
   // Recent Activity — derived read-only from data already loaded on this page
   // (invoices, products/licences, tasks). No new API, no data mutation.
@@ -115,19 +155,9 @@ export default function ClientDashboard() {
   const activity: ActivityItem[] = [];
   for (const inv of invQ.data?.items ?? []) {
     if (inv.status === 'PAID' || Number(inv.amountPaid) > 0) {
-      activity.push({
-        id: `pay-${inv.id}`,
-        title: 'Payment received',
-        sub: inv.invoiceNumber,
-        at: new Date(inv.createdAt).getTime(),
-      });
+      activity.push({ id: `pay-${inv.id}`, title: 'Payment received', sub: inv.invoiceNumber, at: new Date(inv.createdAt).getTime(), done: true });
     }
-    activity.push({
-      id: `inv-${inv.id}`,
-      title: 'Invoice generated',
-      sub: inv.invoiceNumber,
-      at: new Date(inv.createdAt).getTime(),
-    });
+    activity.push({ id: `inv-${inv.id}`, title: 'Invoice generated', sub: inv.invoiceNumber, at: new Date(inv.createdAt).getTime() });
   }
   for (const p of products) {
     if (!p.issueDate) continue;
@@ -136,360 +166,396 @@ export default function ClientDashboard() {
       title: p.pending ? 'Product requested' : 'Licence activated',
       sub: p.product,
       at: new Date(p.issueDate).getTime(),
+      done: !p.pending,
     });
   }
   for (const t of allTasks) {
+    const done = t.progress === 'COMPLETED';
     activity.push({
       id: `task-${t.id}`,
-      title: t.progress === 'COMPLETED' ? 'Task completed' : 'Task updated',
-      sub: `${t.title} – ${t.bucketName}`,
+      title: done ? 'Task completed' : 'Task updated',
+      sub: `${t.title} · ${t.bucketName}`,
       at: new Date(t.completedAt ?? t.updatedAt ?? t.createdAt).getTime(),
+      done,
     });
   }
   activity.sort((a, b) => b.at - a.at);
   const recentActivity = activity.slice(0, 6);
 
+  const ringC = 2 * Math.PI * 22;
+
   return (
-    <div className="-mt-4">
-      <GraphiteHero
-        kicker={`Customer Portal${company ? ` · ${company}` : ''}`}
-        title={
-          <>
-            Welcome back{firstName ? `, ${firstName}` : ''}.
-            <br />
-            {headline}
-          </>
-        }
-        subtitle="Here’s an overview of your invoices, products and account."
-        stats={[
-          { label: 'Account health', value: `${health.pct}%`, sub: health.label, strong: true },
-          { label: 'Active products', value: d ? String(d.products) : null, sub: 'Assigned to you' },
-          { label: 'Active tasks', value: tasksQ.isLoading ? null : String(activeTasks), sub: 'In progress or pending' },
-        ]}
-        actions={
-          <>
-            <Link to="/client/invoices" className={btnLight}>
-              View invoices
-            </Link>
-            <Link to="/client/licences" className={btnDark}>
-              Explore products
-            </Link>
-          </>
-        }
-      />
-
-      <div className="relative flex flex-col gap-[18px]">
-        {/* KPI strip */}
-        <div className={cn(panel, 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4')}>
-          {[
-            {
-              label: 'Total paid',
-              value: d && formatCurrency(d.totalPaid),
-              sub: d && `${d.invoices} invoice${d.invoices === 1 ? '' : 's'} total`,
-              to: '/client/invoices',
-            },
-            {
-              label: 'Outstanding',
-              value: d && formatCurrency(d.outstanding.amount),
-              sub: d && `${d.outstanding.count} unpaid`,
-              to: '/client/invoices',
-            },
-            {
-              label: 'Overdue',
-              value: d && formatCurrency(d.overdue.amount),
-              sub: d && (d.overdue.count > 0 ? `${d.overdue.count} past due` : 'Nothing past due'),
-              to: '/client/invoices',
-              alert: !!d && d.overdue.count > 0,
-            },
-            {
-              label: 'Next renewal',
-              value: prodQ.isLoading ? null : nextDays === null ? '—' : `${nextDays} day${nextDays === 1 ? '' : 's'}`,
-              sub: next
-                ? `${sameDay && upcoming.length > 1 ? 'All services' : next.product} · ${formatDate(next.expiryDate)}`
-                : 'No upcoming renewals',
-              to: '/client/licences',
-            },
-          ].map((k, i) => (
-            <Link
-              key={k.label}
-              to={k.to}
-              className={cn(
-                'flex flex-col gap-1.5 border-white/[0.08] px-[22px] py-5 text-[#F5F6F8] transition-colors hover:bg-white/[0.03] hover:text-[#F5F6F8]',
-                i < 3 && 'border-b lg:border-b-0 lg:border-r',
-                i === 1 && 'sm:border-r-0 lg:border-r',
-                i === 0 && 'sm:border-r'
-              )}
-            >
-              <span className={eyebrow}>{k.label}</span>
-              {k.value == null ? (
-                <Skeleton className="h-10 w-28 bg-white/10" />
+    <>
+      {/* Greeting */}
+      <section className="el-hello">
+        <div>
+          <span className="el-eyebrow">
+            {[company, profile?.tradingAs?.trim() && `Trading as ${profile.tradingAs.trim()}`].filter(Boolean).join(' · ') ||
+              'Customer portal'}
+          </span>
+          <h1 className="el-h1">
+            {greeting(new Date(now).getHours())}
+            {firstName ? `, ${firstName}` : ''}.
+          </h1>
+          <p className="sub">
+            {suspended ? (
+              'Your account is suspended — please contact your account manager.'
+            ) : !d || tasksQ.isLoading || profileQ.isLoading ? (
+              ' '
+            ) : (
+              summary.length === 0 && !owes ? (
+                'Everything’s running smoothly — nothing is owed.'
               ) : (
-                <span className={cn('text-[34px] font-semibold tabular-nums', k.alert && 'text-[#FDA4AF]')}>
-                  {k.value}
-                </span>
-              )}
-              <span className="text-[13px] text-[#A3AABB]">{k.sub ?? ' '}</span>
-            </Link>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-[18px]">
-          {/* Product status */}
-          <Panel title="Product status" action={<ViewAll to="/client/licences" />} className="flex-[2_1_580px]">
-            {prodQ.isLoading ? (
-              <div className="space-y-2 p-[22px]">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full bg-white/[0.06]" />
-                ))}
-              </div>
-            ) : !products.length ? (
-              <p className="px-[22px] py-8 text-[15px] text-[#A3AABB]">No products yet — your licences will appear here.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse text-[15px]">
-                  <thead>
-                    <tr className="text-left">
-                      <th className={cn(eyebrow, 'px-[22px] py-3')}>Product</th>
-                      <th className={cn(eyebrow, 'p-3')}>Status</th>
-                      <th className={cn(eyebrow, 'p-3')}>Expires</th>
-                      <th className={cn(eyebrow, 'px-[22px] py-3 text-right')}>Term remaining</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.slice(0, 6).map((p) => {
-                      const st = p.pending
-                        ? { label: 'Pending approval', color: '#A3AABB' }
-                        : (LICENCE_DOT[p.status] ?? LICENCE_DOT.ACTIVE);
-                      const pct = termRemaining(p, now);
-                      return (
-                        <tr key={p.id} className="border-t border-white/[0.06]">
-                          <td className="px-[22px] py-3.5 font-semibold">
-                            <div className="flex items-center gap-3">
-                              <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/20">
-                                <ProductGlyph parts={[p.product]} className="h-5 w-5" />
-                              </span>
-                              {p.product}
-                            </div>
-                          </td>
-                          <td className="px-3 py-3.5">
-                            <span className="inline-flex items-center gap-2 text-sm">
-                              <span
-                                className="h-[7px] w-[7px] rounded-full"
-                                style={{ background: st.color, boxShadow: `0 0 8px ${st.color}cc` }}
-                              />
-                              {st.label}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3.5 text-[#A3AABB]">{p.expiryDate ? formatDate(p.expiryDate) : '—'}</td>
-                          <td className="px-[22px] py-3.5">
-                            {pct === null ? (
-                              <span className="block text-right text-[13px] text-[#C9CEDA]">Ongoing</span>
-                            ) : (
-                              <div className="flex items-center justify-end gap-2.5">
-                                <div className="h-[3px] w-[90px] bg-white/[0.12]">
-                                  <div className="h-full bg-white" style={{ width: `${pct}%` }} />
-                                </div>
-                                <span className="w-[34px] text-right text-[13px] tabular-nums text-[#C9CEDA]">{pct}%</span>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Panel>
-
-          <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-[18px]">
-            {/* Account manager */}
-            {manager && (
-              <Panel
-                title="Account manager"
-                action={
-                  <a href={`mailto:${manager.email}`} className={viewAll}>
-                    Contact <span aria-hidden="true">→</span>
-                  </a>
-                }
-              >
-                <div className="flex flex-col gap-4 p-[22px]">
-                  <div className="flex items-center gap-3.5">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/50 text-[21px] font-semibold">
-                      {manager.avatarUrl ? (
-                        <img src={mediaUrl(manager.avatarUrl)} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        (manager.firstName?.[0] ?? '?').toUpperCase()
-                      )}
-                    </div>
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate text-[21px] font-semibold">
-                        {manager.firstName} {manager.lastName}
-                      </span>
-                      <span className="truncate text-[13px] text-[#A3AABB]">{manager.email}</span>
-                      {manager.phone && <span className="text-[13px] text-[#A3AABB]">{manager.phone}</span>}
-                    </div>
-                  </div>
-                  <div className="flex gap-2.5">
-                    <a href={`mailto:${manager.email}`} className={cn(btnLight, 'h-11 flex-1 px-3 text-xs')}>
-                      Message
-                    </a>
-                    {manager.phone && (
-                      <a
-                        href={`tel:${manager.phone.replace(/\s+/g, '')}`}
-                        className={cn(btnDark, 'h-11 flex-1 px-3 text-xs')}
-                      >
-                        Call
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </Panel>
-            )}
-
-            {/* Recent invoices */}
-            {invQ.isLoading ? (
-              <div className={cn(panel, 'p-[22px]')}>
-                <Skeleton className="h-12 w-full bg-white/[0.06]" />
-              </div>
-            ) : !invQ.data?.items.length ? (
-              <section className={cn(panel, 'flex items-center gap-3.5 px-[22px] py-5')}>
-                <span className="flex h-[46px] w-[46px] shrink-0 items-center justify-center border border-white/20 text-[#C9CEDA]">
-                  <FileText className="h-5 w-5" strokeWidth={1.8} />
-                </span>
-                <div className="flex flex-col">
-                  <span className={eyebrow}>Recent invoices</span>
-                  <span className="text-base font-semibold">No invoices yet</span>
-                  <span className="text-[13px] text-[#A3AABB]">They’ll appear here once issued.</span>
-                </div>
-              </section>
-            ) : (
-              <Panel title="Recent invoices" action={<ViewAll to="/client/invoices" />}>
-                <ul className="px-[22px] py-2">
-                  {invQ.data.items.map((inv) => (
-                    <li key={inv.id} className="border-b border-white/[0.06] last:border-0">
-                      <Link
-                        to={`/client/invoices/${inv.id}`}
-                        className="flex items-center gap-3 py-3 text-[#F5F6F8] hover:text-white"
-                      >
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-[15px] font-semibold">{inv.invoiceNumber}</span>
-                          <span className="text-[13px] text-[#A3AABB]">Due {formatDate(inv.dueDate)}</span>
-                        </div>
-                        <span className="text-sm tabular-nums">{formatCurrency(inv.total)}</span>
-                        <InvoiceBadge status={inv.status} />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </Panel>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-[18px]">
-          {/* Tasks */}
-          <Panel title="Tasks" action={<ViewAll to="/client/tasks" />} className="flex-[1_1_340px]">
-            <div className="flex flex-col gap-3 px-[22px] py-[18px]">
-              <div className="grid grid-cols-3 gap-px bg-white/10">
-                {[
-                  { n: tInProgress, label: 'In progress' },
-                  { n: tPending, label: 'Pending' },
-                  { n: tCompleted, label: 'Completed', dim: true },
-                ].map((c) => (
-                  <div key={c.label} className="flex flex-col bg-[#0D111C] px-3.5 py-3">
-                    <span className={cn('text-[28px] font-semibold tabular-nums', c.dim && 'text-[#A3AABB]')}>
-                      {tasksQ.isLoading ? '–' : c.n}
+                <>
+                  {[
+                    ...summary,
+                    owes ? (
+                      <>
+                        <b>{formatCurrency(d.outstanding.amount)}</b> is outstanding
+                      </>
+                    ) : (
+                      'nothing is owed'
+                    ),
+                  ].map((s, i, all) => (
+                    <span key={i}>
+                      {i > 0 && (i === all.length - 1 ? ' and ' : ', ')}
+                      {s}
                     </span>
-                    <span className={cn(eyebrow, 'truncate')}>{c.label}</span>
-                  </div>
-                ))}
-              </div>
-              {tasksQ.isLoading ? (
-                <Skeleton className="h-24 w-full bg-white/[0.06]" />
-              ) : upcomingTasks.length === 0 ? (
-                <p className="py-2 text-[13px] text-[#A3AABB]">No open tasks — you’re all caught up.</p>
-              ) : (
-                upcomingTasks.map((t) => {
-                  const inProgress = t.progress === 'IN_PROGRESS' || t.progress === 'ONGOING';
-                  return (
-                    <div key={t.id} className="flex items-center gap-2.5 border-t border-white/[0.06] py-2.5">
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-[15px] font-semibold">{t.title}</span>
-                        <span className="truncate text-[13px] text-[#A3AABB]">
-                          {t.bucketName}
-                          {t.dueDate ? ` · Due ${formatDate(t.dueDate)}` : ''}
-                        </span>
-                      </div>
-                      {inProgress ? (
-                        <span className="whitespace-nowrap bg-white px-2 py-1 text-[10px] font-bold tracking-[0.12em] text-[#070A12]">
-                          IN PROGRESS
-                        </span>
-                      ) : (
-                        <span className="whitespace-nowrap border border-white/45 px-2 py-[3px] text-[10px] font-bold tracking-[0.12em] text-white">
-                          PENDING
-                        </span>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Panel>
-
-          {/* Recent activity */}
-          <Panel title="Recent activity" className="flex-[1_1_340px]">
-            <div className="px-[22px] pb-4 pt-2">
-              {activityLoading ? (
-                <div className="space-y-2 pt-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full bg-white/[0.06]" />
                   ))}
-                </div>
-              ) : recentActivity.length === 0 ? (
-                <p className="py-4 text-[13px] text-[#A3AABB]">Recent account activity will appear here.</p>
-              ) : (
-                recentActivity.map((a) => (
-                  <div key={a.id} className="flex gap-3.5 border-b border-white/[0.06] py-[11px] last:border-0">
-                    <span className="mt-[7px] h-2 w-2 shrink-0 rounded-full border border-[#E2E8F0]" />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-[15px] font-semibold">{a.title}</span>
-                      <span className="truncate text-[13px] text-[#A3AABB]">{a.sub}</span>
-                    </div>
-                    <span className="whitespace-nowrap text-xs text-[#A3AABB]">{activityWhen(a.at)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </Panel>
+                  .
+                </>
+              )
+            )}
+          </p>
+        </div>
+        <div className="actions">
+          <Link to="/client/invoices" className="el-btn">
+            <Receipt /> Invoices
+          </Link>
+          {!suspended && (
+            <Link to="/client/tasks" className="el-btn primary">
+              <ListChecks /> Open tasks
+            </Link>
+          )}
+        </div>
+      </section>
 
-          {/* Support */}
-          <section className={cn(panel, 'flex flex-[1_1_300px] flex-col gap-2.5 p-[26px]')}>
-            <span className={eyebrow}>Support · 24/7</span>
-            <span className="text-[30px] font-semibold leading-[1.1]">Need help or ready to upgrade?</span>
-            <span className="text-[15px] text-[#A3AABB]">
-              Our team is here around the clock, and we can recommend solutions to grow your business.
+      {/* Attention */}
+      {toSign.length > 0 ? (
+        <div className="el-alert" role="status">
+          <span className="ic">
+            <PenLine />
+          </span>
+          <div className="t">
+            <strong>
+              {toSign.length === 1 ? '1 agreement is' : `${toSign.length} agreements are`} waiting for your signature
+            </strong>
+            <span className="block truncate">
+              {toSign.map((x) => x.fileName.replace(/\.pdf$/i, '')).join(', ')}. Signing keeps the work on schedule.
             </span>
-            <div className="mt-auto flex flex-col gap-2 pt-3">
-              <a href="mailto:help@egdigital.com.au?subject=Support%20request" className={cn(btnLight, 'h-11 text-xs')}>
-                Create a ticket
-              </a>
-              <a
-                href="mailto:support@egdigital.com.au?subject=Knowledge%20base%20enquiry"
-                className={cn(btnDark, 'h-11 text-xs')}
-              >
-                Knowledge base
-              </a>
-              <Link
-                to="/client/licences"
-                className="inline-flex h-11 items-center justify-center border border-white/30 text-xs font-bold uppercase tracking-[0.1em] text-white hover:bg-white/[0.06] hover:text-white"
-              >
-                View recommendations
-              </Link>
+          </div>
+          <Link to="/client/agreement" className="el-btn sm primary">
+            Review and sign
+          </Link>
+        </div>
+      ) : d && d.overdue.count > 0 ? (
+        <div className="el-alert bad" role="status">
+          <span className="ic">
+            <TriangleAlert />
+          </span>
+          <div className="t">
+            <strong>
+              {d.overdue.count === 1 ? '1 invoice is' : `${d.overdue.count} invoices are`} past due
+            </strong>
+            <span>{formatCurrency(d.overdue.amount)} is overdue. Please settle it to keep your services running.</span>
+          </div>
+          <Link to="/client/invoices" className="el-btn sm primary">
+            View invoices
+          </Link>
+        </div>
+      ) : null}
+
+      {/* Service term track */}
+      {prodQ.isLoading ? (
+        <ElSkel className="h-[180px]" />
+      ) : (
+        term && (
+          <section className="el-card el-track">
+            <div className="el-track-top">
+              <div className="grow">
+                <span className="el-eyebrow">Service term</span>
+                <div className="big">
+                  Day {term.day}
+                  <small>of {term.total}</small>
+                </div>
+              </div>
+              {next && nextDays != null && (
+                <div className="fact">
+                  <span className="el-eyebrow">Renews</span>
+                  <b>
+                    {formatDate(next.expiryDate)} · {plural(nextDays, 'day')}
+                  </b>
+                </div>
+              )}
+              <div className="fact">
+                <span className="el-eyebrow">Licences</span>
+                <b>{d ? `${d.licences.active} active` : '—'}</b>
+              </div>
+            </div>
+            <div className="el-flight" aria-label={`Day ${term.day} of ${term.total} of your service term`}>
+              <div className="rule" />
+              <div className="done" style={{ width: `${term.pct * 100}%` }} />
+              <span className="start" />
+              <span className="end" />
+              {term.ticks.map((t) => (
+                <span key={t.label + t.at} className="tick" style={{ left: `${t.at * 100}%` }}>
+                  {t.label}
+                </span>
+              ))}
+              <span className="now" style={{ left: `${term.pct * 100}%` }} />
+              <span className="bird" style={{ left: `${term.pct * 100}%` }}>
+                <img src={brand.icon} alt="" className="on-light" />
+                <img src={brand.iconLight} alt="" className="on-dark" />
+              </span>
             </div>
           </section>
+        )
+      )}
+
+      {/* KPIs */}
+      <div className="el-kpis">
+        <div className="el-kpi">
+          <span className="el-eyebrow">Account health</span>
+          <div className="el-ring">
+            <svg viewBox="0 0 52 52" aria-hidden="true">
+              <circle cx="26" cy="26" r="22" fill="none" stroke="var(--sunk)" strokeWidth="5" />
+              <circle
+                cx="26"
+                cy="26"
+                r="22"
+                fill="none"
+                stroke={suspended ? 'var(--bad)' : 'var(--nectar)'}
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray={`${(ringC * health.pct) / 100} ${ringC}`}
+                transform="rotate(-90 26 26)"
+              />
+            </svg>
+            <div>
+              <div className="v">
+                {health.pct}
+                <small>%</small>
+              </div>
+              <span className="s">{health.label}</span>
+            </div>
+          </div>
+        </div>
+        <Link to="/client/licences" className="el-kpi">
+          <span className="el-eyebrow">Contracted value</span>
+          {prodQ.isLoading ? <ElSkel className="h-9 w-32" /> : <span className="v">{formatCurrency(contracted)}</span>}
+          <span className="s">{plural(approved.length, 'licence')} · agreed net price</span>
+        </Link>
+        <Link to="/client/invoices" className="el-kpi">
+          <span className="el-eyebrow">Outstanding</span>
+          {!d ? (
+            <ElSkel className="h-9 w-28" />
+          ) : (
+            <span className={d.overdue.count > 0 ? 'v bad' : 'v'}>{formatCurrency(d.outstanding.amount)}</span>
+          )}
+          <span className="s">
+            {d
+              ? `${d.outstanding.count} unpaid · ${d.overdue.count > 0 ? `${d.overdue.count} overdue` : 'nothing overdue'}`
+              : ' '}
+          </span>
+        </Link>
+        <div className="el-kpi">
+          <span className="el-eyebrow">Invoicing terms</span>
+          {profileQ.isLoading ? (
+            <ElSkel className="h-9 w-20" />
+          ) : termDays ? (
+            <span className="v">
+              {termDays}
+              <small>days</small>
+            </span>
+          ) : (
+            <span className="v">{profile?.invoicingTerm?.trim() || '—'}</span>
+          )}
+          <span className="s">
+            {d ? (d.invoices ? `${plural(d.invoices, 'invoice')} issued` : 'No invoices issued yet') : ' '}
+          </span>
         </div>
       </div>
-    </div>
+
+      <div className="el-grid-2">
+        <div className="el-col">
+          {/* Work in flight */}
+          {!suspended && (
+            <ElCard
+              title="Work in flight"
+              action={
+                <Link to="/client/tasks" className="el-link">
+                  All {allTasks.length} tasks <ArrowRight />
+                </Link>
+              }
+            >
+              <div className="el-card-b">
+                {tasksQ.isLoading ? (
+                  <ElSkel className="h-10" />
+                ) : (
+                  <>
+                    <div className="el-stackbar" aria-hidden="true">
+                      {[
+                        { n: tOngoing, c: 'var(--info)' },
+                        { n: tNotStarted, c: 'var(--line-2)' },
+                        { n: tCompleted, c: 'var(--nectar)' },
+                      ]
+                        .filter((s) => s.n > 0)
+                        .map((s) => (
+                          <span key={s.c} style={{ flex: s.n, background: s.c }} />
+                        ))}
+                    </div>
+                    <div className="el-legend">
+                      <span>
+                        <i style={{ background: 'var(--info)' }} />
+                        {tOngoing} ongoing
+                      </span>
+                      <span>
+                        <i style={{ background: 'var(--line-2)' }} />
+                        {tNotStarted} not started
+                      </span>
+                      <span>
+                        <i style={{ background: 'var(--nectar)' }} />
+                        {tCompleted} completed
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+              {!tasksQ.isLoading &&
+                (openTasks.length === 0 ? (
+                  <p className="el-muted border-t border-[var(--line)] px-5 py-4 text-[13px]">
+                    No open tasks — you’re all caught up.
+                  </p>
+                ) : (
+                  <ul className="el-tlist">
+                    {openTasks.map((t) => (
+                      <li key={t.id}>
+                        <Link to="/client/tasks">
+                          <div className="min-w-0">
+                            <div className="nm truncate">{t.title}</div>
+                            <div className="meta">
+                              <span className="el-tag">{t.bucketName}</span>
+                              {t.dueDate && <span>Due {formatDate(t.dueDate)}</span>}
+                            </div>
+                          </div>
+                          {isOngoing(t.progress) ? (
+                            <ElPill tone="info">Ongoing</ElPill>
+                          ) : (
+                            <ElPill tone="idle">Not started</ElPill>
+                          )}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ))}
+            </ElCard>
+          )}
+
+          {/* Recent activity */}
+          <ElCard title="Recent activity">
+            {activityLoading ? (
+              <div className="space-y-2 p-5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <ElSkel key={i} className="h-10" />
+                ))}
+              </div>
+            ) : recentActivity.length === 0 ? (
+              <p className="el-muted px-5 py-4 text-[13px]">Recent account activity will appear here.</p>
+            ) : (
+              <ul className="el-feed">
+                {recentActivity.map((a) => (
+                  <li key={a.id}>
+                    <span className={a.done ? 'pt g' : 'pt'} />
+                    <div className="min-w-0">
+                      <b>{a.title}</b>
+                      <p className="truncate">{a.sub}</p>
+                    </div>
+                    <time>{activityWhen(a.at)}</time>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </ElCard>
+        </div>
+
+        <div className="el-col">
+          {/* Account manager */}
+          {manager && (
+            <ElCard title="Your account manager">
+              <div className="el-card-b">
+                <div className="el-mgr">
+                  <span className="el-av">
+                    {manager.avatarUrl ? (
+                      <img src={mediaUrl(manager.avatarUrl)} alt="" />
+                    ) : (
+                      (manager.firstName?.[0] ?? '?').toUpperCase()
+                    )}
+                  </span>
+                  <div className="lines">
+                    <b>
+                      {manager.firstName} {manager.lastName}
+                    </b>
+                    <span>{manager.email}</span>
+                    {manager.phone && <span className="el-mono">{manager.phone}</span>}
+                  </div>
+                </div>
+                <div className="el-mgr-actions">
+                  <a href={`mailto:${manager.email}`} className="el-btn primary">
+                    <MessageSquare /> Message
+                  </a>
+                  {manager.phone ? (
+                    <a href={`tel:${manager.phone.replace(/\s+/g, '')}`} className="el-btn">
+                      <Phone /> Call
+                    </a>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              </div>
+            </ElCard>
+          )}
+
+          {/* Support */}
+          <ElCard title="Support" action={<ElPill tone="ok">Online 24/7</ElPill>}>
+            <div className="el-card-b el-help">
+              <a href="mailto:help@egdigital.com.au?subject=Support%20request">
+                <Ticket />
+                <span>
+                  Create a ticket
+                  <small>Our team is here around the clock</small>
+                </span>
+                <ArrowRight />
+              </a>
+              <a href="mailto:support@egdigital.com.au?subject=Knowledge%20base%20enquiry">
+                <BookOpen />
+                <span>
+                  Knowledge base
+                  <small>Guides for your products and services</small>
+                </span>
+                <ArrowRight />
+              </a>
+              <Link to="/client/licences">
+                <Sparkles />
+                <span>
+                  Recommendations
+                  <small>Ways to grow{company ? ` ${company}` : ' your business'}</small>
+                </span>
+                <ArrowRight />
+              </Link>
+            </div>
+          </ElCard>
+        </div>
+      </div>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { ListChecks, Lock } from 'lucide-react';
-import { PageHeader } from '@/components/shared/misc';
+import { Lock } from 'lucide-react';
+import { ElPageHead } from '@/components/client/eloma';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { LoadingBlock } from '@/components/shared/states';
 import { clientTaskApi } from '@/api/tasks';
@@ -20,8 +20,12 @@ export default function ClientTasksPage() {
   const suspended = (profile?.accountStatusEffective ?? profile?.accountStatus) === 'SUSPENDED';
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Tasks" description="Work we're tracking for your account." icon={ListChecks} iconTone="sky" />
+    <>
+      <ElPageHead
+        eyebrow="Task board"
+        title="Work we’re tracking for you"
+        description="Open any task to see files, approvals and chat with the team."
+      />
       {/* Wait for the profile before deciding, so a suspended client never sees
           the board flash before the lock. */}
       {isLoading ? (
@@ -45,6 +49,6 @@ export default function ClientTasksPage() {
           readOnly
         />
       )}
-    </div>
+    </>
   );
 }

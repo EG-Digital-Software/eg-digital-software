@@ -4,14 +4,12 @@ import { toast } from 'sonner';
 import { FileText, Download, PenLine } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
 import { apiErrorMessage } from '@/api/client';
-import { PageHeader } from '@/components/shared/misc';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/misc';
 import { ErrorState, EmptyState } from '@/components/shared/states';
-import { mediaUrl } from '@/lib/utils';
+import { formatDate, mediaUrl } from '@/lib/utils';
+import { brand } from '@/config/brand';
 import type { CustomerDocument } from '@/types';
+import { ElPageHead, ElPill, ElSeg, ElSkel } from '@/components/client/eloma';
+import { needsSignature } from '@/lib/agreements';
 import AgreementSignDialog from './AgreementSignDialog';
 
 function docSize(bytes: number): string {
@@ -22,6 +20,11 @@ function docSize(bytes: number): string {
 const isPdf = (d: CustomerDocument) =>
   d.contentType === 'application/pdf' || /\.pdf$/i.test(d.fileName);
 
+/** "EG-Task-Order-Website-Redesign.pdf" → "EG Task Order Website Redesign". */
+const docTitle = (d: CustomerDocument) => d.fileName.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
+
+type Filter = 'all' | 'sign';
+
 /**
  * Client portal — agreement documents. The client fills + signs the blank PDF the
  * admin shared, waits for approval, then downloads the approved copy.
@@ -29,6 +32,7 @@ const isPdf = (d: CustomerDocument) =>
 export default function ClientAgreementPage() {
   const qc = useQueryClient();
   const [signing, setSigning] = useState<CustomerDocument | null>(null);
+  const [filter, setFilter] = useState<Filter>('all');
 
   const { data: c, isLoading, isError, refetch } = useQuery({
     queryKey: ['client', 'profile'],
@@ -53,73 +57,130 @@ export default function ClientAgreementPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <>
+        <ElSkel className="h-24" />
+        <ElSkel className="h-64" />
+      </>
     );
   }
   if (isError || !c) return <ErrorState onRetry={refetch} />;
 
   const docs = c.documents ?? [];
+  const toSign = docs.filter(needsSignature);
+  const shown = filter === 'sign' ? toSign : docs;
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Agreement" description="Review, sign and download agreements shared with you" icon={FileText} />
-
-      <Card>
-        <CardContent className="pt-6">
-          {docs.length === 0 ? (
-            <EmptyState
-              icon={<FileText className="h-6 w-6" />}
-              title="No agreement documents"
-              description="There are no agreement documents shared with you yet."
+    <>
+      <ElPageHead
+        eyebrow="Agreements"
+        title="Documents to review and sign"
+        description={
+          docs.length === 0
+            ? 'Agreements shared with you will appear here.'
+            : toSign.length
+              ? `${toSign.length} of ${docs.length} ${docs.length === 1 ? 'document needs' : 'documents need'} your signature. Each one confirms the scope and pricing for a piece of work.`
+              : 'All your agreements are signed. Download approved copies any time.'
+        }
+        actions={
+          docs.length > 0 && (
+            <ElSeg<Filter>
+              label="Filter agreements"
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: 'all', label: 'All', count: docs.length },
+                { value: 'sign', label: 'To sign', count: toSign.length },
+              ]}
             />
-          ) : (
-            <div className="space-y-2">
-              {docs.map((d) => {
-                const approved = d.status === 'APPROVED';
-                const submitted = d.status === 'SUBMITTED';
-                const pdf = isPdf(d);
-                const hasFields = (d.fields?.length ?? 0) > 0;
-                const downloadUrl = mediaUrl(d.signedUrl || d.url) ?? '';
-                return (
-                  <div key={d.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3.5 py-3 text-sm">
-                    <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate font-medium" title={d.fileName}>{d.fileName}</span>
-                    <Badge variant={approved ? 'success' : submitted ? 'secondary' : 'outline'}>
-                      {approved ? 'Approved' : submitted ? 'Awaiting approval' : 'Action needed'}
-                    </Badge>
-                    <span className="w-16 shrink-0 text-right text-sm tabular-nums text-muted-foreground">{docSize(d.size)}</span>
+          )
+        }
+      />
+
+      {shown.length === 0 ? (
+        <section className="el-card p-6">
+          <EmptyState
+            icon={<FileText className="h-6 w-6" />}
+            title={docs.length === 0 ? 'No agreement documents' : 'Nothing to sign'}
+            description={
+              docs.length === 0
+                ? 'There are no agreement documents shared with you yet.'
+                : 'Every agreement has been signed or sent for approval.'
+            }
+          />
+        </section>
+      ) : (
+        <div className="el-docs">
+          {shown.map((d) => {
+            const approved = d.status === 'APPROVED';
+            const submitted = d.status === 'SUBMITTED';
+            const pdf = isPdf(d);
+            const hasFields = (d.fields?.length ?? 0) > 0;
+            const downloadUrl = mediaUrl(d.signedUrl || d.url) ?? '';
+            const title = docTitle(d);
+            return (
+              <article key={d.id} className="el-card el-doc">
+                <div className="el-sheet" aria-hidden="true">
+                  <div className="pg">
+                    <header>
+                      <img src={brand.icon} alt="" />
+                      Eloma Group
+                    </header>
+                    <div className="t">{title}</div>
+                    <span className="text-[9px] text-[#77869A]">{formatDate(d.createdAt)}</span>
+                    <i />
+                    <i className="s" />
+                    <i />
+                    <i className="s" />
+                  </div>
+                </div>
+                <div className="body">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {approved ? (
+                      <ElPill tone="ok">Approved</ElPill>
+                    ) : submitted ? (
+                      <ElPill tone="info">Awaiting approval</ElPill>
+                    ) : (
+                      <ElPill tone="warn">Signature needed</ElPill>
+                    )}
+                    <span className="el-muted text-[12.5px]">
+                      {docSize(d.size)}
+                      {pdf ? ' · PDF' : ''}
+                    </span>
+                  </div>
+                  <h3>{title}</h3>
+                  <span className="fn">{d.fileName}</span>
+                  <div className="dfoot">
                     {approved ? (
                       <a
                         href={downloadUrl}
                         download={d.fileName}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-muted-foreground transition hover:bg-secondary hover:text-primary"
+                        className="el-btn sm"
                         title="Download signed PDF"
                       >
-                        <Download className="h-4 w-4" /> Download
+                        <Download /> Download
                       </a>
                     ) : submitted ? (
-                      <span className="text-xs text-muted-foreground">Sent for approval</span>
+                      <span className="el-muted text-xs">
+                        Sent for approval{d.submittedAt ? ` · ${formatDate(d.submittedAt)}` : ''}
+                      </span>
                     ) : pdf && hasFields ? (
-                      <Button type="button" size="sm" onClick={() => setSigning(d)}>
-                        <PenLine className="h-4 w-4" /> Review &amp; sign
-                      </Button>
+                      <button type="button" className="el-btn sm primary" onClick={() => setSigning(d)}>
+                        <PenLine /> Review and sign
+                      </button>
                     ) : pdf ? (
-                      <span className="text-xs text-muted-foreground">Not ready to sign yet</span>
+                      <span className="el-muted text-xs">Not ready to sign yet</span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">Ask admin for a PDF version</span>
+                      <span className="el-muted text-xs">Ask admin for a PDF version</span>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       {signing && (
         <AgreementSignDialog
@@ -130,6 +191,6 @@ export default function ClientAgreementPage() {
           onSubmit={async (bytes) => { await submit.mutateAsync({ id: signing.id, bytes, fileName: signing.fileName }); }}
         />
       )}
-    </div>
+    </>
   );
 }

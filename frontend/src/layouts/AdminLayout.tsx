@@ -1,9 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
-import { Settings, User } from 'lucide-react';
+import {
+  BarChart3,
+  BadgeCheck,
+  Building2,
+  CreditCard,
+  LayoutDashboard,
+  ListChecks,
+  Package,
+  Receipt,
+  Settings,
+  User,
+  Users,
+} from 'lucide-react';
 import { adminApi } from '@/api/resources';
-import { NewActivityDot } from '@/components/tasks/NewActivityDot';
 import { useAdminTaskActivity } from '@/lib/taskSeen';
-import { GraphitePortalShell } from '@/components/layout/GraphitePortalShell';
+import { ElomaPortalShell } from '@/components/layout/ElomaPortalShell';
+import { brand } from '@/config/brand';
 
 export function AdminLayout() {
   const { data: pending } = useQuery({
@@ -15,28 +27,25 @@ export function AdminLayout() {
   const tasksDot = useAdminTaskActivity().any;
 
   return (
-    <GraphitePortalShell
+    <ElomaPortalShell
       portalName="Admin Portal"
       home="/admin/dashboard"
-      navBreakpoint="xl"
+      crumbRoot="Admin"
+      contextRight={
+        <>
+          <b>{brand.seller.legalName}</b> · Admin portal
+        </>
+      }
       nav={[
-        { to: '/admin/dashboard', label: 'Dashboard', end: true },
-        { to: '/admin/team', label: 'Team' },
-        { to: '/admin/customers', label: 'Customers' },
-        { to: '/admin/tasks', label: 'Tasks', extra: tasksDot && <NewActivityDot /> },
-        { to: '/admin/billing', label: 'Billing' },
-        { to: '/admin/products', label: 'Products' },
-        { to: '/admin/payments', label: 'Payments' },
-        {
-          to: '/admin/approvals',
-          label: 'Approvals',
-          extra: !!pending && pending > 0 && (
-            <span className="rounded-full bg-white px-1.5 py-px text-[10px] font-bold tracking-normal text-[#070A12]">
-              {pending}
-            </span>
-          ),
-        },
-        { to: '/admin/reports', label: 'Report' },
+        { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/admin/team', label: 'Team', icon: Users },
+        { to: '/admin/customers', label: 'Customers', icon: Building2 },
+        { to: '/admin/tasks', label: 'Tasks', icon: ListChecks, activity: tasksDot },
+        { to: '/admin/billing', label: 'Billing', icon: Receipt },
+        { to: '/admin/products', label: 'Products', icon: Package },
+        { to: '/admin/payments', label: 'Payments', icon: CreditCard },
+        { to: '/admin/approvals', label: 'Approvals', icon: BadgeCheck, count: pending ?? 0, countTone: 'warn' },
+        { to: '/admin/reports', label: 'Report', icon: BarChart3 },
       ]}
       menuItems={[
         { label: 'My Account', icon: User, to: '/admin/profile' },
