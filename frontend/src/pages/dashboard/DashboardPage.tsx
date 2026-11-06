@@ -1,28 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import {
-  DollarSign,
-  Users,
-  Package,
-  FileWarning,
-  KeyRound,
-  TrendingUp,
-  ArrowRight,
-  AlertTriangle,
-  Building2,
-  ChevronDown,
-  Check,
-  Search,
-} from 'lucide-react';
-import { dashboardApi, productApi, customerApi } from '@/api/resources';
+import { Users, ArrowRight, Building2, ChevronDown, Check, Search } from 'lucide-react';
+import { adminApi, dashboardApi, productApi, customerApi } from '@/api/resources';
 import type { DashboardSummary } from '@/types';
-import type { LucideProps } from 'lucide-react';
-import type { ComponentType } from 'react';
 import { useAuth } from '@/store/auth';
 import { StatDelta } from '@/components/shared/misc';
 import { SalesChart } from './SalesChart';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PublicHolidaysCard } from '@/components/client/PublicHolidays';
 import { Input } from '@/components/ui/input';
 import { Skeleton, Avatar, AvatarFallback } from '@/components/ui/misc';
 import { EmptyState } from '@/components/shared/states';
@@ -34,52 +19,38 @@ import { formatCurrency, formatNumber, formatDate, cn, initials } from '@/lib/ut
 /** Circumference of the health ring (r = 22). */
 const RING_C = 2 * Math.PI * 22;
 
-// Icon colours for the stat cards (no tile background).
-const TONES: Record<string, string> = {
-  violet: 'text-violet-600',
-  emerald: 'text-emerald-600',
-  blue: 'text-sky-600',
-  amber: 'text-amber-600',
-  rose: 'text-rose-600',
-  cyan: 'text-cyan-600',
-};
-
 function StatCard({
   title,
-  icon: Icon,
   value,
   footer,
-  tone,
   to,
   hint,
+  tone,
 }: {
   title: string;
-  icon: ComponentType<LucideProps>;
   value: string;
-  footer: React.ReactNode;
-  tone: keyof typeof TONES;
+  footer: ReactNode;
   /** Where the tile drills through to. */
   to?: string;
   /** Tooltip clarifying what the number counts. */
   hint?: string;
+  /** Optional colour for the value (design token). */
+  tone?: string;
 }) {
   const card = (
-    <Card className="h-full p-5 transition-shadow hover:shadow-card-hover">
-      <div className="flex items-start gap-3">
-        <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', TONES[tone])}>
-          <Icon className="h-[22px] w-[22px]" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
-          <div className="mt-0.5 text-xs text-muted-foreground">{footer}</div>
-        </div>
+    <div className="glass card" style={{ padding: 20, height: '100%' }}>
+      <div className="eyebrow">{title}</div>
+      <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10, color: tone }}>
+        {value}
       </div>
-    </Card>
+      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+        {footer}
+      </div>
+    </div>
   );
 
   return to ? (
-    <Link to={to} title={hint} className="block">
+    <Link to={to} title={hint} className="block" style={{ color: 'inherit', textDecoration: 'none' }}>
       {card}
     </Link>
   ) : (
@@ -91,13 +62,11 @@ function KpiSkeletons() {
   return (
     <>
       {Array.from({ length: 7 }).map((_, i) => (
-        <Card key={i}>
-          <CardContent className="space-y-3 p-5">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-3 w-20" />
-          </CardContent>
-        </Card>
+        <div key={i} className="glass" style={{ padding: 20 }}>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="mt-3 h-8 w-32" />
+          <Skeleton className="mt-2 h-3 w-20" />
+        </div>
       ))}
     </>
   );
@@ -122,11 +91,43 @@ function greeting() {
   return 'Good evening';
 }
 
+/** Section header row used across the dashboard (design: h2 18px + action). */
+function SectionHead({ title, action }: { title: ReactNode; action?: ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        padding: '18px 22px',
+        borderBottom: '1px solid rgba(var(--w),.06)',
+      }}
+    >
+      <h2 className="disp" style={{ margin: 0, fontSize: 18 }}>
+        {title}
+      </h2>
+      {action}
+    </div>
+  );
+}
+
+const KPI_GRID = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 } as const;
+
 export default function DashboardPage() {
   const user = useAuth((s) => s.user);
+  // Captured once per mount so renders stay pure.
+  const [now] = useState(() => Date.now());
   const summaryQ = useQuery<DashboardSummary>({
     queryKey: ['dashboard', 'summary'],
     queryFn: dashboardApi.summary,
+  });
+  // Same query (and cache) as the dock's Approvals badge.
+  const { data: pending } = useQuery({
+    queryKey: ['admin', 'pendingCount'],
+    queryFn: adminApi.pendingCount,
+    refetchInterval: 60_000,
   });
 
   const s = summaryQ.data;
@@ -137,72 +138,134 @@ export default function DashboardPage() {
   const licLive = s ? s.licences.active + s.licences.expiringSoon : 0;
   const licTotal = s ? licLive + s.licences.expired + s.licences.suspended : 0;
   const healthPct = licTotal > 0 ? Math.round((licLive / licTotal) * 100) : 100;
+  const pendingN = pending ?? 0;
 
   return (
-    <div className="space-y-6">
-      <section className="el-hello">
+    <div className="ec-page">
+      {/* Hero */}
+      <div
+        className="up"
+        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20 }}
+      >
         <div>
-          <span className="el-eyebrow">Admin portal · EG Eloma</span>
-          <h1 className="el-h1">
-            {greeting()}, {user?.firstName ?? 'Admin'}.
+          <div className="eyebrow">EG Eloma · Admin</div>
+          <h1 className="disp ec-hero-h1">
+            {greeting()}, {user?.firstName ?? 'Admin'}
           </h1>
-          <p className="sub">Here’s an overview of your business performance.</p>
         </div>
-        <div className="actions">
-          <Link to="/admin/approvals?role=EMPLOYEE" className="el-btn">
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Link to="/admin/approvals?role=EMPLOYEE" className="btn bg">
             <Users /> Manage team
           </Link>
-          <Link to="/admin/customers" className="el-btn primary">
+          <Link to="/admin/customers" className="btn bp">
             <Building2 /> Manage customers
           </Link>
         </div>
-      </section>
+      </div>
 
-      <div className="el-kpis" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-        <div className="el-kpi">
-          <span className="el-eyebrow">System health</span>
-          <div className="el-ring">
-            <svg viewBox="0 0 52 52" aria-hidden="true">
-              <circle cx="26" cy="26" r="22" fill="none" stroke="var(--sunk)" strokeWidth="5" />
-              <circle
-                cx="26"
-                cy="26"
-                r="22"
-                fill="none"
-                stroke={healthPct < 50 ? 'var(--bad)' : 'var(--nectar)'}
-                strokeWidth="5"
-                strokeLinecap="round"
-                strokeDasharray={`${(RING_C * healthPct) / 100} ${RING_C}`}
-                transform="rotate(-90 26 26)"
-              />
-            </svg>
-            <div>
-              <div className="v">{s ? healthPct : '—'}<small>%</small></div>
-              <span className="s">{healthLabel(healthPct)}</span>
+      {/* Business summary */}
+      <div className="aib up">
+        <div className="aib-in" style={{ padding: '22px 24px', display: 'flex', flexWrap: 'wrap', gap: 22, alignItems: 'center' }}>
+          <div className="orb" aria-hidden="true" />
+          <div style={{ flex: '1 1 420px', minWidth: 0 }}>
+            <span className="eyebrow">Business summary</span>
+            <p style={{ margin: '8px 0 0', fontSize: 17, lineHeight: 1.55, color: 'var(--fg)' }}>
+              {!s ? (
+                'Loading your business overview…'
+              ) : (
+                <>
+                  <b style={{ color: pendingN ? 'var(--wT)' : 'var(--okT)' }}>
+                    {pendingN ? `${pendingN} approval${pendingN === 1 ? '' : 's'}` : 'No approvals'}
+                  </b>{' '}
+                  {pendingN === 1 ? 'is' : 'are'} waiting,{' '}
+                  {s.outstanding.amount > 0 ? (
+                    <>
+                      <b style={{ color: 'var(--vT)' }}>{formatCurrency(s.outstanding.amount)}</b> is outstanding across{' '}
+                      {s.outstanding.count} {s.outstanding.count === 1 ? 'invoice' : 'invoices'}
+                    </>
+                  ) : (
+                    <b style={{ color: 'var(--okT)' }}>nothing is outstanding</b>
+                  )}{' '}
+                  and{' '}
+                  {s.overdue.count > 0 ? (
+                    <b style={{ color: 'var(--rT)' }}>{s.overdue.count} past due</b>
+                  ) : (
+                    <b style={{ color: 'var(--okT)' }}>nothing is overdue</b>
+                  )}
+                  . {formatNumber(s.licences.expiringSoon)} licence{s.licences.expiringSoon === 1 ? '' : 's'} expire
+                  within 30 days.
+                </>
+              )}
+            </p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+            <Link to="/admin/approvals" className="btn bp">
+              Review approvals <ArrowRight />
+            </Link>
+            <Link to="/admin/billing" className="btn bg">
+              Open billing
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Headline KPIs */}
+      <div style={KPI_GRID}>
+        <div className="glass card up" style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <svg viewBox="0 0 52 52" width="64" height="64" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(var(--w),.08)" strokeWidth="5" />
+            <circle
+              cx="26"
+              cy="26"
+              r="22"
+              fill="none"
+              stroke={healthPct < 50 ? '#E5484D' : 'var(--brand)'}
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeDasharray={`${(RING_C * healthPct) / 100} ${RING_C}`}
+              transform="rotate(-90 26 26)"
+            />
+          </svg>
+          <div>
+            <div className="eyebrow">System health</div>
+            <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 6 }}>
+              {s ? healthPct : '—'}
+              <span className="muted" style={{ fontSize: 16 }}>
+                %
+              </span>
+            </div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {healthLabel(healthPct)}
             </div>
           </div>
         </div>
-        <Link to="/admin/customers" className="el-kpi">
-          <span className="el-eyebrow">Customers</span>
-          <span className="v">{s ? formatNumber(s.customers.total) : '—'}</span>
-          <span className="s">Active accounts</span>
+        <Link to="/admin/customers" className="glass card up" style={{ padding: 20, color: 'inherit', textDecoration: 'none' }}>
+          <div className="eyebrow">Customers</div>
+          <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10 }}>
+            {s ? formatNumber(s.customers.total) : '—'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Active accounts
+          </div>
         </Link>
-        <Link to="/admin/billing" className="el-kpi">
-          <span className="el-eyebrow">Sales (month)</span>
-          <span className="v">{s ? formatCurrency(s.totalSales.current) : '—'}</span>
-          <span className="s">Invoiced this month</span>
+        <Link to="/admin/billing" className="glass card up" style={{ padding: 20, color: 'inherit', textDecoration: 'none' }}>
+          <div className="eyebrow">Sales (month)</div>
+          <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10 }}>
+            {s ? formatCurrency(s.totalSales.current) : '—'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Invoiced this month
+          </div>
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="stag" style={KPI_GRID}>
         {summaryQ.isLoading || !s ? (
           <KpiSkeletons />
         ) : (
           <>
             <StatCard
-              title="Sales (Month)"
-              icon={DollarSign}
-              tone="violet"
+              title="Sales (month)"
               to="/admin/billing"
               hint="Value invoiced this month, paid or not (drafts and cancellations excluded)"
               value={formatCurrency(s.totalSales.current)}
@@ -213,9 +276,7 @@ export default function DashboardPage() {
               }
             />
             <StatCard
-              title="Total Customers"
-              icon={Users}
-              tone="emerald"
+              title="Total customers"
               to="/admin/customers"
               hint="Active customers; the delta compares new sign-ups month on month"
               value={formatNumber(s.customers.total)}
@@ -226,9 +287,7 @@ export default function DashboardPage() {
               }
             />
             <StatCard
-              title="Total Products"
-              icon={Package}
-              tone="blue"
+              title="Total products"
               to="/admin/products"
               hint="Active products in the catalogue"
               value={formatNumber(s.products.active)}
@@ -236,10 +295,9 @@ export default function DashboardPage() {
             />
             <StatCard
               title="Outstanding"
-              icon={FileWarning}
-              tone="amber"
               to="/admin/billing"
               hint="Total still owed across every unpaid invoice"
+              tone="var(--wT)"
               value={formatCurrency(s.outstanding.amount)}
               footer={
                 <span>
@@ -249,25 +307,23 @@ export default function DashboardPage() {
             />
             <StatCard
               title="Overdue"
-              icon={AlertTriangle}
-              tone="rose"
               to="/admin/billing"
               hint="Owed and already past the due date"
+              tone={s.overdue.count > 0 ? 'var(--rT)' : undefined}
               value={formatCurrency(s.overdue.amount)}
               footer={
                 s.overdue.count > 0 ? (
-                  <span className="font-medium text-destructive">{s.overdue.count} past due</span>
+                  <span style={{ color: 'var(--rT)', fontWeight: 600 }}>{s.overdue.count} past due</span>
                 ) : (
                   <span>Nothing past due</span>
                 )
               }
             />
             <StatCard
-              title="Expiring Licences"
-              icon={KeyRound}
-              tone="rose"
+              title="Expiring licences"
               to="/admin/customers"
               hint="Licences expiring within 30 days"
+              tone={s.licences.expiringSoon > 0 ? 'var(--wT)' : undefined}
               value={formatNumber(s.licences.expiringSoon)}
               footer={
                 <span>
@@ -276,11 +332,10 @@ export default function DashboardPage() {
               }
             />
             <StatCard
-              title="Revenue (Month)"
-              icon={TrendingUp}
-              tone="cyan"
+              title="Revenue (month)"
               to="/admin/billing"
               hint="Cash actually collected this month — payments received, not invoiced value"
+              tone="var(--brand)"
               value={formatCurrency(s.revenue.current)}
               footer={
                 <span className="flex items-center gap-1.5">
@@ -292,12 +347,22 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <SalesChart />
+      {/* Sales analytics + public holidays, side by side */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'stretch' }}>
+        <div style={{ flex: '2 1 560px', minWidth: 0, display: 'grid' }}>
+          <SalesChart />
+        </div>
+        <PublicHolidaysCard
+          now={now}
+          note="The Melbourne office is closed on these days. Plan task due dates and client follow-ups around them."
+          style={{ flex: '1 1 320px', minWidth: 0 }}
+        />
+      </div>
 
       <RecentActivity />
 
       {/* Task overview + Total products */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 16 }}>
         <TasksOverviewCard />
         <TotalProductsCard />
       </div>
@@ -310,15 +375,17 @@ function Donut({ total, segments }: { total: number; segments: { value: number; 
   const r = 42;
   const c = 2 * Math.PI * r;
   const sum = segments.reduce((s, x) => s + x.value, 0) || 1;
-  let acc = 0;
+  // Each segment starts where the previous ones end.
+  const lens = segments.map((seg) => (seg.value / sum) * c);
+  const starts = lens.map((_, i) => lens.slice(0, i).reduce((a, b) => a + b, 0));
   return (
     <div className="relative h-28 w-28 shrink-0">
       <svg viewBox="0 0 100 100" className="h-28 w-28 -rotate-90">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="hsl(var(--secondary))" strokeWidth="10" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(var(--w),.08)" strokeWidth="10" />
         {segments.map((seg, i) => {
           if (seg.value <= 0) return null;
-          const len = (seg.value / sum) * c;
-          const el = (
+          const len = lens[i];
+          return (
             <circle
               key={i}
               cx="50"
@@ -328,27 +395,29 @@ function Donut({ total, segments }: { total: number; segments: { value: number; 
               stroke={seg.color}
               strokeWidth="10"
               strokeDasharray={`${len} ${c - len}`}
-              strokeDashoffset={-acc}
+              strokeDashoffset={-starts[i]}
               strokeLinecap="round"
             />
           );
-          acc += len;
-          return el;
         })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-semibold tabular-nums">{total}</span>
-        <span className="text-[11px] text-muted-foreground">Total tasks</span>
+        <span className="disp stat" style={{ fontSize: 24, fontWeight: 600 }}>
+          {total}
+        </span>
+        <span className="muted" style={{ fontSize: 11 }}>
+          Total tasks
+        </span>
       </div>
     </div>
   );
 }
 
 const TASK_PILL: Record<string, { label: string; cls: string }> = {
-  IN_PROGRESS: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
-  ONGOING: { label: 'In progress', cls: 'bg-amber-100 text-amber-700' },
-  NOT_STARTED: { label: 'Pending', cls: 'bg-blue-100 text-blue-700' },
-  COMPLETED: { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700' },
+  IN_PROGRESS: { label: 'In progress', cls: 'chip c-on' },
+  ONGOING: { label: 'In progress', cls: 'chip c-on' },
+  NOT_STARTED: { label: 'Pending', cls: 'chip c-ns' },
+  COMPLETED: { label: 'Completed', cls: 'chip c-ok' },
 };
 
 function TasksOverviewCard() {
@@ -364,17 +433,19 @@ function TasksOverviewCard() {
   });
 
   return (
-    <Card className="h-full">
-      <CardHeader className="flex-col items-stretch gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-        <CardTitle className="text-base">Task Overview</CardTitle>
-        <div className="flex items-center gap-3">
-          <TaskCustomerPicker customers={custQ.data?.items ?? []} selected={clientId} onSelect={setClientId} />
-          <Link to="/admin/tasks" className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline">
-            View all <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
+    <section className="glass up" style={{ height: '100%' }}>
+      <SectionHead
+        title="Task overview"
+        action={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <TaskCustomerPicker customers={custQ.data?.items ?? []} selected={clientId} onSelect={setClientId} />
+            <Link to="/admin/tasks" className="btn bg sm">
+              View all <ArrowRight />
+            </Link>
+          </div>
+        }
+      />
+      <div style={{ padding: '18px 22px 20px' }}>
         {isLoading || !data ? (
           <div className="space-y-3">
             <Skeleton className="h-28 w-28 rounded-full" />
@@ -386,46 +457,73 @@ function TasksOverviewCard() {
               <Donut
                 total={data.total}
                 segments={[
-                  { value: data.inProgress, color: '#f59e0b' },
-                  { value: data.pending, color: '#3b82f6' },
-                  { value: data.completed, color: '#10b981' },
+                  { value: data.inProgress, color: '#5B7FC7' },
+                  { value: data.pending, color: '#0F2340' },
+                  { value: data.completed, color: '#2DB98A' },
                 ]}
               />
-              <ul className="space-y-2.5 text-sm">
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, fontSize: 13 }} className="space-y-2.5">
                 <li className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                  <span className="font-semibold tabular-nums">{data.inProgress}</span>
-                  <span className="text-muted-foreground">In progress</span>
+                  <span className="dot" style={{ color: '#5B7FC7' }} />
+                  <span className="stat" style={{ fontWeight: 600 }}>
+                    {data.inProgress}
+                  </span>
+                  <span className="muted">In progress</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                  <span className="font-semibold tabular-nums">{data.pending}</span>
-                  <span className="text-muted-foreground">Pending</span>
+                  <span className="dot" style={{ color: 'var(--mu)' }} />
+                  <span className="stat" style={{ fontWeight: 600 }}>
+                    {data.pending}
+                  </span>
+                  <span className="muted">Pending</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  <span className="font-semibold tabular-nums">{data.completed}</span>
-                  <span className="text-muted-foreground">Completed</span>
+                  <span className="dot" style={{ color: '#2DB98A' }} />
+                  <span className="stat" style={{ fontWeight: 600 }}>
+                    {data.completed}
+                  </span>
+                  <span className="muted">Completed</span>
                 </li>
               </ul>
             </div>
 
             <div className="min-w-0 flex-1">
               {data.upcoming.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No open tasks — everything is done.</p>
+                <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                  No open tasks — everything is done.
+                </p>
               ) : (
-                <ul className="divide-y divide-border">
-                  {data.upcoming.map((t) => {
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {data.upcoming.map((t, i) => {
                     const pill = TASK_PILL[t.progress] ?? TASK_PILL.NOT_STARTED;
                     return (
-                      <li key={t.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                      <li
+                        key={t.id}
+                        className="row"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          padding: '10px 0',
+                          borderTop: i ? '1px solid rgba(var(--w),.05)' : undefined,
+                        }}
+                      >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{t.title}</p>
-                          <p className="truncate text-xs text-muted-foreground">{t.customer}</p>
+                          <div className="truncate" style={{ fontWeight: 500 }}>
+                            {t.title}
+                          </div>
+                          <div className="muted truncate" style={{ fontSize: 12 }}>
+                            {t.customer}
+                          </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
-                          <span className="text-xs text-muted-foreground">{t.dueDate ? formatDate(t.dueDate) : '—'}</span>
-                          <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium', pill.cls)}>{pill.label}</span>
+                          <span className="muted" style={{ fontSize: 12 }}>
+                            {t.dueDate ? formatDate(t.dueDate) : '—'}
+                          </span>
+                          <span className={pill.cls} style={{ padding: '2px 8px', fontSize: 11 }}>
+                            {pill.label}
+                          </span>
                         </div>
                       </li>
                     );
@@ -435,8 +533,8 @@ function TasksOverviewCard() {
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -484,16 +582,20 @@ function TaskCustomerPicker({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-9 min-w-[190px] items-center gap-2 rounded-lg border border-input bg-card px-2.5 text-sm shadow-sm transition hover:border-ring"
+        className="inp flex items-center gap-2"
+        style={{ minHeight: 36, minWidth: 190, padding: '0 10px', fontSize: 13, cursor: 'pointer' }}
       >
-        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <Building2 className="h-4 w-4 shrink-0" style={{ color: 'var(--mu)' }} />
         <span className="flex-1 truncate text-left font-medium">{label}</span>
-        <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
+        <ChevronDown className={cn('h-4 w-4 shrink-0 transition', open && 'rotate-180')} style={{ color: 'var(--mu)' }} />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-[300px] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
-          <div className="relative border-b border-border p-2">
+        <div
+          className="glass absolute right-0 z-30 mt-1 w-[300px] overflow-hidden"
+          style={{ boxShadow: '0 20px 40px -16px rgba(15,35,64,.45)' }}
+        >
+          <div className="relative p-2" style={{ borderBottom: '1px solid rgba(var(--w),.06)' }}>
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               autoFocus
@@ -506,9 +608,13 @@ function TaskCustomerPicker({
           <div className="max-h-72 overflow-y-auto p-1">
             <button
               type="button"
-              onClick={() => { onSelect(''); setOpen(false); setQ(''); }}
+              onClick={() => {
+                onSelect('');
+                setOpen(false);
+                setQ('');
+              }}
               className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-secondary',
+                'row flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm',
                 selected === '' && 'bg-secondary'
               )}
             >
@@ -516,7 +622,7 @@ function TaskCustomerPicker({
                 <Users className="h-4 w-4" />
               </span>
               <span className="flex-1 font-medium">All customers</span>
-              {selected === '' && <Check className="h-4 w-4 shrink-0 text-primary" />}
+              {selected === '' && <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--brand)' }} />}
             </button>
             {filtered.map((c) => {
               const active = c.clientId === selected;
@@ -524,9 +630,13 @@ function TaskCustomerPicker({
                 <button
                   key={c.clientId}
                   type="button"
-                  onClick={() => { onSelect(c.clientId); setOpen(false); setQ(''); }}
+                  onClick={() => {
+                    onSelect(c.clientId);
+                    setOpen(false);
+                    setQ('');
+                  }}
                   className={cn(
-                    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-secondary',
+                    'row flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm',
                     active && 'bg-secondary'
                   )}
                 >
@@ -537,7 +647,7 @@ function TaskCustomerPicker({
                     <div className="truncate font-medium">{customerName(c)}</div>
                     <div className="truncate text-xs text-muted-foreground">{c.clientId}</div>
                   </div>
-                  {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                  {active && <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--brand)' }} />}
                 </button>
               );
             })}
@@ -555,56 +665,121 @@ function TotalProductsCard() {
   });
 
   return (
-    <Card className="h-full">
-      <CardHeader className="flex-row items-center justify-between">
-        <div className="flex items-center gap-2">
-          <CardTitle className="text-base">Total Products</CardTitle>
-          {data && (
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
-              {data.meta.total}
-            </span>
-          )}
+    <section className="glass up" style={{ overflow: 'hidden', height: '100%' }}>
+      <SectionHead
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            Total products
+            {data && (
+              <span className="chip c-ns" style={{ padding: '2px 8px', fontSize: 11 }}>
+                {data.meta.total}
+              </span>
+            )}
+          </span>
+        }
+        action={
+          <Link to="/admin/products" className="btn bg sm">
+            View all <ArrowRight />
+          </Link>
+        }
+      />
+      {isLoading ? (
+        <div className="space-y-2" style={{ padding: '18px 22px' }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
         </div>
-        <Link to="/admin/products" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-          View all <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </CardHeader>
-      <CardContent className="pt-0">
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        ) : !data?.items.length ? (
+      ) : !data?.items.length ? (
+        <div style={{ padding: '18px 22px' }}>
           <EmptyState title="No products" description="Products you add will appear here." />
-        ) : (
-          <ul className="space-y-3">
-            {data.items.map((p) => {
-              return (
-              <li key={p.id} className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-                  <ProductGlyph parts={[p.name, p.category, p.type]} className="h-[20px] w-[20px]" />
+        </div>
+      ) : (
+        <ul className="stag" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {data.items.map((p, i) => (
+            <li
+              key={p.id}
+              className="row"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '12px 22px',
+                borderTop: i ? '1px solid rgba(var(--w),.05)' : undefined,
+              }}
+            >
+              <span className="ico">
+                <ProductGlyph parts={[p.name, p.category, p.type]} className="h-[18px] w-[18px]" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate" style={{ fontWeight: 500 }}>
+                  {p.name}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">{p.category || p.productCode}</p>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {p.category || p.productCode}
                 </div>
-                <span
-                  className={cn(
-                    'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                    p.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                  )}
-                >
-                  {p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                </span>
-              </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+              </div>
+              <span className={p.status === 'ACTIVE' ? 'chip c-ok' : 'chip c-ns'}>
+                <span className="dot" />
+                {p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Timeline rows in the style of the client Overview's "Recent activity". */
+function TimelineList({
+  items,
+  color,
+  rightColor,
+}: {
+  items: { key: string; title: string; sub: string; right: string }[];
+  color: string;
+  rightColor?: string;
+}) {
+  if (!items.length) {
+    return (
+      <p className="muted" style={{ margin: 0, padding: '14px 22px', fontSize: 13 }}>
+        Nothing yet.
+      </p>
+    );
+  }
+  return (
+    <div className="stag" style={{ padding: '16px 22px 4px' }}>
+      {items.map((a) => (
+        <div key={a.key} style={{ display: 'flex', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <span
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                border: `2px solid ${color}`,
+                marginTop: 4,
+                boxShadow: `0 0 10px ${color}`,
+              }}
+            />
+            <span style={{ flex: 1, width: 1, background: 'rgba(var(--w),.08)', margin: '4px 0' }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'space-between', gap: 12, paddingBottom: 14 }}>
+            <div className="min-w-0">
+              <div className="truncate" style={{ fontWeight: 500, fontSize: 14 }}>
+                {a.title}
+              </div>
+              <div className="muted truncate" style={{ fontSize: 12.5, marginTop: 2 }}>
+                {a.sub}
+              </div>
+            </div>
+            <div className="stat" style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', color: rightColor }}>
+              {a.right}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -622,78 +797,67 @@ function RecentActivity() {
       }
     | undefined;
 
+  const loadingRows = (
+    <div className="space-y-2" style={{ padding: '14px 22px' }}>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-8 w-full" />
+      ))}
+    </div>
+  );
+
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent Customers</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="space-y-2 p-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-8 w-full" />
-              ))}
-            </div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {recent?.customers.map((c) => (
-                <li key={c.clientId} className="flex items-center justify-between px-5 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">{c.companyName || c.contactPerson || c.clientId}</p>
-                    <p className="text-xs text-muted-foreground">{c.clientId}</p>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
+      <section className="glass up" style={{ overflow: 'hidden' }}>
+        <SectionHead title="Recent customers" />
+        {isLoading ? (
+          loadingRows
+        ) : (
+          <TimelineList
+            color="#2DB98A"
+            items={(recent?.customers ?? []).map((c) => ({
+              key: c.clientId,
+              title: c.companyName || c.contactPerson || c.clientId,
+              sub: c.clientId,
+              right: formatDate(c.createdAt),
+            }))}
+          />
+        )}
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent Invoices</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {!isLoading && (
-            <ul className="divide-y divide-border">
-              {recent?.invoices.map((i) => (
-                <li key={i.id} className="flex items-center justify-between px-5 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">{i.invoiceNumber}</p>
-                    <p className="text-xs text-muted-foreground">{i.customer?.companyName ?? '—'}</p>
-                  </div>
-                  <span className="text-sm font-medium tabular-nums">{formatCurrency(i.total)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <section className="glass up" style={{ overflow: 'hidden' }}>
+        <SectionHead title="Recent invoices" />
+        {isLoading ? (
+          loadingRows
+        ) : (
+          <TimelineList
+            color="#5B7FC7"
+            items={(recent?.invoices ?? []).map((i) => ({
+              key: i.id,
+              title: i.invoiceNumber,
+              sub: i.customer?.companyName ?? '—',
+              right: formatCurrency(i.total),
+            }))}
+          />
+        )}
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent Payments</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {!isLoading && (
-            <ul className="divide-y divide-border">
-              {recent?.payments.map((p) => (
-                <li key={p.id} className="flex items-center justify-between px-5 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">{p.invoice?.invoiceNumber ?? 'Payment'}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(p.paidAt)}</p>
-                  </div>
-                  <span className="text-sm font-medium tabular-nums text-success">
-                    {formatCurrency(p.amount)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <section className="glass up" style={{ overflow: 'hidden' }}>
+        <SectionHead title="Recent payments" />
+        {isLoading ? (
+          loadingRows
+        ) : (
+          <TimelineList
+            color="#E39B2E"
+            rightColor="var(--okT)"
+            items={(recent?.payments ?? []).map((p) => ({
+              key: p.id,
+              title: p.invoice?.invoiceNumber ?? 'Payment',
+              sub: formatDate(p.paidAt),
+              right: formatCurrency(p.amount),
+            }))}
+          />
+        )}
+      </section>
     </div>
   );
 }

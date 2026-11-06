@@ -1,5 +1,3 @@
-import { ListChecks } from 'lucide-react';
-import { PageHeader } from '@/components/shared/misc';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { employeeTaskApi } from '@/api/tasks';
 
@@ -10,9 +8,17 @@ import { employeeTaskApi } from '@/api/tasks';
  */
 export default function EmployeeTasksPage() {
   return (
-    <div className="space-y-6">
-      <PageHeader title="Tasks" description="Tasks assigned to you across all customers." icon={ListChecks} iconTone="sky" />
-      <TaskBoard api={employeeTaskApi()} scopeKey="employee" readOnly groupTabs />
+    <div className="ec-page">
+      <div className="up">
+        <div className="eyebrow">Task board</div>
+        <h1 className="disp ec-h1">Your tasks</h1>
+        <p className="muted" style={{ margin: 0 }}>
+          Tasks assigned to you across all customers. Open any task to see files, approvals and chat.
+        </p>
+      </div>
+      <section className="glass up" style={{ animationDelay: '.1s', padding: 16, overflow: 'hidden' }}>
+        <TaskBoard api={employeeTaskApi()} scopeKey="employee" readOnly groupTabs />
+      </section>
     </div>
   );
 }

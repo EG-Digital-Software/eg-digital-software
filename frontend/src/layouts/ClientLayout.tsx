@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { Building2, FileSignature, Home, ListChecks, Package, Receipt, User } from 'lucide-react';
+import { Box, Building2, FileSignature, Home, ListChecks, ReceiptText, User } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
 import { cn } from '@/lib/utils';
 import { CLIENT_TASK_SUMMARY_KEY, useClientTaskActivity } from '@/lib/taskSeen';
-import { ElomaPortalShell } from '@/components/layout/ElomaPortalShell';
+import { PortalShell } from '@/components/layout/PortalShell';
 import { needsSignature } from '@/lib/agreements';
 
 // Account status → label + dot shown in the account menu.
@@ -31,25 +31,38 @@ export function ClientLayout() {
   const openTasks = tasks?.filter((t) => t.progress !== 'COMPLETED').length ?? 0;
   const toSign = profile?.documents?.filter(needsSignature).length ?? 0;
   const accountName = profile?.companyName?.trim() || profile?.contactPerson?.trim() || undefined;
+  const country = profile?.registrationCountry
+    ? (new Intl.DisplayNames(['en'], { type: 'region' }).of(profile.registrationCountry) ?? 'Australia')
+    : 'Australia';
 
   return (
-    <ElomaPortalShell
+    <PortalShell
       portalName="Client Portal"
       home="/client/dashboard"
+      assistant
+      asidePath="/client/dashboard"
+      searchLabel="Search tasks, invoices and agreements"
+      menuItems={[{ label: 'My account', icon: User, to: '/client/account' }]}
       crumbRoot={accountName?.replace(/\s+(pty\.?\s+ltd\.?|ltd\.?|limited|inc\.?)$/i, '')}
-      contextRight={
+      accountLine={
         accountName && (
           <>
-            <b>{accountName}</b>
-            {profile?.clientId && <span className="el-mono"> · {profile.clientId}</span>}
+            <span style={{ color: 'var(--fg)' }}>{accountName}</span>
+            {profile?.clientId && (
+              <>
+                {' · '}
+                <span className="mono">{profile.clientId}</span>
+              </>
+            )}
+            {' · '}
+            {country}
           </>
         )
       }
-      menuItems={[{ label: 'My account', icon: User, to: '/client/account' }]}
       nav={[
         { to: '/client/dashboard', label: 'Overview', icon: Home },
-        { to: '/client/licences', label: 'Products', icon: Package },
-        { to: '/client/invoices', label: 'Invoices', icon: Receipt },
+        { to: '/client/licences', label: 'Products', icon: Box },
+        { to: '/client/invoices', label: 'Invoices', icon: ReceiptText },
         {
           to: '/client/tasks',
           label: 'Tasks',
@@ -60,7 +73,7 @@ export function ClientLayout() {
             ? 'Tasks are locked while your account is suspended. Please contact your account manager.'
             : undefined,
         },
-        { to: '/client/agreement', label: 'Agreements', icon: FileSignature, count: toSign, countTone: 'warn' },
+        { to: '/client/agreement', label: 'Agreements', icon: FileSignature, count: toSign, countTone: 'orange' },
         { to: '/client/details', label: 'Company', icon: Building2 },
       ]}
       menuStatus={

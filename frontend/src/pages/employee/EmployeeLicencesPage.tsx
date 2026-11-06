@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { KeyRound, Search } from 'lucide-react';
 import { employeeApi } from '@/api/staff-portal';
 import { PageHeader } from '@/components/shared/misc';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -49,11 +48,27 @@ export default function EmployeeLicencesPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Licence Monitoring" description="Licences expiring, critical or expired" icon={KeyRound} iconTone="amber" />
+    <div className="ec-page">
+      <PageHeader eyebrow="Licences" title="Licence monitoring" description="Licences expiring, critical or expired." />
 
-      <Card>
-        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
+      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Needing attention', value: data?.length },
+          { label: 'Expiring soon', value: data?.filter((l) => l.status === 'EXPIRING_SOON').length, color: 'var(--wT)' },
+          { label: 'Critical', value: data?.filter((l) => l.status === 'CRITICAL').length, color: 'var(--rT)' },
+          { label: 'Expired', value: data?.filter((l) => l.status === 'EXPIRED').length, color: 'var(--rT)' },
+        ].map((s) => (
+          <div key={s.label} className="glass card" style={{ padding: 16 }}>
+            <div className="eyebrow">{s.label}</div>
+            <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6, color: s.color }}>
+              {s.value ?? '–'}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <section className="glass up" style={{ animationDelay: '.12s', overflow: 'hidden' }}>
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center" style={{ borderBottom: '1px solid rgba(var(--w),.06)' }}>
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -71,7 +86,7 @@ export default function EmployeeLicencesPage() {
               </option>
             ))}
           </Select>
-          <span className="hidden shrink-0 text-xs font-medium text-muted-foreground lg:block">
+          <span className="muted hidden shrink-0 text-xs font-medium lg:block">
             {rows.length} {rows.length === 1 ? 'licence' : 'licences'}
           </span>
         </div>
@@ -133,7 +148,7 @@ export default function EmployeeLicencesPage() {
                       {l.product}
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{l.licence}</TableCell>
+                  <TableCell className="mono text-xs">{l.licence}</TableCell>
                   <TableCell className="text-sm">{formatDate(l.expiryDate)}</TableCell>
                   <TableCell className="text-right tabular-nums">{l.daysRemaining ?? '—'}</TableCell>
                   <TableCell>
@@ -145,7 +160,7 @@ export default function EmployeeLicencesPage() {
             </TableBody>
           </Table>
         )}
-      </Card>
+      </section>
     </div>
   );
 }

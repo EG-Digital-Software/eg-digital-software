@@ -1,12 +1,11 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Printer, CreditCard, FileText } from 'lucide-react';
+import { ArrowLeft, Printer, CreditCard } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
-import { PageHeader } from '@/components/shared/misc';
-import { Button } from '@/components/ui/button';
 import { InvoicePreview } from '@/components/invoice/InvoicePreview';
 import { LoadingBlock, ErrorState } from '@/components/shared/states';
 import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 export default function ClientInvoiceDetail() {
   const { id } = useParams();
@@ -24,32 +23,34 @@ export default function ClientInvoiceDetail() {
   const isPaid = invoice.status === 'PAID' || balance <= 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/client/invoices">
-            <ArrowLeft className="h-4 w-4" />
+    <div className="ec-page">
+      <div
+        className="up print:hidden"
+        style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}
+      >
+        <div>
+          <div className="eyebrow">Billing · Invoice</div>
+          <h1 className="disp ec-h1">
+            {invoice.invoiceNumber}
+          </h1>
+          <p className="muted" style={{ margin: 0 }}>
+            Issued {formatDate(invoice.invoiceDate)} · Due {formatDate(invoice.dueDate)} ·{' '}
+            {isPaid ? 'Settled' : `${formatCurrency(balance)} outstanding`}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Link to="/client/invoices" className="btn bg">
+            <ArrowLeft /> All invoices
           </Link>
-        </Button>
-        <PageHeader
-          title={invoice.invoiceNumber}
-          icon={FileText}
-          iconTone="indigo"
-          actions={
-            <>
-              <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="h-4 w-4" /> Print / PDF
-              </Button>
-              {!isPaid && invoice.paymentUrl && (
-                <Button asChild>
-                  <a href={invoice.paymentUrl} target="_blank" rel="noreferrer">
-                    <CreditCard className="h-4 w-4" /> Pay Now
-                  </a>
-                </Button>
-              )}
-            </>
-          }
-        />
+          <button type="button" className="btn bg" onClick={() => window.print()}>
+            <Printer /> Print / PDF
+          </button>
+          {!isPaid && invoice.paymentUrl && (
+            <a href={invoice.paymentUrl} target="_blank" rel="noreferrer" className="btn bp">
+              <CreditCard /> Pay now
+            </a>
+          )}
+        </div>
       </div>
 
       <InvoicePreview invoice={invoice} />

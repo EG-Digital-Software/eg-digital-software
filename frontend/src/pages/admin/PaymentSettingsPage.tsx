@@ -15,11 +15,12 @@ import {
   PlugZap,
   CircleCheck,
   CircleAlert,
+  FileText,
+  type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { settingsApi, type PaymentSettingsInput } from '@/api/resources';
 import { api, apiErrorMessage } from '@/api/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Textarea, Select } from '@/components/ui/input';
 import { numericField, titleCaseField } from '@/lib/input';
 import { Label } from '@/components/ui/label';
@@ -136,9 +137,12 @@ export default function PaymentSettingsForm() {
   const bankOn = watch('bankTransferEnabled');
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-sm text-muted-foreground">
+    <form onSubmit={handleSubmit(onSubmit)} className="ec-page" style={{ maxWidth: 860 }}>
+      <div
+        className="glass"
+        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px' }}
+      >
+        <p className="muted" style={{ margin: 0, maxWidth: 600, fontSize: 13.5 }}>
           Configure your payment gateway and bank transfer details. These appear on invoices and the
           pay page. Card surcharges are not charged — they are banned in Australia from 1 October 2026.
         </p>
@@ -148,13 +152,9 @@ export default function PaymentSettingsForm() {
       </div>
 
       {/* Gateway */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <KeyRound className="h-4 w-4 text-primary" /> Payment gateway
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <section className="glass up">
+        <SectionHead icon={KeyRound} title="Payment gateway" />
+        <div className="grid grid-cols-1 gap-4 p-[22px] sm:grid-cols-2">
           <Field label="Provider" error={errors.provider?.message}>
             <Select {...register('provider')}>
               <option value="worldline">ANZ Worldline (Global Online Pay)</option>
@@ -236,18 +236,16 @@ export default function PaymentSettingsForm() {
                   Merchant Portal.
                 </p>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-4 py-3 sm:col-span-2">
+              <div className="tile flex flex-wrap items-center justify-between gap-3 sm:col-span-2">
                 <span className="flex items-center gap-2 text-sm">
                   {data.worldlineReady ? (
-                    <>
-                      <CircleCheck className="h-4 w-4 text-success" /> Card payments go through
-                      ANZ Worldline
-                    </>
+                    <span className="chip c-ok" style={{ whiteSpace: 'normal' }}>
+                      <CircleCheck className="h-3.5 w-3.5" /> Card payments go through ANZ Worldline
+                    </span>
                   ) : (
-                    <>
-                      <CircleAlert className="h-4 w-4 text-destructive" /> Enter the PSPID, API
-                      Key ID and API Secret, then save
-                    </>
+                    <span className="chip c-red" style={{ whiteSpace: 'normal' }}>
+                      <CircleAlert className="h-3.5 w-3.5" /> Enter the PSPID, API Key ID and API Secret, then save
+                    </span>
                   )}
                 </span>
                 <Button
@@ -289,33 +287,25 @@ export default function PaymentSettingsForm() {
             again after saving. Live charges require a real gateway; “Mock” simulates payments for
             testing.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Card payments */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CreditCard className="h-4 w-4 text-primary" /> Card payments
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <section className="glass up">
+        <SectionHead icon={CreditCard} title="Card payments" />
+        <div className="space-y-4 p-[22px]">
           <Toggle
             label="Accept card payments"
             description="Show card options (Visa, Mastercard, Amex, Google Pay) on invoices and the pay page."
             {...register('cardPaymentsEnabled')}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* UPI / Google Pay */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Smartphone className="h-4 w-4 text-primary" /> UPI / Google Pay
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <section className="glass up">
+        <SectionHead icon={Smartphone} title="UPI / Google Pay" />
+        <div className="space-y-4 p-[22px]">
           <Toggle
             label="Accept UPI / Google Pay / PhonePe"
             description="Show a UPI option (with QR + intent link) on invoices and the pay page."
@@ -333,17 +323,13 @@ export default function PaymentSettingsForm() {
               {...register('upiId')}
             />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Bank transfer */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Landmark className="h-4 w-4 text-primary" /> Bank transfer (EFT)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <section className="glass up">
+        <SectionHead icon={Landmark} title="Bank transfer (EFT)" />
+        <div className="space-y-4 p-[22px]">
           <Toggle
             label="Offer bank transfer"
             description="Display these account details on invoices and the pay page for direct deposit."
@@ -363,15 +349,13 @@ export default function PaymentSettingsForm() {
               <Input disabled={!bankOn} maxLength={10} placeholder="12345678" {...numericField(register('accountNumber'))} />
             </Field>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Instructions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Payment Instructions / Note</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section className="glass up">
+        <SectionHead icon={FileText} title="Payment instructions / note" />
+        <div className="p-[22px]">
           <Field label="Note shown on invoice & pay page" error={errors.payInstructions?.message}>
             <Textarea
               rows={3}
@@ -379,15 +363,31 @@ export default function PaymentSettingsForm() {
               {...register('payInstructions')}
             />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <div className="flex justify-end">
-        <Button type="submit" size="lg" disabled={isSubmitting || save.isPending || !isDirty}>
+        <Button type="submit" disabled={isSubmitting || save.isPending || !isDirty}>
           {save.isPending ? <Spinner /> : <Save className="h-4 w-4" />} Save changes
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Header row of a glass settings section (icon tile + title). */
+function SectionHead({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+  return (
+    <div
+      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 22px', borderBottom: '1px solid rgba(var(--w),.06)' }}
+    >
+      <span className="ico">
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+      <h2 className="disp" style={{ margin: 0, fontSize: 18 }}>
+        {title}
+      </h2>
+    </div>
   );
 }
 

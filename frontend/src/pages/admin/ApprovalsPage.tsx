@@ -7,12 +7,9 @@ import { adminApi, type PendingUser, type ApprovalStatus } from '@/api/resources
 import { apiErrorMessage } from '@/api/client';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, Pagination } from '@/components/shared/misc';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
@@ -27,10 +24,10 @@ import { EmptyState, ErrorState, Spinner } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { formatDate, initials } from '@/lib/utils';
 
-const ROLE_BADGE: Record<string, { label: string; variant: 'default' | 'warning' | 'secondary' }> = {
-  CLIENT: { label: 'Customer', variant: 'default' },
-  SUPPLIER: { label: 'Supplier', variant: 'warning' },
-  EMPLOYEE: { label: 'Team', variant: 'secondary' },
+const ROLE_BADGE: Record<string, { label: string; cls: string }> = {
+  CLIENT: { label: 'Customer', cls: 'c-on' },
+  SUPPLIER: { label: 'Supplier', cls: 'c-warn' },
+  EMPLOYEE: { label: 'Team', cls: 'c-info' },
 };
 
 // Per-role avatar gradient — matches the portal accent colours.
@@ -40,10 +37,10 @@ const ROLE_GRADIENT: Record<string, string> = {
   EMPLOYEE: 'from-[#0284c7] to-[#38bdf8]',
 };
 
-const STATUS_BADGE: Record<ApprovalStatus, { label: string; variant: 'success' | 'warning' | 'destructive' }> = {
-  APPROVED: { label: 'Approved', variant: 'success' },
-  PENDING: { label: 'Pending', variant: 'warning' },
-  REJECTED: { label: 'Rejected', variant: 'destructive' },
+const STATUS_BADGE: Record<ApprovalStatus, { label: string; cls: string }> = {
+  APPROVED: { label: 'Approved', cls: 'c-ok' },
+  PENDING: { label: 'Pending', cls: 'c-warn' },
+  REJECTED: { label: 'Rejected', cls: 'c-red' },
 };
 
 const TABS: Array<{ value: string; label: string; status?: ApprovalStatus }> = [
@@ -122,42 +119,56 @@ export default function ApprovalsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="ec-page">
       <PageHeader
-        title="Registration Approvals"
-        description="Review Customer and Team sign-up requests, and manage access after the fact"
-        icon={ShieldCheck}
-        iconTone="amber"
+        eyebrow="Approvals"
+        title="Registration approvals"
+        description="Review Customer and Team sign-up requests, and manage access after the fact."
         actions={
-          <Button onClick={() => setAddOpen(true)}>
-            <UserPlus className="h-4 w-4" /> Add Employee
-          </Button>
+          <button type="button" className="btn bp" onClick={() => setAddOpen(true)}>
+            <UserPlus /> Add Employee
+          </button>
         }
       />
 
-      <Tabs
-        value={tab}
-        onValueChange={(v) => {
-          setTab(v);
-          setPage(1);
-        }}
-      >
-        <TabsList>
-          {TABS.map((t) => (
-            <TabsTrigger key={t.value} value={t.value}>
-              {t.label}
-              {counts && t.status && counts[t.status] > 0 && (
-                <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-[11px] font-semibold tabular-nums">
-                  {counts[t.status]}
-                </span>
-              )}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Pending', value: counts?.PENDING, color: 'var(--wT)' },
+          { label: 'Approved', value: counts?.APPROVED, color: 'var(--okT)' },
+          { label: 'Rejected', value: counts?.REJECTED, color: 'var(--rT)' },
+        ].map((x) => (
+          <div key={x.label} className="glass card" style={{ padding: 16 }}>
+            <div className="eyebrow">{x.label}</div>
+            <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6, color: x.color }}>
+              {x.value ?? '–'}
+            </div>
+          </div>
+        ))}
+      </div>
 
-      <Card>
-        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
+      <section className="glass up" style={{ animationDelay: '.12s', overflow: 'hidden' }}>
+        <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center" style={{ borderBottom: '1px solid rgba(var(--w),.06)' }}>
+          <div className="segs" role="group" aria-label="Approval status">
+            {TABS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                className={`seg${tab === t.value ? ' on' : ''}`}
+                aria-pressed={tab === t.value}
+                onClick={() => {
+                  setTab(t.value);
+                  setPage(1);
+                }}
+              >
+                {t.label}
+                {counts && t.status && counts[t.status] > 0 && (
+                  <span className="mono" style={{ opacity: 0.7, marginLeft: 6 }}>
+                    {counts[t.status]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -185,14 +196,11 @@ export default function ApprovalsPage() {
         </div>
 
         {tab === 'PENDING' && !!counts?.PENDING && (
-          <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-warning/70" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-warning" />
-            </span>
-            <p className="text-sm font-medium">
+          <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: '1px solid rgba(var(--w),.06)' }}>
+            <span className="chip c-warn">
+              <span className="dot" />
               {counts.PENDING} {counts.PENDING === 1 ? 'request' : 'requests'} awaiting review
-            </p>
+            </span>
           </div>
         )}
 
@@ -262,19 +270,19 @@ export default function ApprovalsPage() {
                             <p className="truncate font-medium">
                               {u.firstName} {u.lastName}
                             </p>
-                            <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                            <p className="muted truncate text-xs">{u.email}</p>
                             {u.designation && (
-                              <p className="truncate text-xs font-medium text-sky-600">{u.designation}</p>
+                              <p className="truncate text-xs font-medium" style={{ color: 'var(--iT)' }}>{u.designation}</p>
                             )}
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <span className={`chip ${badge.cls}`}>{badge.label}</span>
                       </TableCell>
                       <TableCell>
                         {u.customer?.clientId ? (
-                          <span className="inline-flex rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
+                          <span className="chip c-ns mono" style={{ fontSize: 11 }}>
                             {u.customer.clientId}
                           </span>
                         ) : (
@@ -282,83 +290,79 @@ export default function ApprovalsPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={st.variant}>{st.label}</Badge>
+                        <span className={`chip ${st.cls}`}>
+                          <span className="dot" />
+                          {st.label}
+                        </span>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      <TableCell className="muted whitespace-nowrap text-sm">
                         {formatDate(u.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           {u.role === 'EMPLOYEE' && (
                             <>
-                              <Button
-                                size="sm"
-                                variant="outline"
+                              <button
+                                type="button"
+                                className="btn bg sm"
                                 onClick={() => setEditEmp(u)}
                                 title="Edit this team member's profile"
                               >
-                                <Pencil className="h-4 w-4" /> Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
+                                <Pencil /> Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="btn bg sm"
                                 onClick={() => setManagePw(u)}
                                 title="View or reset this team member's password"
                               >
-                                <KeyRound className="h-4 w-4" /> Password
-                              </Button>
+                                <KeyRound /> Password
+                              </button>
                             </>
                           )}
                           {u.approvalStatus === 'PENDING' && (
                             <>
-                              <Button size="sm" disabled={busy} onClick={() => approve.mutate(u.id)}>
-                                {busy ? (
-                                  <Spinner className="text-primary-foreground" />
-                                ) : (
-                                  <Check className="h-4 w-4" />
-                                )}
+                              <button type="button" className="btn bp sm" disabled={busy} onClick={() => approve.mutate(u.id)}>
+                                {busy ? <Spinner /> : <Check />}
                                 Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
+                              </button>
+                              <button
+                                type="button"
+                                className="btn bg sm"
                                 disabled={busy}
                                 onClick={() => setConfirm({ user: u, action: 'reject' })}
                               >
-                                <X className="h-4 w-4" /> Reject
-                              </Button>
+                                <X /> Reject
+                              </button>
                             </>
                           )}
                           {u.approvalStatus === 'APPROVED' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
+                            <button
+                              type="button"
+                              className="btn bg sm"
                               disabled={busy}
                               onClick={() => setConfirm({ user: u, action: 'reject' })}
                             >
-                              <X className="h-4 w-4" /> Revoke access
-                            </Button>
+                              <X /> Revoke access
+                            </button>
                           )}
                           {u.approvalStatus === 'REJECTED' && (
-                            <Button size="sm" disabled={busy} onClick={() => approve.mutate(u.id)}>
-                              {busy ? (
-                                <Spinner className="text-primary-foreground" />
-                              ) : (
-                                <RotateCcw className="h-4 w-4" />
-                              )}
+                            <button type="button" className="btn bp sm" disabled={busy} onClick={() => approve.mutate(u.id)}>
+                              {busy ? <Spinner /> : <RotateCcw />}
                               Re-approve
-                            </Button>
+                            </button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="outline"
+                          <button
+                            type="button"
+                            className="btn bg sm"
                             disabled={busy}
                             onClick={() => setConfirm({ user: u, action: 'delete' })}
                             title="Permanently delete this account"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Delete account"
+                            style={{ color: 'var(--rT)', width: 36, padding: 0 }}
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                            <Trash2 />
+                          </button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -369,7 +373,7 @@ export default function ApprovalsPage() {
             <Pagination meta={data.meta} onPageChange={setPage} />
           </>
         )}
-      </Card>
+      </section>
 
       <ConfirmDialog
         open={!!confirm}

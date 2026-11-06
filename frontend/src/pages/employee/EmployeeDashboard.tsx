@@ -1,29 +1,23 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Users, UserCheck, KeyRound, AlertTriangle, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { employeeApi } from '@/api/staff-portal';
 import { useAuth } from '@/store/auth';
-import { HeroWave, HeroHealthCluster, healthLabel } from '@/components/shared/HeroHealth';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { healthLabel } from '@/components/shared/HeroHealth';
 import { Skeleton } from '@/components/ui/misc';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LicenceBadge } from '@/components/shared/status';
 import { EmptyState } from '@/components/shared/states';
 import { formatNumber, formatDate } from '@/lib/utils';
 
-function Kpi({ title, icon: Icon, value, tone }: { title: string; icon: typeof Users; value: string; tone?: string }) {
+function Kpi({ title, value, color }: { title: string; value: string; color?: string }) {
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${tone ?? 'bg-primary/10 text-primary'}`}>
-            <Icon className="h-[18px] w-[18px]" />
-          </div>
-        </div>
-        <p className="mt-3 text-2xl font-semibold tracking-tight">{value}</p>
-      </CardContent>
-    </Card>
+    <div className="glass card" style={{ padding: 16 }}>
+      <div className="eyebrow">{title}</div>
+      <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6, color }}>
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -37,51 +31,45 @@ export default function EmployeeDashboard() {
   const healthPct = d && d.customers > 0 ? Math.round((d.activeCustomers / d.customers) * 100) : 100;
 
   return (
-    <div className="space-y-6">
+    <div className="ec-page">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[#eaf1ff] via-[#f3f7ff] to-[#e9f6ef] p-6 sm:p-8">
-        <HeroWave />
-        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-xl">
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">
-              Welcome, {user?.firstName ?? ''} <span className="align-middle">👋</span>
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Operational overview — customers and licence monitoring.
-            </p>
-          </div>
-          {d && <HeroHealthCluster title="Portfolio Health" pct={healthPct} label={healthLabel(healthPct)} />}
+      <div className="up" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20 }}>
+        <div>
+          <div className="eyebrow">Team portal</div>
+          <h1 className="disp ec-hero-h1">Welcome, {user?.firstName ?? ''}</h1>
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            Operational overview — customers and licence monitoring.
+          </p>
         </div>
+        {d && (
+          <span className={`chip ${healthPct >= 80 ? 'c-ok' : healthPct >= 50 ? 'c-warn' : 'c-red'}`}>
+            <span className="dot" />
+            Portfolio health {healthPct}% · {healthLabel(healthPct)}
+          </span>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         {dashQ.isLoading || !d ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="space-y-3 p-5">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-8 w-20" />
-              </CardContent>
-            </Card>
-          ))
+          Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass skel" style={{ height: 88 }} />)
         ) : (
           <>
-            <Kpi title="Customers" icon={Users} value={formatNumber(d.customers)} />
-            <Kpi title="Active Customers" icon={UserCheck} value={formatNumber(d.activeCustomers)} tone="bg-success/10 text-success" />
-            <Kpi title="Expiring Licences" icon={KeyRound} value={formatNumber(d.expiringLicences)} tone="bg-warning/10 text-[hsl(30_90%_38%)]" />
-            <Kpi title="Low Stock Items" icon={AlertTriangle} value={formatNumber(d.lowStock)} tone="bg-destructive/10 text-destructive" />
+            <Kpi title="Customers" value={formatNumber(d.customers)} />
+            <Kpi title="Active customers" value={formatNumber(d.activeCustomers)} color="var(--okT)" />
+            <Kpi title="Expiring licences" value={formatNumber(d.expiringLicences)} color="var(--wT)" />
+            <Kpi title="Low stock items" value={formatNumber(d.lowStock)} color="var(--rT)" />
           </>
         )}
       </div>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <CardTitle className="text-base">Licences needing attention</CardTitle>
-          <Link to="/employee/licences" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-            View all <ArrowRight className="h-3.5 w-3.5" />
+      <section className="glass up" style={{ animationDelay: '.12s', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 22px', borderBottom: '1px solid rgba(var(--w),.06)' }}>
+          <h2 className="disp" style={{ margin: 0, fontSize: 18 }}>Licences needing attention</h2>
+          <Link to="/employee/licences" className="btn bg sm">
+            View all <ArrowRight />
           </Link>
-        </CardHeader>
-        <CardContent className="p-0">
+        </div>
+        <div>
           {licQ.isLoading ? (
             <div className="space-y-2 p-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -121,8 +109,8 @@ export default function EmployeeDashboard() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   );
 }

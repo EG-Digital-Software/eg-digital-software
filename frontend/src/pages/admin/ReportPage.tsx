@@ -1,63 +1,47 @@
-import { BarChart3, Receipt, Wallet, Users } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/shared/states';
 
-function Kpi({
-  title,
-  icon: Icon,
-  value,
-  tone,
-}: {
-  title: string;
-  icon: typeof BarChart3;
-  value: string;
-  tone?: string;
-}) {
+function Kpi({ title, value, tone }: { title: string; value: string; tone?: string }) {
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div
-            className={`flex h-9 w-9 items-center justify-center rounded-lg ${tone ?? 'bg-primary/10 text-primary'}`}
-          >
-            <Icon className="h-[18px] w-[18px]" />
-          </div>
-        </div>
-        <p className="mt-3 text-2xl font-semibold tracking-tight">{value}</p>
-      </CardContent>
-    </Card>
+    <div className="glass card" style={{ padding: 20 }}>
+      <div className="eyebrow">{title}</div>
+      <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10, color: tone }}>
+        {value}
+      </div>
+    </div>
   );
 }
 
 export default function ReportPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Report</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+    <div className="ec-page">
+      <div className="up">
+        <div className="eyebrow">Insights</div>
+        <h1 className="disp ec-h1">Report</h1>
+        <p className="muted" style={{ margin: 0, maxWidth: 560 }}>
           Business reports across revenue, customers and payments.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi title="Total Revenue" icon={Wallet} value="—" tone="bg-success/10 text-success" />
-        <Kpi title="Invoices" icon={Receipt} value="—" />
-        <Kpi title="Customers" icon={Users} value="—" tone="bg-primary/10 text-primary" />
-        <Kpi title="Growth" icon={BarChart3} value="—" tone="bg-warning/10 text-[hsl(30_90%_38%)]" />
+      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <Kpi title="Total revenue" value="—" tone="var(--brand)" />
+        <Kpi title="Invoices" value="—" />
+        <Kpi title="Customers" value="—" tone="var(--vT)" />
+        <Kpi title="Growth" value="—" tone="var(--wT)" />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Reports</CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
+      <section className="glass up" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid rgba(var(--w),.06)' }}>
+          <h2 className="disp" style={{ margin: 0, fontSize: 18 }}>
+            Reports
+          </h2>
+        </div>
+        <div style={{ padding: 22 }}>
           <EmptyState
             title="No reports yet"
             description="Reporting charts and exports will appear here once wired to the dashboard API."
           />
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   );
 }

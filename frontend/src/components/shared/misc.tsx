@@ -1,40 +1,32 @@
 import type { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { IconBadge, type IconTone } from '@/components/ui/icon-badge';
+import type { IconTone } from '@/components/ui/icon-badge';
 import type { PageMeta } from '@/types';
 
 export function PageHeader({
   title,
   description,
   actions,
-  icon,
-  iconTone = 'primary',
+  eyebrow,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
-  /** Optional duotone icon shown to the left of the title. */
+  /** Small uppercase label above the title (e.g. "Billing"). */
+  eyebrow?: string;
+  /** Kept for existing call sites; the portal design shows no title icon. */
   icon?: LucideIcon;
   iconTone?: IconTone;
 }) {
   return (
-    <div className="animate-slide-up flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-3">
-        {/* `contents` keeps the layout as-is; the client portal theme hides it. */}
-        <span data-page-header-icon className="contents">
-          {icon ? (
-            <IconBadge icon={icon} tone={iconTone} size="lg" gradient className="mt-0.5" />
-          ) : (
-            <span className="mt-1 hidden h-8 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-primary to-[#34B98C] sm:block" />
-          )}
-        </span>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
-          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
-        </div>
+    <div className="up ec-ph">
+      <div>
+        {eyebrow && <span className="eyebrow">{eyebrow}</span>}
+        <h1 className="disp ec-h1">{title}</h1>
+        {description && <p className="muted desc">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2.5">{actions}</div>}
     </div>
   );
 }

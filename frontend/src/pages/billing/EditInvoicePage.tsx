@@ -4,12 +4,11 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Trash2, Receipt, Package, FileText, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Receipt, Package, FileText, CheckCircle, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { customerApi, invoiceApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { LineItemProduct } from '@/components/invoice/LineItemProduct';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +60,29 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const FILLED = 'border-slate-200 bg-slate-50 shadow-none';
+
+/** Header row of a glass form section (icon tile + title + optional action). */
+function SectionHead({ icon: Icon, title, action }: { icon: LucideIcon; title: string; action?: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '16px 22px',
+        borderBottom: '1px solid rgba(var(--w),.06)',
+      }}
+    >
+      <span className="ico">
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+      <h2 className="disp" style={{ margin: 0, fontSize: 18, flex: 1 }}>
+        {title}
+      </h2>
+      {action}
+    </div>
+  );
+}
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
@@ -265,33 +287,27 @@ export default function EditInvoicePage() {
           })),
         })
       )}
-      className="w-full space-y-6"
+      className="ec-page"
     >
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
-        <div className="flex items-center gap-3 border-b border-border/60 bg-secondary/30 px-5 py-4 sm:px-6">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to={`/admin/billing/${id}`}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">Edit Invoice</h1>
-            <p className="text-sm text-muted-foreground">{invoice.invoiceNumber}</p>
-          </div>
-          <span className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm">
-            <Receipt className="h-4 w-4" />
-          </span>
+      <div
+        className="up"
+        style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}
+      >
+        <div>
+          <div className="eyebrow">Billing · Edit invoice</div>
+          <h1 className="disp ec-h1">{invoice.invoiceNumber}</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            Update dates, line items and notes. Saving re-prices the invoice.
+          </p>
         </div>
+        <Link to={`/admin/billing/${id}`} className="btn bg">
+          <ArrowLeft /> Back to invoice
+        </Link>
       </div>
 
-      <Card>
-        <CardHeader className="flex-row items-center gap-3 space-y-0 rounded-t-2xl border-b border-border/60 bg-secondary/30">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Receipt className="h-[18px] w-[18px]" />
-          </div>
-          <CardTitle className="text-base">Invoice Details</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="glass up" style={{ animationDelay: '.06s' }}>
+        <SectionHead icon={Receipt} title="Invoice details" />
+        <div className="grid grid-cols-1 gap-4 p-[22px] sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Invoice Date">
             <Input className={FILLED} type="date" {...register('invoiceDate')} />
           </Field>
@@ -333,29 +349,26 @@ export default function EditInvoicePage() {
           <Field label="Reference">
             <Input className={FILLED} {...register('reference')} />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 rounded-t-2xl border-b border-border/60 bg-secondary/30">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Package className="h-[18px] w-[18px]" />
-            </div>
-            <CardTitle className="text-base">Line Items</CardTitle>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              append({ description: '', quantity: 1, unitPrice: 0, taxRate: 10, contractType: 'LOCKED', gstType: 'EXCLUSIVE' })
-            }
-          >
-            <Plus className="h-4 w-4" /> Add line
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-6">
+      <section className="glass up" style={{ animationDelay: '.1s' }}>
+        <SectionHead
+          icon={Package}
+          title="Line items"
+          action={
+            <button
+              type="button"
+              className="btn bg sm"
+              onClick={() =>
+                append({ description: '', quantity: 1, unitPrice: 0, taxRate: 10, contractType: 'LOCKED', gstType: 'EXCLUSIVE' })
+              }
+            >
+              <Plus /> Add line
+            </button>
+          }
+        />
+        <div className="space-y-3 p-[22px]">
           {fields.map((field, index) => {
             const it = items?.[index];
             // Product-backed lines bill a pro-rated price derived from the
@@ -366,7 +379,7 @@ export default function EditInvoicePage() {
             const gross = unitPrice * (Number(it?.quantity) || 0);
             const amount = it?.gstType === 'INCLUSIVE' ? gross : gross * (1 + (Number(it?.taxRate) || 0) / 100);
             return (
-              <div key={field.id} className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-slate-50/50 p-4 sm:grid-cols-12">
+              <div key={field.id} className="tile grid grid-cols-2 gap-3 sm:grid-cols-12">
                 <div className="sm:col-span-4">
                   <Field label="Product" error={errors.items?.[index]?.description?.message}>
                     {/* Product-backed line → read-only licence/SKU/agreed-price
@@ -431,7 +444,7 @@ export default function EditInvoicePage() {
                 <div className="flex items-end justify-between gap-2 sm:col-span-10">
                   <div>
                     <Label className="text-xs font-medium text-muted-foreground">Amount (incl. GST)</Label>
-                    <p className="mt-1.5 text-sm font-semibold tabular-nums text-primary">{formatCurrency(amount)}</p>
+                    <p className="mt-1.5 text-sm font-semibold tabular-nums" style={{ color: 'var(--brand)' }}>{formatCurrency(amount)}</p>
                   </div>
                   <Button
                     type="button"
@@ -462,32 +475,22 @@ export default function EditInvoicePage() {
               </div>
             );
           })}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="flex-row items-center gap-3 space-y-0 rounded-t-2xl border-b border-border/60 bg-secondary/30">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <FileText className="h-[18px] w-[18px]" />
-              </div>
-              <CardTitle className="text-base">Notes</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
+          <section className="glass up" style={{ animationDelay: '.14s' }}>
+            <SectionHead icon={FileText} title="Notes" />
+            <div className="p-[22px]">
               <Textarea className={cn(FILLED, 'min-h-[120px]')} placeholder="Notes visible on the invoice…" {...register('notes')} />
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </div>
 
-        <Card>
-          <CardHeader className="flex-row items-center gap-3 space-y-0 rounded-t-2xl border-b border-border/60 bg-secondary/30">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <CheckCircle className="h-[18px] w-[18px]" />
-            </div>
-            <CardTitle className="text-base">Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-6 text-sm">
+        <section className="glass up" style={{ animationDelay: '.18s' }}>
+          <SectionHead icon={CheckCircle} title="Summary" />
+          <div className="space-y-4 p-[22px] text-sm">
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal</span>
               <span className="tabular-nums text-foreground">{formatCurrency(totals.subtotal)}</span>
@@ -500,12 +503,12 @@ export default function EditInvoicePage() {
               <span className="text-muted-foreground">Discount</span>
               <Input className={cn(FILLED, 'h-8 w-28 text-right')} {...numericField(register('discount'), 'decimal')} />
             </div>
-            <div className="flex justify-between border-t border-border pt-4 text-lg font-bold text-primary">
+            <div className="disp flex justify-between border-t border-border pt-4 text-lg font-bold" style={{ color: 'var(--brand)' }}>
               <span>Total</span>
               <span className="tabular-nums">{formatCurrency(totals.total)}</span>
             </div>
             {Number(invoice.amountPaid) > 0 && (
-              <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <p className="chip c-warn" style={{ whiteSpace: 'normal', borderRadius: 10, padding: '8px 12px', fontSize: 12 }}>
                 {formatCurrency(invoice.amountPaid)} already paid on this invoice — editing the total changes the outstanding balance.
               </p>
             )}
@@ -517,8 +520,8 @@ export default function EditInvoicePage() {
                 {mutation.isPending && <Spinner />} Save changes
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
     </form>
   );

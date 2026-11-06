@@ -4,7 +4,6 @@ import { Search, Users } from 'lucide-react';
 import { employeeApi } from '@/api/staff-portal';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, Pagination } from '@/components/shared/misc';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
@@ -34,11 +33,24 @@ export default function EmployeeCustomersPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Customers" description="Customer directory (read-only)" icon={Users} iconTone="primary" />
+    <div className="ec-page">
+      <PageHeader eyebrow="Directory" title="Customers" description="Every customer on record. Read-only for the team." />
 
-      <Card>
-        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
+      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        <div className="glass card" style={{ padding: 16 }}>
+          <div className="eyebrow">{filtered ? 'Matching customers' : 'Customers'}</div>
+          <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>{data?.meta.total ?? '–'}</div>
+        </div>
+        <div className="glass card" style={{ padding: 16 }}>
+          <div className="eyebrow">Page</div>
+          <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>
+            {data ? `${data.meta.page} / ${Math.max(1, data.meta.totalPages)}` : '–'}
+          </div>
+        </div>
+      </div>
+
+      <section className="glass up" style={{ animationDelay: '.12s', overflow: 'hidden' }}>
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center" style={{ borderBottom: '1px solid rgba(var(--w),.06)' }}>
           <div className="relative w-full sm:max-w-md sm:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -112,7 +124,7 @@ export default function EmployeeCustomersPage() {
               <TableBody>
                 {data.items.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-mono text-xs font-medium text-primary">{c.clientId}</TableCell>
+                    <TableCell className="mono text-xs font-medium" style={{ color: 'var(--brand)' }}>{c.clientId}</TableCell>
                     <TableCell>
                       <p className="font-medium">{c.contactPerson || '—'}</p>
                       {c.contactEmail && (
@@ -173,7 +185,7 @@ export default function EmployeeCustomersPage() {
             <Pagination meta={data.meta} onPageChange={setPage} />
           </>
         )}
-      </Card>
+      </section>
     </div>
   );
 }

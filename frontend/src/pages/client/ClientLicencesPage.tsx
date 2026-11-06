@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Copy, KeyRound, Lock, Plus, Search } from 'lucide-react';
+import { Copy, KeyRound, Lock } from 'lucide-react';
 import { clientApi, type AvailableProduct, type ClientProduct } from '@/api/client-portal';
 import { apiErrorMessage } from '@/api/client';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EmptyState, ErrorState, Spinner } from '@/components/shared/states';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { ProductGlyph } from '@/lib/product-icon';
@@ -15,7 +14,6 @@ import { formatCountryPrice } from '@/lib/currencies';
 import { discountedPrice } from '@/lib/proration';
 import { Linkify } from '@/lib/linkify';
 import { BoldText } from '@/components/shared/BoldTextarea';
-import { ElPageHead, ElPill, ElSkel, type PillTone } from '@/components/client/eloma';
 import type { LicenceStatus } from '@/types';
 
 const STATUSES = [
@@ -26,12 +24,12 @@ const STATUSES = [
   { value: 'SUSPENDED', label: 'Suspended' },
 ];
 
-const STATUS_PILL: Record<LicenceStatus, { tone: PillTone; label: string }> = {
-  ACTIVE: { tone: 'ok', label: 'Active' },
-  EXPIRING_SOON: { tone: 'warn', label: 'Expiring soon' },
-  CRITICAL: { tone: 'bad', label: 'Critical' },
-  EXPIRED: { tone: 'bad', label: 'Expired' },
-  SUSPENDED: { tone: 'bad', label: 'Suspended' },
+const STATUS_CHIP: Record<LicenceStatus, { cls: string; label: string }> = {
+  ACTIVE: { cls: 'c-ok', label: 'Active' },
+  EXPIRING_SOON: { cls: 'c-warn', label: 'Expiring soon' },
+  CRITICAL: { cls: 'c-red', label: 'Critical' },
+  EXPIRED: { cls: 'c-red', label: 'Expired' },
+  SUSPENDED: { cls: 'c-red', label: 'Suspended' },
 };
 
 const CONTRACT_TERM_LABEL: Record<string, string> = {
@@ -41,7 +39,21 @@ const CONTRACT_TERM_LABEL: Record<string, string> = {
   CONTRACT_2_YEARS: 'Contract - 2 Years',
 };
 
-const BILLING_SUFFIX ={ DAILY: ' / day', WEEKLY: ' / week', MONTHLY: ' / month', ANNUALLY: ' / year', ONE_TIME: ' one-time' } as const;
+const BILLING_SUFFIX = { DAILY: ' / day', WEEKLY: ' / week', MONTHLY: ' / month', ANNUALLY: ' / year', ONE_TIME: ' one-time' } as const;
+
+/** "Everything we offer" catalogue, grouped as in the design. */
+const SERVICE_GROUPS: [string, string[]][] = [
+  ['Microsoft & Licensing', ['Microsoft Products', 'Microsoft Licensing', 'Microsoft Product Development']],
+  ['Marketing & Growth', ['Social Media Management', 'SEO', 'Local Listing', 'Google & Meta Ads', 'PPC', 'Designing']],
+  ['Development', ['Website', 'Software', 'SaaS', 'App Development', 'API Integrations']],
+  [
+    'Business Communications',
+    ['Toll-Free Number', 'Virtual Mobile Number', 'Landline Number', 'IVR System', 'Virtual Customer Care Support'],
+  ],
+  ['Cloud, Security & Support', ['Cybersecurity', 'Cloud Maintenance', 'Server Maintenance', 'Support Services']],
+];
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 /** "$120.00 / month" for a MANUAL product's own price, in its country's currency. */
 function manualPriceLabel(p: AvailableProduct) {
@@ -64,6 +76,9 @@ function termLeft(p: ClientProduct, now: number): number | null {
   return Math.max(0, Math.min(100, Math.round(((end - now) / (end - start)) * 100)));
 }
 
+const statNum = { fontSize: 32, fontWeight: 700, marginTop: 10 } as const;
+const grid = (min: number) => ({ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))`, gap: 10, marginTop: 18 }) as const;
+
 export default function ClientLicencesPage() {
   const qc = useQueryClient();
   const [now] = useState(() => Date.now());
@@ -71,6 +86,7 @@ export default function ClientLicencesPage() {
   const [status, setStatus] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [selected, setSelected] = useState('');
+  const [requested, setRequested] = useState<string | null>(null);
   const [viewing, setViewing] = useState<ClientProduct | null>(null);
   const debounced = useDebounce(search);
 
@@ -82,7 +98,7 @@ export default function ClientLicencesPage() {
   const { data: all } = useQuery({ queryKey: ['client', 'products'], queryFn: () => clientApi.products() });
   const { data: profile } = useQuery({ queryKey: ['client', 'profile'], queryFn: clientApi.profile });
 
-  const { data: available } = useQuery({
+  const { data: available, isLoading: availableLoading } = useQuery({
     queryKey: ['client', 'available-products'],
     queryFn: clientApi.availableProducts,
     enabled: addOpen,
@@ -93,7 +109,7 @@ export default function ClientLicencesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['client', 'products'] });
       toast.success('Product added — pending admin approval');
-      setAddOpen(false);
+      setRequested(selectedProduct?.name ?? 'Product');
       setSelected('');
     },
     onError: (e) => toast.error(apiErrorMessage(e)),
@@ -128,6 +144,7 @@ export default function ClientLicencesPage() {
       ? Math.max(0, Math.min(100, Math.round(((end - now) / (end - start)) * 100)))
       : null;
   const company = profile?.companyName?.trim();
+  const enquireTo = profile?.accountManager?.email || 'connect@egeloma.com.au';
 
   // "Licence 1 of 2" per product name.
   const indexOf = new Map<string, string>();
@@ -135,6 +152,16 @@ export default function ClientLicencesPage() {
     const group = (data ?? []).filter((p) => p.product === name);
     group.forEach((p, i) => indexOf.set(p.id, group.length > 1 ? `Licence ${i + 1} of ${group.length}` : p.sku));
   }
+
+  // Services catalogue — "In your plan" when one of the client's products matches.
+  const mine = active.map((p) => norm(p.product));
+  const services = SERVICE_GROUPS.map(([group, items]) => ({
+    group,
+    items: items.map((name) => {
+      const n = norm(name);
+      return { name, mine: mine.some((m) => m.includes(n) || n.includes(m)) };
+    }),
+  }));
 
   const copyKey = async (key: string) => {
     try {
@@ -145,85 +172,197 @@ export default function ClientLicencesPage() {
     }
   };
 
-  return (
-    <>
-      <ElPageHead
-        eyebrow="Products and licences"
-        title="Your plan"
-        description={`Licences assigned to ${company || 'your account'}. Prices are locked for the contract term.`}
-        actions={
-          <button type="button" className="el-btn primary" onClick={() => setAddOpen(true)}>
-            <Plus /> Request a product
-          </button>
-        }
-      />
+  const toggleReq = () => {
+    setAddOpen((o) => !o);
+    setRequested(null);
+  };
 
-      <div className="el-summary-row">
-        <div className="el-card el-mini">
-          <span className="el-eyebrow">Active licences</span>
-          <span className="v">{all ? active.length : '—'}</span>
-          <span className="s">
+  return (
+    <div className="ec-page">
+      <div
+        className="up"
+        style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}
+      >
+        <div>
+          <div className="eyebrow">Products and licences</div>
+          <h1 className="disp ec-h1">Your plan</h1>
+          <p className="muted" style={{ margin: 0, maxWidth: 520 }}>
+            Licences assigned to {company || 'your account'}. Prices are locked for the contract term.
+          </p>
+        </div>
+        <button type="button" className="btn bp" onClick={toggleReq} aria-expanded={addOpen}>
+          + Request a product
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <div className="glass card up" style={{ animationDelay: '.1s', padding: 20 }}>
+          <div className="eyebrow">Active licences</div>
+          <div className="disp stat" style={statNum}>
+            {all ? active.length : '—'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
             {pendingCount > 0
               ? `${pendingCount} pending approval`
               : productNames.length
                 ? productNames.join(', ')
                 : 'No active licences'}
-          </span>
+          </div>
         </div>
-        <div className="el-card el-mini">
-          <span className="el-eyebrow">Agreed total</span>
-          <span className="v">{all ? formatCurrency(agreedNet) : '—'}</span>
-          <span className="s">{all ? `${formatCurrency(agreedGross)} incl. 10% GST` : ' '}</span>
+        <div className="glass card up" style={{ animationDelay: '.18s', padding: 20 }}>
+          <div className="eyebrow">Agreed total</div>
+          <div className="disp stat" style={statNum}>
+            {all ? formatCurrency(agreedNet) : '—'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {all ? `${formatCurrency(agreedGross)} incl. 10% GST` : ' '}
+          </div>
         </div>
-        <div className="el-card el-mini">
-          <span className="el-eyebrow">Term remaining</span>
-          <span className="v">{remainingPct == null ? '—' : `${remainingPct}%`}</span>
+        <div className="glass card up" style={{ animationDelay: '.26s', padding: 20 }}>
+          <div className="eyebrow">Term remaining</div>
+          <div className="disp stat" style={statNum}>
+            {remainingPct == null ? '—' : `${remainingPct}%`}
+          </div>
           {remainingPct == null ? (
-            <span className="s">No fixed term</span>
+            <div className="muted" style={{ fontSize: 12 }}>
+              No fixed term
+            </div>
           ) : (
-            <div className="el-bar mt-2">
+            <div className="bar6" style={{ marginTop: 10 }}>
               <span style={{ width: `${remainingPct}%` }} />
             </div>
           )}
         </div>
       </div>
 
-      <section className="el-card">
-        <div className="el-toolbar">
-          <label className="el-search">
-            <Search />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search product, SKU or licence key"
-              aria-label="Search product, SKU or licence key"
-            />
-          </label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="el-select"
-            aria-label="Status"
-          >
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <span className="grow" />
+      {/* Request a product — goes to the admin as a pending request. */}
+      {addOpen && (
+        <div className="aib up">
+          <div className="aib-in" style={{ padding: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div className="orb" aria-hidden="true" style={{ width: 26, height: 26 }} />
+              <h2 className="disp" style={{ margin: 0, fontSize: 20, flex: 1 }}>
+                Request a product
+              </h2>
+              <span className="muted" style={{ fontSize: 13 }}>
+                Sent to the admin for approval and shown as <b style={{ color: 'var(--wT)' }}>Pending</b> until
+                approved.
+              </span>
+            </div>
+            {availableLoading ? (
+              <div style={grid(190)}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="skel" style={{ height: 72 }} />
+                ))}
+              </div>
+            ) : !available?.length ? (
+              <p className="muted" style={{ margin: '18px 0 0', fontSize: 13 }}>
+                No products are available to request right now.
+              </p>
+            ) : (
+              <div role="radiogroup" aria-label="Product" style={grid(190)}>
+                {available.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected === p.id}
+                    className={`prod${selected === p.id ? ' sel' : ''}`}
+                    onClick={() => setSelected(p.id)}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--iT)', marginTop: 6 }}>
+                      {p.priceMode === 'MANUAL' && p.price != null ? manualPriceLabel(p) : 'On request'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedProduct?.priceMode === 'MANUAL' && selectedProduct.contractTerm && (
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 12 }}>
+                Term: {CONTRACT_TERM_LABEL[selectedProduct.contractTerm] ?? selectedProduct.contractTerm.toLowerCase()}
+              </div>
+            )}
+            {selectedProduct?.planInclusive && (
+              <div style={{ marginTop: 12 }}>
+                <PlanInclusive text={selectedProduct.planInclusive} />
+              </div>
+            )}
+            <div className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+              Prices in AUD, excluding GST unless marked. “On request” products are priced by the admin on approval.
+            </div>
+            <div
+              style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginTop: 18, flexWrap: 'wrap' }}
+            >
+              {requested && (
+                <span className="chip c-warn">
+                  <span className="dot" />
+                  {requested} · Pending approval
+                </span>
+              )}
+              <button type="button" className="btn bg" onClick={toggleReq}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn bp"
+                disabled={!selected || addMut.isPending}
+                onClick={() => addMut.mutate()}
+              >
+                {addMut.isPending && <Spinner />} Send for approval
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <section className="glass up" style={{ animationDelay: '.34s', overflow: 'hidden' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '16px 18px',
+            borderBottom: '1px solid rgba(var(--w),.06)',
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, flex: '1 1 420px' }}>
+            <label style={{ display: 'flex', flex: '0 1 360px' }}>
+              <span className="sr">Search product, SKU or licence key</span>
+              <input
+                className="inp"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search product, SKU or licence key"
+              />
+            </label>
+            <label style={{ display: 'flex', flex: '0 1 200px' }}>
+              <span className="sr">Status</span>
+              <select className="inp" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">All statuses</option>
+                {STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           {start != null && end != null && (
-            <span className="el-muted text-[13px]">
+            <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>
               Issued {formatDate(new Date(start))} · Expires {formatDate(new Date(end))}
             </span>
           )}
         </div>
 
         {!filtered && needsAttention > 0 && (
-          <div className="el-banner">
-            {needsAttention} {needsAttention === 1 ? 'licence needs' : 'licences need'} attention — expiring soon or
-            already expired.
+          <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(var(--w),.06)' }}>
+            <span className="chip c-warn">
+              <span className="dot" />
+              {needsAttention} {needsAttention === 1 ? 'licence needs' : 'licences need'} attention — expiring soon or
+              already expired
+            </span>
           </div>
         )}
 
@@ -234,7 +373,7 @@ export default function ClientLicencesPage() {
         ) : isLoading ? (
           <div className="space-y-2 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <ElSkel key={i} className="h-12" />
+              <div key={i} className="skel" style={{ height: 48 }} />
             ))}
           </div>
         ) : !data?.length ? (
@@ -255,61 +394,88 @@ export default function ClientLicencesPage() {
             />
           </div>
         ) : (
-          <div className="el-table-wrap">
-            <table className="el-table" style={{ minWidth: 1040 }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="tbl" style={{ minWidth: 1040 }}>
               <thead>
                 <tr>
                   <th>Product</th>
                   <th>Licence key</th>
                   <th>Term</th>
-                  <th className="r">Agreed price</th>
-                  {showUnit && <th className="r">Units</th>}
-                  <th className="r">Net</th>
+                  <th style={{ textAlign: 'right' }}>Agreed price</th>
+                  {showUnit && <th style={{ textAlign: 'right' }}>Units</th>}
+                  <th style={{ textAlign: 'right' }}>Net</th>
                   <th>Contract</th>
                   <th>Status</th>
-                  <th />
+                  <th>
+                    <span className="sr">Action</span>
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="stag">
                 {data.map((p) => {
                   const pct = termLeft(p, now);
-                  const pill = p.pending ? { tone: 'warn' as const, label: 'Pending approval' } : STATUS_PILL[p.status];
+                  const chip = p.pending ? { cls: 'c-warn', label: 'Pending approval' } : STATUS_CHIP[p.status];
                   const trial = (p.contractType ?? 'LOCKED') === 'TRIAL';
+                  const discount = Number(p.discountPercent) || 0;
                   return (
-                    <tr key={p.id}>
+                    <tr key={p.id} className="row">
                       <td>
-                        <div className="el-prod">
-                          <span className="glyph">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span
+                            style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 12,
+                              background: 'rgba(45,185,138,.12)',
+                              color: 'var(--brand)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
                             <ProductGlyph parts={[p.product]} className="h-[18px] w-[18px]" />
                           </span>
-                          <div className="min-w-0">
-                            <b>{p.product}</b>
-                            <small>{indexOf.get(p.id)}</small>
+                          <div>
+                            <div style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{p.product}</div>
+                            <div className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                              {indexOf.get(p.id)}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td>
-                        <span className="el-key">
-                          <span className="el-mono">{p.licence}</span>
-                          <button type="button" onClick={() => copyKey(p.licence)} aria-label="Copy licence key" title="Copy">
-                            <Copy />
+                      <td className="mono" style={{ fontSize: 12 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          {p.licence}
+                          <button
+                            type="button"
+                            onClick={() => copyKey(p.licence)}
+                            aria-label="Copy licence key"
+                            title="Copy"
+                            className="muted"
+                            style={{ background: 'none', border: 0, padding: 4, cursor: 'pointer', display: 'inline-flex' }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
                           </button>
                         </span>
                       </td>
                       <td>
                         {pct == null ? (
-                          <span className="el-muted text-[13px]">Ongoing</span>
+                          <span className="muted" style={{ fontSize: 13 }}>
+                            Ongoing
+                          </span>
                         ) : (
-                          <div className="el-termcell">
-                            <div className="el-bar">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div className="bar6" style={{ width: 110 }}>
                               <span
                                 style={{
                                   width: `${pct}%`,
-                                  background: (p.daysRemaining ?? 0) < 0 ? 'var(--bad)' : pct < 15 ? 'var(--warn)' : undefined,
+                                  background:
+                                    (p.daysRemaining ?? 0) < 0 ? 'var(--rT)' : pct < 15 ? '#E39B2E' : undefined,
                                 }}
                               />
                             </div>
-                            <span className="el-muted el-num text-[12.5px]">
+                            <span className="muted mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
                               {p.daysRemaining == null
                                 ? ''
                                 : p.daysRemaining < 0
@@ -319,20 +485,41 @@ export default function ClientLicencesPage() {
                           </div>
                         )}
                       </td>
-                      <td className="r el-num">{formatCurrency(p.price)}</td>
-                      {showUnit && <td className="r el-num">{p.unitHoursEnabled ? Number(p.unitHours) || 0 : '—'}</td>}
-                      <td className="r el-num font-semibold">{formatCurrency(netOf(p))}</td>
+                      <td className="stat" style={{ textAlign: 'right' }}>
+                        {formatCurrency(p.price)}
+                        {discount > 0 && (
+                          <div className="muted" style={{ fontSize: 11 }}>
+                            −{discount}% discount
+                          </div>
+                        )}
+                      </td>
+                      {showUnit && (
+                        <td className="stat" style={{ textAlign: 'right' }}>
+                          {p.unitHoursEnabled ? Number(p.unitHours) || 0 : '—'}
+                        </td>
+                      )}
+                      <td className="stat" style={{ textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(netOf(p))}
+                      </td>
                       <td>
-                        <ElPill tone="idle" dot={false}>
-                          {!trial && <Lock />}
+                        <span className="chip c-ns">
+                          {!trial && <Lock className="h-3 w-3" />}
                           {trial ? 'Trial' : 'Locked'}
-                        </ElPill>
+                        </span>
                       </td>
                       <td>
-                        <ElPill tone={pill.tone}>{pill.label}</ElPill>
+                        <span className={`chip ${chip.cls}`}>
+                          <span className="dot" />
+                          {chip.label}
+                        </span>
                       </td>
-                      <td className="r">
-                        <button type="button" className="el-btn sm ghost" onClick={() => setViewing(p)}>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn bg"
+                          style={{ minHeight: 34, padding: '0 12px', fontSize: 12 }}
+                          onClick={() => setViewing(p)}
+                        >
                           Details
                         </button>
                       </td>
@@ -345,54 +532,62 @@ export default function ClientLicencesPage() {
         )}
       </section>
 
-      {/* Add a product — goes to the admin as a pending request. */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Request a product</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Choose a product to add. It will be sent to the admin for approval and shown as
-              <span className="font-medium"> Pending</span> until approved.
-            </p>
-            <Select value={selected} onChange={(e) => setSelected(e.target.value)}>
-              <option value="">Select a product…</option>
-              {available?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.priceMode === 'MANUAL' ? `${p.name} — ${manualPriceLabel(p)}` : p.name}
-                </option>
-              ))}
-            </Select>
-            {selectedProduct?.priceMode === 'MANUAL' && (
-              <div className="space-y-1 rounded-md border border-border bg-secondary/30 px-3 py-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Price</span>
-                  <span className="font-medium tabular-nums">{manualPriceLabel(selectedProduct)}</span>
-                </div>
-                {selectedProduct.contractTerm && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Term</span>
-                    <span className="capitalize">
-                      {CONTRACT_TERM_LABEL[selectedProduct.contractTerm] ?? selectedProduct.contractTerm.toLowerCase()}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-            {selectedProduct?.planInclusive && <PlanInclusive text={selectedProduct.planInclusive} />}
+      {/* Services catalogue */}
+      <section className="glass up" style={{ animationDelay: '.42s', padding: 22 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+          <div>
+            <div className="eyebrow">Everything we offer</div>
+            <h2 className="disp" style={{ margin: '8px 0 0', fontSize: 24, fontWeight: 600 }}>
+              Services
+            </h2>
+            <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+              What’s in your plan, and what we can add when you’re ready.
+            </div>
           </div>
-          <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button disabled={!selected || addMut.isPending} onClick={() => addMut.mutate()}>
-              {addMut.isPending && <Spinner />} Add for approval
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span className="chip c-ok">In your plan</span>
+            <span className="chip c-ns">Available</span>
+          </div>
+        </div>
+        <div
+          className="stag"
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginTop: 18 }}
+        >
+          {services.map((g) => (
+            <div key={g.group} className="tile">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 600 }}>{g.group}</div>
+                <span className="muted mono" style={{ fontSize: 11 }}>
+                  {g.items.length}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 12 }}>
+                {g.items.map((it) => (
+                  <a
+                    key={it.name}
+                    className={`svc${it.mine ? ' mine' : ''}`}
+                    href={`mailto:${enquireTo}?subject=${encodeURIComponent(`Enquiry: ${it.name}${company ? ` - ${company}` : ''}`)}`}
+                  >
+                    <span>{it.name}</span>
+                    {it.mine ? (
+                      <span className="chip c-ok" style={{ fontSize: 11 }}>
+                        In your plan
+                      </span>
+                    ) : (
+                      <span className="muted" style={{ fontSize: 11 }}>
+                        Enquire →
+                      </span>
+                    )}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <LicenceDetailsDialog product={viewing} onOpenChange={(v) => !v && setViewing(null)} />
-    </>
+    </div>
   );
 }
 

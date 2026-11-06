@@ -3,16 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Building2, MapPin, Mail, Save, ShieldCheck, Settings } from 'lucide-react';
+import { Building2, MapPin, Mail, Save, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { settingsApi, type OrganisationSettings } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { PageHeader } from '@/components/shared/misc';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { numericField, titleCaseField } from '@/lib/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
 import { PhoneInput, CountrySelect } from '@/components/shared/PhoneInput';
 import { DEFAULT_COUNTRY, countryCodeByName, countryName } from '@/lib/countries';
@@ -66,9 +64,9 @@ function Field({
       <Label>{label}</Label>
       {children}
       {error ? (
-        <p className="text-xs text-destructive">{error}</p>
+        <p className="text-xs" style={{ color: 'var(--rT)' }}>{error}</p>
       ) : hint ? (
-        <p className="text-xs text-muted-foreground">{hint}</p>
+        <p className="muted text-xs">{hint}</p>
       ) : null}
     </div>
   );
@@ -86,18 +84,18 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex-row items-start gap-3 space-y-0">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <section className="glass up" style={{ overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 22px', borderBottom: '1px solid rgba(var(--w),.06)' }}>
+        <span className="ico">
           <Icon className="h-[18px] w-[18px]" />
-        </div>
+        </span>
         <div>
-          <CardTitle className="text-base">{title}</CardTitle>
-          {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+          <h2 className="disp" style={{ margin: 0, fontSize: 17 }}>{title}</h2>
+          {description && <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>{description}</div>}
         </div>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</CardContent>
-    </Card>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" style={{ padding: '20px 22px' }}>{children}</div>
+    </section>
   );
 }
 
@@ -166,18 +164,17 @@ export default function SettingsPage() {
     } as Partial<OrganisationSettings>);
 
   const SaveButton = (
-    <Button type="submit" disabled={isSubmitting || save.isPending || !isDirty}>
-      {save.isPending ? <Spinner /> : <Save className="h-4 w-4" />} Save changes
-    </Button>
+    <button type="submit" className="btn bp" disabled={isSubmitting || save.isPending || !isDirty}>
+      {save.isPending ? <Spinner /> : <Save />} Save changes
+    </button>
   );
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="mx-auto max-w-3xl space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="ec-page mx-auto w-full max-w-4xl">
       <PageHeader
+        eyebrow="Organisation"
         title="Settings"
-        description="Your organisation's details — these print on every tax invoice and the pay page"
-        icon={Settings}
-        iconTone="slate"
+        description="Your organisation's details — these print on every tax invoice and the pay page."
         actions={SaveButton}
       />
 

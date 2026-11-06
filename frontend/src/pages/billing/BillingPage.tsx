@@ -1,25 +1,36 @@
 import { Fragment, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Search, Receipt, AlertTriangle, Building2, Trash2 } from 'lucide-react';
-import { customerApi, invoiceApi } from '@/api/resources';
+import { Search, Receipt, AlertTriangle, Building2, Trash2, Plus } from 'lucide-react';
+import { customerApi, dashboardApi, invoiceApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
-import type { Invoice } from '@/types';
+import type { DashboardSummary, Invoice, InvoiceStatus } from '@/types';
 import { useDebounce } from '@/hooks/useDebounce';
-import { PageHeader, Pagination } from '@/components/shared/misc';
-import { Card } from '@/components/ui/card';
+import { Pagination } from '@/components/shared/misc';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/misc';
-import { InvoiceBadge } from '@/components/shared/status';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
 import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
 
+const STATUS_CHIP: Record<InvoiceStatus, { cls: string; label: string }> = {
+  DRAFT: { cls: 'c-ns', label: 'Draft' },
+  SENT: { cls: 'c-info', label: 'Sent' },
+  PENDING: { cls: 'c-warn', label: 'Pending' },
+  PARTIALLY_PAID: { cls: 'c-on', label: 'Partially paid' },
+  PAID: { cls: 'c-ok', label: 'Paid' },
+  OVERDUE: { cls: 'c-red', label: 'Overdue' },
+  CANCELLED: { cls: 'c-ns', label: 'Cancelled' },
+};
+
+const TABS = [
+  { value: 'all', label: 'All' },
+  { value: 'outstanding', label: 'Outstanding' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'overdue', label: 'Overdue' },
+];
 
 export default function BillingPage() {
   const navigate = useNavigate();
@@ -47,6 +58,12 @@ export default function BillingPage() {
     queryKey: ['customers', 'billing-filter'],
     queryFn: () => customerApi.list({ page: 1, pageSize: 500 }),
     staleTime: 5 * 60_000,
+  });
+
+  // Same summary the admin dashboard reads — totals for the stat tiles.
+  const { data: summary } = useQuery<DashboardSummary>({
+    queryKey: ['dashboard', 'summary'],
+    queryFn: dashboardApi.summary,
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -87,55 +104,143 @@ export default function BillingPage() {
     return [...map.values()];
   }, [data]);
 
+  const pickTab = (v: string) => {
+    setTab(v);
+    setPage(1);
+  };
+  const filtered = !!(debounced || tab !== 'all' || clientId);
+  const tiles = [
+    {
+      label: 'Outstanding',
+      value: summary ? formatCurrency(summary.outstanding.amount) : '—',
+      sub: summary
+        ? `${summary.outstanding.count} unpaid ${summary.outstanding.count === 1 ? 'invoice' : 'invoices'}`
+        : ' ',
+      color: 'var(--wT)',
+      tab: 'outstanding',
+    },
+    {
+      label: 'Overdue',
+      value: summary ? formatCurrency(summary.overdue.amount) : '—',
+      sub: summary ? `${summary.overdue.count} past due` : ' ',
+      color: summary && summary.overdue.count > 0 ? 'var(--rT)' : undefined,
+      tab: 'overdue',
+    },
+    {
+      label: 'Collected (month)',
+      value: summary ? formatCurrency(summary.revenue.current) : '—',
+      sub: 'Payments received this month',
+      color: 'var(--okT)',
+      tab: 'paid',
+    },
+    {
+      label: 'Invoiced (month)',
+      value: summary ? formatCurrency(summary.totalSales.current) : '—',
+      sub: 'Raised this month',
+      color: undefined,
+      tab: 'all',
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Manage Billing"
-        description="Invoices grouped by client — review, track and manage balances"
-        icon={Receipt}
-        iconTone="primary"
-      />
+    <div className="ec-page">
+      <div
+        className="up"
+        style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}
+      >
+        <div>
+          <div className="eyebrow">Billing</div>
+          <h1 className="disp ec-h1">Invoices</h1>
+          <p className="muted" style={{ margin: 0, maxWidth: 560 }}>
+            Invoices grouped by client — review, track and manage balances.
+          </p>
+        </div>
+        <Link to="/admin/billing/new" className="btn bp">
+          <Plus /> New invoice
+        </Link>
+      </div>
 
-      <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }}>
-        <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
-          <TabsTrigger value="paid">Paid</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+        {tiles.map((t) => (
+          <button
+            key={t.label}
+            type="button"
+            className="glass card"
+            style={{ padding: 16, textAlign: 'left', cursor: 'pointer', color: 'var(--fg)', font: 'inherit' }}
+            onClick={() => pickTab(t.tab)}
+          >
+            <div className="eyebrow">{t.label}</div>
+            <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6, color: t.color }}>
+              {t.value}
+            </div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {t.sub}
+            </div>
+          </button>
+        ))}
+      </div>
 
-      <Card>
-        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
-          <div className="relative max-w-md flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+      <section className="glass up" style={{ animationDelay: '.12s', overflow: 'hidden' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 10,
+            padding: '14px 16px',
+            borderBottom: '1px solid rgba(var(--w),.06)',
+          }}
+        >
+          <div className="segs" role="group" aria-label="Invoice status">
+            {TABS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                className={`seg${tab === t.value ? ' on' : ''}`}
+                aria-pressed={tab === t.value}
+                onClick={() => pickTab(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <label style={{ position: 'relative', display: 'flex', flex: '1 1 260px', maxWidth: 420 }}>
+            <span className="sr">Search invoices</span>
+            <Search
+              className="pointer-events-none h-4 w-4"
+              style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--mu)' }}
+            />
+            <input
+              className="inp"
+              style={{ paddingLeft: 38 }}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search invoice number, reference, customer, email or Customer ID…"
-              className="pl-9"
+              placeholder="Invoice number, reference, customer, email or Customer ID…"
             />
-          </div>
-          <Select
-            value={clientId}
-            onChange={(e) => {
-              setClientId(e.target.value);
-              setPage(1);
-            }}
-            className="w-full sm:w-64"
-          >
-            <option value="">All clients</option>
-            {customers?.items.map((c) => (
-              <option key={c.id} value={c.clientId}>
-                {c.companyName || c.tradingAs || c.contactPerson || c.clientId}
-              </option>
-            ))}
-          </Select>
+          </label>
+          <label style={{ display: 'flex', flex: '0 1 240px' }}>
+            <span className="sr">Client</span>
+            <select
+              className="inp"
+              value={clientId}
+              onChange={(e) => {
+                setClientId(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All clients</option>
+              {customers?.items.map((c) => (
+                <option key={c.id} value={c.clientId}>
+                  {c.companyName || c.tradingAs || c.contactPerson || c.clientId}
+                </option>
+              ))}
+            </select>
+          </label>
           {data?.meta && (
-            <span className="hidden shrink-0 text-xs font-medium text-muted-foreground sm:block">
+            <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>
               {data.meta.total} {data.meta.total === 1 ? 'invoice' : 'invoices'}
             </span>
           )}
@@ -157,12 +262,12 @@ export default function BillingPage() {
               icon={<Receipt className="h-6 w-6" />}
               title="No invoices found"
               description={
-                debounced || tab !== 'all' || clientId
+                filtered
                   ? 'No invoice matches this client, tab or search.'
                   : 'Invoices raised for customers will appear here, grouped by client.'
               }
               action={
-                debounced || tab !== 'all' || clientId ? (
+                filtered ? (
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -180,132 +285,137 @@ export default function BillingPage() {
           </div>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Due</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groups.map((group) => (
-                  <Fragment key={group.key}>
-                    {/* Client header — groups this customer's invoices together. */}
-                    <TableRow className="bg-secondary/40 hover:bg-secondary/40">
-                      <TableCell colSpan={8} className="py-2.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-2.5">
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                              <Building2 className="h-4 w-4" />
-                            </span>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold">{group.name}</p>
-                              {group.clientId && (
-                                <p className="truncate font-mono text-xs text-muted-foreground">
-                                  {group.clientId}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-4 text-xs">
-                            <span className="text-muted-foreground">
-                              {group.invoices.length}{' '}
-                              {group.invoices.length === 1 ? 'invoice' : 'invoices'}
-                            </span>
-                            {group.outstanding > 0 ? (
-                              <span className="font-semibold text-destructive">
-                                {formatCurrency(group.outstanding)} outstanding
+            <div style={{ overflowX: 'auto' }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Invoice</th>
+                    <th>Date</th>
+                    <th>Due</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th style={{ textAlign: 'right' }}>Paid</th>
+                    <th style={{ textAlign: 'right' }}>Balance</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map((group) => (
+                    <Fragment key={group.key}>
+                      {/* Client header — groups this customer's invoices together. */}
+                      <tr style={{ background: 'rgba(var(--w),.03)' }}>
+                        <td colSpan={8} style={{ padding: '10px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                              <span className="ico" style={{ width: 30, height: 30, borderRadius: 9 }}>
+                                <Building2 className="h-4 w-4" />
                               </span>
-                            ) : (
-                              <span className="font-medium text-success">Settled</span>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-
-                    {group.invoices.map((inv) => {
-                      const balance = Number(inv.total) - Number(inv.amountPaid);
-                      const overdue = daysOverdue(inv);
-                      return (
-                        <TableRow
-                          key={inv.id}
-                          className="cursor-pointer"
-                          onClick={() => navigate(`/admin/billing/${inv.id}`)}
-                        >
-                          <TableCell className="pl-6">
-                            <div className="flex items-center gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                <Receipt className="h-4 w-4" />
-                              </span>
-                              <div className="min-w-0">
-                                <p className="truncate font-medium">{inv.invoiceNumber}</p>
-                                {inv.reference && (
-                                  <p className="truncate text-xs text-muted-foreground">
-                                    Ref {inv.reference}
-                                  </p>
+                              <div style={{ minWidth: 0 }}>
+                                <div className="truncate" style={{ fontWeight: 600, fontSize: 14 }}>
+                                  {group.name}
+                                </div>
+                                {group.clientId && (
+                                  <div className="mono muted truncate" style={{ fontSize: 11 }}>
+                                    {group.clientId}
+                                  </div>
                                 )}
                               </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="text-sm">{formatDate(inv.invoiceDate)}</TableCell>
-                          <TableCell className="whitespace-nowrap text-sm">
-                            {formatDate(inv.dueDate)}
-                            {overdue > 0 && (
-                              <p className="flex items-center gap-1 text-xs font-medium text-destructive">
-                                <AlertTriangle className="h-3 w-3" />
-                                {overdue} {overdue === 1 ? 'day' : 'days'} overdue
-                              </p>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold tabular-nums">
-                            {formatCurrency(inv.total)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-muted-foreground">
-                            {formatCurrency(inv.amountPaid)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {balance > 0 ? (
-                              <span className="font-medium text-destructive">
-                                {formatCurrency(balance)}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, fontSize: 12 }}>
+                              <span className="muted">
+                                {group.invoices.length} {group.invoices.length === 1 ? 'invoice' : 'invoices'}
                               </span>
-                            ) : (
-                              <span className="text-success">Settled</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <InvoiceBadge status={inv.status} />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <button
-                              type="button"
-                              title="Delete invoice"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteTarget(inv);
-                              }}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </TableBody>
-            </Table>
+                              {group.outstanding > 0 ? (
+                                <span className="chip c-red">{formatCurrency(group.outstanding)} outstanding</span>
+                              ) : (
+                                <span className="chip c-ok">Settled</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {group.invoices.map((inv) => {
+                        const balance = Number(inv.total) - Number(inv.amountPaid);
+                        const overdue = daysOverdue(inv);
+                        const chip = STATUS_CHIP[inv.status] ?? STATUS_CHIP.DRAFT;
+                        return (
+                          <tr key={inv.id} className="row click" onClick={() => navigate(`/admin/billing/${inv.id}`)}>
+                            <td style={{ paddingLeft: 28 }}>
+                              <span className="mono" style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg)' }}>
+                                {inv.invoiceNumber}
+                              </span>
+                              {inv.reference && (
+                                <div className="muted" style={{ fontSize: 12 }}>
+                                  Ref {inv.reference}
+                                </div>
+                              )}
+                            </td>
+                            <td className="nw">{formatDate(inv.invoiceDate)}</td>
+                            <td className="nw">
+                              {formatDate(inv.dueDate)}
+                              {overdue > 0 && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    color: 'var(--rT)',
+                                  }}
+                                >
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {overdue} {overdue === 1 ? 'day' : 'days'} overdue
+                                </div>
+                              )}
+                            </td>
+                            <td className="stat" style={{ textAlign: 'right', fontWeight: 600 }}>
+                              {formatCurrency(inv.total)}
+                            </td>
+                            <td className="stat muted" style={{ textAlign: 'right' }}>
+                              {formatCurrency(inv.amountPaid)}
+                            </td>
+                            <td className="stat" style={{ textAlign: 'right' }}>
+                              {balance > 0 ? (
+                                <span style={{ fontWeight: 600, color: 'var(--rT)' }}>{formatCurrency(balance)}</span>
+                              ) : (
+                                <span style={{ color: 'var(--okT)' }}>Settled</span>
+                              )}
+                            </td>
+                            <td>
+                              <span className={`chip ${chip.cls}`}>
+                                <span className="dot" />
+                                {chip.label}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                title="Delete invoice"
+                                aria-label={`Delete ${inv.invoiceNumber}`}
+                                className="btn bg"
+                                style={{ minHeight: 34, width: 34, padding: 0, color: 'var(--rT)' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteTarget(inv);
+                                }}
+                              >
+                                <Trash2 />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <Pagination meta={data.meta} onPageChange={setPage} />
           </>
         )}
-      </Card>
+      </section>
 
       <ConfirmDialog
         open={!!deleteTarget}

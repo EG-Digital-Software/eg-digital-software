@@ -1,7 +1,7 @@
 import { Building2, ListChecks, User } from 'lucide-react';
 import { employeeTaskApi } from '@/api/tasks';
 import { useBoardHasNewActivity } from '@/lib/taskSeen';
-import { ElomaPortalShell } from '@/components/layout/ElomaPortalShell';
+import { PortalShell } from '@/components/layout/PortalShell';
 import { useAuth } from '@/store/auth';
 
 const TASK_API = employeeTaskApi();
@@ -12,16 +12,16 @@ export function EmployeeLayout() {
   const tasksDot = useBoardHasNewActivity(TASK_API, 'employee');
 
   return (
-    <ElomaPortalShell
+    <PortalShell
       portalName="Team Portal"
       home="/employee/tasks"
       crumbRoot="Team"
-      contextRight={
+      accountLine={
         user && (
           <>
-            <b>
+            <span style={{ color: 'var(--fg)' }}>
               {user.firstName} {user.lastName}
-            </b>{' '}
+            </span>{' '}
             · Team portal
           </>
         )

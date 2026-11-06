@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, ChevronDown, Building2, Check, ListChecks } from 'lucide-react';
+import { Search, ChevronDown, Building2, Check } from 'lucide-react';
 import { customerApi } from '@/api/resources';
 import { adminTaskApi } from '@/api/tasks';
 import { customerName } from '@/lib/customer';
 import { cn, initials } from '@/lib/utils';
-import { PageHeader } from '@/components/shared/misc';
 import { Input } from '@/components/ui/input';
 import { LoadingBlock, ErrorState, EmptyState } from '@/components/shared/states';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
@@ -40,9 +39,11 @@ export default function AdminTasksPage() {
   if (isError) return <ErrorState onRetry={refetch} />;
   if (customers.length === 0) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Tasks" description="Plan and track work for each customer." icon={ListChecks} iconTone="sky" />
-        <EmptyState title="No customers yet" description="Add a customer first, then plan their tasks here." />
+      <div className="ec-page">
+        <TasksHead />
+        <section className="glass up">
+          <EmptyState title="No customers yet" description="Add a customer first, then plan their tasks here." />
+        </section>
       </div>
     );
   }
@@ -50,15 +51,47 @@ export default function AdminTasksPage() {
   const current = customers.find((c) => c.clientId === selected) ?? customers[0];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Tasks"
-        description="Plan and track work for each customer."
-        icon={ListChecks}
-        iconTone="sky"
+    <div className="ec-page">
+      <TasksHead
         actions={<CustomerPicker customers={customers} selected={current.clientId} onSelect={setSelected} isUpdated={isUpdated} />}
       />
-      {current && <TaskBoard key={current.clientId} api={adminTaskApi(current.clientId)} scopeKey={current.clientId} customerName={customerName(current)} />}
+      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        <div className="glass card" style={{ padding: 16 }}>
+          <div className="eyebrow">Customers</div>
+          <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>{customers.length}</div>
+        </div>
+        <div className="glass card" style={{ padding: 16 }}>
+          <div className="eyebrow">With new activity</div>
+          <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6, color: 'var(--rT)' }}>
+            {customers.filter((c) => isUpdated(c.clientId)).length}
+          </div>
+        </div>
+        <div className="glass card" style={{ padding: 16, minWidth: 0 }}>
+          <div className="eyebrow">Showing</div>
+          <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {customerName(current)}
+          </div>
+          <div className="muted mono" style={{ fontSize: 11 }}>{current.clientId}</div>
+        </div>
+      </div>
+      {current && (
+        <section className="glass up" style={{ animationDelay: '.15s', padding: 16, overflow: 'hidden' }}>
+          <TaskBoard key={current.clientId} api={adminTaskApi(current.clientId)} scopeKey={current.clientId} customerName={customerName(current)} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+function TasksHead({ actions }: { actions?: ReactNode }) {
+  return (
+    <div className="up" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+      <div>
+        <div className="eyebrow">Task board</div>
+        <h1 className="disp ec-h1">Tasks</h1>
+        <p className="muted" style={{ margin: 0 }}>Plan and track work for each customer.</p>
+      </div>
+      {actions}
     </div>
   );
 }
@@ -107,7 +140,8 @@ function CustomerPicker({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="relative flex h-10 min-w-[240px] items-center gap-2.5 rounded-lg border border-input bg-card px-3 text-sm shadow-sm transition hover:border-ring"
+        className="btn bg relative min-w-[260px]"
+        style={{ justifyContent: 'flex-start' }}
       >
         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span className="flex-1 truncate text-left font-medium">{current ? customerName(current) : 'Select customer'}</span>
@@ -118,7 +152,7 @@ function CustomerPicker({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-[320px] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+        <div className="glass absolute right-0 z-30 mt-1 w-[320px] overflow-hidden" style={{ boxShadow: '0 30px 60px -20px rgba(15,35,64,.45)' }}>
           <div className="relative border-b border-border p-2">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input

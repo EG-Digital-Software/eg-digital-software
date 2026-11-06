@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { adminApi } from '@/api/resources';
 import { useAdminTaskActivity } from '@/lib/taskSeen';
-import { ElomaPortalShell } from '@/components/layout/ElomaPortalShell';
+import { PortalShell } from '@/components/layout/PortalShell';
 import { brand } from '@/config/brand';
 
 export function AdminLayout() {
@@ -27,13 +27,13 @@ export function AdminLayout() {
   const tasksDot = useAdminTaskActivity().any;
 
   return (
-    <ElomaPortalShell
+    <PortalShell
       portalName="Admin Portal"
       home="/admin/dashboard"
       crumbRoot="Admin"
-      contextRight={
+      accountLine={
         <>
-          <b>{brand.seller.legalName}</b> · Admin portal
+          <span style={{ color: 'var(--fg)' }}>{brand.seller.legalName}</span> · Admin portal
         </>
       }
       nav={[
@@ -44,7 +44,7 @@ export function AdminLayout() {
         { to: '/admin/billing', label: 'Billing', icon: Receipt },
         { to: '/admin/products', label: 'Products', icon: Package },
         { to: '/admin/payments', label: 'Payments', icon: CreditCard },
-        { to: '/admin/approvals', label: 'Approvals', icon: BadgeCheck, count: pending ?? 0, countTone: 'warn' },
+        { to: '/admin/approvals', label: 'Approvals', icon: BadgeCheck, count: pending ?? 0, countTone: 'orange' },
         { to: '/admin/reports', label: 'Report', icon: BarChart3 },
       ]}
       menuItems={[

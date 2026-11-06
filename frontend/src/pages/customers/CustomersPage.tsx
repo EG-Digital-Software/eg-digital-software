@@ -7,13 +7,9 @@ import { customerApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import type { Customer } from '@/types';
 import { useDebounce } from '@/hooks/useDebounce';
-import { PageHeader, Pagination } from '@/components/shared/misc';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Pagination } from '@/components/shared/misc';
 import { Skeleton } from '@/components/ui/misc';
-import { Badge } from '@/components/ui/badge';
+import { AVATAR_COLORS, initialsOf } from '@/components/client/portalContext';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import {
@@ -34,6 +30,23 @@ const ACCOUNT_STATUS: Record<
   ACTIVE_TRIAL: { label: 'Active-Trial', variant: 'default' },
   DORMANT: { label: 'Dormant', variant: 'warning' },
   SUSPENDED: { label: 'Suspended', variant: 'destructive' },
+};
+
+const STATUS_FILTERS = [
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'ACTIVE_TRIAL', label: 'Active-Trial' },
+  { value: 'DORMANT', label: 'Dormant' },
+  { value: 'SUSPENDED', label: 'Suspended' },
+  { value: 'ARCHIVED', label: 'Archived' },
+];
+
+/** Badge variant → design chip class. */
+const CHIP: Record<string, string> = {
+  success: 'c-ok',
+  default: 'c-on',
+  warning: 'c-warn',
+  destructive: 'c-red',
+  muted: 'c-ns',
 };
 
 function invoiceSummary(c: Customer): { label: string; variant: 'success' | 'warning' | 'muted' } {
@@ -102,67 +115,121 @@ export default function CustomersPage() {
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Customers"
-        description="Manage your clients, products and licences"
-        icon={Users}
-        iconTone="primary"
-        actions={
-          <Button asChild>
-            <Link to="/admin/customers/new">
-              <Plus className="h-4 w-4" /> Add Customer
-            </Link>
-          </Button>
-        }
-      />
+  const items = data?.items ?? [];
+  const withOutstanding = items.filter((c) => invoiceSummary(c).variant === 'warning').length;
+  const statusLabel = STATUS_FILTERS.find((f) => f.value === status)?.label ?? 'Active';
+  const filtered = !!(debounced || businessType || status !== 'ACTIVE');
+  const typeLabel = BUSINESS_TYPES.find((t) => t.value === businessType)?.label;
+  const clearFilters = () => {
+    setSearch('');
+    setBusinessType('');
+    setStatus('ACTIVE');
+    setPage(1);
+  };
 
-      <Card>
-        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+  return (
+    <div className="ec-page">
+      <div className="up" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}>
+        <div>
+          <div className="eyebrow">Customers</div>
+          <h1 className="disp ec-h1">Customers</h1>
+          <p className="muted" style={{ margin: 0, maxWidth: 560 }}>
+            Manage your clients, products and licences.
+          </p>
+        </div>
+        <Link to="/admin/customers/new" className="btn bp">
+          <Plus /> New customer
+        </Link>
+      </div>
+
+      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <div className="glass card" style={{ padding: 16 }}>
+          <div className="eyebrow">{statusLabel} customers</div>
+          <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>
+            {isLoading ? '–' : (data?.meta.total ?? 0)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>{filtered ? 'Matching the current filters' : 'All active accounts'}</div>
+        </div>
+        <div className="glass card" style={{ padding: 16 }}>
+          <div className="eyebrow">Outstanding invoices</div>
+          <div
+            className="disp stat"
+            style={{ fontSize: 28, fontWeight: 700, marginTop: 6, color: withOutstanding ? 'var(--wT)' : undefined }}
+          >
+            {isLoading ? '–' : withOutstanding}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>Customers on this page with unpaid invoices</div>
+        </div>
+        <div className="glass card" style={{ padding: 16 }}>
+          <div className="eyebrow">Business type</div>
+          <div className="disp" style={{ fontSize: 20, fontWeight: 600, marginTop: 10 }}>
+            {typeLabel ?? 'All types'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>Sorted by Customer ID</div>
+        </div>
+      </div>
+
+      <section className="glass up" style={{ overflow: 'hidden', animationDelay: '.1s' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 10,
+            alignItems: 'center',
+            padding: '14px 16px',
+            borderBottom: '1px solid rgba(var(--w),.06)',
+          }}
+        >
+          <div className="segs" role="group" aria-label="Account status">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                className={`seg${status === f.value ? ' on' : ''}`}
+                aria-pressed={status === f.value}
+                onClick={() => {
+                  setStatus(f.value);
+                  setPage(1);
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', flex: '1 1 260px', position: 'relative' }}>
+            <span className="sr">Search customers</span>
+            <Search className="pointer-events-none absolute left-3.5 h-4 w-4" style={{ color: 'var(--mu)' }} />
+            <input
+              className="inp"
+              style={{ paddingLeft: 38 }}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
               placeholder="Search by name, business, email, ABN, contact or Customer ID…"
-              className="pl-9"
             />
-          </div>
-          <Select
-            value={businessType}
-            onChange={(e) => {
-              setBusinessType(e.target.value);
-              setPage(1);
-            }}
-            className="sm:w-52"
-          >
-            <option value="">All business types</option>
-            {BUSINESS_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setPage(1);
-            }}
-            className="sm:w-40"
-          >
-            <option value="ACTIVE">Active</option>
-            <option value="ACTIVE_TRIAL">Active-Trial</option>
-            <option value="DORMANT">Dormant</option>
-            <option value="SUSPENDED">Suspended</option>
-            <option value="ARCHIVED">Archived</option>
-          </Select>
+          </label>
+          <label style={{ display: 'flex', flex: '0 1 220px' }}>
+            <span className="sr">Business type</span>
+            <select
+              className="inp"
+              value={businessType}
+              onChange={(e) => {
+                setBusinessType(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All business types</option>
+              {BUSINESS_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
           {data?.meta && (
-            <span className="hidden shrink-0 text-xs font-medium text-muted-foreground lg:block">
+            <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
               {data.meta.total} {data.meta.total === 1 ? 'customer' : 'customers'}
             </span>
           )}
@@ -178,145 +245,145 @@ export default function CustomersPage() {
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
-        ) : !data?.items.length ? (
+        ) : !data || !items.length ? (
           <div className="p-6">
             <EmptyState
               icon={<Users className="h-6 w-6" />}
               title="No customers found"
               description={
-                debounced || businessType || status !== 'ACTIVE'
+                filtered
                   ? 'No customer matches these filters. Try clearing the search, business type or status.'
                   : 'Add your first customer to start managing clients.'
               }
               action={
-                debounced || businessType || status !== 'ACTIVE' ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearch('');
-                      setBusinessType('');
-                      setStatus('ACTIVE');
-                      setPage(1);
-                    }}
-                  >
+                filtered ? (
+                  <button type="button" className="btn bg" onClick={clearFilters}>
                     Clear filters
-                  </Button>
+                  </button>
                 ) : (
-                  <Button asChild>
-                    <Link to="/admin/customers/new">
-                      <Plus className="h-4 w-4" /> Add Customer
-                    </Link>
-                  </Button>
+                  <Link to="/admin/customers/new" className="btn bp">
+                    <Plus /> New customer
+                  </Link>
                 )
               }
             />
           </div>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer ID</TableHead>
-                  <TableHead>Business</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead>Country</TableHead>
-                  <TableHead>Invoices</TableHead>
-                  <TableHead>Account Status</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((c) => {
-                  const inv = invoiceSummary(c);
-                  return (
-                    <TableRow
-                      key={c.id}
-                      className="cursor-pointer"
-                      onClick={() => navigate(`/admin/customers/${c.clientId}`)}
-                    >
-                      <TableCell>
-                        <span className="inline-flex rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
+            <div style={{ overflowX: 'auto' }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Customer ID</th>
+                    <th>Business</th>
+                    <th>City</th>
+                    <th>Country</th>
+                    <th>Invoices</th>
+                    <th>Account status</th>
+                    <th>
+                      <span className="sr">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="stag">
+                  {items.map((c, i) => {
+                    const inv = invoiceSummary(c);
+                    const loc = location(c);
+                    const s = ACCOUNT_STATUS[c.accountStatusEffective ?? c.accountStatus];
+                    return (
+                      <tr key={c.id} className="row click" onClick={() => navigate(`/admin/customers/${c.clientId}`)}>
+                        <td className="mono" style={{ fontSize: 12, color: 'var(--mu)' }}>
                           {c.clientId}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {c.companyName ? (
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">{c.companyName}</p>
-                            {c.tradingAs && c.tradingAs !== c.companyName && (
-                              <p className="truncate text-xs text-muted-foreground">
-                                T/A {c.tradingAs}
-                              </p>
-                            )}
-                            {c.businessType && (
-                              <Badge variant="muted" className="mt-1">
-                                {businessTypesLabel(c.businessType)}
-                              </Badge>
-                            )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                            <span
+                              className="av"
+                              style={{
+                                width: 36,
+                                height: 36,
+                                fontSize: 12,
+                                margin: 0,
+                                background: AVATAR_COLORS[i % AVATAR_COLORS.length],
+                              }}
+                            >
+                              {initialsOf(c.companyName || customerName(c))}
+                            </span>
+                            <div style={{ minWidth: 0 }}>
+                              <div className="truncate" style={{ fontWeight: 600 }}>
+                                {c.companyName || '—'}
+                              </div>
+                              {c.tradingAs && c.tradingAs !== c.companyName && (
+                                <div className="muted truncate" style={{ fontSize: 12 }}>
+                                  T/A {c.tradingAs}
+                                </div>
+                              )}
+                              {c.businessType && (
+                                <span className="chip c-ns" style={{ marginTop: 4, padding: '1px 8px', fontSize: 11 }}>
+                                  {businessTypesLabel(c.businessType)}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {(() => {
-                          const loc = location(c);
-                          return loc?.city ? <span className="truncate">{loc.city}</span> : '—';
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {(() => {
-                          const loc = location(c);
-                          if (!loc?.country) return '—';
-                          return (
+                        </td>
+                        <td className="nw">{loc?.city || <span className="muted">—</span>}</td>
+                        <td className="nw">
+                          {loc?.country ? (
                             <span className="flex items-center gap-1.5">
                               <Flag code={loc.code} />
                               <span className="truncate">{loc.country}</span>
                             </span>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={inv.variant}>{inv.label}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const s = ACCOUNT_STATUS[c.accountStatusEffective ?? c.accountStatus];
-                          return <Badge variant={s.variant}>{s.label}</Badge>;
-                        })()}
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}`)}>
-                              <Eye /> View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => navigate(`/admin/customers/${c.clientId}/edit`)}
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className={`chip ${CHIP[inv.variant]}`}>
+                            <span className="dot" />
+                            {inv.label}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`chip ${CHIP[s.variant]}`}>
+                            <span className="dot" />
+                            {s.label}
+                          </span>
+                        </td>
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              className="btn bg"
+                              style={{ width: 36, minHeight: 36, padding: 0 }}
+                              aria-label="Customer actions"
                             >
-                              <Pencil /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem destructive onClick={() => setArchiving(c)}>
-                              <Archive /> Archive
-                            </DropdownMenuItem>
-                            <DropdownMenuItem destructive onClick={() => setDeleting(c)}>
-                              <Trash2 /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                              <MoreHorizontal />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}`)}>
+                                <Eye /> View
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}/edit`)}>
+                                <Pencil /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem destructive onClick={() => setArchiving(c)}>
+                                <Archive /> Archive
+                              </DropdownMenuItem>
+                              <DropdownMenuItem destructive onClick={() => setDeleting(c)}>
+                                <Trash2 /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <Pagination meta={data.meta} onPageChange={setPage} />
           </>
         )}
-      </Card>
+      </section>
 
       <ConfirmDialog
         open={!!archiving}

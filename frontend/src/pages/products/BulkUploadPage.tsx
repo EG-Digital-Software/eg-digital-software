@@ -14,12 +14,7 @@ import {
 import { toast } from 'sonner';
 import { productApi, type ImportResult } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
-import { PageHeader } from '@/components/shared/misc';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/shared/states';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const ACCEPTED = ['.csv', '.xls', '.xlsx'];
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -70,22 +65,29 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
-  const color =
-    tone === 'success'
-      ? 'text-success'
-      : tone === 'warning'
-        ? 'text-[hsl(30_90%_38%)]'
-        : tone === 'destructive'
-          ? 'text-destructive'
-          : 'text-foreground';
+function Stat({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
-    <div className="rounded-lg border border-border p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${color}`}>{value}</p>
+    <div className="tile">
+      <div className="eyebrow" style={{ fontSize: 11 }}>
+        {label}
+      </div>
+      <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6, color }}>
+        {value}
+      </div>
     </div>
   );
 }
+
+const rowBox = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '10px 12px',
+  borderRadius: 12,
+  background: 'rgba(var(--w),.04)',
+} as const;
 
 export default function BulkUploadPage() {
   const qc = useQueryClient();
@@ -137,35 +139,67 @@ export default function BulkUploadPage() {
 
   const busy = runImport.isPending;
   const previewed = !!result?.dryRun;
+  const imported = !!result && !result.dryRun;
+
+  // Where the user is in the import: template → file → preview → import.
+  const steps = [
+    { label: 'Download the template', state: 'done' },
+    { label: 'Choose your file', state: file ? 'done' : 'now' },
+    { label: 'Preview the rows', state: result ? 'done' : file ? 'now' : '' },
+    { label: 'Import products', state: imported ? 'done' : previewed ? 'now' : '' },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/admin/products">
-            <ArrowLeft className="h-4 w-4" />
+    <div className="ec-page">
+      <div
+        className="up"
+        style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}
+      >
+        <div>
+          <Link to="/admin/products" className="btn bg sm" style={{ marginBottom: 14 }}>
+            <ArrowLeft /> Products
           </Link>
-        </Button>
-        <PageHeader
-          title="Bulk Upload Products"
-          description="Import products from CSV, XLS or XLSX"
-          icon={FileSpreadsheet}
-          iconTone="indigo"
-          actions={
-            <Button variant="outline" onClick={downloadTemplate}>
-              <Download className="h-4 w-4" /> Download template
-            </Button>
-          }
-        />
+          <div>
+            <div className="eyebrow">Catalogue</div>
+          </div>
+          <h1 className="disp ec-h1">Bulk upload</h1>
+          <p className="muted" style={{ margin: 0, maxWidth: 520 }}>
+            Import products from CSV, XLS or XLSX.
+          </p>
+        </div>
+        <button type="button" className="btn bg" onClick={downloadTemplate}>
+          <Download /> Download template
+        </button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Upload File</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <section className="glass up" style={{ animationDelay: '.08s', padding: '20px 22px' }}>
+        <div className="eyebrow">How it works</div>
+        <div className="steps" style={{ marginTop: 14, maxWidth: 720 }}>
+          {steps.map((st) => (
+            <div key={st.label} className={`st${st.state ? ` st-${st.state}` : ''}`}>
+              <i />
+              <span>{st.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
+        <section className="glass up" style={{ animationDelay: '.14s', overflow: 'hidden', flex: '2 1 480px', minWidth: 0 }}>
+          <h2 className="disp" style={{ margin: 0, padding: '18px 22px', fontSize: 18 }}>
+            Upload file
+          </h2>
+          <div style={{ padding: '0 22px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div
+              role="button"
+              tabIndex={0}
+              aria-label="Choose a file to upload"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  inputRef.current?.click();
+                }
+              }}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDragging(true);
@@ -177,17 +211,28 @@ export default function BulkUploadPage() {
                 handleFile(e.dataTransfer.files?.[0] ?? null);
               }}
               onClick={() => inputRef.current?.click()}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors ${
-                dragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-              }`}
+              className="tile"
+              style={{
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '44px 24px',
+                borderStyle: 'dashed',
+                borderWidth: 2,
+                borderColor: dragging ? 'var(--brand)' : undefined,
+                background: dragging ? 'rgba(45,185,138,.08)' : undefined,
+              }}
             >
-              <UploadCloud className="mb-3 h-10 w-10 text-muted-foreground" />
-              <p className="text-sm font-medium">
-                {file ? file.name : 'Drop your file here, or click to browse'}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <span className="ico" style={{ width: 48, height: 48, borderRadius: 14, marginBottom: 12 }}>
+                <UploadCloud className="h-6 w-6" />
+              </span>
+              <div style={{ fontWeight: 600 }}>{file ? file.name : 'Drop your file here, or click to browse'}</div>
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
                 CSV, XLS, XLSX — up to 10MB, 5,000 rows
-              </p>
+              </div>
               <input
                 ref={inputRef}
                 type="file"
@@ -198,159 +243,199 @@ export default function BulkUploadPage() {
             </div>
 
             {file && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 px-4 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <FileSpreadsheet className="h-5 w-5 shrink-0 text-primary" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">
+              <div style={rowBox}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                  <span className="ico">
+                    <FileSpreadsheet className="h-[18px] w-[18px]" />
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      className="mono"
+                      style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {file.name}
+                    </div>
+                    <div className="muted mono" style={{ fontSize: 11 }}>
                       {(file.size / 1024).toFixed(0)} KB
-                    </p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" onClick={clearFile} disabled={busy}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn bg"
+                    onClick={clearFile}
+                    disabled={busy}
+                    aria-label="Remove file"
+                    style={{ width: 44, padding: 0 }}
+                  >
+                    <X />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn bg"
                     onClick={() => runImport.mutate({ f: file, dryRun: true })}
                     disabled={busy}
                   >
-                    {busy && runImport.variables?.dryRun ? <Spinner /> : <Eye className="h-4 w-4" />}
+                    {busy && runImport.variables?.dryRun ? <Spinner /> : <Eye />}
                     Preview
-                  </Button>
-                  <Button
+                  </button>
+                  <button
+                    type="button"
+                    className="btn bp"
                     onClick={() => runImport.mutate({ f: file, dryRun: false })}
                     disabled={busy}
                   >
                     {busy && !runImport.variables?.dryRun && <Spinner />} Import products
-                  </Button>
+                  </button>
                 </div>
               </div>
             )}
 
             {file && !result && (
-              <p className="text-xs text-muted-foreground">
-                Tip: run <strong>Preview</strong> first — it validates every row and reports what
-                would happen without writing anything.
+              <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
+                Tip: run <b style={{ color: 'var(--fg)' }}>Preview</b> first — it validates every row and reports
+                what would happen without writing anything.
               </p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Expected Columns</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>
-              <code className="rounded bg-secondary px-1.5 py-0.5 text-xs">productCode</code> —
-              required
-            </p>
-            <p>
-              <code className="rounded bg-secondary px-1.5 py-0.5 text-xs">name</code> — required
-            </p>
-            <p>
-              Optional:{' '}
-              <code className="text-xs">
-                sku, type, category, description, unit, pricePerQty, taxRate, totalStock,
-                lowStockThreshold
-              </code>
-            </p>
-            <p className="pt-2 text-xs">
-              Existing product codes and SKUs are skipped, never overwritten. Column names are
-              matched case-insensitively.
-            </p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={downloadTemplate}>
-              <Download className="h-3.5 w-3.5" /> Download template
-            </Button>
-          </CardContent>
-        </Card>
+        <section className="glass up" style={{ animationDelay: '.2s', padding: '18px 22px', flex: '1 1 280px', minWidth: 0 }}>
+          <h2 className="disp" style={{ margin: '0 0 6px', fontSize: 17 }}>
+            Expected columns
+          </h2>
+          <div className="kvrow">
+            <span className="mono">productCode</span>
+            <span className="chip c-warn" style={{ fontSize: 11 }}>
+              Required
+            </span>
+          </div>
+          <div className="kvrow">
+            <span className="mono">name</span>
+            <span className="chip c-warn" style={{ fontSize: 11 }}>
+              Required
+            </span>
+          </div>
+          <div className="kvrow" style={{ alignItems: 'flex-start' }}>
+            <span className="muted">Optional</span>
+            <span className="mono" style={{ fontSize: 11.5, textAlign: 'right' }}>
+              sku, type, category, description, unit, pricePerQty, taxRate, totalStock, lowStockThreshold
+            </span>
+          </div>
+          <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: '10px 0 0' }}>
+            Existing product codes and SKUs are skipped, never overwritten. Column names are matched
+            case-insensitively.
+          </p>
+          <button type="button" className="btn bg sm" style={{ marginTop: 12 }} onClick={downloadTemplate}>
+            <Download /> Download template
+          </button>
+        </section>
       </div>
 
       {result && (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="flex items-center gap-2">
+        <section className="glass up" style={{ overflow: 'hidden' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              padding: '18px 22px',
+              borderBottom: '1px solid rgba(var(--w),.06)',
+            }}
+          >
+            <h2 className="disp" style={{ margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
               {previewed ? (
                 <>
-                  <Eye className="h-5 w-5 text-primary" /> Preview result
+                  <Eye className="h-5 w-5" style={{ color: 'var(--on)' }} /> Preview result
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-5 w-5 text-success" /> Import result
+                  <CheckCircle2 className="h-5 w-5" style={{ color: 'var(--brand)' }} /> Import result
                 </>
               )}
-            </CardTitle>
-            {previewed && <Badge variant="secondary">Nothing was saved</Badge>}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Stat label="Total Rows" value={result.total} />
-              <Stat
-                label={previewed ? 'Would Import' : 'Imported'}
-                value={result.imported}
-                tone="success"
-              />
-              <Stat label="Skipped" value={result.skipped} tone="warning" />
-              <Stat label="Failed" value={result.failed} tone="destructive" />
+            </h2>
+            {previewed && (
+              <span className="chip c-ns">
+                <span className="dot" />
+                Nothing was saved
+              </span>
+            )}
+          </div>
+          <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div
+              className="stag"
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}
+            >
+              <Stat label="Total rows" value={result.total} />
+              <Stat label={previewed ? 'Would import' : 'Imported'} value={result.imported} color="var(--okT)" />
+              <Stat label="Skipped" value={result.skipped} color="var(--wT)" />
+              <Stat label="Failed" value={result.failed} color="var(--rT)" />
             </div>
 
             {previewed && result.imported > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 px-4 py-3">
-                <p className="text-sm">
+              <div style={{ ...rowBox, padding: '12px 14px' }}>
+                <span style={{ fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8 }}>
                   {result.failed > 0 ? (
-                    <span className="flex items-center gap-1.5">
-                      <AlertTriangle className="h-4 w-4 text-[hsl(30_90%_38%)]" />
+                    <>
+                      <AlertTriangle className="h-4 w-4" style={{ color: 'var(--wT)' }} />
                       {result.failed} row(s) will be left out. Import the rest anyway?
-                    </span>
+                    </>
                   ) : (
                     'Everything checks out.'
                   )}
-                </p>
-                <Button
+                </span>
+                <button
+                  type="button"
+                  className="btn bp"
                   onClick={() => file && runImport.mutate({ f: file, dryRun: false })}
                   disabled={busy}
                 >
                   {busy && <Spinner />} Import {result.imported} product
                   {result.imported === 1 ? '' : 's'}
-                </Button>
+                </button>
               </div>
             )}
+          </div>
 
-            {result.errors.length > 0 && (
-              <div className="overflow-hidden rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-20">Row</TableHead>
-                      <TableHead>Field</TableHead>
-                      <TableHead>Issue</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {result.errors.map((e, i) => {
-                      const skipped = e.error.toLowerCase().includes('skipped');
-                      return (
-                        <TableRow key={i}>
-                          <TableCell className="tabular-nums">{e.row || '—'}</TableCell>
-                          <TableCell className="font-mono text-xs">{e.field}</TableCell>
-                          <TableCell>
-                            <Badge variant={skipped ? 'warning' : 'destructive'}>
-                              {skipped ? 'Skipped' : 'Error'}
-                            </Badge>
-                            <span className="ml-2 text-sm text-muted-foreground">{e.error}</span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {result.errors.length > 0 && (
+            <div style={{ overflowX: 'auto', borderTop: '1px solid rgba(var(--w),.06)' }}>
+              <table className="tbl" style={{ minWidth: 560 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 80 }}>Row</th>
+                    <th>Field</th>
+                    <th>Issue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.errors.map((e, i) => {
+                    const skipped = e.error.toLowerCase().includes('skipped');
+                    return (
+                      <tr key={i} className="row">
+                        <td className="mono">{e.row || '—'}</td>
+                        <td className="mono" style={{ fontSize: 12 }}>
+                          {e.field}
+                        </td>
+                        <td>
+                          <span className={`chip ${skipped ? 'c-warn' : 'c-red'}`}>
+                            <span className="dot" />
+                            {skipped ? 'Skipped' : 'Error'}
+                          </span>
+                          <span className="muted" style={{ marginLeft: 10, fontSize: 13 }}>
+                            {e.error}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       )}
     </div>
   );

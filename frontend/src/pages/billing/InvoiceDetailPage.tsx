@@ -9,56 +9,55 @@ import {
   AlertTriangle,
   Building2,
   Send,
-  FileText,
   Trash2,
   Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { invoiceApi, paymentApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
-import { PageHeader } from '@/components/shared/misc';
-import { Button } from '@/components/ui/button';
 import { InvoicePreview } from '@/components/invoice/InvoicePreview';
 import { invoiceTermLabel } from '@/lib/customer';
 import { LoadingBlock, ErrorState } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { InvoiceBadge } from '@/components/shared/status';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
 import { linkifyValue } from '@/lib/linkify';
 import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
+import type { InvoiceStatus } from '@/types';
+
+const STATUS_CHIP: Record<InvoiceStatus, { cls: string; label: string }> = {
+  DRAFT: { cls: 'c-ns', label: 'Draft' },
+  SENT: { cls: 'c-info', label: 'Sent' },
+  PENDING: { cls: 'c-warn', label: 'Pending' },
+  PARTIALLY_PAID: { cls: 'c-on', label: 'Partially paid' },
+  PAID: { cls: 'c-ok', label: 'Paid' },
+  OVERDUE: { cls: 'c-red', label: 'Overdue' },
+  CANCELLED: { cls: 'c-ns', label: 'Cancelled' },
+};
 
 function Money({ label, value, tone }: { label: string; value: string | number; tone?: 'owed' | 'paid' }) {
   return (
-    <div className="rounded-lg border border-border bg-secondary/30 px-4 py-3">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p
-        className={`mt-0.5 text-lg font-semibold tabular-nums ${
-          tone === 'owed' ? 'text-destructive' : tone === 'paid' ? 'text-success' : ''
-        }`}
+    <div className="tile">
+      <div className="eyebrow">{label}</div>
+      <div
+        className="disp stat"
+        style={{
+          fontSize: 26,
+          fontWeight: 700,
+          marginTop: 6,
+          color: tone === 'owed' ? 'var(--rT)' : tone === 'paid' ? 'var(--okT)' : undefined,
+        }}
       >
         {formatCurrency(value)}
-      </p>
+      </div>
     </div>
   );
 }
 
 function Detail({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
-    <div className="min-w-0">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="mt-0.5 truncate text-sm font-medium">
-        {value ? linkifyValue(value) : <span className="text-muted-foreground">—</span>}
-      </div>
+    <div className="kv">
+      <span className="muted">{label}</span>
+      <span>{value ? linkifyValue(value) : <span className="muted">—</span>}</span>
     </div>
   );
 }
@@ -121,137 +120,154 @@ export default function InvoiceDetailPage() {
   // to OVERDUE the moment its due date passes.
   const overdue = daysOverdue(invoice);
 
+  const chip = STATUS_CHIP[invoice.status] ?? STATUS_CHIP.DRAFT;
+  const customerLabel =
+    invoice.customer?.companyName || invoice.customer?.contactPerson || invoice.customer?.clientId;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/admin/billing">
-            <ArrowLeft className="h-4 w-4" />
+    <div className="ec-page">
+      <div
+        className="up print:hidden"
+        style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}
+      >
+        <div>
+          <div className="eyebrow">Billing · Invoice</div>
+          <h1 className="disp ec-h1">{invoice.invoiceNumber}</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            {customerLabel ? `${customerLabel} · ` : ''}Issued {formatDate(invoice.invoiceDate)} · Due{' '}
+            {formatDate(invoice.dueDate)} · {isPaid ? 'Settled' : `${formatCurrency(balance)} outstanding`}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Link to="/admin/billing" className="btn bg">
+            <ArrowLeft /> All invoices
           </Link>
-        </Button>
-        <PageHeader
-          title={invoice.invoiceNumber}
-          icon={FileText}
-          iconTone="indigo"
-          actions={
-            <>
-              {invoice.paymentUrl && (
-                <Button variant="outline" asChild>
-                  <a href={invoice.paymentUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink className="h-4 w-4" /> Payment Link
-                  </a>
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="h-4 w-4" /> Print / PDF
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to={`/admin/billing/${invoice.id}/edit`}>
-                  <Pencil className="h-4 w-4" /> Edit
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setConfirmSend(true)}
-                disabled={sendInvoice.isPending}
-              >
-                <Send className="h-4 w-4" /> Send to Customer
-              </Button>
-              {!isPaid && (
-                <Button onClick={() => setConfirmPaid(true)}>
-                  <CheckCircle2 className="h-4 w-4" /> Mark as Paid
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setConfirmDelete(true)}
-                disabled={deleteInvoice.isPending}
-              >
-                <Trash2 className="h-4 w-4" /> Delete
-              </Button>
-            </>
-          }
-        />
+          {invoice.paymentUrl && (
+            <a href={invoice.paymentUrl} target="_blank" rel="noreferrer" className="btn bg">
+              <ExternalLink /> Payment link
+            </a>
+          )}
+          <button type="button" className="btn bg" onClick={() => window.print()}>
+            <Printer /> Print / PDF
+          </button>
+          <Link to={`/admin/billing/${invoice.id}/edit`} className="btn bg">
+            <Pencil /> Edit
+          </Link>
+          <button type="button" className="btn bg" onClick={() => setConfirmSend(true)} disabled={sendInvoice.isPending}>
+            <Send /> Send to customer
+          </button>
+          {!isPaid && (
+            <button type="button" className="btn bp" onClick={() => setConfirmPaid(true)}>
+              <CheckCircle2 /> Mark as paid
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn bg"
+            style={{ color: 'var(--rT)' }}
+            onClick={() => setConfirmDelete(true)}
+            disabled={deleteInvoice.isPending}
+          >
+            <Trash2 /> Delete
+          </button>
+        </div>
       </div>
 
       {/* Working summary for the admin — the printable invoice follows below. */}
-      <Card className="print:hidden">
-        <CardContent className="space-y-5 p-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <InvoiceBadge status={invoice.status} />
-            {overdue > 0 && (
-              <Badge variant="destructive">
-                <AlertTriangle className="h-3 w-3" /> {overdue} {overdue === 1 ? 'day' : 'days'}{' '}
-                overdue
-              </Badge>
-            )}
-            {invoice.customer?.clientId && (
-              <Link
-                to={`/admin/customers/${invoice.customer.clientId}`}
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary hover:bg-primary/20"
-              >
-                <Building2 className="h-3 w-3" />
-                {invoice.customer.companyName ||
-                  invoice.customer.contactPerson ||
-                  invoice.customer.clientId}
-                <span className="font-mono font-normal">{invoice.customer.clientId}</span>
-              </Link>
-            )}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Money label="Total" value={invoice.total} />
-            <Money label="Paid" value={invoice.amountPaid} tone="paid" />
-            <Money label="Balance" value={balance} tone={balance > 0 ? 'owed' : undefined} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
-            <Detail label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
-            <Detail label="Due Date" value={formatDate(invoice.dueDate)} />
-            <Detail label="Term" value={invoiceTermLabel(invoice.term)} />
-            <Detail
-              label="Next Billing Date"
-              value={invoice.nextBillingDate ? formatDate(invoice.nextBillingDate) : '—'}
-            />
-            <Detail label="Reference" value={invoice.reference} />
-          </div>
-
-          {!!invoice.payments?.length && (
-            <div className="border-t border-border pt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Payments
-              </p>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoice.payments.map((pay) => (
-                    <TableRow key={pay.id}>
-                      <TableCell className="text-sm">{formatDate(pay.paidAt)}</TableCell>
-                      <TableCell className="text-sm">{pay.paymentMethod ?? '—'}</TableCell>
-                      <TableCell>
-                        <Badge variant={pay.status === 'SUCCESS' ? 'success' : 'muted'}>
-                          {pay.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatCurrency(pay.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+      <section className="glass up print:hidden" style={{ animationDelay: '.08s', overflow: 'hidden' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 8,
+            padding: '18px 22px',
+            borderBottom: '1px solid rgba(var(--w),.06)',
+          }}
+        >
+          <h2 className="disp" style={{ margin: 0, fontSize: 18, flex: 1 }}>
+            Summary
+          </h2>
+          <span className={`chip ${chip.cls}`}>
+            <span className="dot" />
+            {chip.label}
+          </span>
+          {overdue > 0 && (
+            <span className="chip c-red">
+              <AlertTriangle className="h-3 w-3" /> {overdue} {overdue === 1 ? 'day' : 'days'} overdue
+            </span>
           )}
-        </CardContent>
-      </Card>
+          {invoice.customer?.clientId && (
+            <Link
+              to={`/admin/customers/${invoice.customer.clientId}`}
+              className="chip c-on"
+              style={{ textDecoration: 'none' }}
+            >
+              <Building2 className="h-3 w-3" />
+              {customerLabel}
+              <span className="mono" style={{ fontSize: 11 }}>
+                {invoice.customer.clientId}
+              </span>
+            </Link>
+          )}
+        </div>
+
+        <div
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, padding: '18px 22px' }}
+        >
+          <Money label="Total" value={invoice.total} />
+          <Money label="Paid" value={invoice.amountPaid} tone="paid" />
+          <Money label="Balance" value={balance} tone={balance > 0 ? 'owed' : undefined} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+          <Detail label="Invoice date" value={formatDate(invoice.invoiceDate)} />
+          <Detail label="Due date" value={formatDate(invoice.dueDate)} />
+          <Detail label="Term" value={invoiceTermLabel(invoice.term)} />
+          <Detail
+            label="Next billing date"
+            value={invoice.nextBillingDate ? formatDate(invoice.nextBillingDate) : '—'}
+          />
+          <Detail label="Reference" value={invoice.reference} />
+        </div>
+
+        {!!invoice.payments?.length && (
+          <div style={{ borderTop: '1px solid rgba(var(--w),.06)' }}>
+            <div className="eyebrow" style={{ padding: '16px 22px 4px' }}>
+              Payments
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="tbl" style={{ minWidth: 560 }}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.payments.map((pay) => (
+                    <tr key={pay.id} className="row">
+                      <td className="nw">{formatDate(pay.paidAt)}</td>
+                      <td>{pay.paymentMethod ?? '—'}</td>
+                      <td>
+                        <span className={`chip ${pay.status === 'SUCCESS' ? 'c-ok' : 'c-ns'}`}>
+                          <span className="dot" />
+                          {pay.status.charAt(0) + pay.status.slice(1).toLowerCase()}
+                        </span>
+                      </td>
+                      <td className="stat" style={{ textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(pay.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
 
       <InvoicePreview invoice={invoice} />
 

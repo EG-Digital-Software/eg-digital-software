@@ -37,7 +37,6 @@ import type { Address, AgreementField, Customer, CustomerCredential, CustomerDoc
 import AgreementFieldsDialog from './AgreementFieldsDialog';
 import { InvoiceForm } from '@/components/invoice/InvoiceForm';
 import { Input, Select } from '@/components/ui/input';
-import { PageHeader } from '@/components/shared/misc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -48,7 +47,6 @@ import { InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, EmptyState, Spinner } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { formatCurrency, formatDate, initials, cn, mediaUrl } from '@/lib/utils';
 import { ProductGlyph } from '@/lib/product-icon';
 import { businessTypesLabel, customerName, formatAbn, formatAcn } from '@/lib/customer';
@@ -100,8 +98,8 @@ function PhoneValue({ number, country }: { number?: string | null; country?: str
 function Detail({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="mt-0.5 break-words text-sm font-medium">
+      <p className="muted" style={{ fontSize: 12.5 }}>{label}</p>
+      <div className="mt-1 break-words text-[13.5px] font-medium">
         {value ? linkifyValue(value) : <span className="text-muted-foreground">—</span>}
       </div>
     </div>
@@ -118,15 +116,22 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex-row items-center gap-3 space-y-0">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <section className="glass up" style={{ overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px' }}>
+        <span className="ico">
           <Icon className="h-[18px] w-[18px]" />
-        </div>
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</CardContent>
-    </Card>
+        </span>
+        <h2 className="disp" style={{ margin: 0, fontSize: 17 }}>
+          {title}
+        </h2>
+      </div>
+      <div
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+        style={{ padding: '16px 20px 20px', borderTop: '1px solid rgba(var(--w),.05)' }}
+      >
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -429,6 +434,14 @@ const ACCOUNT_STATUS: Record<
   SUSPENDED: { label: 'Suspended', variant: 'destructive' },
 };
 
+/** Badge variant → design chip class. */
+const CHIP: Record<string, string> = {
+  success: 'c-ok',
+  default: 'c-on',
+  warning: 'c-warn',
+  destructive: 'c-red',
+};
+
 /** Principal address is the customer's real-world location; fall back to billing. */
 function primaryAddress(c: Customer) {
   return (
@@ -498,72 +511,83 @@ export default function CustomerDetailPage() {
   const here = primaryAddress(c);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/admin/customers">
-            <ArrowLeft className="h-4 w-4" />
+    <div className="ec-page">
+      <div className="up" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}>
+        <div style={{ minWidth: 0 }}>
+          <Link to="/admin/customers" className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
+            <ArrowLeft className="h-3.5 w-3.5" /> Customers
           </Link>
-        </Button>
-        <PageHeader
-          title={customerName(c)}
-          description={c.clientId}
-          icon={Building2}
-          iconTone="primary"
-          actions={
-            <>
-              <Button
-                variant="outline"
-                disabled={viewPortal.isPending}
-                onClick={() => viewPortal.mutate('edit')}
-                title="Open this client's portal without their password — you can view and edit; changes are saved as the client"
-              >
-                <Eye className="h-4 w-4" /> View/Edit portal
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to={`/admin/customers/${c.clientId}/edit`}>
-                  <Pencil className="h-4 w-4" /> Edit
-                </Link>
-              </Button>
-              <Button onClick={() => setInvoiceOpen(true)}>
-                <Receipt className="h-4 w-4" /> Create Invoice
-              </Button>
-            </>
-          }
-        />
+          <h1 className="disp ec-h1" style={{ overflowWrap: 'anywhere' }}>
+            {customerName(c)}
+          </h1>
+          <p className="muted" style={{ margin: 0 }}>
+            <span className="mono">{c.clientId}</span>
+            {c.tradingAs && c.tradingAs !== c.companyName ? ` · Trading as ${c.tradingAs}` : ''}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn bg"
+            disabled={viewPortal.isPending}
+            onClick={() => viewPortal.mutate('edit')}
+            title="Open this client's portal without their password — you can view and edit; changes are saved as the client"
+          >
+            <Eye /> View/Edit portal
+          </button>
+          <Link to={`/admin/customers/${c.clientId}/edit`} className="btn bg">
+            <Pencil /> Edit
+          </Link>
+          <button type="button" className="btn bp" onClick={() => setInvoiceOpen(true)}>
+            <Receipt /> Create invoice
+          </button>
+        </div>
       </div>
 
       {/* Profile card */}
-      <Card>
-        <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start">
-          <Avatar className="h-14 w-14">
-            <AvatarFallback className="text-lg">
-              {initials(...(customerName(c).split(' ') as [string, string?]))}
-            </AvatarFallback>
-          </Avatar>
+      <section className="glass card up" style={{ animationDelay: '.08s', padding: 22 }}>
+        <div className="flex flex-col gap-[18px] sm:flex-row sm:items-start">
+          <div
+            className="disp"
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 16,
+              background: '#0F2340',
+              color: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {initials(...(customerName(c).split(' ') as [string, string?]))}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-lg font-semibold">{customerName(c)}</p>
-              <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
-                {c.clientId}
-              </span>
-              {c.businessType && (
-                <Badge variant="secondary">{businessTypesLabel(c.businessType)}</Badge>
-              )}
-              {c.status === 'ARCHIVED' && (
-                <Badge variant="muted">{c.status}</Badge>
-              )}
+              <div className="disp" style={{ fontSize: 22, fontWeight: 700 }}>
+                {customerName(c)}
+              </div>
+              {c.businessType && <span className="chip c-ns">{businessTypesLabel(c.businessType)}</span>}
+              {c.status === 'ARCHIVED' && <span className="chip c-ns">Archived</span>}
               {(() => {
                 const s = ACCOUNT_STATUS[c.accountStatusEffective ?? c.accountStatus];
-                return <Badge variant={s.variant}>{s.label}</Badge>;
+                return (
+                  <span className={`chip ${CHIP[s.variant]}`}>
+                    <span className="dot" />
+                    {s.label}
+                  </span>
+                );
               })()}
               {!c.authorized && (
-                <Badge variant="default">
+                <span className="chip c-info">
                   <ShieldCheck className="h-3 w-3" /> Authorised rep
-                </Badge>
+                </span>
               )}
             </div>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <div className="muted mt-2 flex flex-wrap gap-x-4 gap-y-1" style={{ fontSize: 13 }}>
               {c.contactEmail && (
                 <span className="flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5" /> {c.contactEmail}
@@ -589,15 +613,15 @@ export default function CustomerDetailPage() {
             </div>
 
             {/* Account Manager — assign a team member to this specific client. */}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-                <Users className="h-3.5 w-3.5" /> Account Manager
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="eyebrow flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" /> Account manager
               </span>
               <Select
                 value={c.accountManagerId ?? ''}
                 disabled={assignManager.isPending}
                 onChange={(e) => assignManager.mutate(e.target.value)}
-                className="h-9 w-full sm:w-64"
+                className="w-full sm:w-64"
               >
                 <option value="">Unassigned</option>
                 {employees?.items.map((emp) => (
@@ -611,11 +635,11 @@ export default function CustomerDetailPage() {
           </div>
           <div className="flex shrink-0 flex-wrap items-start gap-3 sm:flex-nowrap">
           <div className="flex flex-col items-stretch gap-1">
-            <Button type="button" variant="outline" onClick={() => setRenewOpen(true)} className="h-auto py-2.5">
-              <RefreshCw className="h-4 w-4" /> Renew account
-            </Button>
+            <button type="button" className="btn bg" onClick={() => setRenewOpen(true)}>
+              <RefreshCw /> Renew account
+            </button>
             {c.accountRenewedUntil && new Date(c.accountRenewedUntil) > new Date() && (
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="muted text-center" style={{ fontSize: 12 }}>
                 Renewed until {formatDate(c.accountRenewedUntil)}
               </p>
             )}
@@ -623,27 +647,24 @@ export default function CustomerDetailPage() {
           {c.creditScore != null && (
             <div
               className={cn(
-                'shrink-0 rounded-lg border px-4 py-2 text-center',
+                'tile shrink-0 text-center',
                 // 500+ is healthy (green); anything below is a risk flag (red).
-                c.creditScore >= 500
-                  ? 'border-success/30 bg-success/10'
-                  : 'border-destructive/30 bg-destructive/10'
+                c.creditScore >= 500 ? 'border-success/30' : 'border-destructive/30'
               )}
+              style={{ padding: '10px 16px' }}
             >
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Credit Score</p>
+              <p className="eyebrow">Credit score</p>
               <p
-                className={cn(
-                  'text-xl font-semibold tabular-nums',
-                  c.creditScore >= 500 ? 'text-success' : 'text-destructive'
-                )}
+                className="stat-big stat"
+                style={{ fontSize: 28, marginTop: 6, color: c.creditScore >= 500 ? 'var(--okT)' : 'var(--rT)' }}
               >
                 {c.creditScore}
               </p>
             </div>
           )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
       <RenewAccountDialog customer={c} open={renewOpen} onOpenChange={setRenewOpen} />
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -712,14 +733,12 @@ export default function CustomerDetailPage() {
               <Detail
                 label="Business Type"
                 value={
-                  c.businessType ? (
-                    <Badge variant="secondary">{businessTypesLabel(c.businessType)}</Badge>
-                  ) : null
+                  c.businessType ? <span className="chip c-ns">{businessTypesLabel(c.businessType)}</span> : null
                 }
               />
               <Detail
                 label="Customer ID"
-                value={<span className="font-mono text-primary">{c.clientId}</span>}
+                value={<span className="mono">{c.clientId}</span>}
               />
               <Detail label="Principal Address" value={<AddressBlock address={principal} />} />
               <Detail label="Billing Address" value={<AddressBlock address={billing} />} />
@@ -754,13 +773,13 @@ export default function CustomerDetailPage() {
                   {c.directors.map((d, i) => (
                     <div
                       key={d.id}
-                      className="rounded-lg border border-border bg-secondary/30 p-3 text-sm"
+                      className="tile text-sm" style={{ padding: 12 }}
                     >
                       <p className="mb-1 font-medium">
                         {[d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ') ||
                           `Director ${i + 1}`}
                       </p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                      <div className="muted flex flex-wrap gap-x-4 gap-y-1">
                         <span className="flex items-center gap-1.5">
                           <Mail className="h-3.5 w-3.5" /> {d.email}
                         </span>
@@ -783,10 +802,10 @@ export default function CustomerDetailPage() {
                   {c.itContacts.map((it, i) => (
                     <div
                       key={it.id}
-                      className="rounded-lg border border-border bg-secondary/30 p-3 text-sm"
+                      className="tile text-sm" style={{ padding: 12 }}
                     >
                       <p className="mb-1 font-medium">{it.name || `IT Contact ${i + 1}`}</p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                      <div className="muted flex flex-wrap gap-x-4 gap-y-1">
                         {it.email && (
                           <span className="flex items-center gap-1.5">
                             <Mail className="h-3.5 w-3.5" /> {it.email}
@@ -825,7 +844,12 @@ export default function CustomerDetailPage() {
                 label="Account Status"
                 value={(() => {
                   const s = ACCOUNT_STATUS[c.accountStatusEffective ?? c.accountStatus];
-                  return <Badge variant={s.variant}>{s.label}</Badge>;
+                  return (
+                    <span className={`chip ${CHIP[s.variant]}`}>
+                      <span className="dot" />
+                      {s.label}
+                    </span>
+                  );
                 })()}
               />
             </Section>
@@ -841,52 +865,69 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="invoices">
-          <Card>
-            <CardContent className="p-0">
-              {!c.invoices?.length ? (
-                <div className="p-6">
-                  <EmptyState
-                    title="No invoices yet"
-                    description="Create an invoice for this customer."
-                    action={
-                      <Button onClick={() => setInvoiceOpen(true)}>
-                        <Receipt className="h-4 w-4" /> Create Invoice
-                      </Button>
-                    }
-                  />
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Due</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+          <section className="glass up" style={{ overflow: 'hidden' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                padding: '18px 22px',
+                borderBottom: '1px solid rgba(var(--w),.06)',
+              }}
+            >
+              <h2 className="disp" style={{ margin: 0, fontSize: 18 }}>
+                Invoices
+              </h2>
+              <button type="button" className="btn bg sm" onClick={() => setInvoiceOpen(true)}>
+                <Receipt /> Create invoice
+              </button>
+            </div>
+            {!c.invoices?.length ? (
+              <div className="p-6">
+                <EmptyState
+                  title="No invoices yet"
+                  description="Create an invoice for this customer."
+                  action={
+                    <button type="button" className="btn bp" onClick={() => setInvoiceOpen(true)}>
+                      <Receipt /> Create invoice
+                    </button>
+                  }
+                />
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="tbl" style={{ minWidth: 640 }}>
+                  <thead>
+                    <tr>
+                      <th>Invoice</th>
+                      <th>Date</th>
+                      <th>Due</th>
+                      <th style={{ textAlign: 'right' }}>Total</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="stag">
                     {c.invoices.map((inv) => (
-                      <TableRow
-                        key={inv.id}
-                        className="cursor-pointer"
-                        onClick={() => navigate(`/admin/billing/${inv.id}`)}
-                      >
-                        <TableCell className="font-medium">{inv.invoiceNumber}</TableCell>
-                        <TableCell className="text-sm">{formatDate(inv.invoiceDate)}</TableCell>
-                        <TableCell className="text-sm">{formatDate(inv.dueDate)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(inv.total)}</TableCell>
-                        <TableCell>
+                      <tr key={inv.id} className="row click" onClick={() => navigate(`/admin/billing/${inv.id}`)}>
+                        <td className="mono" style={{ fontSize: 12, fontWeight: 500 }}>
+                          {inv.invoiceNumber}
+                        </td>
+                        <td className="nw">{formatDate(inv.invoiceDate)}</td>
+                        <td className="nw muted">{formatDate(inv.dueDate)}</td>
+                        <td className="stat" style={{ textAlign: 'right', fontWeight: 600 }}>
+                          {formatCurrency(inv.total)}
+                        </td>
+                        <td>
                           <InvoiceBadge status={inv.status} />
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </TabsContent>
 
         <TabsContent value="credential">

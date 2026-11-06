@@ -1,43 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { UsersRound, UserCheck, ShieldCheck, Eye } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import { adminApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage, Skeleton } from '@/components/ui/misc';
+import { Skeleton } from '@/components/ui/misc';
 import { EmptyState } from '@/components/shared/states';
 import { initials, mediaUrl, formatDate, formatNumber } from '@/lib/utils';
+import { AVATAR_COLORS } from '@/components/client/portalContext';
 
-function Kpi({
-  title,
-  icon: Icon,
-  value,
-  tone,
-}: {
-  title: string;
-  icon: typeof UsersRound;
-  value: string;
-  tone?: string;
-}) {
+function Kpi({ title, value, tone }: { title: string; value: string; tone?: string }) {
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div
-            className={`flex h-9 w-9 items-center justify-center rounded-lg ${tone ?? 'bg-primary/10 text-primary'}`}
-          >
-            <Icon className="h-[18px] w-[18px]" />
-          </div>
-        </div>
-        <p className="mt-3 text-2xl font-semibold tracking-tight">{value}</p>
-      </CardContent>
-    </Card>
+    <div className="glass card" style={{ padding: 20 }}>
+      <div className="eyebrow">{title}</div>
+      <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10, color: tone }}>
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -69,10 +50,11 @@ export default function TeamDashboardPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Team Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+    <div className="ec-page">
+      <div className="up">
+        <div className="eyebrow">Team</div>
+        <h1 className="disp ec-h1">Team dashboard</h1>
+        <p className="muted" style={{ margin: 0, maxWidth: 560 }}>
           Overview of your team, and open any member’s portal to view it as them.
         </p>
       </div>
@@ -80,103 +62,97 @@ export default function TeamDashboardPage() {
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="portals">Employee Portals</TabsTrigger>
+          <TabsTrigger value="portals">Employee portals</TabsTrigger>
         </TabsList>
 
         {/* ── Overview ─────────────────────────────────── */}
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <Kpi
-              title="Team Members"
-              icon={UsersRound}
-              value={isLoading ? '—' : formatNumber(employees.length)}
-            />
-            <Kpi
-              title="Active"
-              icon={UserCheck}
-              value={isLoading ? '—' : formatNumber(activeCount)}
-              tone="bg-success/10 text-success"
-            />
-            <Kpi
-              title="Inactive"
-              icon={ShieldCheck}
-              value={isLoading ? '—' : formatNumber(employees.length - activeCount)}
-              tone="bg-warning/10 text-[hsl(30_90%_38%)]"
-            />
+        <TabsContent value="overview">
+          <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+            <Kpi title="Team members" value={isLoading ? '—' : formatNumber(employees.length)} />
+            <Kpi title="Active" value={isLoading ? '—' : formatNumber(activeCount)} tone="var(--brand)" />
+            <Kpi title="Inactive" value={isLoading ? '—' : formatNumber(employees.length - activeCount)} tone="var(--wT)" />
           </div>
         </TabsContent>
 
         {/* ── Employee Portals ─────────────────────────── */}
         <TabsContent value="portals">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Team Members</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="space-y-2 p-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
+          <section className="glass up" style={{ overflow: 'hidden' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+                padding: '18px 20px',
+              }}
+            >
+              <div>
+                <h2 className="disp" style={{ margin: 0, fontSize: 17 }}>
+                  Team members
+                </h2>
+                <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+                  Open a member’s portal to see exactly what they see.
                 </div>
-              ) : !employees.length ? (
-                <div className="p-6">
-                  <EmptyState
-                    title="No team members yet"
-                    description="Approved team members will appear here. Add them from Approvals → Manage Team."
-                  />
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Member</TableHead>
-                      <TableHead>Designation</TableHead>
-                      <TableHead>Last login</TableHead>
-                      <TableHead className="text-right">Portal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {employees.map((emp) => (
-                      <TableRow key={emp.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              {emp.avatarUrl && <AvatarImage src={mediaUrl(emp.avatarUrl)} alt="" />}
-                              <AvatarFallback>{initials(emp.firstName, emp.lastName)}</AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">
-                                {emp.firstName} {emp.lastName}
-                              </p>
-                              <p className="truncate text-xs text-muted-foreground">{emp.email}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {emp.designation || '—'}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {emp.lastLoginAt ? formatDate(emp.lastLoginAt) : 'Never'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={viewPortal.isPending}
-                            onClick={() => viewPortal.mutate(emp.id)}
-                          >
-                            <Eye className="h-4 w-4" />
-                            View portal
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+              {!isLoading && <span className="chip c-ns">{employees.length} people</span>}
+            </div>
+            {isLoading ? (
+              <div className="space-y-2" style={{ padding: '0 20px 20px' }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : !employees.length ? (
+              <div style={{ padding: '0 20px 20px' }}>
+                <EmptyState
+                  title="No team members yet"
+                  description="Approved team members will appear here. Add them from Approvals → Manage Team."
+                />
+              </div>
+            ) : (
+              <div className="stag">
+                {employees.map((emp, i) => (
+                  <div key={emp.id} className="tmrow row">
+                    <span
+                      className="av"
+                      style={{ width: 36, height: 36, fontSize: 12, margin: 0, background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                    >
+                      {emp.avatarUrl ? <img src={mediaUrl(emp.avatarUrl)} alt="" /> : initials(emp.firstName, emp.lastName)}
+                    </span>
+                    <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {emp.firstName} {emp.lastName}
+                      </div>
+                      <div className="muted truncate" style={{ fontSize: 12.5 }}>
+                        {emp.email}
+                      </div>
+                    </div>
+                    <span className="chip c-ns" style={{ minWidth: 110, justifyContent: 'center' }}>
+                      {emp.designation || 'Team member'}
+                    </span>
+                    <span className={emp.isActive ? 'chip c-ok' : 'chip c-warn'} style={{ minWidth: 86, justifyContent: 'center' }}>
+                      <span className="dot" />
+                      {emp.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                    <span className="muted" style={{ fontSize: 12.5, minWidth: 130 }}>
+                      Last login {emp.lastLoginAt ? formatDate(emp.lastLoginAt) : 'never'}
+                    </span>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 130 }}>
+                      <button
+                        type="button"
+                        className="btn bg sm"
+                        disabled={viewPortal.isPending}
+                        onClick={() => viewPortal.mutate(emp.id)}
+                      >
+                        <Eye /> View portal
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </TabsContent>
       </Tabs>
     </div>
