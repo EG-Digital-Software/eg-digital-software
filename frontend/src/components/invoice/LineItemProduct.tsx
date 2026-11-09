@@ -55,7 +55,7 @@ export function LineItemProduct({
   fallback,
   controlClassName,
 }: LineItemProductProps) {
-  const selected = findLicenceGroup(groups, productId);
+  const selected = findLicenceGroup(groups, productId, sku);
 
   return (
     <>

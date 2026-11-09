@@ -367,11 +367,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
  * line was built from.
  */
 function groupForItem(groups: LicenceGroup[], item: InvoiceItem): LicenceGroup | undefined {
-  if (item.sku) {
-    const byLicence = groups.find((g) => g.licenceKey && g.licenceKey === item.sku);
-    if (byLicence) return byLicence;
-  }
-  return findLicenceGroup(groups, item.productId);
+  return findLicenceGroup(groups, item.productId, item.sku);
 }
 
 interface ProductRow {

@@ -52,11 +52,23 @@ export function buildLicenceGroups(customerProducts?: CustomerProduct[]): Licenc
   return [...map.values()];
 }
 
-/** The licence group a line's product belongs to, if any. */
+/**
+ * The licence group a line bills, if any. A line carries its licence number as
+ * its sku, so match on that first: the same product can be assigned twice under
+ * different licences, and only the licence tells those apart. Falls back to the
+ * group holding the line's product (lines without a licence).
+ */
 export function findLicenceGroup(
   groups: LicenceGroup[],
-  productId?: string | null
+  productId?: string | null,
+  sku?: string | null
 ): LicenceGroup | undefined {
+  if (sku) {
+    const byLicence = groups.find(
+      (g) => g.licenceKey && g.licenceKey === sku && (!productId || g.items.some((cp) => cp.product.id === productId))
+    );
+    if (byLicence) return byLicence;
+  }
   return productId ? groups.find((g) => g.items.some((cp) => cp.product.id === productId)) : undefined;
 }
 

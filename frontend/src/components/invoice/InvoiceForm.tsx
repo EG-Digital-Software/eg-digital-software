@@ -229,8 +229,8 @@ export function InvoiceForm({
   }, [invoiceDate, nextBillingDate, setValue]);
 
   // What the licence group a product belongs to bills for this period.
-  const groupBilledFor = (productId?: string): number | null => {
-    const g = findLicenceGroup(licenceGroups, productId);
+  const groupBilledFor = (productId?: string, sku?: string): number | null => {
+    const g = findLicenceGroup(licenceGroups, productId, sku);
     return g ? licenceGroupBilled(g, proration) : null;
   };
 
@@ -269,7 +269,7 @@ export function InvoiceForm({
     const its = getValues('items') ?? [];
     its.forEach((it, i) => {
       if (!it.productId) return;
-      const billed = groupBilledFor(it.productId);
+      const billed = groupBilledFor(it.productId, it.sku);
       if (billed == null) return;
       const next = round2(billed);
       if (Math.abs((Number(it.unitPrice) || 0) - next) > 0.005) {

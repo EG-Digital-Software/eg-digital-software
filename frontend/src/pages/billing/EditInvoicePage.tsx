@@ -178,8 +178,8 @@ export default function EditInvoicePage() {
   );
 
   // What the licence group a product belongs to bills for this period.
-  const groupBilledFor = (productId?: string | null): number | null => {
-    const g = findLicenceGroup(licenceGroups, productId);
+  const groupBilledFor = (productId?: string | null, sku?: string | null): number | null => {
+    const g = findLicenceGroup(licenceGroups, productId, sku);
     return g ? licenceGroupBilled(g, proration) : null;
   };
 
@@ -226,7 +226,7 @@ export default function EditInvoicePage() {
   // Manual lines keep their typed price.
   const effectiveUnitPrice = (it?: FormValues['items'][number]): number => {
     if (it?.productId) {
-      const billed = groupBilledFor(it.productId);
+      const billed = groupBilledFor(it.productId, it.sku);
       if (billed != null) return round2(billed);
     }
     return Number(it?.unitPrice) || 0;
@@ -374,7 +374,7 @@ export default function EditInvoicePage() {
             // Product-backed lines bill a pro-rated price derived from the
             // invoice date/term — shown read-only so it always matches the
             // summary; manual lines stay editable.
-            const isProduct = !!it?.productId && groupBilledFor(it.productId) != null;
+            const isProduct = !!it?.productId && groupBilledFor(it.productId, it.sku) != null;
             const unitPrice = effectiveUnitPrice(it);
             const gross = unitPrice * (Number(it?.quantity) || 0);
             const amount = it?.gstType === 'INCLUSIVE' ? gross : gross * (1 + (Number(it?.taxRate) || 0) / 100);
