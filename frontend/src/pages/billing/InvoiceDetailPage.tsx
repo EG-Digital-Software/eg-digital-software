@@ -22,6 +22,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
 import { linkifyValue } from '@/lib/linkify';
 import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
+import { useStaffAccess } from '@/lib/staffAccess';
 import type { InvoiceStatus } from '@/types';
 
 const STATUS_CHIP: Record<InvoiceStatus, { cls: string; label: string }> = {
@@ -69,6 +70,8 @@ export default function InvoiceDetailPage() {
   const [confirmPaid, setConfirmPaid] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // A view-only Billing role can read and print, but not change the invoice.
+  const canEdit = useStaffAccess().canEdit('billing');
 
   const { data: invoice, isLoading, isError, refetch } = useQuery({
     // Unpaid invoices re-price live when products change — always show the latest.
@@ -150,26 +153,30 @@ export default function InvoiceDetailPage() {
           <button type="button" className="btn bg" onClick={() => window.print()}>
             <Printer /> Print / PDF
           </button>
-          <Link to={`/admin/billing/${invoice.id}/edit`} className="btn bg">
-            <Pencil /> Edit
-          </Link>
-          <button type="button" className="btn bg" onClick={() => setConfirmSend(true)} disabled={sendInvoice.isPending}>
-            <Send /> Send to customer
-          </button>
-          {!isPaid && (
-            <button type="button" className="btn bp" onClick={() => setConfirmPaid(true)}>
-              <CheckCircle2 /> Mark as paid
-            </button>
+          {canEdit && (
+            <>
+              <Link to={`/admin/billing/${invoice.id}/edit`} className="btn bg">
+                <Pencil /> Edit
+              </Link>
+              <button type="button" className="btn bg" onClick={() => setConfirmSend(true)} disabled={sendInvoice.isPending}>
+                <Send /> Send to customer
+              </button>
+              {!isPaid && (
+                <button type="button" className="btn bp" onClick={() => setConfirmPaid(true)}>
+                  <CheckCircle2 /> Mark as paid
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn bg"
+                style={{ color: 'var(--rT)' }}
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleteInvoice.isPending}
+              >
+                <Trash2 /> Delete
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            className="btn bg"
-            style={{ color: 'var(--rT)' }}
-            onClick={() => setConfirmDelete(true)}
-            disabled={deleteInvoice.isPending}
-          >
-            <Trash2 /> Delete
-          </button>
         </div>
       </div>
 

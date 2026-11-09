@@ -216,6 +216,9 @@ model TeamRole {
   name      String             @unique
   /// Admin tab keys this role grants (dashboard, customers, tasks, billing, …).
   tabs      String[]           @default([])
+  /// Permission key → "view" | "edit" (e.g. billing, customers.agreement).
+  /// NULL on roles saved before levels existed = edit on every granted tab.
+  access    Json?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
   members   EmployeeTeamRole[]

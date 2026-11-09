@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { LoadingBlock, ErrorState, EmptyState } from '@/components/shared/states';
 import { Avatar, AvatarFallback } from '@/components/ui/misc';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
+import { useStaffAccess } from '@/lib/staffAccess';
 import { useAdminTaskActivity } from '@/lib/taskSeen';
 
 /**
@@ -24,6 +25,8 @@ export default function AdminTasksPage() {
 
   const customers = data?.items ?? [];
   const [selected, setSelected] = useState<string | null>(null);
+  // A view-only Tasks role sees the boards but can't change them.
+  const canEdit = useStaffAccess().canEdit('tasks');
 
   // Default to the first customer once the list arrives.
   useEffect(() => {
@@ -76,7 +79,13 @@ export default function AdminTasksPage() {
       </div>
       {current && (
         <section className="glass up" style={{ animationDelay: '.15s', padding: 16, overflow: 'hidden' }}>
-          <TaskBoard key={current.clientId} api={adminTaskApi(current.clientId)} scopeKey={current.clientId} customerName={customerName(current)} />
+          <TaskBoard
+            key={current.clientId}
+            api={adminTaskApi(current.clientId)}
+            scopeKey={current.clientId}
+            customerName={customerName(current)}
+            readOnly={!canEdit}
+          />
         </section>
       )}
     </div>

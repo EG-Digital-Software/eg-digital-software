@@ -11,13 +11,15 @@ import {
 } from '../validators/invoice.validator.js';
 
 const router = Router();
-router.use(authenticate, authorizeTab(['billing'], ['customers', 'payments', 'dashboard']));
+router.use(authenticate);
+// Raising an invoice from a customer's Invoices sub-tab (edit level) needs no Billing tab.
+router.post('/', authorizeTab(['billing', 'customers.invoices']), validate({ body: createInvoiceSchema }), ctrl.create);
+router.use(authorizeTab(['billing'], ['customers', 'payments', 'dashboard']));
 
 router.get('/', validate({ query: listInvoiceQuerySchema }), ctrl.list);
 // Must precede `/:id` or "next-reference" would be read as an invoice id.
 router.get('/next-reference', ctrl.nextReference);
 router.get('/:id', ctrl.getOne);
-router.post('/', validate({ body: createInvoiceSchema }), ctrl.create);
 router.post('/:id/send', ctrl.send);
 router.put('/:id', validate({ body: updateInvoiceSchema }), ctrl.update);
 router.put('/:id/status', validate({ body: updateInvoiceStatusSchema }), ctrl.updateStatus);

@@ -4,14 +4,16 @@ import { useStaffAccess, type StaffTab } from '@/lib/staffAccess';
 
 /**
  * Gate for an admin section. The admin always passes; a team member passes only
- * when one of their roles grants `tab`. With no `tab` the section is admin-only
- * (Team, Approvals, Settings). Anyone else is sent back to their team portal.
+ * when one of their roles grants `tab` — at edit level when `edit` is set (create
+ * and edit screens). `tab` may be a sub-tab ("customers.overview"). With no `tab`
+ * the section is admin-only (Team, Approvals, Settings). Anyone else is sent back
+ * to their team portal.
  */
-export function RequireTab({ tab }: { tab?: StaffTab }) {
-  const { isAdmin, loading, can } = useStaffAccess();
+export function RequireTab({ tab, edit = false }: { tab?: StaffTab | `${StaffTab}.${string}`; edit?: boolean }) {
+  const { isAdmin, loading, can, canEdit } = useStaffAccess();
   if (isAdmin) return <Outlet />;
   if (loading) return <LoadingBlock label="Checking access…" />;
-  if (tab && can(tab)) return <Outlet />;
+  if (tab && (edit ? canEdit(tab) : can(tab))) return <Outlet />;
   return <Navigate to="/employee/tasks" replace />;
 }
 

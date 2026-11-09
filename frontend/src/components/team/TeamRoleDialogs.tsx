@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { adminApi, type PendingUser, type TeamRole } from '@/api/resources';
+import { adminApi, type AccessMap, type PendingUser, type TeamRole } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/shared/states';
-import { STAFF_TABS } from '@/lib/staffAccess';
+import { cn } from '@/lib/utils';
+import {
+  describeAccess,
+  levelFor,
+  STAFF_SECTIONS,
+  STAFF_TABS,
+  type AccessLevel,
+  type StaffTab,
+} from '@/lib/staffAccess';
 
 function CheckRow({
   checked,
@@ -34,8 +42,35 @@ function CheckRow({
   );
 }
 
+/** View / Edit switch for one tab or sub-tab. */
+function LevelSwitch({ value, onChange }: { value: AccessLevel; onChange: (v: AccessLevel) => void }) {
+  return (
+    <div className="ml-auto inline-flex shrink-0 overflow-hidden rounded-md border border-border text-xs" role="radiogroup">
+      {(['view', 'edit'] as const).map((l) => (
+        <button
+          key={l}
+          type="button"
+          role="radio"
+          aria-checked={value === l}
+          onClick={() => onChange(l)}
+          className={cn(
+            'px-2.5 py-1 font-medium transition',
+            value === l ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'
+          )}
+        >
+          {l === 'view' ? 'View' : 'Edit'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Every permission key a tab covers: its sub-tabs, or the tab itself. */
+const keysOf = (tab: StaffTab) => STAFF_SECTIONS[tab]?.map((s) => `${tab}.${s.key}`) ?? [tab];
+
 /**
- * Create or edit a team role: its name and which admin tabs it grants.
+ * Create or edit a team role: its name, which admin tabs (and, for Customers,
+ * which sub-tabs) it grants, and whether each is view-only or editable.
  * `role` undefined = closed, null = create, a role = edit.
  */
 export function RoleFormDialog({
@@ -64,11 +99,11 @@ function RoleForm({
   onDone: () => void;
 }) {
   const [name, setName] = useState(role?.name ?? '');
-  const [tabs, setTabs] = useState<Set<string>>(() => new Set(role?.tabs ?? []));
+  const [access, setAccess] = useState<AccessMap>(() => ({ ...(role?.access ?? {}) }));
 
   const save = useMutation({
     mutationFn: () => {
-      const body = { name: name.trim(), tabs: STAFF_TABS.map((t) => t.key).filter((k) => tabs.has(k)) };
+      const body = { name: name.trim(), access };
       return role ? adminApi.updateTeamRole(role.id, body) : adminApi.createTeamRole(body);
     },
     onSuccess: () => {
@@ -79,24 +114,35 @@ function RoleForm({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
-  const toggle = (key: string, on: boolean) =>
-    setTabs((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(key);
-      else next.delete(key);
+  const patch = (changes: Record<string, AccessLevel | null>) =>
+    setAccess((prev) => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(changes)) {
+        if (v) next[k] = v;
+        else delete next[k];
+      }
       return next;
     });
 
+  // Ticking a tab grants all of it at view level; the admin then narrows it down.
+  const grantTab = (tab: StaffTab, on: boolean) =>
+    Object.fromEntries(keysOf(tab).map((k) => [k, on ? ('view' as const) : null]));
+
+  const allOn = STAFF_TABS.every((t) => levelFor(access, t.key));
+  const selectAll = () =>
+    patch(Object.assign({}, ...STAFF_TABS.filter((t) => !levelFor(access, t.key)).map((t) => grantTab(t.key, true))));
+
   return (
-    <DialogContent>
+    <DialogContent size="lg">
       <DialogHeader>
         <DialogTitle>{role ? 'Edit Role' : 'New Role'}</DialogTitle>
         <DialogDescription>
-          Team members with this role can see and edit the tabs you tick. Team, Approvals and Settings stay admin-only.
+          Tick the tabs this role can open, then choose View (see only) or Edit (make changes) for each. Team, Approvals
+          and Settings stay admin-only.
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-4">
+      <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
         <div className="space-y-1.5">
           <Label>Role name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Billing, Support" maxLength={60} />
@@ -107,18 +153,66 @@ function RoleForm({
             <button
               type="button"
               className="text-xs font-medium text-primary hover:underline"
-              onClick={() => setTabs(tabs.size === STAFF_TABS.length ? new Set() : new Set(STAFF_TABS.map((t) => t.key)))}
+              onClick={() => (allOn ? setAccess({}) : selectAll())}
             >
-              {tabs.size === STAFF_TABS.length ? 'Clear all' : 'Select all'}
+              {allOn ? 'Clear all' : 'Select all'}
             </button>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {STAFF_TABS.map((t) => (
-              <CheckRow key={t.key} checked={tabs.has(t.key)} onChange={(v) => toggle(t.key, v)}>
-                <t.icon className="h-4 w-4 text-muted-foreground" />
-                {t.label}
-              </CheckRow>
-            ))}
+          <div className="space-y-2">
+            {STAFF_TABS.map((t) => {
+              const sections = STAFF_SECTIONS[t.key];
+              const on = levelFor(access, t.key) !== null;
+              return (
+                <div key={t.key} className="rounded-lg border border-border">
+                  <div className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[var(--brand)]"
+                        checked={on}
+                        onChange={(e) => patch(grantTab(t.key, e.target.checked))}
+                      />
+                      <t.icon className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{t.label}</span>
+                    </label>
+                    {on &&
+                      !sections &&
+                      (t.viewOnly ? (
+                        <span className="ml-auto text-xs text-muted-foreground">View only</span>
+                      ) : (
+                        <LevelSwitch value={access[t.key]} onChange={(v) => patch({ [t.key]: v })} />
+                      ))}
+                  </div>
+                  {on && sections && (
+                    <div className="space-y-1 border-t border-border bg-secondary/30 px-3 py-2">
+                      {sections.map((s, i) => {
+                        const key = `${t.key}.${s.key}`;
+                        // The first sub-tab (Overview) is the way in — always granted with the tab.
+                        const locked = i === 0;
+                        return (
+                          <div key={key} className="flex items-center gap-3 py-1 pl-7 text-sm">
+                            <label className={cn('flex min-w-0 flex-1 items-start gap-3', !locked && 'cursor-pointer')}>
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 h-4 w-4 accent-[var(--brand)]"
+                                checked={!!access[key]}
+                                disabled={locked}
+                                onChange={(e) => patch({ [key]: e.target.checked ? 'view' : null })}
+                              />
+                              <span className="min-w-0">
+                                <span className="block">{s.label}</span>
+                                <span className="block text-xs text-muted-foreground">{s.hint}</span>
+                              </span>
+                            </label>
+                            {access[key] && <LevelSwitch value={access[key]} onChange={(v) => patch({ [key]: v })} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -179,7 +273,12 @@ function AssignRolesForm({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
 
-  const granted = new Set(roles.filter((r) => picked.has(r.id)).flatMap((r) => r.tabs));
+  // What the picked roles add up to — edit on any role beats view.
+  const granted: AccessMap = {};
+  for (const r of roles.filter((r) => picked.has(r.id))) {
+    for (const [k, v] of Object.entries(r.access)) if (v === 'edit' || !granted[k]) granted[k] = v;
+  }
+  const summary = describeAccess(granted);
 
   return (
     <DialogContent>
@@ -217,9 +316,7 @@ function AssignRolesForm({
           </div>
           <div className="rounded-lg bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Access: </span>
-            {granted.size
-              ? STAFF_TABS.filter((t) => granted.has(t.key)).map((t) => t.label).join(', ')
-              : 'Own tasks and customers only'}
+            {summary.length ? summary.map((x) => x.label).join('; ') : 'Own tasks and customers only'}
           </div>
         </div>
       )}

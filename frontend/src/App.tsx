@@ -117,8 +117,10 @@ export default function App() {
                 </Route>
                 <Route element={<RequireTab tab="customers" />}>
                   <Route path="customers" element={<CustomersPage />} />
-                  <Route path="customers/new" element={<CustomerFormPage />} />
                   <Route path="customers/:clientId" element={<CustomerDetailPage />} />
+                </Route>
+                <Route element={<RequireTab tab="customers.overview" edit />}>
+                  <Route path="customers/new" element={<CustomerFormPage />} />
                 </Route>
                 {/* Editing a customer's details is admin-only, even with the Customers tab. */}
                 <Route element={<RequireTab />}>
@@ -129,13 +131,17 @@ export default function App() {
                 </Route>
                 <Route element={<RequireTab tab="products" />}>
                   <Route path="products" element={<ProductsPage />} />
+                </Route>
+                <Route element={<RequireTab tab="products" edit />}>
                   <Route path="products/bulk-upload" element={<BulkUploadPage />} />
                 </Route>
                 <Route element={<RequireTab tab="billing" />}>
                   <Route path="billing" element={<BillingPage />} />
+                  <Route path="billing/:id" element={<InvoiceDetailPage />} />
+                </Route>
+                <Route element={<RequireTab tab="billing" edit />}>
                   <Route path="billing/new" element={<CreateInvoicePage />} />
                   <Route path="billing/:id/edit" element={<EditInvoicePage />} />
-                  <Route path="billing/:id" element={<InvoiceDetailPage />} />
                 </Route>
                 <Route element={<RequireTab tab="payments" />}>
                   <Route path="payments" element={<PaymentsPage />} />

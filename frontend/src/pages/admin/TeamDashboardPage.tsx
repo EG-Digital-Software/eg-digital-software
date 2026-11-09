@@ -14,7 +14,7 @@ import { AVATAR_COLORS } from '@/components/client/portalContext';
 import { EditEmployeeDialog, ManageEmployeePasswordDialog } from '@/components/team/EmployeeDialogs';
 import { AssignRolesDialog, RoleFormDialog } from '@/components/team/TeamRoleDialogs';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { STAFF_TAB_LABEL } from '@/lib/staffAccess';
+import { describeAccess } from '@/lib/staffAccess';
 
 function Kpi({ title, value, tone }: { title: string; value: string; tone?: string }) {
   return (
@@ -209,7 +209,7 @@ export default function TeamDashboardPage() {
                   Roles
                 </h2>
                 <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
-                  Each role grants a set of admin tabs. Team members see and edit only the tabs their roles allow.
+                  Each role grants a set of admin tabs, each view-only or editable. Team members see only the tabs their roles allow.
                 </div>
               </div>
               <button type="button" className="btn bp sm" onClick={() => setRoleForm(null)}>
@@ -226,7 +226,7 @@ export default function TeamDashboardPage() {
               <div style={{ padding: '0 20px 20px' }}>
                 <EmptyState
                   title="No roles yet"
-                  description="Create a role, tick the tabs it can access, then assign it to team members from the Overview tab."
+                  description="Create a role, tick the tabs it can access and choose View or Edit, then assign it to team members from the Overview tab."
                 />
               </div>
             ) : (
@@ -244,9 +244,9 @@ export default function TeamDashboardPage() {
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: '2 1 260px' }}>
                       {r.tabs.length ? (
-                        r.tabs.map((t) => (
-                          <span key={t} className="chip c-ns">
-                            {STAFF_TAB_LABEL[t] ?? t}
+                        describeAccess(r.access).map((t) => (
+                          <span key={t.key} className="chip c-ns">
+                            {t.label}
                           </span>
                         ))
                       ) : (

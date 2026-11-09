@@ -459,7 +459,10 @@ export default function CustomerDetailPage() {
   const qcRoot = useQueryClient();
   const startImpersonation = useAuth((s) => s.startImpersonation);
   // Team members (via a role) don't get portal impersonation or client logins.
-  const { isAdmin, can } = useStaffAccess();
+  const { isAdmin, can, canEdit } = useStaffAccess();
+  // A role grants each sub-tab on its own, view-only or editable.
+  const canInvoice = canEdit('billing') || canEdit('customers.invoices');
+  const canTask = can('tasks') || can('customers.task');
   const { data: c, isLoading, isError, refetch } = useQuery({
     queryKey: ['customer', clientId],
     queryFn: () => customerApi.get(clientId!),
@@ -549,7 +552,7 @@ export default function CustomerDetailPage() {
               <Pencil /> Edit
             </Link>
           )}
-          {can('billing') && (
+          {canInvoice && (
             <button type="button" className="btn bp" onClick={() => setInvoiceOpen(true)}>
               <Receipt /> Create invoice
             </button>
@@ -688,13 +691,15 @@ export default function CustomerDetailPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="agreement">
-            Agreement{c.documents && c.documents.length > 0 ? ` (${c.documents.length})` : ''}
-          </TabsTrigger>
-          <TabsTrigger value="products">Products & Licences</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          {can('customers.agreement') && (
+            <TabsTrigger value="agreement">
+              Agreement{c.documents && c.documents.length > 0 ? ` (${c.documents.length})` : ''}
+            </TabsTrigger>
+          )}
+          {can('customers.products') && <TabsTrigger value="products">Products & Licences</TabsTrigger>}
+          {can('customers.invoices') && <TabsTrigger value="invoices">Invoices</TabsTrigger>}
           {isAdmin && <TabsTrigger value="credential">Credential</TabsTrigger>}
-          {can('tasks') && <TabsTrigger value="task">Task</TabsTrigger>}
+          {canTask && <TabsTrigger value="task">Task</TabsTrigger>}
         </TabsList>
 
         {/* Mirrors the Add/Edit form section-for-section so the two read the same. */}
@@ -874,14 +879,19 @@ export default function CustomerDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="agreement">
-          <AgreementTab customer={c} />
-        </TabsContent>
+        {can('customers.agreement') && (
+          <TabsContent value="agreement">
+            <AgreementTab customer={c} readOnly={!canEdit('customers.agreement')} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="products">
-          <ProductsTab customer={c} />
-        </TabsContent>
+        {can('customers.products') && (
+          <TabsContent value="products">
+            <ProductsTab customer={c} readOnly={!canEdit('customers.products')} />
+          </TabsContent>
+        )}
 
+        {can('customers.invoices') && (
         <TabsContent value="invoices">
           <section className="glass up" style={{ overflow: 'hidden' }}>
             <div
@@ -897,19 +907,23 @@ export default function CustomerDetailPage() {
               <h2 className="disp" style={{ margin: 0, fontSize: 18 }}>
                 Invoices
               </h2>
-              <button type="button" className="btn bg sm" onClick={() => setInvoiceOpen(true)}>
-                <Receipt /> Create invoice
-              </button>
+              {canInvoice && (
+                <button type="button" className="btn bg sm" onClick={() => setInvoiceOpen(true)}>
+                  <Receipt /> Create invoice
+                </button>
+              )}
             </div>
             {!c.invoices?.length ? (
               <div className="p-6">
                 <EmptyState
                   title="No invoices yet"
-                  description="Create an invoice for this customer."
+                  description={canInvoice ? 'Create an invoice for this customer.' : 'This customer has no invoices.'}
                   action={
-                    <button type="button" className="btn bp" onClick={() => setInvoiceOpen(true)}>
-                      <Receipt /> Create invoice
-                    </button>
+                    canInvoice && (
+                      <button type="button" className="btn bp" onClick={() => setInvoiceOpen(true)}>
+                        <Receipt /> Create invoice
+                      </button>
+                    )
                   }
                 />
               </div>
@@ -927,7 +941,11 @@ export default function CustomerDetailPage() {
                   </thead>
                   <tbody className="stag">
                     {c.invoices.map((inv) => (
-                      <tr key={inv.id} className="row click" onClick={() => navigate(`/admin/billing/${inv.id}`)}>
+                      <tr
+                        key={inv.id}
+                        className={can('billing') ? 'row click' : 'row'}
+                        onClick={can('billing') ? () => navigate(`/admin/billing/${inv.id}`) : undefined}
+                      >
                         <td className="mono" style={{ fontSize: 12, fontWeight: 500 }}>
                           {inv.invoiceNumber}
                         </td>
@@ -947,6 +965,7 @@ export default function CustomerDetailPage() {
             )}
           </section>
         </TabsContent>
+        )}
 
         {isAdmin && (
           <TabsContent value="credential">
@@ -954,9 +973,14 @@ export default function CustomerDetailPage() {
           </TabsContent>
         )}
 
-        {can('tasks') && (
+        {canTask && (
           <TabsContent value="task">
-            <TaskBoard api={adminTaskApi(c.clientId)} scopeKey={c.clientId} customerName={customerName(c)} />
+            <TaskBoard
+              api={adminTaskApi(c.clientId)}
+              scopeKey={c.clientId}
+              customerName={customerName(c)}
+              readOnly={!(canEdit('tasks') || canEdit('customers.task'))}
+            />
           </TabsContent>
         )}
       </Tabs>
@@ -1031,7 +1055,7 @@ function docSize(bytes: number): string {
  * can upload more, rename, approve/revoke and delete each; downloads are the
  * original file at full quality.
  */
-function AgreementTab({ customer }: { customer: Customer }) {
+function AgreementTab({ customer, readOnly = false }: { customer: Customer; readOnly?: boolean }) {
   const qc = useQueryClient();
   const clientId = customer.clientId;
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -1114,9 +1138,11 @@ function AgreementTab({ customer }: { customer: Customer }) {
           className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ''; }}
         />
-        <Button type="button" size="sm" onClick={() => uploadRef.current?.click()} disabled={upload.isPending}>
-          <Upload className="h-4 w-4" /> {upload.isPending ? 'Uploading…' : 'Upload'}
-        </Button>
+        {!readOnly && (
+          <Button type="button" size="sm" onClick={() => uploadRef.current?.click()} disabled={upload.isPending}>
+            <Upload className="h-4 w-4" /> {upload.isPending ? 'Uploading…' : 'Upload'}
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         {docs.length === 0 ? (
@@ -1160,12 +1186,12 @@ function AgreementTab({ customer }: { customer: Customer }) {
                           <Eye className="h-4 w-4" /> View
                         </Button>
                       )}
-                      {remainingFields(d).length > 0 && (
+                      {!readOnly && remainingFields(d).length > 0 && (
                         <Button type="button" size="sm" variant="outline" onClick={() => setFillDoc(d)} title="Fill the fields the client left empty">
                           <PenLine className="h-4 w-4" /> Fill remaining ({remainingFields(d).length})
                         </Button>
                       )}
-                      {submitted && (
+                      {!readOnly && submitted && (
                         <>
                           <Button type="button" size="sm" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'APPROVED' })}>
                             Approve
@@ -1175,7 +1201,7 @@ function AgreementTab({ customer }: { customer: Customer }) {
                           </Button>
                         </>
                       )}
-                      {approved && (
+                      {!readOnly && approved && (
                         <Button type="button" size="sm" variant="outline" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'SUBMITTED' })}>
                           Revoke
                         </Button>
@@ -1184,17 +1210,21 @@ function AgreementTab({ customer }: { customer: Customer }) {
                       <a href={downloadUrl} download={d.fileName} target="_blank" rel="noreferrer" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title={d.signedUrl ? 'Download signed copy' : 'Download original'}>
                         <Download className="h-[18px] w-[18px]" />
                       </a>
-                      {isPdf(d) && !approved && (
+                      {!readOnly && isPdf(d) && !approved && (
                         <button type="button" onClick={() => setFieldsDoc(d)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title="Mark fields to fill">
                           <SquarePen className="h-[18px] w-[18px]" />
                         </button>
                       )}
-                      <button type="button" onClick={() => { setRenamingId(d.id); setRenameValue(d.fileName); }} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title="Rename">
-                        <Pencil className="h-[18px] w-[18px]" />
-                      </button>
-                      <button type="button" onClick={() => remove.mutate(d.id)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-destructive" title="Delete">
-                        <Trash2 className="h-[18px] w-[18px]" />
-                      </button>
+                      {!readOnly && (
+                        <>
+                          <button type="button" onClick={() => { setRenamingId(d.id); setRenameValue(d.fileName); }} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title="Rename">
+                            <Pencil className="h-[18px] w-[18px]" />
+                          </button>
+                          <button type="button" onClick={() => remove.mutate(d.id)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-destructive" title="Delete">
+                            <Trash2 className="h-[18px] w-[18px]" />
+                          </button>
+                        </>
+                      )}
                     </>
                   )}
                   {(d.signLog?.length ?? 0) > 0 && (
@@ -1225,7 +1255,7 @@ function AgreementTab({ customer }: { customer: Customer }) {
         open={!!viewDoc}
         onOpenChange={(o) => { if (!o) setViewDoc(null); }}
         actions={
-          viewDoc.status === 'SUBMITTED' && (
+          !readOnly && viewDoc.status === 'SUBMITTED' && (
             <>
               <Button type="button" variant="outline" className="text-destructive" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: viewDoc.id, status: 'REJECTED' })}>
                 Not approve
@@ -1268,7 +1298,7 @@ function AgreementTab({ customer }: { customer: Customer }) {
 }
 
 /** Products & Licences tab — admin assigns and removes products here. */
-function ProductsTab({ customer }: { customer: Customer }) {
+function ProductsTab({ customer, readOnly = false }: { customer: Customer; readOnly?: boolean }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   // Editing works on a licence "group" (the products that share one licence key),
@@ -1510,7 +1540,7 @@ function ProductsTab({ customer }: { customer: Customer }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="text-base">Products & Licences</CardTitle>
-        {!adding && !editingKey && (
+        {!readOnly && !adding && !editingKey && (
           <Button size="sm" onClick={() => setAdding(true)}>
             <Plus className="h-4 w-4" /> Assign Product
           </Button>
@@ -1757,10 +1787,16 @@ function ProductsTab({ customer }: { customer: Customer }) {
                              dropdown (below) controls what the client sees. */
                           <div className="flex flex-col items-center gap-1.5">
                             <Badge variant="warning">Pending approval</Badge>
-                            <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(group.items)}>
-                              {approve.isPending && <Spinner />} Approve
-                            </Button>
+                            {!readOnly && (
+                              <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(group.items)}>
+                                {approve.isPending && <Spinner />} Approve
+                              </Button>
+                            )}
                           </div>
+                        ) : readOnly ? (
+                          <Badge variant={rep.status === 'SUSPENDED' ? 'destructive' : 'success'}>
+                            {rep.status === 'SUSPENDED' ? 'Suspended - Overdue' : 'Active'}
+                          </Badge>
                         ) : (
                           /* Admin sets the status here; the client sees exactly this. */
                           <Select
@@ -1783,22 +1819,26 @@ function ProductsTab({ customer }: { customer: Customer }) {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => startEditGroup(group)}
-                            title="Edit this licence (add/remove products, prices)"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setRemoving(group.key)}
-                            title="Remove this licence (all its products)"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {!readOnly && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditGroup(group)}
+                                title="Edit this licence (add/remove products, prices)"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRemoving(group.key)}
+                                title="Remove this licence (all its products)"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-rose-50 hover:text-rose-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

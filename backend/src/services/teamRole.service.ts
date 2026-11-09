@@ -1,11 +1,13 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
-import { STAFF_TABS, type StaffTab } from '../middleware/staffAccess.js';
+import { Prisma } from '@prisma/client';
+import { accessTabs, cleanAccess, roleAccess, STAFF_TABS, type AccessMap } from '../middleware/staffAccess.js';
 
 const ROLE_SELECT = {
   id: true,
   name: true,
   tabs: true,
+  access: true,
   createdAt: true,
   updatedAt: true,
   members: { select: { employeeId: true } },
@@ -15,26 +17,37 @@ type RoleRow = {
   id: string;
   name: string;
   tabs: string[];
+  access: Prisma.JsonValue;
   createdAt: Date;
   updatedAt: Date;
   members: { employeeId: string }[];
 };
 
 function shape(r: RoleRow) {
+  const access = roleAccess(r);
   return {
     id: r.id,
     name: r.name,
-    tabs: r.tabs.filter((t): t is StaffTab => (STAFF_TABS as readonly string[]).includes(t)),
+    tabs: accessTabs(access),
+    access,
     memberIds: r.members.map((m) => m.employeeId),
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
 }
 
-/** Keep only known tab keys, de-duplicated, in the canonical order. */
-function cleanTabs(tabs: string[]): StaffTab[] {
-  const set = new Set(tabs);
-  return STAFF_TABS.filter((t) => set.has(t));
+/**
+ * What a create/update grants. `access` (per tab / sub-tab levels) wins; a bare
+ * `tabs` list — the older shape — grants those tabs at edit level.
+ */
+function grantFrom(input: { tabs?: string[]; access?: Record<string, string> }): { tabs: string[]; access: AccessMap } {
+  let access: AccessMap;
+  if (input.access) access = cleanAccess(input.access);
+  else {
+    const tabs = new Set(input.tabs ?? []);
+    access = roleAccess({ tabs: STAFF_TABS.filter((t) => tabs.has(t)), access: null });
+  }
+  return { tabs: accessTabs(access), access };
 }
 
 async function assertNameFree(name: string, exceptId?: string) {
@@ -50,25 +63,27 @@ export async function listRoles() {
   return rows.map(shape);
 }
 
-export async function createRole(input: { name: string; tabs: string[] }) {
+type GrantInput = { tabs?: string[]; access?: Record<string, string> };
+
+export async function createRole(input: { name: string } & GrantInput) {
   const name = input.name.trim();
   if (!name) throw ApiError.badRequest('Role name is required');
   await assertNameFree(name);
-  const row = await prisma.teamRole.create({ data: { name, tabs: cleanTabs(input.tabs) }, select: ROLE_SELECT });
+  const row = await prisma.teamRole.create({ data: { name, ...grantFrom(input) }, select: ROLE_SELECT });
   return shape(row);
 }
 
-export async function updateRole(id: string, input: { name?: string; tabs?: string[] }) {
+export async function updateRole(id: string, input: { name?: string } & GrantInput) {
   const existing = await prisma.teamRole.findUnique({ where: { id }, select: { id: true } });
   if (!existing) throw ApiError.notFound('Role not found');
-  const data: { name?: string; tabs?: StaffTab[] } = {};
+  const data: { name?: string; tabs?: string[]; access?: AccessMap } = {};
   if (input.name !== undefined) {
     const name = input.name.trim();
     if (!name) throw ApiError.badRequest('Role name is required');
     await assertNameFree(name, id);
     data.name = name;
   }
-  if (input.tabs !== undefined) data.tabs = cleanTabs(input.tabs);
+  if (input.tabs !== undefined || input.access !== undefined) Object.assign(data, grantFrom(input));
   const row = await prisma.teamRole.update({ where: { id }, data, select: ROLE_SELECT });
   return shape(row);
 }

@@ -237,11 +237,15 @@ export interface RevealedCredential {
   available: boolean;
 }
 
-/** Admin-defined team role: a name plus the admin tabs it grants. */
+/** Permission key ("billing", "customers.agreement") → level. */
+export type AccessMap = Record<string, 'view' | 'edit'>;
+
+/** Admin-defined team role: a name plus the admin tabs / sub-tabs it grants and at what level. */
 export interface TeamRole {
   id: string;
   name: string;
   tabs: string[];
+  access: AccessMap;
   memberIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -279,9 +283,9 @@ export const adminApi = {
       .data.data,
   // Team roles — each grants a set of admin tabs; a member can hold several.
   teamRoles: async () => (await api.get<ApiEnvelope<TeamRole[]>>('/admin/team-roles')).data.data,
-  createTeamRole: async (body: { name: string; tabs: string[] }) =>
+  createTeamRole: async (body: { name: string; access: AccessMap }) =>
     (await api.post<ApiEnvelope<TeamRole>>('/admin/team-roles', body)).data.data,
-  updateTeamRole: async (id: string, body: { name?: string; tabs?: string[] }) =>
+  updateTeamRole: async (id: string, body: { name?: string; access?: AccessMap }) =>
     (await api.patch<ApiEnvelope<TeamRole>>(`/admin/team-roles/${id}`, body)).data.data,
   deleteTeamRole: async (id: string) => (await api.delete(`/admin/team-roles/${id}`)).data,
   setEmployeeRoles: async (id: string, roleIds: string[]) =>

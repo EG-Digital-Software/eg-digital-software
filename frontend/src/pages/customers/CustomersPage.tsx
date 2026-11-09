@@ -71,7 +71,9 @@ function location(c: Customer) {
 export default function CustomersPage() {
   // Editing a customer's details and permanent delete are admin-only, even for
   // team members with the Customers tab.
-  const { isAdmin } = useStaffAccess();
+  const { isAdmin, canEdit } = useStaffAccess();
+  // Adding and archiving customers needs the Overview sub-tab at edit level.
+  const canManage = canEdit('customers.overview');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -141,9 +143,11 @@ export default function CustomersPage() {
             Manage your clients, products and licences.
           </p>
         </div>
-        <Link to="/admin/customers/new" className="btn bp">
-          <Plus /> New customer
-        </Link>
+        {canManage && (
+          <Link to="/admin/customers/new" className="btn bp">
+            <Plus /> New customer
+          </Link>
+        )}
       </div>
 
       <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
@@ -265,9 +269,11 @@ export default function CustomersPage() {
                     Clear filters
                   </button>
                 ) : (
-                  <Link to="/admin/customers/new" className="btn bp">
-                    <Plus /> New customer
-                  </Link>
+                  canManage && (
+                    <Link to="/admin/customers/new" className="btn bp">
+                      <Plus /> New customer
+                    </Link>
+                  )
                 )
               }
             />
@@ -371,9 +377,11 @@ export default function CustomersPage() {
                                   <Pencil /> Edit
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem destructive onClick={() => setArchiving(c)}>
-                                <Archive /> Archive
-                              </DropdownMenuItem>
+                              {canManage && (
+                                <DropdownMenuItem destructive onClick={() => setArchiving(c)}>
+                                  <Archive /> Archive
+                                </DropdownMenuItem>
+                              )}
                               {isAdmin && (
                                 <DropdownMenuItem destructive onClick={() => setDeleting(c)}>
                                   <Trash2 /> Delete

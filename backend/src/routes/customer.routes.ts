@@ -4,7 +4,7 @@ import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/customer.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { authorizeTab } from '../middleware/staffAccess.js';
+import { authorizeTab, requireSection } from '../middleware/staffAccess.js';
 import { buildTaskRouter } from './task.routes.js';
 import {
   createCustomerSchema,
@@ -29,12 +29,17 @@ const adminOnly = authorize(Role.SUPER_ADMIN);
 const docUpload = multer({ storage: multer.memoryStorage() });
 
 // Microsoft Planner-style task board for a customer (full CRUD for admins).
-// Team members get in through the Tasks tab.
-router.use('/:clientId/tasks', authorizeTab(['tasks']), buildTaskRouter());
+// Team members get in through the Tasks tab or the customer's Task sub-tab.
+router.use('/:clientId/tasks', authorizeTab(['tasks', 'customers.task']), buildTaskRouter());
 
 // Everything below is the Customers tab; Billing, Tasks, Payments and Products
 // may read customers (pickers, invoice and task screens).
+// Writes then also need the sub-tab they belong to at edit level (a role can
+// grant e.g. Agreement as view-only and Products & Licences as editable).
 router.use(authorizeTab(['customers'], ['billing', 'tasks', 'payments', 'products', 'dashboard']));
+const overview = requireSection('customers.overview');
+const agreement = requireSection('customers.agreement');
+const products = requireSection('customers.products');
 
 router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
 // Must precede `/:clientId` or "next-client-id" would be read as a Client ID.
@@ -48,22 +53,22 @@ router.post('/:clientId/impersonate', adminOnly, ctrl.impersonate);
 router.post('/:clientId/renew', adminOnly, ctrl.renewAccount);
 // Reveal the customer's portal password (admin-only, like every route here).
 // Agreement Document uploads (admin-only, like every route here).
-router.post('/:clientId/documents', docUpload.single('file'), ctrl.uploadDocument);
+router.post('/:clientId/documents', agreement, docUpload.single('file'), ctrl.uploadDocument);
 // Stream the PDF through the API so the in-app viewer doesn't depend on storage CORS.
-router.get('/:clientId/documents/:documentId/file', ctrl.documentFile);
-router.patch('/:clientId/documents/:documentId', ctrl.updateDocument);
+router.get('/:clientId/documents/:documentId/file', agreement, ctrl.documentFile);
+router.patch('/:clientId/documents/:documentId', agreement, ctrl.updateDocument);
 // Admin fills the fields the client left empty on the submitted copy.
-router.post('/:clientId/documents/:documentId/fill', docUpload.single('file'), ctrl.fillDocument);
-router.delete('/:clientId/documents/:documentId', ctrl.deleteDocument);
+router.post('/:clientId/documents/:documentId/fill', agreement, docUpload.single('file'), ctrl.fillDocument);
+router.delete('/:clientId/documents/:documentId', agreement, ctrl.deleteDocument);
 
-router.post('/:clientId/products', validate({ body: assignedProductSchema }), ctrl.assignProduct);
+router.post('/:clientId/products', products, validate({ body: assignedProductSchema }), ctrl.assignProduct);
 // Assign several products in one action (multi-select on the client detail page).
-router.post('/:clientId/products/bulk', validate({ body: bulkAssignProductsSchema }), ctrl.assignProducts);
+router.post('/:clientId/products/bulk', products, validate({ body: bulkAssignProductsSchema }), ctrl.assignProducts);
 // A licence "group" = the products sharing one licence key. Edit/remove as a unit.
-router.put('/:clientId/product-groups/:licenceKey', validate({ body: updateProductGroupSchema }), ctrl.updateProductGroup);
-router.delete('/:clientId/product-groups/:licenceKey', ctrl.removeProductGroup);
-router.patch('/:clientId/products/:customerProductId', validate({ body: updateAssignedProductSchema }), ctrl.updateProduct);
-router.delete('/:clientId/products/:customerProductId', ctrl.removeProduct);
+router.put('/:clientId/product-groups/:licenceKey', products, validate({ body: updateProductGroupSchema }), ctrl.updateProductGroup);
+router.delete('/:clientId/product-groups/:licenceKey', products, ctrl.removeProductGroup);
+router.patch('/:clientId/products/:customerProductId', products, validate({ body: updateAssignedProductSchema }), ctrl.updateProduct);
+router.delete('/:clientId/products/:customerProductId', products, ctrl.removeProduct);
 
 router.get('/:clientId/credential', adminOnly, ctrl.revealCredential);
 // Multiple portal logins per customer — the admin can grant access to others.
@@ -77,10 +82,10 @@ router.patch(
   ctrl.changeCredentialPassword
 );
 router.delete('/:clientId/credentials/:userId', adminOnly, ctrl.removeCredential);
-router.post('/', validate({ body: createCustomerSchema }), ctrl.create);
+router.post('/', overview, validate({ body: createCustomerSchema }), ctrl.create);
 // Editing a customer's details is admin-only, even with the Customers tab.
 router.put('/:clientId', adminOnly, validate({ body: updateCustomerSchema }), ctrl.update);
-router.delete('/:clientId', ctrl.archive);
+router.delete('/:clientId', overview, ctrl.archive);
 // Permanent, irreversible delete — distinct from the soft archive above.
 router.delete('/:clientId/permanent', adminOnly, ctrl.remove);
 

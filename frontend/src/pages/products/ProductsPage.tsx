@@ -13,6 +13,7 @@ import { Pagination } from '@/components/shared/misc';
 import { Button } from '@/components/ui/button';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { useStaffAccess } from '@/lib/staffAccess';
 import { ProductFormDialog } from './ProductFormDialog';
 
 const STATUS_TABS = [
@@ -41,6 +42,8 @@ function priceLabel(p: Product) {
 
 export default function ProductsPage() {
   const qc = useQueryClient();
+  // A view-only Products role sees the catalogue but can't change it.
+  const canEdit = useStaffAccess().canEdit('products');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -104,14 +107,16 @@ export default function ProductsPage() {
             Manage your product catalogue and inventory.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link to="/admin/products/bulk-upload" className="btn bg">
-            <Upload /> Bulk upload
-          </Link>
-          <button type="button" className="btn bp" onClick={openNew}>
-            <Plus /> New product
-          </button>
-        </div>
+        {canEdit && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Link to="/admin/products/bulk-upload" className="btn bg">
+              <Upload /> Bulk upload
+            </Link>
+            <button type="button" className="btn bp" onClick={openNew}>
+              <Plus /> New product
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
@@ -232,9 +237,11 @@ export default function ProductsPage() {
                     Clear filters
                   </Button>
                 ) : (
-                  <Button onClick={() => setFormOpen(true)}>
-                    <Plus className="h-4 w-4" /> Add Product
-                  </Button>
+                  canEdit && (
+                    <Button onClick={() => setFormOpen(true)}>
+                      <Plus className="h-4 w-4" /> Add Product
+                    </Button>
+                  )
                 )
               }
             />
@@ -299,6 +306,7 @@ export default function ProductsPage() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
+                        {canEdit && (
                         <div style={{ display: 'inline-flex', gap: 6 }}>
                           <button
                             type="button"
@@ -324,6 +332,7 @@ export default function ProductsPage() {
                             <Trash2 />
                           </button>
                         </div>
+                        )}
                       </td>
                     </tr>
                   ))}

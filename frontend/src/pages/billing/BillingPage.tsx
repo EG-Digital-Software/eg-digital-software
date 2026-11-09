@@ -14,6 +14,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
 import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
+import { useStaffAccess } from '@/lib/staffAccess';
 
 const STATUS_CHIP: Record<InvoiceStatus, { cls: string; label: string }> = {
   DRAFT: { cls: 'c-ns', label: 'Draft' },
@@ -34,6 +35,8 @@ const TABS = [
 
 export default function BillingPage() {
   const navigate = useNavigate();
+  // A view-only Billing role sees invoices but can't create or delete them.
+  const canEdit = useStaffAccess().canEdit('billing');
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -155,9 +158,11 @@ export default function BillingPage() {
             Invoices grouped by client — review, track and manage balances.
           </p>
         </div>
-        <Link to="/admin/billing/new" className="btn bp">
-          <Plus /> New invoice
-        </Link>
+        {canEdit && (
+          <Link to="/admin/billing/new" className="btn bp">
+            <Plus /> New invoice
+          </Link>
+        )}
       </div>
 
       <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
@@ -390,6 +395,7 @@ export default function BillingPage() {
                               </span>
                             </td>
                             <td style={{ textAlign: 'right' }}>
+                              {canEdit && (
                               <button
                                 type="button"
                                 title="Delete invoice"
@@ -403,6 +409,7 @@ export default function BillingPage() {
                               >
                                 <Trash2 />
                               </button>
+                              )}
                             </td>
                           </tr>
                         );

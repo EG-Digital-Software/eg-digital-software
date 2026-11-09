@@ -88,16 +88,20 @@ export const listRegistrationQuerySchema = z.object({
 });
 
 const staffTab = z.enum(['dashboard', 'customers', 'tasks', 'billing', 'products', 'payments', 'reports', 'preview']);
+/** Permission key (tab or "tab.section") → level; unknown keys are dropped by the service. */
+const staffAccess = z.record(z.string().max(40), z.enum(['view', 'edit']));
 
 /** Admin creating a team role and choosing which admin tabs it grants. */
 export const createTeamRoleSchema = z.object({
   name: z.string().trim().min(1, 'Role name is required').max(60),
   tabs: z.array(staffTab).max(20).default([]),
+  access: staffAccess.optional(),
 });
 
 export const updateTeamRoleSchema = z.object({
   name: z.string().trim().min(1, 'Role name is required').max(60).optional(),
   tabs: z.array(staffTab).max(20).optional(),
+  access: staffAccess.optional(),
 });
 
 /** Replace the roles a team member holds. */
