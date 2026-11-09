@@ -43,7 +43,7 @@ export const STAFF_SECTIONS: Partial<
   Record<StaffTab, readonly { key: string; label: string; hint: string; viewOnly?: boolean }[]>
 > = {
   customers: [
-    { key: 'overview', label: 'Overview', hint: 'Customer list and details. Edit lets them add and archive customers.' },
+    { key: 'overview', label: 'Overview', hint: 'Customer list and details. Edit lets them add, edit, renew and archive customers.' },
     { key: 'agreement', label: 'Agreement', hint: 'Agreement documents. Edit lets them upload, fill and remove.' },
     { key: 'products', label: 'Products & Licences', hint: 'Assigned products. Edit lets them assign, change and remove.' },
     { key: 'invoices', label: 'Invoices', hint: "The customer's invoices. Edit lets them create invoices." },

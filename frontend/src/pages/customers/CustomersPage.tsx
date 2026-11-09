@@ -372,7 +372,7 @@ export default function CustomersPage() {
                               <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}`)}>
                                 <Eye /> View
                               </DropdownMenuItem>
-                              {isAdmin && (
+                              {canManage && (
                                 <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}/edit`)}>
                                   <Pencil /> Edit
                                 </DropdownMenuItem>

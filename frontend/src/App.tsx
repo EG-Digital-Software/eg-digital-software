@@ -121,9 +121,6 @@ export default function App() {
                 </Route>
                 <Route element={<RequireTab tab="customers.overview" edit />}>
                   <Route path="customers/new" element={<CustomerFormPage />} />
-                </Route>
-                {/* Editing a customer's details is admin-only, even with the Customers tab. */}
-                <Route element={<RequireTab />}>
                   <Route path="customers/:clientId/edit" element={<CustomerFormPage />} />
                 </Route>
                 <Route element={<RequireTab tab="tasks" />}>

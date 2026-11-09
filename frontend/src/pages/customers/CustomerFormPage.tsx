@@ -46,6 +46,7 @@ import { BUSINESS_TYPES, businessTypeLabel, formatAbn, formatAcn, isValidAbn } f
 import { companyFieldsFor } from '@/lib/company';
 import { numericField, guardedField, titleCaseField, toTitleCase } from '@/lib/input';
 import { formatCurrency, cn, mediaUrl } from '@/lib/utils';
+import { useStaffAccess } from '@/lib/staffAccess';
 import type { Address } from '@/types';
 
 // ── Validation ─────────────────────────────────────────────
@@ -861,6 +862,10 @@ export default function CustomerFormPage() {
   const isEdit = !!clientId;
   const navigate = useNavigate();
   const qc = useQueryClient();
+  // A team member can set the login when adding a customer; changing an
+  // existing customer's login or password stays with the admin.
+  const { isAdmin } = useStaffAccess();
+  const showCredential = !isEdit || isAdmin;
 
   // Agreement Document uploads staged here until the customer is saved (on
   // create the customer must exist first); existing files come off `existing`.
@@ -1249,7 +1254,7 @@ export default function CustomerFormPage() {
         assignedProducts: values.assignedProducts,
         // Send the login only when the admin actually set/changed something.
         credential:
-          values.credential?.email?.trim() || values.credential?.password?.trim()
+          showCredential && (values.credential?.email?.trim() || values.credential?.password?.trim())
             ? {
                 email: values.credential.email?.trim() || undefined,
                 password: values.credential.password?.trim() || undefined,
@@ -1343,7 +1348,7 @@ export default function CustomerFormPage() {
       <FormProgress percent={progress} />
 
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="ff-form space-y-6">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_480px] lg:items-start">
+        <div className={cn('grid gap-6 lg:items-start', showCredential && 'lg:grid-cols-[minmax(0,1fr)_480px]')}>
           {/* Main form sections — left / primary column */}
           <div className="min-w-0 space-y-6">
         {/* ── 1. Company Information ── */}
@@ -2055,16 +2060,18 @@ export default function CustomerFormPage() {
 
           </div>
           {/* ── Customer Credential — pinned top-right ── */}
-          <aside className="lg:sticky lg:top-6">
-            <CredentialSection
-              register={register}
-              emailError={errors.credential?.email?.message}
-              passwordError={errors.credential?.password?.message}
-              isEdit={isEdit}
-              clientId={clientId}
-              hasCredential={existing?.hasCredential}
-            />
-          </aside>
+          {showCredential && (
+            <aside className="lg:sticky lg:top-6">
+              <CredentialSection
+                register={register}
+                emailError={errors.credential?.email?.message}
+                passwordError={errors.credential?.password?.message}
+                isEdit={isEdit}
+                clientId={clientId}
+                hasCredential={existing?.hasCredential}
+              />
+            </aside>
+          )}
         </div>
 
         <div

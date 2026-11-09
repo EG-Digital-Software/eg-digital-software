@@ -207,7 +207,9 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
     where: { clientId: req.params.clientId },
     select: { accountStatus: true },
   });
-  const customer = await customerService.updateCustomer(req.params.clientId, req.body);
+  // A team member may edit the details; the portal login stays with the admin.
+  const body = req.user?.role === 'SUPER_ADMIN' ? req.body : { ...req.body, credential: undefined };
+  const customer = await customerService.updateCustomer(req.params.clientId, body);
   // A changed standing (e.g. Active Trial → Active) is recorded from → to, so
   // Account History can show when a trial started and ended.
   const statusChanged = before && before.accountStatus !== customer.accountStatus;

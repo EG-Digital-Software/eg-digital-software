@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Users, ArrowRight, Building2, ChevronDown, Check, Search } from 'lucide-react';
+import { Users, UserPlus, ArrowRight, Building2, ChevronDown, Check, Search } from 'lucide-react';
 import { adminApi, dashboardApi, productApi, customerApi } from '@/api/resources';
 import type { DashboardSummary } from '@/types';
 import { useAuth } from '@/store/auth';
+import { useStaffAccess } from '@/lib/staffAccess';
 import { StatDelta } from '@/components/shared/misc';
 import { SalesChart } from './SalesChart';
 import { PublicHolidaysCard } from '@/components/client/PublicHolidays';
@@ -119,6 +120,7 @@ export default function DashboardPage() {
   const user = useAuth((s) => s.user);
   // Team members with the Dashboard tab don't manage logins or approvals.
   const isAdmin = user?.role === 'SUPER_ADMIN';
+  const { canEdit } = useStaffAccess();
   // Captured once per mount so renders stay pure.
   const [now] = useState(() => Date.now());
   const summaryQ = useQuery<DashboardSummary>({
@@ -162,9 +164,11 @@ export default function DashboardPage() {
               <Users /> Manage team
             </Link>
           )}
-          <Link to="/admin/customers" className="btn bp">
-            <Building2 /> Manage customers
-          </Link>
+          {canEdit('customers.overview') && (
+            <Link to="/admin/customers/new" className="btn bp">
+              <UserPlus /> Create Customer
+            </Link>
+          )}
         </div>
       </div>
 
@@ -204,11 +208,6 @@ export default function DashboardPage() {
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-            {isAdmin && (
-              <Link to="/admin/approvals" className="btn bp">
-                Review approvals <ArrowRight />
-              </Link>
-            )}
             <Link to="/admin/billing" className="btn bg">
               Open billing
             </Link>

@@ -464,6 +464,7 @@ export default function CustomerDetailPage() {
   // A role grants each sub-tab on its own, view-only or editable.
   const canInvoice = canEdit('billing') || canEdit('customers.invoices');
   const canTask = can('tasks') || can('customers.task');
+  const canManage = canEdit('customers.overview');
   const { data: c, isLoading, isError, refetch } = useQuery({
     queryKey: ['customer', clientId],
     queryFn: () => customerApi.get(clientId!),
@@ -548,7 +549,7 @@ export default function CustomerDetailPage() {
               <Eye /> View/Edit portal
             </button>
           )}
-          {isAdmin && (
+          {canManage && (
             <Link to={`/admin/customers/${c.clientId}/edit`} className="btn bg">
               <Pencil /> Edit
             </Link>
@@ -653,8 +654,7 @@ export default function CustomerDetailPage() {
             )}
           </div>
           <div className="flex shrink-0 flex-wrap items-start gap-3 sm:flex-nowrap">
-          {/* Renewing an account is admin-only, even with the Customers tab. */}
-          {isAdmin && (
+          {canManage && (
             <div className="flex flex-col items-stretch gap-1">
               <button type="button" className="btn bg" onClick={() => setRenewOpen(true)}>
                 <RefreshCw /> Renew account
