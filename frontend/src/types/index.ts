@@ -502,6 +502,24 @@ export interface TaskNote {
   createdAt: string;
 }
 
+/** One line of a task's Access Point record: who opened the tab, or what they changed. */
+export interface AccessPointLog {
+  id: string;
+  taskId: string;
+  userId: string;
+  userType: Role;
+  userName: string;
+  action: 'UNLOCKED' | 'ADDED' | 'EDITED' | 'DELETED' | 'PIN_FAILED';
+  detail: string | null;
+  createdAt: string;
+}
+
+/** An unlocked Access Point tab: its entries and record (newest first). */
+export interface AccessPointData {
+  entries: TaskNote[];
+  log: AccessPointLog[];
+}
+
 export interface TaskAttachment {
   id: string;
   taskId: string;

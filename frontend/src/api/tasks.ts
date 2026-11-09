@@ -1,6 +1,7 @@
 import { api } from './client';
 import { describeUploadError, uploadToBlob } from '@/lib/directUpload';
 import type {
+  AccessPointData,
   ApiEnvelope,
   Appointment,
   AssignableUser,
@@ -30,6 +31,9 @@ export interface TaskInput {
 }
 
 const unwrap = <T>(p: Promise<{ data: ApiEnvelope<T> }>) => p.then((r) => r.data.data);
+
+/** Header carrying an Access Point unlock key, when there is one. */
+const accessHeaders = (accessKey?: string) => (accessKey ? { headers: { 'X-Access-Point-Key': accessKey } } : undefined);
 
 /** Overall upload progress, 0–100. */
 export type UploadProgress = (percent: number) => void;
@@ -176,13 +180,25 @@ export function taskApi(base: string) {
 
     // Notes — a chat-style thread; each note snapshots its author. Editing is
     // limited to your own notes (403 otherwise).
-    addNote: (taskId: string, body: string, kind: import('@/types').TaskNoteKind = 'NOTE', subject?: string | null) =>
-      unwrap<import('@/types').TaskNote>(api.post(`${base}/tasks/${taskId}/notes`, { body, kind, subject })),
-    editNote: (taskId: string, noteId: string, body: string, subject?: string | null) =>
-      unwrap<import('@/types').TaskNote>(api.patch(`${base}/tasks/${taskId}/notes/${noteId}`, subject === undefined ? { body } : { body, subject })),
+    // Access Point entries also carry the unlock key (`accessKey`) from unlockAccessPoint.
+    addNote: (taskId: string, body: string, kind: import('@/types').TaskNoteKind = 'NOTE', subject?: string | null, accessKey?: string) =>
+      unwrap<import('@/types').TaskNote>(
+        api.post(`${base}/tasks/${taskId}/notes`, { body, kind, subject }, accessHeaders(accessKey))
+      ),
+    editNote: (taskId: string, noteId: string, body: string, subject?: string | null, accessKey?: string) =>
+      unwrap<import('@/types').TaskNote>(
+        api.patch(`${base}/tasks/${taskId}/notes/${noteId}`, subject === undefined ? { body } : { body, subject }, accessHeaders(accessKey))
+      ),
     // Delete a note/access-point entry — own entries for anyone, any entry for admin.
-    deleteNote: (taskId: string, noteId: string) =>
-      unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/notes/${noteId}`)),
+    deleteNote: (taskId: string, noteId: string, accessKey?: string) =>
+      unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/notes/${noteId}`, accessHeaders(accessKey))),
+
+    // Access Point lock — the signed-in user's PIN opens the tab and returns a
+    // short-lived key; reads and changes in the tab send it back.
+    unlockAccessPoint: (taskId: string, pin: string) =>
+      unwrap<AccessPointData & { key: string }>(api.post(`${base}/tasks/${taskId}/access-point/unlock`, { pin })),
+    getAccessPoint: (taskId: string, accessKey: string) =>
+      unwrap<AccessPointData>(api.get(`${base}/tasks/${taskId}/access-point`, accessHeaders(accessKey))),
 
     // Attachments
     addAttachment: async (taskId: string, file: File, onProgress?: UploadProgress) => {

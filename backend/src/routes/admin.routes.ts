@@ -24,6 +24,8 @@ import { runLicenceReminders } from '../services/reminder.service.js';
 import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
 import { runTokenCleanup } from '../services/housekeeping.service.js';
 import { taskActivityByCustomer, taskActivityByTask } from '../services/task.service.js';
+import * as accessPoint from '../services/accessPoint.service.js';
+import { ApiError } from '../utils/ApiError.js';
 
 const router = Router();
 
@@ -47,6 +49,17 @@ router.get(
 );
 
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
+
+// Access Point PINs — every admin, team member and client login, for the admin.
+router.get('/access-pins', asyncHandler(async (_req, res) => ok(res, await accessPoint.listPins())));
+router.post(
+  '/access-pins/:userType/:userId/regenerate',
+  asyncHandler(async (req, res) => {
+    const userType = req.params.userType as Role;
+    if (!(await accessPoint.userExists(req.params.userId, userType))) throw ApiError.notFound('User not found');
+    return ok(res, { pin: await accessPoint.regeneratePin(req.params.userId, userType) }, 'New PIN issued');
+  })
+);
 
 router.get('/registrations', validate({ query: listRegistrationQuerySchema }), approvals.list);
 router.get('/registrations/count', approvals.count);

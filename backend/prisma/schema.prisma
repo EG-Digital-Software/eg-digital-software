@@ -847,6 +847,7 @@ model Task {
   checklist   ChecklistItem[]
   comments    TaskComment[]
   notes       TaskNote[]
+  accessPointLogs AccessPointLog[]
   attachments TaskAttachment[]
   approvals   TaskApproval[]
   timeEntries TaskTimeEntry[]
@@ -902,6 +903,37 @@ model TaskNote {
 
   @@index([taskId])
   @@index([taskId, kind])
+}
+
+/// A login's PIN for the Access Point tab — one per admin, team member or
+/// client login (userId + userType, the same polymorphic way notes snapshot
+/// their author), unique across everyone so a PIN names exactly one person.
+model AccessPin {
+  id        String   @id @default(uuid())
+  userId    String
+  userType  Role
+  pin       String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, userType])
+}
+
+/// Who opened a task's Access Point tab with their PIN, and what they did
+/// there: UNLOCKED, ADDED, EDITED, DELETED, or PIN_FAILED (a wrong PIN).
+model AccessPointLog {
+  id        String   @id @default(uuid())
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String
+  userId    String
+  userType  Role
+  userName  String
+  action    String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([userId, action, createdAt])
 }
 
 /// A staff member assigned to a task. Snapshot of name/avatar so the card

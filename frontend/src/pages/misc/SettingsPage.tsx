@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { settingsApi, type OrganisationSettings } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { PageHeader } from '@/components/shared/misc';
+import { AccessPinsCard } from '@/components/settings/AccessPinsCard';
 import { Input } from '@/components/ui/input';
 import { numericField, titleCaseField } from '@/lib/input';
 import { Label } from '@/components/ui/label';
@@ -279,6 +280,8 @@ export default function SettingsPage() {
       </Section>
 
       <div className="flex justify-end">{SaveButton}</div>
+
+      <AccessPinsCard />
     </form>
   );
 }

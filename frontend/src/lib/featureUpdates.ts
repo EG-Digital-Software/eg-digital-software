@@ -19,6 +19,7 @@ export interface FeatureUpdate {
 
 export const FEATURE_UPDATES: FeatureUpdate[] = [
   { id: 'task-timesheet', name: 'Time Sheet', addedAt: '2026-10-19', tab: 'timesheet' },
+  { id: 'access-point-pin', name: 'Access Point PIN lock', addedAt: '2026-11-09', tab: 'access' },
 ];
 
 const SHOW_DAYS = 30;

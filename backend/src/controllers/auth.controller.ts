@@ -7,6 +7,7 @@ import { env } from '../config/env.js';
 import { durationToMs } from '../utils/tokens.js';
 import { ApiError } from '../utils/ApiError.js';
 import { storage } from '../services/storage/index.js';
+import * as accessPoint from '../services/accessPoint.service.js';
 
 const REFRESH_COOKIE = 'eg_refresh';
 
@@ -110,6 +111,16 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
 export const me = asyncHandler(async (req: Request, res: Response) => {
   const user = await authService.me(req.user!.role, req.user!.sub);
   return ok(res, user);
+});
+
+/** The signed-in user's Access Point PIN (issued on first ask). */
+export const accessPin = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, { pin: await accessPoint.getPin(req.user!.sub, req.user!.role) });
+});
+
+/** Replace the signed-in user's Access Point PIN with a new one. */
+export const regenerateAccessPin = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, { pin: await accessPoint.regeneratePin(req.user!.sub, req.user!.role) }, 'New PIN issued');
 });
 
 export const updateProfile = asyncHandler(async (req: Request, res: Response) => {

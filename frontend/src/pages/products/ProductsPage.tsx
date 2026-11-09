@@ -32,12 +32,15 @@ const PERIOD: Record<string, string> = {
 
 const statNum = { fontSize: 32, fontWeight: 700, marginTop: 10 } as const;
 
-/** Price cell: manual products show their set price; automatic ones are priced per customer. */
+/**
+ * Price cell: a product with its own price shows it; one priced per customer on
+ * assignment reads "Manual", matching the Product Price choice in the form.
+ */
 function priceLabel(p: Product) {
   if (p.priceMode === 'MANUAL' && p.pricePerQty != null && p.pricePerQty !== '') {
     return `${formatCurrency(p.pricePerQty)}${p.billingPeriod ? (PERIOD[p.billingPeriod] ?? '') : ''}`;
   }
-  return 'Automatic';
+  return 'Manual';
 }
 
 export default function ProductsPage() {

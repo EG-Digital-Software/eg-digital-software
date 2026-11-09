@@ -128,7 +128,17 @@ function shapeTask<T extends { labels: { label: unknown }[] }>(task: T) {
   const allFiles = withFiles.attachments ?? [];
   const archive = allFiles.filter((f) => f.kind === 'ARCHIVE');
   const attachments = allFiles.filter((f) => f.kind !== 'ARCHIVE');
-  return { ...task, labels: task.labels.map((l) => l.label), attachments, archive };
+  // Access Point entries hold credentials and open only with a PIN (see
+  // accessPoint.service); every read keeps who added them and when, not the text.
+  const withNotes = task as T & { notes?: { kind: string }[] };
+  const notes = withNotes.notes?.map((n) => (n.kind === 'ACCESS_POINT' ? { ...n, subject: null, body: '' } : n));
+  return {
+    ...task,
+    labels: task.labels.map((l) => l.label),
+    attachments,
+    archive,
+    ...(notes ? { notes } : {}),
+  };
 }
 
 /**
@@ -302,7 +312,7 @@ export interface TaskInput {
   checklist?: ChecklistInput[];
 }
 
-async function ensureTask(customerId: string, taskId: string) {
+export async function ensureTask(customerId: string, taskId: string) {
   const task = await prisma.task.findFirst({ where: { id: taskId, customerId } });
   if (!task) throw ApiError.notFound('Task not found');
   return task;

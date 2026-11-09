@@ -8,6 +8,7 @@ import { asyncHandler, ok } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
 import { taskUploadRefSchema } from '../validators/task.validator.js';
 import { isAdminLike } from '../middleware/staffAccess.js';
+import * as accessPoint from '../services/accessPoint.service.js';
 
 /**
  * One controller drives both the admin board (customer addressed by the public
@@ -197,7 +198,11 @@ export const addNote = asyncHandler(async (req: Request, res: Response) => {
   const body = typeof req.body.body === 'string' ? req.body.body.trim() : '';
   if (!body) throw ApiError.badRequest('A note is required');
   const customerId = await resolve(req);
-  const note = await taskService.addNote(customerId, req.params.taskId, await author(req), body, noteKind(req.body.kind), noteSubject(req.body.subject));
+  const kind = noteKind(req.body.kind);
+  const actor = await author(req);
+  if (kind === 'ACCESS_POINT') accessPoint.assertUnlocked(req.params.taskId, actor, req.get(accessPoint.ACCESS_KEY_HEADER));
+  const note = await taskService.addNote(customerId, req.params.taskId, actor, body, kind, noteSubject(req.body.subject));
+  if (kind === 'ACCESS_POINT') await accessPoint.record(note.taskId, actor, 'ADDED', accessPoint.describeEntry(note));
   return ok(res, note, 'Note added', 201);
 });
 
@@ -208,14 +213,39 @@ export const editNote = asyncHandler(async (req: Request, res: Response) => {
   // Ownership (own notes only) is enforced in the service. Subject is only sent
   // for Access Point entries; leaving it undefined keeps a plain note's subject.
   const subject = req.body.subject === undefined ? undefined : noteSubject(req.body.subject);
-  const note = await taskService.editNote(customerId, req.params.taskId, req.params.noteId, await author(req), body, subject);
+  const actor = await author(req);
+  const entry = await accessPoint.findEntry(req.params.taskId, req.params.noteId);
+  if (entry) accessPoint.assertUnlocked(req.params.taskId, actor, req.get(accessPoint.ACCESS_KEY_HEADER));
+  const note = await taskService.editNote(customerId, req.params.taskId, req.params.noteId, actor, body, subject);
+  if (entry) await accessPoint.record(note.taskId, actor, 'EDITED', accessPoint.describeEntry(entry));
   return ok(res, note, 'Note updated');
 });
 
 export const deleteNote = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await resolve(req);
+  const actor = await author(req);
+  const entry = await accessPoint.findEntry(req.params.taskId, req.params.noteId);
+  if (entry) accessPoint.assertUnlocked(req.params.taskId, actor, req.get(accessPoint.ACCESS_KEY_HEADER));
   // Owner-or-admin rule is enforced in the service.
-  return ok(res, await taskService.deleteNote(customerId, req.params.taskId, req.params.noteId, await author(req)), 'Entry deleted');
+  const removed = await taskService.deleteNote(customerId, req.params.taskId, req.params.noteId, actor);
+  if (entry) await accessPoint.record(entry.taskId, actor, 'DELETED', accessPoint.describeEntry(entry));
+  return ok(res, removed, 'Entry deleted');
+});
+
+// ─── Access Point lock ────────────────────────────────────
+
+/** Open a task's Access Point tab with the signed-in user's PIN. */
+export const unlockAccessPoint = asyncHandler(async (req: Request, res: Response) => {
+  await taskService.ensureTask(await resolve(req), req.params.taskId);
+  const key = await accessPoint.unlock(req.params.taskId, await author(req), req.body?.pin);
+  return ok(res, { key, ...(await accessPoint.getAccessPoint(req.params.taskId)) }, 'Access Point unlocked');
+});
+
+/** The tab's entries and record — only while unlocked. */
+export const getAccessPoint = asyncHandler(async (req: Request, res: Response) => {
+  await taskService.ensureTask(await resolve(req), req.params.taskId);
+  accessPoint.assertUnlocked(req.params.taskId, { id: req.user!.sub, type: req.user!.role }, req.get(accessPoint.ACCESS_KEY_HEADER));
+  return ok(res, await accessPoint.getAccessPoint(req.params.taskId));
 });
 
 // ─── Attachments ──────────────────────────────────────────

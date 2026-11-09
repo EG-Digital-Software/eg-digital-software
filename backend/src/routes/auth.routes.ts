@@ -31,6 +31,9 @@ router.post(
 router.post('/refresh', ctrl.refresh);
 router.post('/logout', authenticate, ctrl.logout);
 router.get('/me', authenticate, ctrl.me);
+// Each login's own 6-digit PIN for opening a task's Access Point tab.
+router.get('/access-pin', authenticate, ctrl.accessPin);
+router.post('/access-pin/regenerate', authenticate, ctrl.regenerateAccessPin);
 router.put('/me', authenticate, validate({ body: updateProfileSchema }), ctrl.updateProfile);
 router.post('/avatar', authenticate, avatarUpload.single('avatar'), ctrl.uploadAvatar);
 router.delete('/avatar', authenticate, ctrl.removeAvatar);

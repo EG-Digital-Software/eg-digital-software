@@ -107,3 +107,15 @@ export async function forgotPasswordRequest(email: string, portal?: Portal) {
 export async function resetPasswordRequest(token: string, password: string) {
   await api.post('/auth/reset-password', { token, password });
 }
+
+/** The signed-in user's own 6-digit PIN for opening a task's Access Point tab. */
+export async function accessPinRequest() {
+  const { data } = await api.get<ApiEnvelope<{ pin: string }>>('/auth/access-pin');
+  return data.data;
+}
+
+/** Replace the signed-in user's Access Point PIN with a new one. */
+export async function regenerateAccessPinRequest() {
+  const { data } = await api.post<ApiEnvelope<{ pin: string }>>('/auth/access-pin/regenerate');
+  return data.data;
+}

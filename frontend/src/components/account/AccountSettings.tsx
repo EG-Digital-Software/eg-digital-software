@@ -3,13 +3,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Camera, Trash2, Save, ShieldCheck, Check, X } from 'lucide-react';
+import { Camera, Trash2, Save, ShieldCheck, Check, X, KeyRound, Eye, EyeOff, Copy, RefreshCw } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/store/auth';
 import {
   changePasswordRequest,
   updateProfileRequest,
   uploadAvatarRequest,
   removeAvatarRequest,
+  accessPinRequest,
+  regenerateAccessPinRequest,
 } from '@/api/auth';
 import { apiErrorMessage } from '@/api/client';
 import { titleCaseField } from '@/lib/input';
@@ -89,7 +92,12 @@ function Detail({ label, value }: { label: string; value?: React.ReactNode }) {
   );
 }
 
-export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'profile' | 'password' }) {
+export type AccountTab = 'profile' | 'password' | 'pin';
+
+/** The tab a `?tab=` link asks for (e.g. the Access Point lock's "find your PIN"). */
+export const accountTabFrom = (v: string | null): AccountTab => (v === 'password' || v === 'pin' ? v : 'profile');
+
+export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: AccountTab }) {
   const user = useAuth((s) => s.user);
   const setUser = useAuth((s) => s.setUser);
   const setToken = useAuth((s) => s.setToken);
@@ -179,6 +187,7 @@ export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'prof
       <TabsList>
         <TabsTrigger value="profile">Profile</TabsTrigger>
         <TabsTrigger value="password">Change Password</TabsTrigger>
+        <TabsTrigger value="pin">Access PIN</TabsTrigger>
       </TabsList>
 
       <TabsContent value="profile">
@@ -368,6 +377,87 @@ export function AccountSettings({ defaultTab = 'profile' }: { defaultTab?: 'prof
           </CardContent>
         </Card>
       </TabsContent>
+
+      <TabsContent value="pin">
+        <AccessPinCard />
+      </TabsContent>
     </Tabs>
+  );
+}
+
+/**
+ * The signed-in user's own 6-digit PIN for opening a task's Access Point tab.
+ * Hidden until shown; a new one can be issued at any time (the old one stops
+ * working straight away).
+ */
+function AccessPinCard() {
+  const qc = useQueryClient();
+  const [shown, setShown] = useState(false);
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ['auth', 'access-pin'], queryFn: accessPinRequest });
+  const regenerate = useMutation({
+    mutationFn: regenerateAccessPinRequest,
+    onSuccess: (res) => {
+      qc.setQueryData(['auth', 'access-pin'], res);
+      setShown(true);
+      toast.success('New PIN issued — your old PIN no longer works');
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+  const pin = data?.pin;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <KeyRound className="h-[18px] w-[18px] text-primary" /> Access PIN
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Your personal 6-digit PIN. It is asked every time you open a task's Access Point tab, and your name is
+          recorded against everything you do there. Don't share it.
+        </p>
+        {isLoading ? (
+          <Spinner />
+        ) : isError || !pin ? (
+          <Button type="button" variant="outline" onClick={() => refetch()}>
+            Couldn't load your PIN — retry
+          </Button>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-lg border border-border bg-secondary/40 px-4 py-2 font-mono text-2xl font-semibold tracking-[0.4em]">
+              {shown ? pin : '••••••'}
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShown((v) => !v)}>
+              {shown ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} {shown ? 'Hide' : 'Show'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigator.clipboard?.writeText(pin).then(
+                  () => toast.success('PIN copied'),
+                  () => toast.error('Could not copy the PIN')
+                )
+              }
+            >
+              <Copy className="h-4 w-4" /> Copy
+            </Button>
+          </div>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={regenerate.isPending || !pin}
+          onClick={() => {
+            if (window.confirm('Issue a new PIN? Your current PIN will stop working straight away.')) regenerate.mutate();
+          }}
+        >
+          {regenerate.isPending ? <Spinner /> : <RefreshCw className="h-4 w-4" />} Generate new PIN
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

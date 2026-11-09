@@ -74,6 +74,10 @@ export function buildTaskRouter(readOnly = false): Router {
   router.post('/tasks/:taskId/notes', ctrl.addNote);
   router.patch('/tasks/:taskId/notes/:noteId', ctrl.editNote);
   router.delete('/tasks/:taskId/notes/:noteId', ctrl.deleteNote);
+  // Access Point tab: locked behind each user's own PIN. Unlocking hands back a
+  // short-lived key that Access Point reads and changes must carry.
+  router.post('/tasks/:taskId/access-point/unlock', ctrl.unlockAccessPoint);
+  router.get('/tasks/:taskId/access-point', ctrl.getAccessPoint);
   router.post('/tasks/:taskId/attachments', upload.single('file'), ctrl.addAttachment);
   router.delete('/tasks/:taskId/attachments/:attachmentId', ctrl.deleteAttachment);
 

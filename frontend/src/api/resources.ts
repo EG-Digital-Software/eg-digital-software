@@ -463,7 +463,23 @@ export interface OrganisationSettings {
   currency: string;
 }
 
+/** One login's Access Point PIN, as the admin sees it. */
+export interface PinHolder {
+  userId: string;
+  userType: 'SUPER_ADMIN' | 'EMPLOYEE' | 'CLIENT';
+  name: string;
+  email: string;
+  /** Customer's company, for customer logins. */
+  company: string | null;
+  active: boolean;
+  pin: string;
+}
+
 export const settingsApi = {
+  // Everyone's Access Point PIN (admin only); a new PIN for one login.
+  accessPins: async () => (await api.get<ApiEnvelope<PinHolder[]>>('/admin/access-pins')).data.data,
+  regenerateAccessPin: async (userType: PinHolder['userType'], userId: string) =>
+    (await api.post<ApiEnvelope<{ pin: string }>>(`/admin/access-pins/${userType}/${userId}/regenerate`)).data.data,
   getOrganisation: async () =>
     (await api.get<ApiEnvelope<OrganisationSettings>>('/admin/organisation')).data.data,
   updateOrganisation: async (body: Partial<OrganisationSettings>) =>

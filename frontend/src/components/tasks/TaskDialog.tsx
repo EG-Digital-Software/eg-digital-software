@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -55,6 +55,7 @@ import type {
   TaskProgress,
 } from '@/types';
 import type { TaskApi, TaskInput } from '@/api/tasks';
+import type { AccessPointData, AccessPointLog } from '@/types';
 import type { NewSince } from '@/lib/taskSeen';
 import { markFeaturesSeen, unseenFeatures } from '@/lib/featureUpdates';
 import { apiErrorMessage } from '@/api/client';
@@ -281,6 +282,10 @@ export function TaskDialog({
   const canSubmitApproval = adminLike || me?.role === 'EMPLOYEE';
   // Deleting an approval request (at any status) is admin-only.
   const isAdmin = adminLike;
+  // Where this portal keeps the user's Access PIN (My Account → Access PIN).
+  const accountLink = onAdminBoard
+    ? '/admin/profile?tab=pin'
+    : `/${me?.role === 'CLIENT' ? 'client' : 'employee'}/account?tab=pin`;
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
   const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive' | 'timesheet'>('details');
@@ -290,7 +295,6 @@ export function TaskDialog({
   const [feedbackDraft, setFeedbackDraft] = useState<Record<string, string>>({});
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [note, setNote] = useState('');
-  const [accessNote, setAccessNote] = useState('');
   const [comment, setComment] = useState('');
   // Mentions show as a friendly `@Name` in the composer while their full token
   // `@[Name](TYPE:id)` is kept here and swapped back in on send — so the raw id
@@ -478,7 +482,7 @@ export function TaskDialog({
     mutationFn: (v: { body: string; kind: TaskNoteKind; subject?: string | null }) => api.addNote(task!.id, v.body, v.kind, v.subject),
     // Show the note instantly (and clear the right composer) before the round-trip.
     onMutate: async (v) => {
-      if (v.kind === 'ACCESS_POINT') setAccessNote(''); else setNote('');
+      setNote('');
       if (!task) return { prev: undefined };
       await qc.cancelQueries({ queryKey: taskKey });
       const prev = qc.getQueryData<Task>(taskKey);
@@ -505,7 +509,7 @@ export function TaskDialog({
     onSettled: () => { invalidateTask(); invalidate(); },
   });
   function sendNote(kind: TaskNoteKind) {
-    const body = (kind === 'ACCESS_POINT' ? accessNote : note).trim();
+    const body = note.trim();
     if (!task || addNoteMut.isPending || !body) return;
     addNoteMut.mutate({ body, kind });
   }
@@ -524,20 +528,6 @@ export function TaskDialog({
       return { prev };
     },
     onError: (e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
-    onSettled: () => { invalidateTask(); invalidate(); },
-  });
-  const deleteNoteMut = useMutation({
-    mutationFn: (id: string) => api.deleteNote(task!.id, id),
-    // Drop the row instantly; reconcile with the server after.
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: taskKey });
-      const prev = qc.getQueryData<Task>(taskKey);
-      if (prev) {
-        qc.setQueryData<Task>(taskKey, { ...prev, notes: prev.notes.filter((n) => n.id !== id) });
-      }
-      return { prev };
-    },
-    onError: (e, _id, ctx) => { if (ctx?.prev) qc.setQueryData(taskKey, ctx.prev); toast.error(apiErrorMessage(e)); },
     onSettled: () => { invalidateTask(); invalidate(); },
   });
   const uploadFile = useMutation({
@@ -1337,19 +1327,16 @@ export function TaskDialog({
                 resubmitting={resubmitApproval.isPending}
               />
             ) : tab === 'access' ? (
-              /* Access Point tab — a register: Written by (auto) · Subject · Notes.
-                 You can edit your own rows any time. */
+              /* Access Point tab — locked behind the user's own PIN, and locked
+                 again the moment another tab is opened (the panel unmounts). */
               <AccessPointPanel
-                entries={accessEntries}
+                key={task?.id ?? 'new'}
+                api={api}
+                taskId={task?.id}
                 meId={meId}
                 isAdmin={isAdmin}
-                body={accessNote}
-                onBodyChange={setAccessNote}
-                onAdd={() => sendNote('ACCESS_POINT')}
-                adding={addNoteMut.isPending}
-                canAdd={!!task && !addNoteMut.isPending}
-                onEdit={(id, body) => editNoteMut.mutate({ id, body })}
-                onDelete={(id) => deleteNoteMut.mutate(id)}
+                accountLink={accountLink}
+                onChanged={() => { invalidateTask(); invalidate(); }}
               />
             ) : tab === 'performance' ? (
               /* Performance Dashboard — coming soon. */
@@ -1912,61 +1899,176 @@ function NotesThread({
   );
 }
 
+/** How each kind of Access Point record line reads. */
+const ACCESS_ACTION: Record<AccessPointLog['action'], { label: string; tone: string }> = {
+  UNLOCKED: { label: 'Opened with PIN', tone: 'bg-primary/10 text-primary' },
+  ADDED: { label: 'Added an entry', tone: 'bg-emerald-500/10 text-emerald-600' },
+  EDITED: { label: 'Edited an entry', tone: 'bg-amber-500/10 text-amber-600' },
+  DELETED: { label: 'Deleted an entry', tone: 'bg-rose-500/10 text-rose-600' },
+  PIN_FAILED: { label: 'Wrong PIN entered', tone: 'bg-rose-500/10 text-rose-600' },
+};
+
+/** True when the API says the Access Point is locked (unlock key missing or expired). */
+const isLockedError = (e: unknown) => (e as { response?: { status?: number } })?.response?.status === 423;
+
 /**
- * Access Point tab — a small register with two columns: Written by (the author,
- * filled automatically) and Notes. Each author can edit their own rows at any
- * time; other rows are read-only to them.
+ * Access Point tab — locked behind each user's own 6-digit PIN (My Account →
+ * Access PIN). Once open it shows the register (Uploaded By · Credentials) and
+ * the tab's record: who opened it with their PIN and what they added, edited or
+ * deleted, and when. The unlock lives only in this component, so leaving the
+ * tab (or the task) locks it again at once; so does switching browser tabs.
  */
 function AccessPointPanel({
-  entries,
+  api,
+  taskId,
   meId,
   isAdmin,
-  body,
-  onBodyChange,
-  onAdd,
-  adding,
-  canAdd,
-  onEdit,
-  onDelete,
+  accountLink,
+  onChanged,
 }: {
-  entries: TaskNote[];
+  api: TaskApi;
+  taskId?: string;
   meId?: string;
   isAdmin: boolean;
-  body: string;
-  onBodyChange: (v: string) => void;
-  onAdd: () => void;
-  adding: boolean;
-  canAdd: boolean;
-  onEdit: (id: string, body: string) => void;
-  onDelete: (id: string) => void;
+  accountLink: string;
+  onChanged: () => void;
 }) {
+  const [open, setOpen] = useState<(AccessPointData & { key: string }) | null>(null);
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [body, setBody] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
 
-  function startEdit(n: TaskNote) {
-    setEditingId(n.id);
-    setEditBody(n.body);
+  // Leaving the browser tab locks it too.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') setOpen(null);
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, []);
+
+  const unlock = useMutation({
+    mutationFn: (p: string) => api.unlockAccessPoint(taskId!, p),
+    onSuccess: (res) => {
+      setOpen(res);
+      setPin('');
+      setPinError(null);
+    },
+    onError: (e) => {
+      setPin('');
+      setPinError(apiErrorMessage(e));
+    },
+  });
+
+  /** Run a change with the unlock key, then reload the register and record. */
+  const change = useMutation({
+    mutationFn: async (run: (key: string) => Promise<unknown>) => {
+      const key = open!.key;
+      await run(key);
+      return api.getAccessPoint(taskId!, key);
+    },
+    onSuccess: (data) => {
+      setOpen((o) => (o ? { ...o, ...data } : o));
+      onChanged();
+    },
+    onError: (e) => {
+      if (isLockedError(e)) {
+        setOpen(null);
+        toast.error('Access Point locked again — enter your PIN to continue');
+      } else {
+        toast.error(apiErrorMessage(e));
+      }
+    },
+  });
+
+  if (!taskId) {
+    return <p className="mt-5 py-6 text-center text-sm text-muted-foreground">Save the task first to add access points.</p>;
   }
+
+  if (!open) {
+    const submit = () => {
+      if (pin.length === 6 && !unlock.isPending) unlock.mutate(pin);
+    };
+    return (
+      <div className="mx-auto mt-8 flex max-w-sm flex-col items-center rounded-xl border border-border bg-secondary/30 px-6 py-8 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Lock className="h-6 w-6" />
+        </div>
+        <h4 className="mt-3 text-base font-semibold">Access Point is locked</h4>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Enter your 6-digit PIN. Your name and everything you do here will be recorded.
+        </p>
+        <form
+          className="mt-4 flex w-full flex-col items-center gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <Input
+            autoFocus
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={6}
+            value={pin}
+            aria-label="Access PIN"
+            placeholder="••••••"
+            className="w-44 text-center font-mono text-xl tracking-[0.5em]"
+            onChange={(e) => {
+              setPin(e.target.value.replace(/\D/g, '').slice(0, 6));
+              setPinError(null);
+            }}
+          />
+          {pinError && <p className="text-xs text-destructive">{pinError}</p>}
+          <Button type="submit" disabled={pin.length !== 6 || unlock.isPending}>
+            <KeyRound className="mr-1.5 h-4 w-4" /> {unlock.isPending ? 'Checking…' : 'Unlock'}
+          </Button>
+        </form>
+        <Link to={accountLink} className="mt-4 text-xs text-primary hover:underline">
+          Find your PIN in My Account → Access PIN
+        </Link>
+      </div>
+    );
+  }
+
+  const { entries, log } = open;
+  const busy = change.isPending;
+
   function saveEdit(id: string) {
     const b = editBody.trim();
-    if (b) onEdit(id, b);
+    if (b) change.mutate((key) => api.editNote(taskId!, id, b, undefined, key));
     setEditingId(null);
   }
 
   return (
     <div className="mt-5 space-y-5">
-      {/* Composer — Notes only; the author is filled in automatically. */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <KeyRound className="h-3.5 w-3.5" /> Unlocked — locks again when you leave this tab.
+        </p>
+        <Button type="button" size="sm" variant="outline" onClick={() => setOpen(null)}>
+          <Lock className="mr-1.5 h-3.5 w-3.5" /> Lock now
+        </Button>
+      </div>
+
+      {/* Composer — the author is filled in automatically. */}
       <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
         <h4 className="text-sm font-semibold">Add access point</h4>
-        <Textarea
-          value={body}
-          className="min-h-[72px]"
-          disabled={!canAdd}
-          onChange={(e) => onBodyChange(e.target.value)}
-        />
+        <Textarea value={body} className="min-h-[72px]" disabled={busy} onChange={(e) => setBody(e.target.value)} />
         <div className="flex justify-end">
-          <Button type="button" size="sm" onClick={onAdd} disabled={!canAdd || !body.trim() || adding}>
-            <Plus className="mr-1.5 h-4 w-4" /> {adding ? 'Adding…' : 'Add'}
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy || !body.trim()}
+            onClick={() => {
+              const b = body.trim();
+              change.mutate((key) => api.addNote(taskId!, b, 'ACCESS_POINT', undefined, key), { onSuccess: () => setBody('') });
+            }}
+          >
+            <Plus className="mr-1.5 h-4 w-4" /> {busy ? 'Saving…' : 'Add'}
           </Button>
         </div>
       </div>
@@ -1988,7 +2090,6 @@ function AccessPointPanel({
               {entries.map((n) => {
                 const mine = !!meId && n.authorId === meId;
                 const canManage = mine || isAdmin; // author, or an admin over any row
-                const isTemp = n.id.startsWith('temp-');
                 const isEditing = editingId === n.id;
                 return (
                   <tr key={n.id} className="border-b border-border/60 align-top">
@@ -2015,12 +2116,24 @@ function AccessPointPanel({
                       <>
                         <td className="px-2 py-3 text-muted-foreground"><p className="max-w-[360px] whitespace-pre-wrap break-words"><Linkify text={n.body} /></p></td>
                         <td className="px-2 py-3">
-                          {canManage && !isTemp && (
+                          {canManage && (
                             <div className="flex items-center gap-2">
-                              <button type="button" onClick={() => startEdit(n)} title={mine ? 'Edit your entry' : 'Edit entry (admin)'} className="text-muted-foreground transition hover:text-primary">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => { setEditingId(n.id); setEditBody(n.body); }}
+                                title={mine ? 'Edit your entry' : 'Edit entry (admin)'}
+                                className="text-muted-foreground transition hover:text-primary"
+                              >
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
-                              <button type="button" onClick={() => onDelete(n.id)} title={mine ? 'Delete your entry' : 'Delete entry (admin)'} className="text-muted-foreground transition hover:text-rose-500">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => change.mutate((key) => api.deleteNote(taskId!, n.id, key))}
+                                title={mine ? 'Delete your entry' : 'Delete entry (admin)'}
+                                className="text-muted-foreground transition hover:text-rose-500"
+                              >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             </div>
@@ -2035,6 +2148,43 @@ function AccessPointPanel({
           </table>
         </div>
       )}
+
+      {/* Record — who opened this tab with their PIN, and what they did. */}
+      <div className="space-y-2">
+        <h4 className="flex items-center gap-1.5 text-sm font-semibold">
+          <Clock className="h-4 w-4 text-muted-foreground" /> Access record
+        </h4>
+        {log.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing recorded yet.</p>
+        ) : (
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-0 bg-card">
+                <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th className="px-3 py-2">Name</th>
+                  <th className="px-3 py-2">What they did</th>
+                  <th className="px-3 py-2">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {log.map((l) => {
+                  const a = ACCESS_ACTION[l.action] ?? { label: l.action, tone: 'bg-secondary text-muted-foreground' };
+                  return (
+                    <tr key={l.id} className="border-b border-border/60 align-top last:border-0">
+                      <td className="px-3 py-2 font-medium">{l.userName}{meId && l.userId === meId ? ' (You)' : ''}</td>
+                      <td className="px-3 py-2">
+                        <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', a.tone)}>{a.label}</span>
+                        {l.detail && <div className="mt-0.5 text-xs text-muted-foreground">{l.detail}</div>}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">{formatDate(l.createdAt, 'dd MMM yyyy, h:mm a')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

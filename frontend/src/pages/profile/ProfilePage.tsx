@@ -1,10 +1,10 @@
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/shared/misc';
-import { AccountSettings } from '@/components/account/AccountSettings';
+import { AccountSettings, accountTabFrom } from '@/components/account/AccountSettings';
 
 export default function ProfilePage() {
   const [params] = useSearchParams();
-  const defaultTab = params.get('tab') === 'password' ? 'password' : 'profile';
+  const defaultTab = accountTabFrom(params.get('tab'));
 
   return (
     <div className="ec-page mx-auto w-full max-w-3xl">
