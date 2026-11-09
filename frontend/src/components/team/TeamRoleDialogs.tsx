@@ -204,7 +204,12 @@ function RoleForm({
                                 <span className="block text-xs text-muted-foreground">{s.hint}</span>
                               </span>
                             </label>
-                            {access[key] && <LevelSwitch value={access[key]} onChange={(v) => patch({ [key]: v })} />}
+                            {access[key] &&
+                              (s.viewOnly ? (
+                                <span className="text-xs text-muted-foreground">View only</span>
+                              ) : (
+                                <LevelSwitch value={access[key]} onChange={(v) => patch({ [key]: v })} />
+                              ))}
                           </div>
                         );
                       })}

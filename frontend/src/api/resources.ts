@@ -44,6 +44,26 @@ export const dashboardApi = {
 };
 
 // ── Customers ────────────────────────────────────────────
+/** One entry on a customer's Account History timeline. */
+export type HistoryKind = 'payment' | 'account';
+export interface HistoryEvent {
+  id: string;
+  at: string;
+  kind: HistoryKind;
+  title: string;
+  detail?: string | null;
+  /** Admin route to the related record, when it still exists. */
+  link?: string | null;
+}
+/** Where the account stands today. */
+export interface HistorySummary {
+  status: 'ACTIVE' | 'ACTIVE_TRIAL' | 'DORMANT' | 'SUSPENDED';
+  activeUntil: string | null;
+  daysLeft: number | null;
+  trialSince: string | null;
+  trialDays: number | null;
+}
+
 export const customerApi = {
   list: async (params: Record<string, unknown>) => {
     const { data } = await api.get<ListEnvelope<Customer>>(`/customers${qs(params)}`);
@@ -108,6 +128,10 @@ export const customerApi = {
   deleteDocument: async (clientId: string, documentId: string) =>
     (await api.delete<ApiEnvelope<{ id: string }>>(`/customers/${clientId}/documents/${documentId}`)).data.data,
   /** Renew the account: ACTIVE for the chosen number of months. */
+  /** The customer's Account History timeline, newest first. */
+  history: async (clientId: string) =>
+    (await api.get<ApiEnvelope<{ summary: HistorySummary; events: HistoryEvent[] }>>(`/customers/${clientId}/history`))
+      .data.data,
   renew: async (clientId: string, months: number) =>
     (await api.post<ApiEnvelope<Pick<Customer, 'id' | 'clientId' | 'accountStatus' | 'accountRenewedUntil'>>>(`/customers/${clientId}/renew`, { months })).data.data,
   archive: async (clientId: string) => (await api.delete(`/customers/${clientId}`)).data,

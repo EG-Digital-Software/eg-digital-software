@@ -39,13 +39,21 @@ export const STAFF_TAB_LABEL: Record<string, string> = Object.fromEntries(STAFF_
  * STAFF_SECTIONS on the API. The first one (Overview) is the way into a
  * customer, so it always comes with the tab. Credential stays admin-only.
  */
-export const STAFF_SECTIONS: Partial<Record<StaffTab, readonly { key: string; label: string; hint: string }[]>> = {
+export const STAFF_SECTIONS: Partial<
+  Record<StaffTab, readonly { key: string; label: string; hint: string; viewOnly?: boolean }[]>
+> = {
   customers: [
     { key: 'overview', label: 'Overview', hint: 'Customer list and details. Edit lets them add and archive customers.' },
     { key: 'agreement', label: 'Agreement', hint: 'Agreement documents. Edit lets them upload, fill and remove.' },
     { key: 'products', label: 'Products & Licences', hint: 'Assigned products. Edit lets them assign, change and remove.' },
     { key: 'invoices', label: 'Invoices', hint: "The customer's invoices. Edit lets them create invoices." },
     { key: 'task', label: 'Task', hint: "The customer's task board. Edit lets them add and change tasks." },
+    {
+      key: 'history',
+      label: 'Account History',
+      hint: 'Paid invoices, trial period and account renewals.',
+      viewOnly: true,
+    },
   ],
 };
 

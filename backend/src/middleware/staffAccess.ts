@@ -17,7 +17,7 @@ export type StaffTab = (typeof STAFF_TABS)[number];
  * granted with the tab. The Credential sub-tab stays admin-only.
  */
 export const STAFF_SECTIONS: Partial<Record<StaffTab, readonly string[]>> = {
-  customers: ['overview', 'agreement', 'products', 'invoices', 'task'],
+  customers: ['overview', 'agreement', 'products', 'invoices', 'task', 'history'],
 };
 
 /** Tabs that only ever show data — granted at view level whatever is asked. */

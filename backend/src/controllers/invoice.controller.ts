@@ -79,14 +79,15 @@ export const send = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const remove = asyncHandler(async (req: Request, res: Response) => {
-  const { invoiceNumber } = await invoiceService.deleteInvoice(req.params.id);
+  const { invoiceNumber, customerId } = await invoiceService.deleteInvoice(req.params.id);
   logActivity({
     userId: req.user?.sub,
     userType: req.user?.role,
     action: ActivityAction.INVOICE_UPDATED,
     entityType: 'Invoice',
     entityId: req.params.id,
-    metadata: { deleted: true, invoiceNumber },
+    // The invoice is gone, so the customer rides along for their Account History.
+    metadata: { deleted: true, invoiceNumber, customerId },
   });
   return ok(res, { id: req.params.id }, `Invoice ${invoiceNumber} deleted`);
 });

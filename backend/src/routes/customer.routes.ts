@@ -40,6 +40,7 @@ router.use(authorizeTab(['customers'], ['billing', 'tasks', 'payments', 'product
 const overview = requireSection('customers.overview');
 const agreement = requireSection('customers.agreement');
 const products = requireSection('customers.products');
+const history = requireSection('customers.history');
 
 router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
 // Must precede `/:clientId` or "next-client-id" would be read as a Client ID.
@@ -69,6 +70,9 @@ router.put('/:clientId/product-groups/:licenceKey', products, validate({ body: u
 router.delete('/:clientId/product-groups/:licenceKey', products, ctrl.removeProductGroup);
 router.patch('/:clientId/products/:customerProductId', products, validate({ body: updateAssignedProductSchema }), ctrl.updateProduct);
 router.delete('/:clientId/products/:customerProductId', products, ctrl.removeProduct);
+
+// Account History: one timeline of the account, its products, invoices and payments.
+router.get('/:clientId/history', history, ctrl.history);
 
 router.get('/:clientId/credential', adminOnly, ctrl.revealCredential);
 // Multiple portal logins per customer — the admin can grant access to others.

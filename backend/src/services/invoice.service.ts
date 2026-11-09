@@ -737,7 +737,7 @@ export async function updateStatus(id: string, status: InvoiceStatus) {
  * are left behind. Deleting a customer's latest invoice also pauses their
  * automatic invoicing (see Customer.autoInvoicePausedAt).
  */
-export async function deleteInvoice(id: string): Promise<{ invoiceNumber: string }> {
+export async function deleteInvoice(id: string): Promise<{ invoiceNumber: string; customerId: string }> {
   const invoice = await prisma.invoice.findUniqueOrThrow({
     where: { id },
     select: { id: true, invoiceNumber: true, customerId: true },
@@ -765,7 +765,7 @@ export async function deleteInvoice(id: string): Promise<{ invoiceNumber: string
       });
     }
   });
-  return { invoiceNumber: invoice.invoiceNumber };
+  return { invoiceNumber: invoice.invoiceNumber, customerId: invoice.customerId };
 }
 
 /** Public, sanitised invoice for the (future) client pay page. */

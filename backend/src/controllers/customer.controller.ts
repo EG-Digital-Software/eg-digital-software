@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { ActivityAction } from '@prisma/client';
 import * as customerService from '../services/customer.service.js';
+import { getCustomerHistory } from '../services/customerHistory.service.js';
 import { logActivity } from '../services/activity.service.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -195,19 +196,28 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
     action: ActivityAction.CUSTOMER_CREATED,
     entityType: 'Customer',
     entityId: customer.id,
-    metadata: { clientId: customer.clientId, company: customer.companyName },
+    // The starting standing, so Account History knows when a trial began.
+    metadata: { clientId: customer.clientId, company: customer.companyName, accountStatus: customer.accountStatus },
   });
   return ok(res, customer, 'Customer created', 201);
 });
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
+  const before = await prisma.customer.findUnique({
+    where: { clientId: req.params.clientId },
+    select: { accountStatus: true },
+  });
   const customer = await customerService.updateCustomer(req.params.clientId, req.body);
+  // A changed standing (e.g. Active Trial → Active) is recorded from → to, so
+  // Account History can show when a trial started and ended.
+  const statusChanged = before && before.accountStatus !== customer.accountStatus;
   logActivity({
     userId: req.user?.sub,
     userType: req.user?.role,
     action: ActivityAction.CUSTOMER_UPDATED,
     entityType: 'Customer',
     entityId: customer.id,
+    ...(statusChanged ? { metadata: { statusFrom: before.accountStatus, statusTo: customer.accountStatus } } : {}),
   });
   return ok(res, customer, 'Customer updated');
 });
@@ -236,9 +246,22 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, deleted, 'Customer permanently deleted');
 });
 
+/** The customer's Account History timeline, newest first. */
+export const history = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await getCustomerHistory(req.params.clientId));
+});
+
 /** Admin "Renew account": make the account ACTIVE for the chosen number of months. */
 export const renewAccount = asyncHandler(async (req: Request, res: Response) => {
+  const before = await prisma.customer.findUnique({
+    where: { clientId: req.params.clientId },
+    select: { accountStatus: true, accountRenewedUntil: true },
+  });
   const customer = await customerService.renewAccount(req.params.clientId, Number(req.body?.months));
+  // The renewal runs on from a still-running one, otherwise from now.
+  const now = new Date();
+  const prevUntil = before?.accountRenewedUntil;
+  const renewedFrom = prevUntil && prevUntil > now ? prevUntil : now;
   logActivity({
     userId: req.user?.sub,
     userType: req.user?.role,
@@ -247,7 +270,10 @@ export const renewAccount = asyncHandler(async (req: Request, res: Response) => 
     entityId: customer.id,
     metadata: {
       renewedMonths: Number(req.body?.months),
+      renewedFrom: renewedFrom.toISOString(),
       renewedUntil: customer.accountRenewedUntil?.toISOString() ?? null,
+      // What the account was before — a renewal out of a trial ends that trial.
+      previousStatus: before?.accountStatus ?? null,
     },
   });
   return ok(res, customer, 'Account renewed');

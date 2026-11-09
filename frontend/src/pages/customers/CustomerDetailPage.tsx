@@ -32,6 +32,7 @@ import { useAuth } from '@/store/auth';
 import { useStaffAccess } from '@/lib/staffAccess';
 import { AgreementViewDialog } from '@/components/shared/AgreementViewDialog';
 import { RenewAccountDialog } from './RenewAccountDialog';
+import { AccountHistoryTab } from './AccountHistoryTab';
 import { adminTaskApi } from '@/api/tasks';
 import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
@@ -700,6 +701,7 @@ export default function CustomerDetailPage() {
           {can('customers.invoices') && <TabsTrigger value="invoices">Invoices</TabsTrigger>}
           {isAdmin && <TabsTrigger value="credential">Credential</TabsTrigger>}
           {canTask && <TabsTrigger value="task">Task</TabsTrigger>}
+          {can('customers.history') && <TabsTrigger value="history">Account History</TabsTrigger>}
         </TabsList>
 
         {/* Mirrors the Add/Edit form section-for-section so the two read the same. */}
@@ -981,6 +983,12 @@ export default function CustomerDetailPage() {
               customerName={customerName(c)}
               readOnly={!(canEdit('tasks') || canEdit('customers.task'))}
             />
+          </TabsContent>
+        )}
+
+        {can('customers.history') && (
+          <TabsContent value="history">
+            <AccountHistoryTab clientId={c.clientId} />
           </TabsContent>
         )}
       </Tabs>
