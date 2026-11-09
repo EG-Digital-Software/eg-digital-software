@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/payment.controller.js';
 import * as invoiceCtrl from '../controllers/invoice.controller.js';
 import * as settings from '../controllers/settings.controller.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { authorizeTab } from '../middleware/staffAccess.js';
 import { validate } from '../middleware/validate.js';
 import {
   recordPaymentSchema,
@@ -40,20 +40,20 @@ router.post(
 router.post('/webhook', ctrl.webhook);
 router.post('/webhook/worldline', ctrl.worldlineWebhook);
 
-// Admin-only.
+// Admin, or team members granted the Payments or Billing tab.
 router.get(
   '/',
   authenticate,
-  authorize(Role.SUPER_ADMIN),
+  authorizeTab(['payments', 'billing']),
   validate({ query: listPaymentQuerySchema }),
   ctrl.list
 );
-router.get('/methods', authenticate, authorize(Role.SUPER_ADMIN), ctrl.methods);
-router.post('/create', authenticate, authorize(Role.SUPER_ADMIN), ctrl.createIntent);
+router.get('/methods', authenticate, authorizeTab(['payments', 'billing']), ctrl.methods);
+router.post('/create', authenticate, authorizeTab(['payments', 'billing']), ctrl.createIntent);
 router.post(
   '/record',
   authenticate,
-  authorize(Role.SUPER_ADMIN),
+  authorizeTab(['payments', 'billing']),
   validate({ body: recordPaymentSchema }),
   ctrl.record
 );

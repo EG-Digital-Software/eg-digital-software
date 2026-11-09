@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/product.controller.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { authorizeTab } from '../middleware/staffAccess.js';
 import {
   createProductSchema,
   updateProductSchema,
@@ -13,7 +13,7 @@ import {
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const router = Router();
 
-router.use(authenticate, authorize(Role.SUPER_ADMIN));
+router.use(authenticate, authorizeTab(['products'], ['customers', 'billing', 'tasks', 'dashboard']));
 
 router.get('/', validate({ query: listProductQuerySchema }), ctrl.list);
 // Must precede /:id so "categories"/"next-sku" are not read as a product id.

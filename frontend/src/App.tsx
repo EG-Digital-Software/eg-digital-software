@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { useSessionInit } from '@/hooks/useSession';
 import { ProtectedRoute } from '@/routes/ProtectedRoute';
+import { RequireTab, AdminHome } from '@/routes/RequireTab';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ClientLayout } from '@/layouts/ClientLayout';
 import { EmployeeLayout } from '@/layouts/EmployeeLayout';
@@ -101,29 +102,48 @@ export default function App() {
               </Route>
             </Route>
 
-            {/* Protected admin */}
-            <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
+            {/* Protected admin — team members reach the sections their roles grant */}
+            <Route element={<ProtectedRoute roles={['SUPER_ADMIN', 'EMPLOYEE']} />}>
               <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<Navigate to="/admin/dashboard" replace />} />
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="team" element={<TeamDashboardPage />} />
-                <Route path="reports" element={<ReportPage />} />
-                <Route path="preview" element={<PreviewPage />} />
-                <Route path="customers" element={<CustomersPage />} />
-                <Route path="tasks" element={<AdminTasksPage />} />
-                <Route path="customers/new" element={<CustomerFormPage />} />
-                <Route path="customers/:clientId" element={<CustomerDetailPage />} />
-                <Route path="customers/:clientId/edit" element={<CustomerFormPage />} />
-                <Route path="products" element={<ProductsPage />} />
-                <Route path="products/bulk-upload" element={<BulkUploadPage />} />
-                <Route path="billing" element={<BillingPage />} />
-                <Route path="billing/new" element={<CreateInvoicePage />} />
-                <Route path="billing/:id/edit" element={<EditInvoicePage />} />
-                <Route path="billing/:id" element={<InvoiceDetailPage />} />
-                <Route path="payments" element={<PaymentsPage />} />
-                <Route path="approvals" element={<ApprovalsPage />} />
-                <Route path="profile" element={<ProfilePage />} />
-                <Route path="settings" element={<SettingsPage />} />
+                <Route index element={<AdminHome />} />
+                <Route element={<RequireTab tab="dashboard" />}>
+                  <Route path="dashboard" element={<DashboardPage />} />
+                </Route>
+                <Route element={<RequireTab tab="reports" />}>
+                  <Route path="reports" element={<ReportPage />} />
+                </Route>
+                <Route element={<RequireTab tab="preview" />}>
+                  <Route path="preview" element={<PreviewPage />} />
+                </Route>
+                <Route element={<RequireTab tab="customers" />}>
+                  <Route path="customers" element={<CustomersPage />} />
+                  <Route path="customers/new" element={<CustomerFormPage />} />
+                  <Route path="customers/:clientId" element={<CustomerDetailPage />} />
+                  <Route path="customers/:clientId/edit" element={<CustomerFormPage />} />
+                </Route>
+                <Route element={<RequireTab tab="tasks" />}>
+                  <Route path="tasks" element={<AdminTasksPage />} />
+                </Route>
+                <Route element={<RequireTab tab="products" />}>
+                  <Route path="products" element={<ProductsPage />} />
+                  <Route path="products/bulk-upload" element={<BulkUploadPage />} />
+                </Route>
+                <Route element={<RequireTab tab="billing" />}>
+                  <Route path="billing" element={<BillingPage />} />
+                  <Route path="billing/new" element={<CreateInvoicePage />} />
+                  <Route path="billing/:id/edit" element={<EditInvoicePage />} />
+                  <Route path="billing/:id" element={<InvoiceDetailPage />} />
+                </Route>
+                <Route element={<RequireTab tab="payments" />}>
+                  <Route path="payments" element={<PaymentsPage />} />
+                </Route>
+                {/* Admin-only */}
+                <Route element={<RequireTab />}>
+                  <Route path="team" element={<TeamDashboardPage />} />
+                  <Route path="approvals" element={<ApprovalsPage />} />
+                  <Route path="profile" element={<ProfilePage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
               </Route>
             </Route>
 

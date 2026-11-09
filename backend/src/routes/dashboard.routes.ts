@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/dashboard.controller.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { authorizeTab } from '../middleware/staffAccess.js';
 import { seriesQuerySchema } from '../validators/dashboard.validator.js';
 
 const router = Router();
-router.use(authenticate, authorize(Role.SUPER_ADMIN));
+router.use(authenticate, authorizeTab(['dashboard']));
 
 router.get('/summary', ctrl.summary);
 router.get('/revenue', validate({ query: seriesQuerySchema }), ctrl.series);

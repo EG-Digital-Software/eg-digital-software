@@ -3,8 +3,10 @@ import { Role } from '@prisma/client';
 import * as approvals from '../controllers/approval.controller.js';
 import * as settings from '../controllers/settings.controller.js';
 import * as payments from '../controllers/payment.controller.js';
+import * as teamRoles from '../controllers/teamRole.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { authorizeTab } from '../middleware/staffAccess.js';
 import {
   paymentSettingsSchema,
   organisationSettingsSchema,
@@ -12,6 +14,9 @@ import {
   createEmployeeSchema,
   updateEmployeeSchema,
   employeePasswordSchema,
+  createTeamRoleSchema,
+  updateTeamRoleSchema,
+  employeeRolesSchema,
   accountManagerSettingSchema,
 } from '../validators/settings.validator.js';
 import { asyncHandler, ok } from '../utils/http.js';
@@ -21,6 +26,26 @@ import { runTokenCleanup } from '../services/housekeeping.service.js';
 import { taskActivityByCustomer, taskActivityByTask } from '../services/task.service.js';
 
 const router = Router();
+
+// Task activity is shared with team members granted the Tasks tab, so it is
+// registered ahead of the admin-only guard below.
+// Latest task activity per customer — drives the "new activity" highlight on the
+// admin Tasks company picker.
+router.get(
+  '/tasks/activity',
+  authenticate,
+  authorizeTab(['tasks']),
+  asyncHandler(async (_req, res) => ok(res, await taskActivityByCustomer()))
+);
+// Per-task activity across all customers — drives the admin sidebar Tasks dot
+// and the per-company dot on the Tasks picker.
+router.get(
+  '/tasks/activity/tasks',
+  authenticate,
+  authorizeTab(['tasks']),
+  asyncHandler(async (_req, res) => ok(res, await taskActivityByTask()))
+);
+
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
 
 router.get('/registrations', validate({ query: listRegistrationQuerySchema }), approvals.list);
@@ -41,6 +66,13 @@ router.patch(
 // Open a team member's portal AS them (impersonation) without their password.
 router.post('/employees/:id/impersonate', approvals.impersonateEmployee);
 
+// Team roles: each grants a set of admin tabs; a team member can hold several.
+router.get('/team-roles', teamRoles.list);
+router.post('/team-roles', validate({ body: createTeamRoleSchema }), teamRoles.create);
+router.patch('/team-roles/:id', validate({ body: updateTeamRoleSchema }), teamRoles.update);
+router.delete('/team-roles/:id', teamRoles.remove);
+router.put('/employees/:id/roles', validate({ body: employeeRolesSchema }), teamRoles.setEmployeeRoles);
+
 // Payment configuration (gateway keys, bank transfer details).
 // Diagnostics — is outgoing email actually configured?
 router.get('/email-status', settings.getEmailStatus);
@@ -55,19 +87,6 @@ router.put(
   '/organisation',
   validate({ body: organisationSettingsSchema }),
   settings.updateOrganisation
-);
-
-// Latest task activity per customer — drives the "new activity" highlight on the
-// admin Tasks company picker.
-router.get(
-  '/tasks/activity',
-  asyncHandler(async (_req, res) => ok(res, await taskActivityByCustomer()))
-);
-// Per-task activity across all customers — drives the admin sidebar Tasks dot
-// and the per-company dot on the Tasks picker.
-router.get(
-  '/tasks/activity/tasks',
-  asyncHandler(async (_req, res) => ok(res, await taskActivityByTask()))
 );
 
 // Single, global account manager shown to every client (set from Approvals).

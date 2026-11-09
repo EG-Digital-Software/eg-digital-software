@@ -59,12 +59,13 @@ export const updateDocument = asyncHandler(async (req: Request, res: Response) =
   return ok(res, doc, 'Document updated');
 });
 
-/** The signed-in admin's name and IP, for the "Signed By" footer. */
+/** The signed-in admin's (or permitted team member's) name and IP, for the "Signed By" footer. */
 async function adminSigner(req: Request) {
-  const admin = await prisma.adminUser.findUnique({
-    where: { id: req.user!.sub },
-    select: { firstName: true, lastName: true },
-  });
+  const select = { firstName: true, lastName: true };
+  const admin =
+    req.user!.role === 'EMPLOYEE'
+      ? await prisma.employeeUser.findUnique({ where: { id: req.user!.sub }, select })
+      : await prisma.adminUser.findUnique({ where: { id: req.user!.sub }, select });
   const name = admin ? `${admin.firstName} ${admin.lastName}`.trim() : 'Admin';
   return { name, ip: await requestIp(req) };
 }

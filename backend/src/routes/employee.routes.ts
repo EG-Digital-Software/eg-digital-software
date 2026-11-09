@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/portal.controller.js';
+import * as teamRoles from '../controllers/teamRole.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
@@ -15,6 +16,8 @@ const uploadApproval = multer({ storage: multer.memoryStorage() });
 const router = Router();
 router.use(authenticate, authorize(Role.EMPLOYEE));
 
+// Admin tabs this team member's roles grant — drives their portal navigation.
+router.get('/access', teamRoles.myAccess);
 router.get('/dashboard', ctrl.employeeDashboard);
 router.get('/customers', validate({ query: listEmployeeCustomerQuerySchema }), ctrl.employeeCustomers);
 router.get('/licences', ctrl.employeeLicences);

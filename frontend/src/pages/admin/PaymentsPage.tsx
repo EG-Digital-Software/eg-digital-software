@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useStaffAccess } from '@/lib/staffAccess';
 import { PaymentsTransactionsTab } from './PaymentsTransactionsTab';
 import PaymentSettingsForm from './PaymentSettingsPage';
 
@@ -14,6 +15,9 @@ const TABS = [
  */
 export default function PaymentsPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]['value']>('transactions');
+  // Gateway settings hold payment keys — admin only, even with the Payments tab.
+  const { isAdmin } = useStaffAccess();
+  const tabs = isAdmin ? TABS : TABS.filter((t) => t.value !== 'settings');
 
   return (
     <div className="ec-page">
@@ -29,7 +33,7 @@ export default function PaymentsPage() {
           </p>
         </div>
         <div className="segs" role="tablist" aria-label="Payments sections">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.value}
               type="button"
@@ -45,7 +49,7 @@ export default function PaymentsPage() {
       </div>
 
       <div key={tab} className="up" style={{ animationDelay: '.06s' }}>
-        {tab === 'transactions' ? <PaymentsTransactionsTab /> : <PaymentSettingsForm />}
+        {tab === 'transactions' || !isAdmin ? <PaymentsTransactionsTab /> : <PaymentSettingsForm />}
       </div>
     </div>
   );

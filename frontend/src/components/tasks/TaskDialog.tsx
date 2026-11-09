@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -267,16 +268,19 @@ export function TaskDialog({
   const disabled = false;
   const locked = readOnly;
   const me = useAuth((s) => s.user);
+  // A team member on an admin board (granted through a role) acts as the admin.
+  const onAdminBoard = useLocation().pathname.startsWith('/admin');
+  const adminLike = me?.role === 'SUPER_ADMIN' || (me?.role === 'EMPLOYEE' && onAdminBoard);
   const meId = me?.id;
   const meName = [me?.firstName, me?.lastName].filter(Boolean).join(' ') || me?.email || 'You';
   // Only admins and the customer DECIDE approvals; suppliers/clients-without-rights
   // see the tab read-only — just the outcome. Mirrors the backend gate.
-  const canApprove = me?.role === 'SUPER_ADMIN' || me?.role === 'CLIENT';
+  const canApprove = adminLike || me?.role === 'CLIENT';
   // Admins and employees (the team doing the work) can RAISE approval requests;
   // the customer only reviews & decides. Mirrors the backend gate.
-  const canSubmitApproval = me?.role === 'SUPER_ADMIN' || me?.role === 'EMPLOYEE';
+  const canSubmitApproval = adminLike || me?.role === 'EMPLOYEE';
   // Deleting an approval request (at any status) is admin-only.
-  const isAdmin = me?.role === 'SUPER_ADMIN';
+  const isAdmin = adminLike;
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
   const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive' | 'timesheet'>('details');

@@ -86,3 +86,21 @@ export const listRegistrationQuerySchema = z.object({
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional().or(z.literal('')),
   role: z.enum(['CLIENT', 'SUPPLIER', 'EMPLOYEE']).optional().or(z.literal('')),
 });
+
+const staffTab = z.enum(['dashboard', 'customers', 'tasks', 'billing', 'products', 'payments', 'reports', 'preview']);
+
+/** Admin creating a team role and choosing which admin tabs it grants. */
+export const createTeamRoleSchema = z.object({
+  name: z.string().trim().min(1, 'Role name is required').max(60),
+  tabs: z.array(staffTab).max(20).default([]),
+});
+
+export const updateTeamRoleSchema = z.object({
+  name: z.string().trim().min(1, 'Role name is required').max(60).optional(),
+  tabs: z.array(staffTab).max(20).optional(),
+});
+
+/** Replace the roles a team member holds. */
+export const employeeRolesSchema = z.object({
+  roleIds: z.array(z.string().uuid()).max(50),
+});

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useStaffAccess } from '@/lib/staffAccess';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, MoreHorizontal, Eye, Pencil, Archive, Trash2, Users } from 'lucide-react';
@@ -68,6 +69,8 @@ function location(c: Customer) {
 }
 
 export default function CustomersPage() {
+  // Permanent delete is admin-only, even for team members with the Customers tab.
+  const { isAdmin } = useStaffAccess();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -368,9 +371,11 @@ export default function CustomersPage() {
                               <DropdownMenuItem destructive onClick={() => setArchiving(c)}>
                                 <Archive /> Archive
                               </DropdownMenuItem>
-                              <DropdownMenuItem destructive onClick={() => setDeleting(c)}>
-                                <Trash2 /> Delete
-                              </DropdownMenuItem>
+                              {isAdmin && (
+                                <DropdownMenuItem destructive onClick={() => setDeleting(c)}>
+                                  <Trash2 /> Delete
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>

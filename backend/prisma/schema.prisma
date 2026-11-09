@@ -201,9 +201,35 @@ model EmployeeUser {
   updatedAt      DateTime      @updatedAt
 
   /// Customers this team member is the assigned account manager for.
-  managedCustomers Customer[] @relation("CustomerAccountManager")
+  managedCustomers Customer[]         @relation("CustomerAccountManager")
+  /// Admin-defined roles; their combined tabs decide which admin sections this
+  /// team member can see and edit.
+  teamRoles        EmployeeTeamRole[]
 
   @@index([approvalStatus])
+}
+
+/// Admin-defined team role (e.g. "Billing", "Support") granting access to a set
+/// of admin portal tabs. A team member can hold several roles.
+model TeamRole {
+  id        String             @id @default(uuid())
+  name      String             @unique
+  /// Admin tab keys this role grants (dashboard, customers, tasks, billing, …).
+  tabs      String[]           @default([])
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  members   EmployeeTeamRole[]
+}
+
+model EmployeeTeamRole {
+  employeeId String
+  roleId     String
+  createdAt  DateTime     @default(now())
+  employee   EmployeeUser @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role       TeamRole     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, roleId])
+  @@index([roleId])
 }
 
 // Polymorphic auxiliary tables — reference a user by (userId, userType) across
@@ -304,20 +330,20 @@ model Customer {
   /// Credit score as reported by the bureau (0–1200).
   creditScore                 Int?
 
-  reference        String?
-  status           CustomerStatus        @default(ACTIVE)
+  reference           String?
+  status              CustomerStatus        @default(ACTIVE)
   /// Manual account-standing override. Left at ACTIVE, the effective standing is
   /// auto-derived from invoice activity (see CustomerAccountStatus).
-  accountStatus    CustomerAccountStatus @default(ACTIVE)
+  accountStatus       CustomerAccountStatus @default(ACTIVE)
   /// Set when an admin renews the account: until this moment the account reads
   /// as ACTIVE even without recent invoices. Null = never renewed.
   accountRenewedUntil DateTime?
   /// Team member (EmployeeUser) an admin assigns as this client's account
   /// manager — shown to the client in their portal. Optional.
-  accountManagerId String?
-  accountManager   EmployeeUser?         @relation("CustomerAccountManager", fields: [accountManagerId], references: [id])
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  accountManagerId    String?
+  accountManager      EmployeeUser?         @relation("CustomerAccountManager", fields: [accountManagerId], references: [id])
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   addresses        Address[]
   customerProducts CustomerProduct[]
@@ -980,28 +1006,28 @@ model TaskAttachment {
 /// decider are stored as (id, type, name) snapshots the same polymorphic way
 /// assignees and comments reference users.
 model TaskApproval {
-  id              String         @id @default(uuid())
-  task            Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  taskId          String
-  subject         String
-  message         String
-  status          ApprovalStatus @default(PENDING)
+  id                     String         @id @default(uuid())
+  task                   Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId                 String
+  subject                String
+  message                String
+  status                 ApprovalStatus @default(PENDING)
   /// Note left by the approver/rejecter when they make the decision.
-  feedback        String?
-  requestedById   String
-  requestedByType Role
-  requestedByName String
-  decidedById     String?
-  decidedByType   Role?
-  decidedByName   String?
-  decidedAt       DateTime?
+  feedback               String?
+  requestedById          String
+  requestedByType        Role
+  requestedByName        String
+  decidedById            String?
+  decidedByType          Role?
+  decidedByName          String?
+  decidedAt              DateTime?
   /// Set when an admin re-opens the resubmission window of a rejected entry
   /// after it ran out; the team gets a fresh window from this moment. The
   /// rejection itself (status, decidedAt, feedback) is left untouched.
   resubmitReopenedAt     DateTime?
   resubmitReopenedByName String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 
   /// Images/files uploaded with the request. Stored raw (no compression) so the
   /// customer can download them at their original size and pixels.

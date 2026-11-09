@@ -117,6 +117,8 @@ const KPI_GRID = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minma
 
 export default function DashboardPage() {
   const user = useAuth((s) => s.user);
+  // Team members with the Dashboard tab don't manage logins or approvals.
+  const isAdmin = user?.role === 'SUPER_ADMIN';
   // Captured once per mount so renders stay pure.
   const [now] = useState(() => Date.now());
   const summaryQ = useQuery<DashboardSummary>({
@@ -128,6 +130,7 @@ export default function DashboardPage() {
     queryKey: ['admin', 'pendingCount'],
     queryFn: adminApi.pendingCount,
     refetchInterval: 60_000,
+    enabled: isAdmin,
   });
 
   const s = summaryQ.data;
@@ -154,9 +157,11 @@ export default function DashboardPage() {
           </h1>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link to="/admin/approvals?role=EMPLOYEE" className="btn bg">
-            <Users /> Manage team
-          </Link>
+          {isAdmin && (
+            <Link to="/admin/approvals?role=EMPLOYEE" className="btn bg">
+              <Users /> Manage team
+            </Link>
+          )}
           <Link to="/admin/customers" className="btn bp">
             <Building2 /> Manage customers
           </Link>
@@ -199,9 +204,11 @@ export default function DashboardPage() {
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-            <Link to="/admin/approvals" className="btn bp">
-              Review approvals <ArrowRight />
-            </Link>
+            {isAdmin && (
+              <Link to="/admin/approvals" className="btn bp">
+                Review approvals <ArrowRight />
+              </Link>
+            )}
             <Link to="/admin/billing" className="btn bg">
               Open billing
             </Link>

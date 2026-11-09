@@ -17,8 +17,19 @@ import { adminApi } from '@/api/resources';
 import { useAdminTaskActivity } from '@/lib/taskSeen';
 import { PortalShell } from '@/components/layout/PortalShell';
 import { brand } from '@/config/brand';
+import { useAuth } from '@/store/auth';
+import { EmployeeLayout } from './EmployeeLayout';
 
+/**
+ * Admin sections are shared with team members their roles let in; they keep
+ * their own Team portal shell, whose nav lists just the tabs they were granted.
+ */
 export function AdminLayout() {
+  const role = useAuth((s) => s.user?.role);
+  return role === 'EMPLOYEE' ? <EmployeeLayout /> : <SuperAdminLayout />;
+}
+
+function SuperAdminLayout() {
   const { data: pending } = useQuery({
     queryKey: ['admin', 'pendingCount'],
     queryFn: adminApi.pendingCount,

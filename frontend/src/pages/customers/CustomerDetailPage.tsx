@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { adminApi, customerApi, productApi } from '@/api/resources';
 import { useAuth } from '@/store/auth';
+import { useStaffAccess } from '@/lib/staffAccess';
 import { AgreementViewDialog } from '@/components/shared/AgreementViewDialog';
 import { RenewAccountDialog } from './RenewAccountDialog';
 import { adminTaskApi } from '@/api/tasks';
@@ -457,6 +458,8 @@ export default function CustomerDetailPage() {
   const navigate = useNavigate();
   const qcRoot = useQueryClient();
   const startImpersonation = useAuth((s) => s.startImpersonation);
+  // Team members (via a role) don't get portal impersonation or client logins.
+  const { isAdmin, can } = useStaffAccess();
   const { data: c, isLoading, isError, refetch } = useQuery({
     queryKey: ['customer', clientId],
     queryFn: () => customerApi.get(clientId!),
@@ -489,6 +492,7 @@ export default function CustomerDetailPage() {
   const { data: employees } = useQuery({
     queryKey: ['employees', 'approved'],
     queryFn: () => adminApi.registrations({ role: 'EMPLOYEE', status: 'APPROVED', pageSize: 100 }),
+    enabled: isAdmin,
   });
 
   const assignManager = useMutation({
@@ -529,21 +533,25 @@ export default function CustomerDetailPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn bg"
-            disabled={viewPortal.isPending}
-            onClick={() => viewPortal.mutate('edit')}
-            title="Open this client's portal without their password — you can view and edit; changes are saved as the client"
-          >
-            <Eye /> View/Edit portal
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn bg"
+              disabled={viewPortal.isPending}
+              onClick={() => viewPortal.mutate('edit')}
+              title="Open this client's portal without their password — you can view and edit; changes are saved as the client"
+            >
+              <Eye /> View/Edit portal
+            </button>
+          )}
           <Link to={`/admin/customers/${c.clientId}/edit`} className="btn bg">
             <Pencil /> Edit
           </Link>
-          <button type="button" className="btn bp" onClick={() => setInvoiceOpen(true)}>
-            <Receipt /> Create invoice
-          </button>
+          {can('billing') && (
+            <button type="button" className="btn bp" onClick={() => setInvoiceOpen(true)}>
+              <Receipt /> Create invoice
+            </button>
+          )}
         </div>
       </div>
 
@@ -615,7 +623,8 @@ export default function CustomerDetailPage() {
               )}
             </div>
 
-            {/* Account Manager — assign a team member to this specific client. */}
+            {/* Account Manager — assign a team member to this specific client (admin only). */}
+            {isAdmin && (
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className="eyebrow flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5" /> Account manager
@@ -635,6 +644,7 @@ export default function CustomerDetailPage() {
                 ))}
               </Select>
             </div>
+            )}
           </div>
           <div className="flex shrink-0 flex-wrap items-start gap-3 sm:flex-nowrap">
           <div className="flex flex-col items-stretch gap-1">
@@ -678,8 +688,8 @@ export default function CustomerDetailPage() {
           </TabsTrigger>
           <TabsTrigger value="products">Products & Licences</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
-          <TabsTrigger value="credential">Credential</TabsTrigger>
-          <TabsTrigger value="task">Task</TabsTrigger>
+          {isAdmin && <TabsTrigger value="credential">Credential</TabsTrigger>}
+          {can('tasks') && <TabsTrigger value="task">Task</TabsTrigger>}
         </TabsList>
 
         {/* Mirrors the Add/Edit form section-for-section so the two read the same. */}
@@ -933,13 +943,17 @@ export default function CustomerDetailPage() {
           </section>
         </TabsContent>
 
-        <TabsContent value="credential">
-          <CredentialsPanel clientId={c.clientId} />
-        </TabsContent>
+        {isAdmin && (
+          <TabsContent value="credential">
+            <CredentialsPanel clientId={c.clientId} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="task">
-          <TaskBoard api={adminTaskApi(c.clientId)} scopeKey={c.clientId} customerName={customerName(c)} />
-        </TabsContent>
+        {can('tasks') && (
+          <TabsContent value="task">
+            <TaskBoard api={adminTaskApi(c.clientId)} scopeKey={c.clientId} customerName={customerName(c)} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Create Invoice — opens over the customer, so the admin stays here. */}

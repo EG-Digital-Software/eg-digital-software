@@ -237,6 +237,16 @@ export interface RevealedCredential {
   available: boolean;
 }
 
+/** Admin-defined team role: a name plus the admin tabs it grants. */
+export interface TeamRole {
+  id: string;
+  name: string;
+  tabs: string[];
+  memberIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const adminApi = {
   registrations: async (params: Record<string, unknown> = {}) => {
     const { data } = await api.get<
@@ -266,6 +276,16 @@ export const adminApi = {
     (await api.get<ApiEnvelope<RevealedCredential>>(`/admin/employees/${id}/password`)).data.data,
   changeEmployeePassword: async (id: string, password: string) =>
     (await api.patch<ApiEnvelope<{ id: string }>>(`/admin/employees/${id}/password`, { password }))
+      .data.data,
+  // Team roles — each grants a set of admin tabs; a member can hold several.
+  teamRoles: async () => (await api.get<ApiEnvelope<TeamRole[]>>('/admin/team-roles')).data.data,
+  createTeamRole: async (body: { name: string; tabs: string[] }) =>
+    (await api.post<ApiEnvelope<TeamRole>>('/admin/team-roles', body)).data.data,
+  updateTeamRole: async (id: string, body: { name?: string; tabs?: string[] }) =>
+    (await api.patch<ApiEnvelope<TeamRole>>(`/admin/team-roles/${id}`, body)).data.data,
+  deleteTeamRole: async (id: string) => (await api.delete(`/admin/team-roles/${id}`)).data,
+  setEmployeeRoles: async (id: string, roleIds: string[]) =>
+    (await api.put<ApiEnvelope<{ employeeId: string; roleIds: string[] }>>(`/admin/employees/${id}/roles`, { roleIds }))
       .data.data,
   /** Per-task activity across all customers — for the sidebar/picker "new activity" dots. */
   taskActivityByTask: async () =>

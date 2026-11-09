@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/invoice.controller.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { authorizeTab } from '../middleware/staffAccess.js';
 import {
   createInvoiceSchema,
   updateInvoiceSchema,
@@ -11,7 +11,7 @@ import {
 } from '../validators/invoice.validator.js';
 
 const router = Router();
-router.use(authenticate, authorize(Role.SUPER_ADMIN));
+router.use(authenticate, authorizeTab(['billing'], ['customers', 'payments', 'dashboard']));
 
 router.get('/', validate({ query: listInvoiceQuerySchema }), ctrl.list);
 // Must precede `/:id` or "next-reference" would be read as an invoice id.

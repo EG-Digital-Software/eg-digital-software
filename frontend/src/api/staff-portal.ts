@@ -45,4 +45,6 @@ export const employeeApi = {
   },
   licences: async () =>
     (await api.get<ApiEnvelope<LicenceRow[]>>('/employee/licences')).data.data,
+  /** Admin tabs granted to this team member through their roles. */
+  access: async () => (await api.get<ApiEnvelope<{ tabs: string[] }>>('/employee/access')).data.data,
 };

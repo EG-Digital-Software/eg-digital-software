@@ -7,6 +7,7 @@ import { findById } from '../services/accounts.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
 import { taskUploadRefSchema } from '../validators/task.validator.js';
+import { isAdminLike } from '../middleware/staffAccess.js';
 
 /**
  * One controller drives both the admin board (customer addressed by the public
@@ -274,7 +275,7 @@ const CAN_DECIDE: Role[] = ['SUPER_ADMIN', 'CLIENT'];
 
 export const submitApproval = asyncHandler(async (req: Request, res: Response) => {
   // Only an admin raises approval requests; the customer merely reviews them.
-  if (req.user!.role !== 'SUPER_ADMIN') {
+  if (!isAdminLike(req)) {
     throw ApiError.forbidden('Only an admin can request approval');
   }
   const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
@@ -299,7 +300,7 @@ export const submitApproval = asyncHandler(async (req: Request, res: Response) =
 
 // A direct-to-storage upload URL for one approval file, so large videos skip the API.
 export const approvalUploadUrl = asyncHandler(async (req: Request, res: Response) => {
-  if (req.user!.role !== 'SUPER_ADMIN') {
+  if (!isAdminLike(req)) {
     throw ApiError.forbidden('Only an admin can attach files to an approval request');
   }
   const customerId = await resolve(req);
@@ -308,7 +309,7 @@ export const approvalUploadUrl = asyncHandler(async (req: Request, res: Response
 
 export const resubmitApproval = asyncHandler(async (req: Request, res: Response) => {
   // Same gate as raising a request: the customer reviews, the team resubmits.
-  if (req.user!.role !== 'SUPER_ADMIN') {
+  if (!isAdminLike(req)) {
     throw ApiError.forbidden('Only an admin can resubmit an approval request');
   }
   const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
@@ -332,7 +333,7 @@ export const resubmitApproval = asyncHandler(async (req: Request, res: Response)
 });
 
 export const decideApproval = asyncHandler(async (req: Request, res: Response) => {
-  if (!CAN_DECIDE.includes(req.user!.role)) {
+  if (!isAdminLike(req) && !CAN_DECIDE.includes(req.user!.role)) {
     throw ApiError.forbidden('You are not allowed to approve or reject requests');
   }
   const status = req.body.status;
@@ -354,7 +355,7 @@ export const decideApproval = asyncHandler(async (req: Request, res: Response) =
 export const reopenApproval = asyncHandler(async (req: Request, res: Response) => {
   // Only admins may re-open a decided approval (e.g. a client approved/rejected
   // by mistake) so it can be approved/rejected again. Clients/team members can't.
-  if (req.user!.role !== 'SUPER_ADMIN') {
+  if (!isAdminLike(req)) {
     throw ApiError.forbidden('Only an admin can re-open an approval request');
   }
   const customerId = await resolve(req);
@@ -368,7 +369,7 @@ export const reopenApproval = asyncHandler(async (req: Request, res: Response) =
 export const reopenResubmitWindow = asyncHandler(async (req: Request, res: Response) => {
   // Only admins may give the team a fresh 48-hour resubmission window once the
   // original one has run out. Clients/team members can't.
-  if (req.user!.role !== 'SUPER_ADMIN') {
+  if (!isAdminLike(req)) {
     throw ApiError.forbidden('Only an admin can re-open a resubmission window');
   }
   const customerId = await resolve(req);
@@ -382,7 +383,7 @@ export const reopenResubmitWindow = asyncHandler(async (req: Request, res: Respo
 export const deleteApproval = asyncHandler(async (req: Request, res: Response) => {
   // Only admins may delete an approval request — at any status (pending,
   // approved or rejected). Clients and team members cannot.
-  if (req.user!.role !== 'SUPER_ADMIN') {
+  if (!isAdminLike(req)) {
     throw ApiError.forbidden('Only an admin can delete an approval request');
   }
   const customerId = await resolve(req);
