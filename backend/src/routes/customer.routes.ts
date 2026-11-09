@@ -30,6 +30,8 @@ router.use('/:clientId/tasks', buildTaskRouter());
 router.get('/', validate({ query: listCustomerQuerySchema }), ctrl.list);
 // Must precede `/:clientId` or "next-client-id" would be read as a Client ID.
 router.get('/next-client-id', ctrl.nextClientId);
+// The signed-in admin's name + IP for an agreement's "Signed By" footer.
+router.get('/signer', ctrl.signer);
 router.get('/:clientId', ctrl.getOne);
 // Read-only "view as client" — mints an impersonation token for the admin.
 router.post('/:clientId/impersonate', ctrl.impersonate);
@@ -41,6 +43,8 @@ router.post('/:clientId/documents', docUpload.single('file'), ctrl.uploadDocumen
 // Stream the PDF through the API so the in-app viewer doesn't depend on storage CORS.
 router.get('/:clientId/documents/:documentId/file', ctrl.documentFile);
 router.patch('/:clientId/documents/:documentId', ctrl.updateDocument);
+// Admin fills the fields the client left empty on the submitted copy.
+router.post('/:clientId/documents/:documentId/fill', docUpload.single('file'), ctrl.fillDocument);
 router.delete('/:clientId/documents/:documentId', ctrl.deleteDocument);
 
 router.post('/:clientId/products', validate({ body: assignedProductSchema }), ctrl.assignProduct);

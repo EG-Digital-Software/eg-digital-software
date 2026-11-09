@@ -76,9 +76,9 @@ export default function ClientAgreementPage() {
   });
 
   const submit = useMutation({
-    mutationFn: async ({ id, bytes, fileName }: { id: string; bytes: Uint8Array; fileName: string }) => {
+    mutationFn: async ({ id, bytes, fileName, filledFieldIds }: { id: string; bytes: Uint8Array; fileName: string; filledFieldIds: string[] }) => {
       const buffer = bytes.slice().buffer as ArrayBuffer;
-      return clientApi.signDocument(id, new Blob([buffer], { type: 'application/pdf' }), fileName);
+      return clientApi.signDocument(id, new Blob([buffer], { type: 'application/pdf' }), fileName, filledFieldIds);
     },
     onSuccess: () => {
       setSigning(null);
@@ -325,8 +325,8 @@ export default function ClientAgreementPage() {
             if (!o) setSigning(null);
           }}
           submitting={submit.isPending}
-          onSubmit={async (bytes) => {
-            await submit.mutateAsync({ id: signing.id, bytes, fileName: signing.fileName });
+          onSubmit={async (bytes, filledFieldIds) => {
+            await submit.mutateAsync({ id: signing.id, bytes, fileName: signing.fileName, filledFieldIds });
           }}
         />
       )}

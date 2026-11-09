@@ -43,6 +43,7 @@ router.post('/products', ctrl.addProduct);
 // Agreement PDF bytes for the in-app viewer (proxied, so no storage CORS needed).
 router.get('/documents/:documentId/file', ctrl.documentFile);
 // Submit a filled + signed copy of an agreement PDF for admin approval.
+router.get('/signer', ctrl.signer);
 router.post('/documents/:documentId/sign', docUpload.single('file'), ctrl.signDocument);
 
 export default router;

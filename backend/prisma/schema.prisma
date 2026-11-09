@@ -362,6 +362,10 @@ model CustomerDocument {
   /// this holds the returned copy once the client submits.
   signedUrl    String?
   signedAt     DateTime?
+  /// Append-only record of every submit / fill: [{ by: 'client'|'admin', name,
+  /// ip, at }]. The IP is read server-side. Never cleared — it goes only when
+  /// the admin deletes the document (row delete).
+  signLog      Json?
   submittedAt  DateTime?
   approvedAt   DateTime?
   approvedById String?

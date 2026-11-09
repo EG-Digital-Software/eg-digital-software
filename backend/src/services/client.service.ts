@@ -10,6 +10,7 @@ import {
   readDocumentFile,
 } from './customer.service.js';
 import { getResolvedAccountManager } from './settings.service.js';
+import type { Signer } from './customer.service.js';
 
 /** Resolve the Customer a signed-in client user is linked to. */
 export async function resolveCustomerId(userId: string): Promise<string> {
@@ -68,9 +69,11 @@ export async function getProfile(customerId: string) {
 export function signDocument(
   customerId: string,
   documentId: string,
-  file: { originalname: string; buffer: Buffer; mimetype: string; size: number }
+  file: { originalname: string; buffer: Buffer; mimetype: string; size: number },
+  filledFieldIds: string[] = [],
+  signer?: Signer
 ) {
-  return submitSignedDocumentForCustomer(customerId, documentId, file);
+  return submitSignedDocumentForCustomer(customerId, documentId, file, filledFieldIds, signer);
 }
 
 /**

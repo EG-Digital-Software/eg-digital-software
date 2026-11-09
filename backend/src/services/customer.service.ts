@@ -1249,10 +1249,23 @@ function sanitizeFields(input: unknown): Prisma.InputJsonValue | undefined {
       yPct: Number(f.yPct) || 0,
       wPct: Number(f.wPct) || 0,
       hPct: Number(f.hPct) || 0,
+      // Who filled the field in — set on submit, never by the field editor.
+      ...(f.filledBy === 'client' || f.filledBy === 'admin' ? { filledBy: f.filledBy } : {}),
     }))
     .filter((f) => f.id && f.wPct > 0 && f.hPct > 0);
   return clean;
 }
+
+/** Who signed and from where — read server-side, appended to `signLog`. */
+export type Signer = { name: string; ip: string };
+
+const appendSignLog = (log: Prisma.JsonValue | null, by: 'client' | 'admin', s: Signer) =>
+  [...(Array.isArray(log) ? log : []), { by, name: s.name, ip: s.ip, at: new Date().toISOString() }] as Prisma.InputJsonValue;
+
+type StoredField = { id: string; filledBy?: 'client' | 'admin' } & Record<string, unknown>;
+
+const storedFields = (fields: Prisma.JsonValue | null): StoredField[] =>
+  Array.isArray(fields) ? (fields as StoredField[]).filter((f) => f && typeof f === 'object' && f.id) : [];
 
 export async function updateDocument(
   clientId: string,
@@ -1275,8 +1288,15 @@ export async function updateDocument(
   } = {};
   if (changes.fileName && changes.fileName.trim()) data.fileName = changes.fileName.trim();
   if (changes.fields !== undefined) {
-    const fields = sanitizeFields(changes.fields);
-    if (fields !== undefined) data.fields = fields;
+    const fields = sanitizeFields(changes.fields) as StoredField[] | undefined;
+    if (fields !== undefined) {
+      // Re-saving the regions keeps who already filled each one in.
+      const filled = new Map(storedFields(doc.fields).map((f) => [f.id, f.filledBy]));
+      data.fields = fields.map((f) => {
+        const by = f.filledBy ?? filled.get(f.id);
+        return by ? { ...f, filledBy: by } : f;
+      }) as Prisma.InputJsonValue;
+    }
   }
   if (changes.status === 'APPROVED') {
     // Only a copy the client has actually submitted (or one already approved) can
@@ -1314,7 +1334,9 @@ export async function updateDocument(
 export async function submitSignedDocument(
   customerId: string,
   documentId: string,
-  file: { originalname: string; buffer: Buffer; mimetype: string; size: number }
+  file: { originalname: string; buffer: Buffer; mimetype: string; size: number },
+  filledFieldIds: string[] = [],
+  signer?: Signer
 ) {
   const doc = await prisma.customerDocument.findFirst({
     where: { id: documentId, customerId },
@@ -1326,6 +1348,12 @@ export async function submitSignedDocument(
   const safeName = (doc.fileName || 'agreement.pdf').replace(/[^\w.\-]+/g, '_');
   const key = `customers/${customerId}/documents/signed/${Date.now()}-${safeName}`;
   const signedUrl = await storage.save(key, file.buffer, 'application/pdf');
+  // The client may fill only some fields; the admin fills the rest afterwards.
+  // The client always starts from the blank template, so earlier marks reset.
+  const ids = new Set(filledFieldIds);
+  const fields = storedFields(doc.fields).map(({ filledBy: _prev, ...f }) =>
+    ids.has(f.id) ? { ...f, filledBy: 'client' as const } : f
+  );
   return prisma.customerDocument.update({
     where: { id: documentId },
     data: {
@@ -1333,8 +1361,59 @@ export async function submitSignedDocument(
       signedAt: new Date(),
       submittedAt: new Date(),
       status: 'SUBMITTED',
+      ...(doc.fields ? { fields: fields as Prisma.InputJsonValue } : {}),
+      ...(signer ? { signLog: appendSignLog(doc.signLog, 'client', signer) } : {}),
     },
   });
+}
+
+/**
+ * Admin fills the fields the client left empty, on top of the client's submitted
+ * copy. The updated PDF replaces `signedUrl` (the earlier blob is kept in storage);
+ * the document stays SUBMITTED for approval.
+ */
+export async function adminFillDocument(
+  clientId: string,
+  documentId: string,
+  file: { originalname: string; buffer: Buffer; mimetype: string; size: number },
+  filledFieldIds: string[] = [],
+  signer?: Signer
+) {
+  const customer = await prisma.customer.findUnique({ where: { clientId }, select: { id: true } });
+  if (!customer) throw ApiError.notFound('Customer not found');
+  const doc = await prisma.customerDocument.findFirst({
+    where: { id: documentId, customerId: customer.id },
+  });
+  if (!doc) throw ApiError.notFound('Document not found');
+  if (doc.status !== 'SUBMITTED' || !doc.signedUrl) {
+    throw ApiError.badRequest('Only a document the client has submitted can be filled by the admin');
+  }
+  const ids = new Set(filledFieldIds);
+  const fields = storedFields(doc.fields).map((f) =>
+    !f.filledBy && ids.has(f.id) ? { ...f, filledBy: 'admin' as const } : f
+  );
+  const safeName = (doc.fileName || 'agreement.pdf').replace(/[^\w.\-]+/g, '_');
+  const key = `customers/${customer.id}/documents/signed/${Date.now()}-admin-${safeName}`;
+  const signedUrl = await storage.save(key, file.buffer, 'application/pdf');
+  return prisma.customerDocument.update({
+    where: { id: documentId },
+    data: {
+      signedUrl,
+      fields: fields as Prisma.InputJsonValue,
+      ...(signer ? { signLog: appendSignLog(doc.signLog, 'admin', signer) } : {}),
+    },
+  });
+}
+
+/** `filledFieldIds` arrives as a JSON string in the multipart body. */
+export function parseFieldIds(raw: unknown): string[] {
+  if (typeof raw !== 'string') return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 /**

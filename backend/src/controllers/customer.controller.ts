@@ -4,6 +4,8 @@ import * as customerService from '../services/customer.service.js';
 import { logActivity } from '../services/activity.service.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
+import { requestIp } from '../utils/requestIp.js';
+import { prisma } from '../config/prisma.js';
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const page = parsePagination(req.query);
@@ -55,6 +57,32 @@ export const updateDocument = asyncHandler(async (req: Request, res: Response) =
     req.user?.sub
   );
   return ok(res, doc, 'Document updated');
+});
+
+/** The signed-in admin's name and IP, for the "Signed By" footer. */
+async function adminSigner(req: Request) {
+  const admin = await prisma.adminUser.findUnique({
+    where: { id: req.user!.sub },
+    select: { firstName: true, lastName: true },
+  });
+  const name = admin ? `${admin.firstName} ${admin.lastName}`.trim() : 'Admin';
+  return { name, ip: await requestIp(req) };
+}
+
+export const signer = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await adminSigner(req));
+});
+
+export const fillDocument = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw ApiError.badRequest('No filled document was uploaded');
+  const doc = await customerService.adminFillDocument(
+    req.params.clientId,
+    req.params.documentId,
+    req.file,
+    customerService.parseFieldIds(req.body.filledFieldIds),
+    await adminSigner(req)
+  );
+  return ok(res, doc, 'Remaining fields saved');
 });
 
 export const documentFile = asyncHandler(async (req: Request, res: Response) => {

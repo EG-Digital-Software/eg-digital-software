@@ -25,6 +25,7 @@ import {
   Download,
   SquarePen,
   RefreshCw,
+  PenLine,
 } from 'lucide-react';
 import { adminApi, customerApi, productApi } from '@/api/resources';
 import { useAuth } from '@/store/auth';
@@ -35,6 +36,8 @@ import { TaskBoard } from '@/components/tasks/TaskBoard';
 import { apiErrorMessage } from '@/api/client';
 import type { Address, AgreementField, Customer, CustomerCredential, CustomerDocument, CustomerProduct } from '@/types';
 import AgreementFieldsDialog from './AgreementFieldsDialog';
+import { AgreementFillDialog } from '@/components/shared/AgreementFillDialog';
+import { remainingFields } from '@/lib/agreements';
 import { InvoiceForm } from '@/components/invoice/InvoiceForm';
 import { Input, Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1018,6 +1021,8 @@ function AgreementTab({ customer }: { customer: Customer }) {
   const [fieldsDoc, setFieldsDoc] = useState<CustomerDocument | null>(null);
   // The client's filled + signed copy open in the read-only viewer.
   const [viewDoc, setViewDoc] = useState<CustomerDocument | null>(null);
+  // A submitted copy the admin is filling the client's empty fields on.
+  const [fillDoc, setFillDoc] = useState<CustomerDocument | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['customer', clientId] });
   const docs = customer.documents ?? [];
@@ -1039,6 +1044,18 @@ function AgreementTab({ customer }: { customer: Customer }) {
     mutationFn: (v: { id: string; fields: AgreementField[] }) =>
       customerApi.updateDocument(clientId, v.id, { fields: v.fields }),
     onSuccess: () => { refresh(); setFieldsDoc(null); toast.success('Fields saved'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const fill = useMutation({
+    mutationFn: (v: { doc: CustomerDocument; bytes: Uint8Array; filledFieldIds: string[] }) =>
+      customerApi.fillDocument(
+        clientId,
+        v.doc.id,
+        new Blob([v.bytes.slice().buffer as ArrayBuffer], { type: 'application/pdf' }),
+        v.doc.fileName,
+        v.filledFieldIds
+      ),
+    onSuccess: () => { refresh(); setFillDoc(null); toast.success('Remaining fields saved'); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const rename = useMutation({
@@ -1124,6 +1141,11 @@ function AgreementTab({ customer }: { customer: Customer }) {
                           <Eye className="h-4 w-4" /> View
                         </Button>
                       )}
+                      {remainingFields(d).length > 0 && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setFillDoc(d)} title="Fill the fields the client left empty">
+                          <PenLine className="h-4 w-4" /> Fill remaining ({remainingFields(d).length})
+                        </Button>
+                      )}
                       {submitted && (
                         <>
                           <Button type="button" size="sm" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: d.id, status: 'APPROVED' })}>
@@ -1156,6 +1178,15 @@ function AgreementTab({ customer }: { customer: Customer }) {
                       </button>
                     </>
                   )}
+                  {(d.signLog?.length ?? 0) > 0 && (
+                    <div className="basis-full space-y-0.5 pl-8 text-xs text-muted-foreground">
+                      {d.signLog!.map((s, i) => (
+                        <div key={i}>
+                          Signed By {s.name} ({s.by === 'admin' ? 'admin' : 'client'}) · IP - {s.ip} · {formatDate(s.at, 'dd MMM yyyy, HH:mm')}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1186,6 +1217,21 @@ function AgreementTab({ customer }: { customer: Customer }) {
             </>
           )
         }
+      />
+    )}
+    {fillDoc && (
+      <AgreementFillDialog
+        filePath={`/customers/${clientId}/documents/${fillDoc.id}/file?signed=1`}
+        fields={remainingFields(fillDoc)}
+        signer={{ path: '/customers/signer', footerLine: 1 }}
+        title={`Fill remaining — ${fillDoc.fileName}`}
+        description="The client’s submitted copy. Fill the fields they left empty — type in any field, or upload an image (e.g. a signature) with the image button."
+        open={!!fillDoc}
+        onOpenChange={(o) => { if (!o) setFillDoc(null); }}
+        submitting={fill.isPending}
+        submitLabel="Save"
+        emptyMessage="Every field on this copy is already filled."
+        onSubmit={async (bytes, filledFieldIds) => { await fill.mutateAsync({ doc: fillDoc, bytes, filledFieldIds }); }}
       />
     )}
     {fieldsDoc && (

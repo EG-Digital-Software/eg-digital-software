@@ -225,6 +225,8 @@ export interface AgreementField {
   yPct: number;
   wPct: number;
   hPct: number;
+  /** Who filled this field in on the submitted copy; unset while still empty. */
+  filledBy?: 'client' | 'admin';
 }
 
 /** An agreement/contract file uploaded against a customer. */
@@ -247,6 +249,8 @@ export interface CustomerDocument {
   /** The client's filled + signed PDF; present once submitted. */
   signedUrl?: string | null;
   signedAt?: string | null;
+  /** Every submit / fill, oldest first; the IP is read server-side. */
+  signLog?: { by: 'client' | 'admin'; name: string; ip: string; at: string }[] | null;
   submittedAt?: string | null;
   approvedAt?: string | null;
   uploadedById?: string | null;

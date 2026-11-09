@@ -112,9 +112,10 @@ export const clientApi = {
   addProduct: async (productId: string) =>
     (await api.post<ApiEnvelope<{ id: string }>>('/client/products', { productId })).data.data,
   /** Submit a filled + signed copy of an agreement PDF for admin approval. */
-  signDocument: async (documentId: string, file: Blob, fileName: string) => {
+  signDocument: async (documentId: string, file: Blob, fileName: string, filledFieldIds: string[]) => {
     const form = new FormData();
     form.append('file', file, fileName);
+    form.append('filledFieldIds', JSON.stringify(filledFieldIds));
     return (
       await api.post<ApiEnvelope<CustomerDocument>>(`/client/documents/${documentId}/sign`, form)
     ).data.data;

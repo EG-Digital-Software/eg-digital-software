@@ -3,6 +3,9 @@ import * as clientService from '../services/client.service.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
 import { taskSummaryForCustomer } from '../services/task.service.js';
+import { parseFieldIds } from '../services/customer.service.js';
+import { requestIp } from '../utils/requestIp.js';
+import { prisma } from '../config/prisma.js';
 
 async function cid(req: Request) {
   // An admin impersonation token carries the target customer id directly, so it
@@ -73,8 +76,31 @@ export const documentFile = asyncHandler(async (req: Request, res: Response) => 
   res.send(data);
 });
 
+/**
+ * Who is signing an agreement and from where, for the "Signed By" footer. An admin
+ * in the portal's Edit mode signs as the customer, so the IP is the admin's own.
+ */
+async function clientSigner(req: Request) {
+  const customer = await prisma.customer.findUnique({
+    where: { id: await cid(req) },
+    select: { companyName: true, contactPerson: true },
+  });
+  const name = (customer?.companyName || customer?.contactPerson || 'Client').trim();
+  return { name, ip: await requestIp(req) };
+}
+
+export const signer = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await clientSigner(req));
+});
+
 export const signDocument = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) throw ApiError.badRequest('No signed document was uploaded');
-  const doc = await clientService.signDocument(await cid(req), req.params.documentId, req.file);
+  const doc = await clientService.signDocument(
+    await cid(req),
+    req.params.documentId,
+    req.file,
+    parseFieldIds(req.body.filledFieldIds),
+    await clientSigner(req)
+  );
   return ok(res, doc, 'Agreement submitted for approval');
 });

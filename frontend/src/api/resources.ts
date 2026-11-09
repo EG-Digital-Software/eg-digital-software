@@ -98,6 +98,13 @@ export const customerApi = {
     body: { fileName?: string; status?: 'SUBMITTED' | 'APPROVED' | 'REJECTED'; fields?: AgreementField[] }
   ) =>
     (await api.patch<ApiEnvelope<CustomerDocument>>(`/customers/${clientId}/documents/${documentId}`, body)).data.data,
+  /** Admin fills the fields the client left empty on the submitted copy. */
+  fillDocument: async (clientId: string, documentId: string, file: Blob, fileName: string, filledFieldIds: string[]) => {
+    const form = new FormData();
+    form.append('file', file, fileName);
+    form.append('filledFieldIds', JSON.stringify(filledFieldIds));
+    return (await api.post<ApiEnvelope<CustomerDocument>>(`/customers/${clientId}/documents/${documentId}/fill`, form)).data.data;
+  },
   deleteDocument: async (clientId: string, documentId: string) =>
     (await api.delete<ApiEnvelope<{ id: string }>>(`/customers/${clientId}/documents/${documentId}`)).data.data,
   /** Renew the account: ACTIVE for the chosen number of months. */
