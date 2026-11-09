@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -160,7 +160,6 @@ export function InvoiceForm({
     control,
     watch,
     setValue,
-    getValues,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -220,12 +219,15 @@ export function InvoiceForm({
   // thing the term decides.
   const due = useMemo(() => computeDueDate(invoiceDate, term), [invoiceDate, term]);
 
-  // Keep the next billing date auto-filled for the chosen invoice date. Only
-  // fills a blank field, so an admin's own override is never overwritten.
+  // Keep the next billing date on the 1st of the month after the invoice date,
+  // moving with it when the invoice date changes — until the admin sets the next
+  // billing date themselves, after which their choice is kept (a cleared field
+  // is refilled).
+  const nextBillingEdited = useRef(false);
   useEffect(() => {
-    if (nextBillingDate) return;
+    if (nextBillingEdited.current && nextBillingDate) return;
     const next = defaultNextBillingDate(invoiceDate);
-    if (next) setValue('nextBillingDate', toDateInput(next));
+    if (next && toDateInput(next) !== nextBillingDate) setValue('nextBillingDate', toDateInput(next));
   }, [invoiceDate, nextBillingDate, setValue]);
 
   // What the licence group a product belongs to bills for this period.
@@ -263,27 +265,23 @@ export function InvoiceForm({
     if (fixedClientId) setValue('clientId', fixedClientId);
   }, [fixedClientId, setValue]);
 
-  // Keep product-backed line amounts in step with the invoice date/term: when
-  // either changes, re-pro-rate each selected product's agreed net.
-  useEffect(() => {
-    const its = getValues('items') ?? [];
-    its.forEach((it, i) => {
-      if (!it.productId) return;
+  // The unit price a line actually bills. A product-backed line bills its
+  // group's agreed net pro-rated to the current billing period — derived live
+  // from the dates on every render, so changing the invoice date shows the new
+  // amount instantly. Manual lines keep their typed price.
+  const effectiveUnitPrice = (it?: FormValues['items'][number]): number => {
+    if (it?.productId) {
       const billed = groupBilledFor(it.productId, it.sku);
-      if (billed == null) return;
-      const next = round2(billed);
-      if (Math.abs((Number(it.unitPrice) || 0) - next) > 0.005) {
-        setValue(`items.${i}.unitPrice`, next, { shouldDirty: true });
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proration, licenceGroups]);
+      if (billed != null) return round2(billed);
+    }
+    return Number(it?.unitPrice) || 0;
+  };
 
   const totals = useMemo(() => {
     let subtotal = 0;
     let tax = 0;
     for (const it of items ?? []) {
-      const gross = (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0);
+      const gross = effectiveUnitPrice(it) * (Number(it.quantity) || 0);
       const rate = (Number(it.taxRate) || 0) / 100;
       if (it.gstType === 'INCLUSIVE') {
         const net = gross / (1 + rate);
@@ -296,7 +294,9 @@ export function InvoiceForm({
     }
     const disc = Number(discount) || 0;
     return { subtotal, tax, total: Math.max(0, subtotal + tax - disc) };
-  }, [items, discount]);
+    // effectiveUnitPrice reads the billing period and the customer's products.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, discount, proration, licenceGroups]);
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) => invoiceApi.create(values),
@@ -314,6 +314,9 @@ export function InvoiceForm({
       onSubmit={handleSubmit((v) =>
         mutation.mutate({
           ...v,
+          // Send exactly the amounts shown — each product line at its live
+          // pro-rated price for the chosen dates.
+          items: v.items.map((it) => ({ ...it, unitPrice: effectiveUnitPrice(it) })),
           // Auto-filled due date = invoice date + the term's payment window.
           // Local parts (not toISOString) so a UTC+ timezone can't shift the day.
           dueDate: due ? toDateInput(due) : undefined,
@@ -370,7 +373,16 @@ export function InvoiceForm({
           <Field label="Next Billing Date">
             {/* Drives the billing period and the pro-rated line amounts.
                 Auto-filled with the 1st of the next month; editable. */}
-            <Input className={FILLED_CONTROL} type="date" {...register('nextBillingDate')} />
+            <Input
+              className={FILLED_CONTROL}
+              type="date"
+              {...register('nextBillingDate', {
+                // The admin's own date — stop moving it with the invoice date.
+                onChange: () => {
+                  nextBillingEdited.current = true;
+                },
+              })}
+            />
             {proration && (
               <p className="text-xs text-muted-foreground">
                 Billing period: {fmtDay(proration.start)} to {fmtDay(proration.end)} (
@@ -405,7 +417,7 @@ export function InvoiceForm({
             const it = items?.[index];
             // Amount shown to the admin is GST-inclusive. When the line is marked
             // Inclusive the unit price already carries GST; otherwise we add it on.
-            const gross = (Number(it?.unitPrice) || 0) * (Number(it?.quantity) || 0);
+            const gross = effectiveUnitPrice(it) * (Number(it?.quantity) || 0);
             const amount = it?.gstType === 'INCLUSIVE' ? gross : gross * (1 + (Number(it?.taxRate) || 0) / 100);
             return (
               <div
