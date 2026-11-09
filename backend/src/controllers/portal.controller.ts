@@ -30,7 +30,7 @@ export const employeeDashboard = asyncHandler(async (_req: Request, res: Respons
 
 export const employeeCustomers = asyncHandler(async (req: Request, res: Response) => {
   const page = parsePagination(req.query);
-  const { items, total } = await employeeService.listCustomers(page, {
+  const { items, total } = await employeeService.listCustomers(req.user!.sub, page, {
     search: (req.query.search as string | undefined) || undefined,
     businessType: (req.query.businessType as never) || undefined,
   });

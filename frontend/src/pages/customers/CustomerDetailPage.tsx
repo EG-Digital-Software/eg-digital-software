@@ -544,9 +544,11 @@ export default function CustomerDetailPage() {
               <Eye /> View/Edit portal
             </button>
           )}
-          <Link to={`/admin/customers/${c.clientId}/edit`} className="btn bg">
-            <Pencil /> Edit
-          </Link>
+          {isAdmin && (
+            <Link to={`/admin/customers/${c.clientId}/edit`} className="btn bg">
+              <Pencil /> Edit
+            </Link>
+          )}
           {can('billing') && (
             <button type="button" className="btn bp" onClick={() => setInvoiceOpen(true)}>
               <Receipt /> Create invoice
@@ -647,16 +649,19 @@ export default function CustomerDetailPage() {
             )}
           </div>
           <div className="flex shrink-0 flex-wrap items-start gap-3 sm:flex-nowrap">
-          <div className="flex flex-col items-stretch gap-1">
-            <button type="button" className="btn bg" onClick={() => setRenewOpen(true)}>
-              <RefreshCw /> Renew account
-            </button>
-            {c.accountRenewedUntil && new Date(c.accountRenewedUntil) > new Date() && (
-              <p className="muted text-center" style={{ fontSize: 12 }}>
-                Renewed until {formatDate(c.accountRenewedUntil)}
-              </p>
-            )}
-          </div>
+          {/* Renewing an account is admin-only, even with the Customers tab. */}
+          {isAdmin && (
+            <div className="flex flex-col items-stretch gap-1">
+              <button type="button" className="btn bg" onClick={() => setRenewOpen(true)}>
+                <RefreshCw /> Renew account
+              </button>
+              {c.accountRenewedUntil && new Date(c.accountRenewedUntil) > new Date() && (
+                <p className="muted text-center" style={{ fontSize: 12 }}>
+                  Renewed until {formatDate(c.accountRenewedUntil)}
+                </p>
+              )}
+            </div>
+          )}
           {c.creditScore != null && (
             <div
               className={cn(
@@ -1196,7 +1201,7 @@ function AgreementTab({ customer }: { customer: Customer }) {
                     <div className="basis-full space-y-0.5 pl-8 text-xs text-muted-foreground">
                       {d.signLog!.map((s, i) => (
                         <div key={i}>
-                          Signed By {s.name} ({s.by === 'admin' ? 'admin' : 'client'}) · IP - {s.ip} · {formatDate(s.at, 'dd MMM yyyy, HH:mm')}
+                          Signed By {s.name} · IP - {s.ip} · {formatDate(s.at, 'dd MMM yyyy, HH:mm')}
                         </div>
                       ))}
                     </div>

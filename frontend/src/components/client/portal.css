@@ -1332,6 +1332,9 @@ html.eg-eloma.eg-ecp body {
   border: 0;
   color: var(--mu);
   font: 500 11px 'Manrope', 'Inter', sans-serif;
+  /* Long labels ("Assigned Customers") wrap to two lines — keep them centred. */
+  text-align: center;
+  line-height: 1.15;
   cursor: pointer;
   text-decoration: none;
   transition: color 0.25s;

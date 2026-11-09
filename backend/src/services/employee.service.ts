@@ -36,11 +36,13 @@ export async function getDashboard() {
   return { customers, activeCustomers, expiringLicences, expiredLicences, lowStock };
 }
 
+/** Active customers this team member is the assigned account manager for. */
 export async function listCustomers(
+  employeeId: string,
   page: PageQuery,
   params: { search?: string; businessType?: string } = {}
 ) {
-  const where: Prisma.CustomerWhereInput = { status: CustomerStatus.ACTIVE };
+  const where: Prisma.CustomerWhereInput = { status: CustomerStatus.ACTIVE, accountManagerId: employeeId };
   if (params.businessType) where.businessType = { contains: params.businessType };
 
   if (params.search) {

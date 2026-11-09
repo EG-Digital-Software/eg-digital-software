@@ -69,7 +69,8 @@ function location(c: Customer) {
 }
 
 export default function CustomersPage() {
-  // Permanent delete is admin-only, even for team members with the Customers tab.
+  // Editing a customer's details and permanent delete are admin-only, even for
+  // team members with the Customers tab.
   const { isAdmin } = useStaffAccess();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -365,9 +366,11 @@ export default function CustomersPage() {
                               <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}`)}>
                                 <Eye /> View
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}/edit`)}>
-                                <Pencil /> Edit
-                              </DropdownMenuItem>
+                              {isAdmin && (
+                                <DropdownMenuItem onClick={() => navigate(`/admin/customers/${c.clientId}/edit`)}>
+                                  <Pencil /> Edit
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem destructive onClick={() => setArchiving(c)}>
                                 <Archive /> Archive
                               </DropdownMenuItem>

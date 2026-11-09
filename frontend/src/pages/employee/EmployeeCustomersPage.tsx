@@ -34,11 +34,11 @@ export default function EmployeeCustomersPage() {
 
   return (
     <div className="ec-page">
-      <PageHeader eyebrow="Directory" title="Customers" description="Every customer on record. Read-only for the team." />
+      <PageHeader eyebrow="Directory" title="Assigned Customers" description="Customers you are the account manager for. Read-only for the team." />
 
       <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
         <div className="glass card" style={{ padding: 16 }}>
-          <div className="eyebrow">{filtered ? 'Matching customers' : 'Customers'}</div>
+          <div className="eyebrow">{filtered ? 'Matching customers' : 'Assigned customers'}</div>
           <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>{data?.meta.total ?? '–'}</div>
         </div>
         <div className="glass card" style={{ padding: 16 }}>
@@ -94,11 +94,11 @@ export default function EmployeeCustomersPage() {
           <div className="p-6">
             <EmptyState
               icon={<Users className="h-6 w-6" />}
-              title={filtered ? 'No matching customers' : 'No customers'}
+              title={filtered ? 'No matching customers' : 'No assigned customers'}
               description={
                 filtered
                   ? 'No customer matches this search or business type.'
-                  : 'Customers will appear here once the admin team adds them.'
+                  : 'Customers appear here once the admin makes you their account manager.'
               }
               action={
                 filtered ? (

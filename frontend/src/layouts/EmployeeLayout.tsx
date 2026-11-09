@@ -37,7 +37,7 @@ export function EmployeeLayout() {
       }
       nav={[
         { to: '/employee/tasks', label: 'Tasks', icon: ListChecks, activity: tasksDot },
-        { to: '/employee/customers', label: 'Customers', icon: Building2 },
+        { to: '/employee/customers', label: 'Assigned Customers', icon: Building2 },
         ...granted,
       ]}
       menuItems={[{ label: 'My Account', icon: User, to: '/employee/account' }]}

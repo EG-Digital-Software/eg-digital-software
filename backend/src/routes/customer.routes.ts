@@ -20,8 +20,8 @@ import {
 
 const router = Router();
 router.use(authenticate);
-// Logins, passwords, impersonation and permanent deletes stay admin-only even
-// for team members granted the Customers tab.
+// Editing details, renewals, logins, passwords, impersonation and permanent
+// deletes stay admin-only even for team members granted the Customers tab.
 const adminOnly = authorize(Role.SUPER_ADMIN);
 
 // Agreement documents: no size cap — the admin uploads contracts/agreements of
@@ -45,7 +45,7 @@ router.get('/:clientId', ctrl.getOne);
 // Read-only "view as client" — mints an impersonation token for the admin.
 router.post('/:clientId/impersonate', adminOnly, ctrl.impersonate);
 // Renew the account (ACTIVE for N months). Body: { months: 1-60 }.
-router.post('/:clientId/renew', ctrl.renewAccount);
+router.post('/:clientId/renew', adminOnly, ctrl.renewAccount);
 // Reveal the customer's portal password (admin-only, like every route here).
 // Agreement Document uploads (admin-only, like every route here).
 router.post('/:clientId/documents', docUpload.single('file'), ctrl.uploadDocument);
@@ -78,7 +78,8 @@ router.patch(
 );
 router.delete('/:clientId/credentials/:userId', adminOnly, ctrl.removeCredential);
 router.post('/', validate({ body: createCustomerSchema }), ctrl.create);
-router.put('/:clientId', validate({ body: updateCustomerSchema }), ctrl.update);
+// Editing a customer's details is admin-only, even with the Customers tab.
+router.put('/:clientId', adminOnly, validate({ body: updateCustomerSchema }), ctrl.update);
 router.delete('/:clientId', ctrl.archive);
 // Permanent, irreversible delete — distinct from the soft archive above.
 router.delete('/:clientId/permanent', adminOnly, ctrl.remove);
