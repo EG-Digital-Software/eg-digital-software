@@ -900,7 +900,7 @@ export default function CustomerDetailPage() {
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table className="tbl" style={{ minWidth: 640 }}>
+                <table className="tbl">
                   <thead>
                     <tr>
                       <th>Invoice</th>

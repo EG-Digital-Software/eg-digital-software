@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Eye } from 'lucide-react';
-import { adminApi } from '@/api/resources';
+import { Eye, KeyRound, Pencil } from 'lucide-react';
+import { adminApi, type PendingUser } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,6 +11,7 @@ import { Skeleton } from '@/components/ui/misc';
 import { EmptyState } from '@/components/shared/states';
 import { initials, mediaUrl, formatDate, formatNumber } from '@/lib/utils';
 import { AVATAR_COLORS } from '@/components/client/portalContext';
+import { EditEmployeeDialog, ManageEmployeePasswordDialog } from '@/components/team/EmployeeDialogs';
 
 function Kpi({ title, value, tone }: { title: string; value: string; tone?: string }) {
   return (
@@ -26,6 +28,8 @@ export default function TeamDashboardPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const startImpersonation = useAuth((s) => s.startImpersonation);
+  const [editEmp, setEditEmp] = useState<PendingUser | null>(null);
+  const [managePw, setManagePw] = useState<PendingUser | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['team', 'employees'],
@@ -72,11 +76,8 @@ export default function TeamDashboardPage() {
             <Kpi title="Active" value={isLoading ? '—' : formatNumber(activeCount)} tone="var(--brand)" />
             <Kpi title="Inactive" value={isLoading ? '—' : formatNumber(employees.length - activeCount)} tone="var(--wT)" />
           </div>
-        </TabsContent>
 
-        {/* ── Employee Portals ─────────────────────────── */}
-        <TabsContent value="portals">
-          <section className="glass up" style={{ overflow: 'hidden' }}>
+          <section className="glass up" style={{ overflow: 'hidden', marginTop: 16 }}>
             <div
               style={{
                 display: 'flex',
@@ -92,7 +93,7 @@ export default function TeamDashboardPage() {
                   Team members
                 </h2>
                 <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
-                  Open a member’s portal to see exactly what they see.
+                  Everyone on your team — role, status, last login and account controls.
                 </div>
               </div>
               {!isLoading && <span className="chip c-ns">{employees.length} people</span>}
@@ -138,6 +139,75 @@ export default function TeamDashboardPage() {
                     <span className="muted" style={{ fontSize: 12.5, minWidth: 130 }}>
                       Last login {emp.lastLoginAt ? formatDate(emp.lastLoginAt) : 'never'}
                     </span>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      <button type="button" className="btn bg sm" onClick={() => setEditEmp(emp)} title="Edit this team member's profile">
+                        <Pencil /> Edit
+                      </button>
+                      <button type="button" className="btn bg sm" onClick={() => setManagePw(emp)} title="View or change this team member's password">
+                        <KeyRound /> Change password
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </TabsContent>
+
+        {/* ── Employee Portals ─────────────────────────── */}
+        <TabsContent value="portals">
+          <section className="glass up" style={{ overflow: 'hidden' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+                padding: '18px 20px',
+              }}
+            >
+              <div>
+                <h2 className="disp" style={{ margin: 0, fontSize: 17 }}>
+                  Team members
+                </h2>
+                <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+                  Open a member’s portal to view or work in it as them.
+                </div>
+              </div>
+              {!isLoading && <span className="chip c-ns">{employees.length} people</span>}
+            </div>
+            {isLoading ? (
+              <div className="space-y-2" style={{ padding: '0 20px 20px' }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : !employees.length ? (
+              <div style={{ padding: '0 20px 20px' }}>
+                <EmptyState
+                  title="No team members yet"
+                  description="Approved team members will appear here. Add them from Approvals → Manage Team."
+                />
+              </div>
+            ) : (
+              <div className="stag">
+                {employees.map((emp, i) => (
+                  <div key={emp.id} className="tmrow row">
+                    <span
+                      className="av"
+                      style={{ width: 36, height: 36, fontSize: 12, margin: 0, background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                    >
+                      {emp.avatarUrl ? <img src={mediaUrl(emp.avatarUrl)} alt="" /> : initials(emp.firstName, emp.lastName)}
+                    </span>
+                    <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {emp.firstName} {emp.lastName}
+                      </div>
+                      <div className="muted truncate" style={{ fontSize: 12.5 }}>
+                        {emp.email}
+                      </div>
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 130 }}>
                       <button
                         type="button"
@@ -145,7 +215,7 @@ export default function TeamDashboardPage() {
                         disabled={viewPortal.isPending}
                         onClick={() => viewPortal.mutate(emp.id)}
                       >
-                        <Eye /> View portal
+                        <Eye /> View / Edit portal
                       </button>
                     </div>
                   </div>
@@ -155,6 +225,13 @@ export default function TeamDashboardPage() {
           </section>
         </TabsContent>
       </Tabs>
+
+      <EditEmployeeDialog
+        user={editEmp}
+        onOpenChange={(v) => !v && setEditEmp(null)}
+        onDone={() => qc.invalidateQueries({ queryKey: ['team', 'employees'] })}
+      />
+      <ManageEmployeePasswordDialog user={managePw} onOpenChange={(v) => !v && setManagePw(null)} />
     </div>
   );
 }

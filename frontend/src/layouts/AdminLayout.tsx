@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Building2,
   CreditCard,
+  Eye,
   LayoutDashboard,
   ListChecks,
   Package,
@@ -46,6 +47,7 @@ export function AdminLayout() {
         { to: '/admin/payments', label: 'Payments', icon: CreditCard },
         { to: '/admin/approvals', label: 'Approvals', icon: BadgeCheck, count: pending ?? 0, countTone: 'orange' },
         { to: '/admin/reports', label: 'Report', icon: BarChart3 },
+        { to: '/admin/preview', label: 'Preview', icon: Eye },
       ]}
       menuItems={[
         { label: 'My Account', icon: User, to: '/admin/profile' },

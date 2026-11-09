@@ -237,7 +237,7 @@ export default function InvoiceDetailPage() {
               Payments
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table className="tbl" style={{ minWidth: 560 }}>
+              <table className="tbl">
                 <thead>
                   <tr>
                     <th>Date</th>

@@ -646,7 +646,7 @@ html.eg-eloma.eg-ecp body {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  min-width: 860px;
+  min-width: 0;
 }
 .ecp .tbl th {
   text-align: left;
@@ -1072,7 +1072,7 @@ html.eg-eloma.eg-ecp body {
 }
 .ecp .ec-head-in {
   width: 100%;
-  max-width: 1320px;
+  max-width: 1792px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1200,7 +1200,7 @@ html.eg-eloma.eg-ecp body {
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
-  max-width: 1368px;
+  max-width: 1840px;
   margin: 0 auto;
   padding: 8px 24px 0;
 }

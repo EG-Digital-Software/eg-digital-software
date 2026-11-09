@@ -20,6 +20,7 @@ const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPa
 const AdminTasksPage = lazy(() => import('@/pages/admin/AdminTasksPage'));
 const TeamDashboardPage = lazy(() => import('@/pages/admin/TeamDashboardPage'));
 const ReportPage = lazy(() => import('@/pages/admin/ReportPage'));
+const PreviewPage = lazy(() => import('@/pages/admin/PreviewPage'));
 const ProductsPage = lazy(() => import('@/pages/products/ProductsPage'));
 const BulkUploadPage = lazy(() => import('@/pages/products/BulkUploadPage'));
 const BillingPage = lazy(() => import('@/pages/billing/BillingPage'));
@@ -107,6 +108,7 @@ export default function App() {
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="team" element={<TeamDashboardPage />} />
                 <Route path="reports" element={<ReportPage />} />
+                <Route path="preview" element={<PreviewPage />} />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="tasks" element={<AdminTasksPage />} />
                 <Route path="customers/new" element={<CustomerFormPage />} />

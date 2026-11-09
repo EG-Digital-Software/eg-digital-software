@@ -395,7 +395,7 @@ export default function ClientLicencesPage() {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="tbl" style={{ minWidth: 1040 }}>
+            <table className="tbl">
               <thead>
                 <tr>
                   <th>Product</th>

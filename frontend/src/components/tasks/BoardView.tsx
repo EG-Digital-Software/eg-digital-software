@@ -50,12 +50,12 @@ export function BoardView({
   }
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] items-start gap-4 pb-4">
       {buckets.map((bucket, bi) => (
         <div
           key={bucket.id}
           className={cn(
-            'flex w-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition',
+            'flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition',
             overBucket === bucket.id && 'ring-2 ring-primary/60 ring-offset-1'
           )}
           onDragOver={(e) => {
@@ -166,7 +166,7 @@ export function BoardView({
 
       {/* Add column */}
       {!readOnly && (
-        <div className="w-72 shrink-0">
+        <div className="min-w-0">
           {addingBucket ? (
             <div className="rounded-xl bg-secondary/40 p-2">
               <Input

@@ -402,7 +402,7 @@ export default function BulkUploadPage() {
 
           {result.errors.length > 0 && (
             <div style={{ overflowX: 'auto', borderTop: '1px solid rgba(var(--w),.06)' }}>
-              <table className="tbl" style={{ minWidth: 560 }}>
+              <table className="tbl">
                 <thead>
                   <tr>
                     <th style={{ width: 80 }}>Row</th>

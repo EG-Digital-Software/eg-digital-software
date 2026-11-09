@@ -1972,7 +1972,7 @@ function AccessPointPanel({
         <p className="py-6 text-center text-sm text-muted-foreground">No access points yet.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px] border-collapse text-sm">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th className="px-2 py-2">Uploaded By</th>
@@ -2593,7 +2593,7 @@ function ApprovalPanel({
         <p className="py-6 text-center text-sm text-muted-foreground">No approval requests yet.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-sm">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th className="whitespace-nowrap px-2 py-2">Submitted</th>
