@@ -54,7 +54,7 @@ const DEFAULTS: PaymentSettings = {
   upiId: '',
   bankTransferEnabled: false,
   bankName: '',
-  accountName: 'EG Eloma Australia Pty Ltd',
+  accountName: 'EG Eloma',
   bsb: '',
   accountNumber: '',
   payInstructions: '',
@@ -213,7 +213,7 @@ const ORG_KEY = 'organisation';
 
 const ORG_DEFAULTS: OrganisationSettings = {
   companyName: 'EG Eloma',
-  legalName: 'EG Eloma Australia Pty Ltd',
+  legalName: 'EG Eloma',
   abn: '76593175012',
   addressLine1: '71 Gipps Street',
   addressLine2: '',

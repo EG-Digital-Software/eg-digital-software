@@ -26,7 +26,7 @@ export const brand = {
   },
   /** Seller / issuing entity — printed on every tax invoice. */
   seller: {
-    legalName: 'EG Eloma Australia Pty Ltd',
+    legalName: 'EG Eloma',
     addressLines: ['71 Gipps Street', 'Collingwood VIC 3066'],
     abn: '76 593 175 012',
     billingEmail: 'connect@egdigital.com.au',
