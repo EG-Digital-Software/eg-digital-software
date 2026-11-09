@@ -7,11 +7,6 @@
     "scheme": "egeloma",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/eg-eloma-mark-light.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B1F3A"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "org.elomagroup.egdigital",
@@ -34,6 +29,17 @@
         {
           "photosPermission": "Choose photos and videos to share in task chats.",
           "cameraPermission": "Take photos to share in task chats."
+        }
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/eg-eloma-mark-light.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0B1F3A"
         }
       ]
     ],

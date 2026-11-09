@@ -8,7 +8,6 @@ import { colors, spacing, radius, typography } from '../theme';
 
 const PORTALS: { value: Portal; label: string }[] = [
   { value: 'CLIENT', label: 'Client' },
-  { value: 'EMPLOYEE', label: 'Team' },
   { value: 'SUPER_ADMIN', label: 'Admin' },
 ];
 

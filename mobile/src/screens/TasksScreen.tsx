@@ -169,7 +169,7 @@ export default function TasksScreen() {
         ListHeaderComponent={header}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={board.isRefetching} onRefresh={() => board.refetch()} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={board.isRefetching} onRefresh={() => { void board.refetch(); }} tintColor={colors.primary} />}
         ListEmptyComponent={
           body ?? (
             <EmptyState

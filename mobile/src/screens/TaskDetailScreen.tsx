@@ -49,7 +49,7 @@ export default function TaskDetailScreen() {
       style={styles.safe}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} tintColor={colors.primary} />}
+      refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => { void q.refetch(); }} tintColor={colors.primary} />}
     >
       <Text style={[typography.h1, { fontSize: 24 }]}>{task.title}</Text>
       <View style={styles.badges}>

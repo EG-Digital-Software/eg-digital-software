@@ -62,7 +62,7 @@ export default function TaskChatScreen() {
   const [menuFor, setMenuFor] = useState<TaskComment | null>(null);
   // Picked @mentions: shown as "@Name" while typing, swapped for tokens on send.
   const [mentionPicks, setMentionPicks] = useState<{ display: string; token: string }[]>([]);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   useEffect(() => {
     if (task) nav.setOptions({ title: task.title });
@@ -202,7 +202,7 @@ export default function TaskChatScreen() {
               <Ionicons name="chatbubbles-outline" size={28} color={colors.accent} />
               <Text style={[typography.caption, { marginTop: 6 }]}>No messages yet — start the conversation.</Text>
             </View>
-          ) : null
+          ) : undefined
         }
         renderItem={({ item, index }) => {
           if (item.type === 'day') {

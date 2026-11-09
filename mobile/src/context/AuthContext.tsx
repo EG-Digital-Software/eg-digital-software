@@ -6,7 +6,8 @@ import type { Role, User } from '../api/types';
 import { loadSeen } from '../lib/seen';
 
 /** Portals that have tasks. Suppliers have no task board. */
-export type Portal = 'CLIENT' | 'EMPLOYEE' | 'SUPER_ADMIN';
+// Team (EMPLOYEE) accounts can't use the mobile app — they sign in on the web portal.
+export type Portal = 'CLIENT' | 'SUPER_ADMIN';
 
 interface AuthState {
   ready: boolean;
@@ -60,7 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const raw = await SecureStore.getItemAsync(TOKENS_KEY);
         const rawUser = await AsyncStorage.getItem(USER_KEY);
-        if (raw && rawUser) {
+        if (raw && rawUser && (JSON.parse(rawUser) as User).role === 'EMPLOYEE') {
+          // A team session saved before the app dropped team login.
+          setSession(null);
+        } else if (raw && rawUser) {
           const t = JSON.parse(raw) as { a: string; r: string | null };
           setSession({ user: JSON.parse(rawUser) as User, accessToken: t.a, refreshToken: t.r });
           // Validate (and refresh, if the access token expired while closed).
@@ -87,6 +91,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: { email: email.trim(), password, portal },
       noRetry: true,
     });
+    if (data.user.role === 'EMPLOYEE') {
+      throw new Error('Team accounts can’t sign in on the app. Please use the web portal.');
+    }
     setSession({ user: data.user, accessToken: data.accessToken, refreshToken: data.refreshToken ?? null });
   };
 
