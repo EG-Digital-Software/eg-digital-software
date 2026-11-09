@@ -68,7 +68,7 @@ export function licenceGroupNet(group: LicenceGroup): number {
 /**
  * How many of a product's charge periods the billed days cover. The agreed price
  * is per the product's "Charged" period: DAILY bills it for every billed day,
- * WEEKLY per 7 days, ANNUALLY per 365 days. Anything else (monthly, or not set)
+ * WEEKLY per 7 days, ANNUALLY per 365 days, ONE_TIME in full. Anything else (monthly, or not set)
  * is pro-rated by the billed days over the month. Mirrors the backend's
  * periodFactor.
  */
@@ -80,6 +80,9 @@ export function periodFactor(billingPeriod: string | null | undefined, proration
       return proration.billedDays / 7;
     case 'ANNUALLY':
       return proration.billedDays / 365;
+    case 'ONE_TIME':
+      // A one-off charge bills in full — it is never pro-rated.
+      return 1;
     default:
       return proration.fraction;
   }
@@ -144,6 +147,13 @@ function addDays(d: Date, n: number): Date {
   return x;
 }
 
+/** Today at local midnight — a bare `new Date()` carries the time of day, which
+ *  throws whole-day counts off by one after noon. */
+export function today(): Date {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 /** Parse a "YYYY-MM-DD" form value as a local date (never UTC). */
 export function parseDateInput(value?: string | null): Date | null {
   if (!value) return null;
@@ -159,7 +169,7 @@ export function parseDateInput(value?: string | null): Date | null {
  * the term decides — it is independent of the billing period.
  */
 export function computeDueDate(invoiceDate?: string, term?: string | null): Date | null {
-  const start = parseDateInput(invoiceDate) ?? new Date();
+  const start = parseDateInput(invoiceDate) ?? today();
   if (isNaN(start.getTime())) return null;
   return addDays(start, termToDays(term));
 }
@@ -170,7 +180,7 @@ export function computeDueDate(invoiceDate?: string, term?: string | null): Date
  * day the next invoice is raised rather than as a payment term.
  */
 export function defaultNextBillingDate(invoiceDate?: string): Date | null {
-  const start = parseDateInput(invoiceDate) ?? new Date();
+  const start = parseDateInput(invoiceDate) ?? today();
   if (isNaN(start.getTime())) return null;
   return new Date(start.getFullYear(), start.getMonth() + 1, 1);
 }
@@ -193,7 +203,7 @@ export interface Proration {
  * bills proportionally more, which is what an admin overriding it intends.
  */
 export function computeProration(invoiceDate?: string, nextBillingDate?: string): Proration | null {
-  const start = parseDateInput(invoiceDate) ?? new Date();
+  const start = parseDateInput(invoiceDate) ?? today();
   if (isNaN(start.getTime())) return null;
   const next = parseDateInput(nextBillingDate) ?? defaultNextBillingDate(invoiceDate);
   if (!next) return null;

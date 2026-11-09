@@ -25,6 +25,7 @@ import {
   round2,
   fmtDay,
   toDateInput,
+  today,
   buildLicenceGroups,
   findLicenceGroup,
   licenceGroupBilled,
@@ -165,6 +166,9 @@ export function InvoiceForm({
     resolver: zodResolver(schema),
     defaultValues: {
       clientId: fixedClientId,
+      // Filled in so the billing period (and pro-rated prices) the admin sees is
+      // exactly what the server bills — a blank date left both sides guessing.
+      invoiceDate: toDateInput(today()),
       term: 'NET_7',
       discount: 0,
       items: [
@@ -299,7 +303,7 @@ export function InvoiceForm({
     onSuccess: (invoice) => {
       qc.invalidateQueries({ queryKey: ['invoices'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
-      toast.success('Invoice created');
+      toast.success('Invoice saved as a draft — click "Send to customer" to issue it');
       onSuccess(invoice);
     },
     onError: (err) => toast.error(apiErrorMessage(err)),

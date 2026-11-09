@@ -276,7 +276,7 @@ function AssignRolesForm({
   // What the picked roles add up to — edit on any role beats view.
   const granted: AccessMap = {};
   for (const r of roles.filter((r) => picked.has(r.id))) {
-    for (const [k, v] of Object.entries(r.access)) if (v === 'edit' || !granted[k]) granted[k] = v;
+    for (const [k, v] of Object.entries(r.access ?? {})) if (v === 'edit' || !granted[k]) granted[k] = v;
   }
   const summary = describeAccess(granted);
 

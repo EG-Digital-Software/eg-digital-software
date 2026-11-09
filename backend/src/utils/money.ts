@@ -48,7 +48,7 @@ export function computeLine(line: LineInput): LineResult {
 /**
  * How many of a product's charge periods `billedDays` cover. The agreed price is
  * per the product's "Charged" period: DAILY bills it for every billed day, WEEKLY
- * per 7 days, ANNUALLY per 365 days. Anything else (monthly, or not set) is
+ * per 7 days, ANNUALLY per 365 days, ONE_TIME in full. Anything else (monthly, or not set) is
  * pro-rated by the billed days over the month (`monthDays`). Mirrors periodFactor
  * in the frontend's lib/proration.
  */
@@ -60,6 +60,9 @@ export function periodFactor(billingPeriod: string | null | undefined, billedDay
       return billedDays / 7;
     case 'ANNUALLY':
       return billedDays / 365;
+    case 'ONE_TIME':
+      // A one-off charge bills in full — it is never pro-rated.
+      return 1;
     default:
       return billedDays / monthDays;
   }

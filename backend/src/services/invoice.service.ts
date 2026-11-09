@@ -222,6 +222,11 @@ function resolveDueDate(invoiceDate: Date, term?: string, customDays?: number, d
  * invoice date. Used when a caller does not supply one, so every invoice carries
  * the billing cycle it belongs to.
  */
+/** A date with its time of day cleared. */
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 function defaultNextBillingDate(invoiceDate: Date): Date {
   return new Date(invoiceDate.getFullYear(), invoiceDate.getMonth() + 1, 1);
 }
@@ -392,11 +397,38 @@ function snapshotLineProducts(
   }));
 }
 
+/** Tell the customer's linked, active client logins that an invoice was issued. */
+async function notifyClientUsers(
+  customerId: string,
+  invoiceId: string,
+  invoiceNumber: string,
+  currency: string,
+  total: string
+) {
+  const clientUsers = await prisma.clientUser.findMany({
+    where: { customerId, isActive: true },
+    select: { id: true },
+  });
+  for (const u of clientUsers) {
+    notify({
+      userId: u.id,
+      userType: 'CLIENT',
+      type: 'invoice',
+      title: 'New invoice issued',
+      body: `${invoiceNumber} — ${currency} ${total}`,
+      link: `/client/invoices/${invoiceId}`,
+      entityType: 'Invoice',
+      entityId: invoiceId,
+    });
+  }
+}
+
 export async function createInvoice(input: CreateInput) {
   const customer = await prisma.customer.findUnique({ where: { clientId: input.clientId } });
   if (!customer) throw ApiError.notFound('Customer not found');
 
-  const invoiceDate = input.invoiceDate ?? new Date();
+  // Date only — a time of day would skew the billed-day count against the form's.
+  const invoiceDate = startOfDay(input.invoiceDate ?? new Date());
   const dueDate = resolveDueDate(invoiceDate, input.term, input.customDays, input.dueDate);
   const nextBillingDate = input.nextBillingDate ?? defaultNextBillingDate(invoiceDate);
   const totals = computeInvoiceTotals(input.items, input.discount);
@@ -428,7 +460,9 @@ export async function createInvoice(input: CreateInput) {
         discount: totals.discount,
         total: totals.total,
         currency: customer ? 'AUD' : 'AUD',
-        status: (input.status as InvoiceStatus) ?? InvoiceStatus.PENDING,
+        // A new invoice stays a DRAFT — hidden from the client's portal and
+        // never emailed — until the admin clicks "Send to customer".
+        status: (input.status as InvoiceStatus) ?? InvoiceStatus.DRAFT,
         notes: input.notes,
         items: {
           create: input.items.map((it) => {
@@ -467,22 +501,10 @@ export async function createInvoice(input: CreateInput) {
   });
   const qr = await generateQrDataUrl(payment.paymentUrl);
 
-  // Notify the customer's linked client users (if any).
-  const clientUsers = await prisma.clientUser.findMany({
-    where: { customerId: customer.id, isActive: true },
-    select: { id: true },
-  });
-  for (const u of clientUsers) {
-    notify({
-      userId: u.id,
-      userType: 'CLIENT',
-      type: 'invoice',
-      title: 'New invoice issued',
-      body: `${invoice.invoiceNumber} — ${invoice.currency} ${totals.total.toString()}`,
-      link: `/client/invoices/${invoice.id}`,
-      entityType: 'Invoice',
-      entityId: invoice.id,
-    });
+  // Only an invoice that has been issued reaches the client's portal; a draft
+  // notifies them when it is sent (see sendInvoiceEmail).
+  if (invoice.status !== InvoiceStatus.DRAFT) {
+    await notifyClientUsers(customer.id, invoice.id, invoice.invoiceNumber, invoice.currency, totals.total.toString());
   }
 
   return prisma.invoice.update({
@@ -568,6 +590,16 @@ export async function sendInvoiceEmail(id: string): Promise<{ recipients: string
   // Once it's out the door it's no longer a draft.
   if (invoice.status === InvoiceStatus.DRAFT || invoice.status === InvoiceStatus.PENDING) {
     await prisma.invoice.update({ where: { id }, data: { status: InvoiceStatus.SENT } });
+  }
+  // A draft only now becomes visible in the client's portal — tell them.
+  if (invoice.status === InvoiceStatus.DRAFT) {
+    await notifyClientUsers(
+      invoice.customerId,
+      invoice.id,
+      invoice.invoiceNumber,
+      invoice.currency,
+      invoice.total.toString()
+    );
   }
 
   const recipients = [primary, ...cc];

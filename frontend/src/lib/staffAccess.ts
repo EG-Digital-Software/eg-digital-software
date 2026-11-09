@@ -64,7 +64,7 @@ export function levelFor(access: AccessMap, key: string): AccessLevel | null {
 }
 
 /** Short human summary of what a role grants, e.g. "Customers (Overview · view, Task · edit)". */
-export function describeAccess(access: AccessMap): { key: string; label: string }[] {
+export function describeAccess(access: AccessMap = {}): { key: string; label: string }[] {
   return STAFF_TABS.flatMap((t) => {
     const sections = STAFF_SECTIONS[t.key];
     if (!sections) {

@@ -91,13 +91,16 @@ function unpaidWhere(customerId: string): Prisma.InvoiceWhereInput {
   };
 }
 
+/** Drafts have not been sent yet, so the client never sees them. */
+const ISSUED = { status: { not: InvoiceStatus.DRAFT } } satisfies Prisma.InvoiceWhereInput;
+
 const balanceOf = (agg: {
   _sum: { total: Prisma.Decimal | null; amountPaid: Prisma.Decimal | null };
 }) => Number((Number(agg._sum.total ?? 0) - Number(agg._sum.amountPaid ?? 0)).toFixed(2));
 
 export async function getDashboard(customerId: string) {
   const [invoiceAgg, outstandingAgg, overdueAgg, invoiceCount, customerProducts] = await Promise.all([
-    prisma.invoice.aggregate({ _sum: { total: true, amountPaid: true }, where: { customerId } }),
+    prisma.invoice.aggregate({ _sum: { total: true, amountPaid: true }, where: { customerId, ...ISSUED } }),
     prisma.invoice.aggregate({
       _sum: { total: true, amountPaid: true },
       _count: true,
@@ -108,7 +111,7 @@ export async function getDashboard(customerId: string) {
       _count: true,
       where: { AND: [unpaidWhere(customerId), { dueDate: { lt: new Date() } }] },
     }),
-    prisma.invoice.count({ where: { customerId } }),
+    prisma.invoice.count({ where: { customerId, ...ISSUED } }),
     prisma.customerProduct.findMany({ where: { customerId }, select: { expiryDate: true, status: true } }),
   ]);
 
@@ -143,7 +146,7 @@ export async function listInvoices(
     search?: string;
   } = {}
 ) {
-  const and: Prisma.InvoiceWhereInput[] = [{ customerId }];
+  const and: Prisma.InvoiceWhereInput[] = [{ customerId }, ISSUED];
   if (params.status) and.push({ status: params.status as InvoiceStatus });
 
   switch (params.filter) {
@@ -183,9 +186,9 @@ export async function listInvoices(
 export async function getInvoice(customerId: string, invoiceId: string) {
   const owned = await prisma.invoice.findUnique({
     where: { id: invoiceId },
-    select: { customerId: true },
+    select: { customerId: true, status: true },
   });
-  if (!owned || owned.customerId !== customerId) throw ApiError.notFound('Invoice not found');
+  if (!owned || owned.customerId !== customerId || owned.status === InvoiceStatus.DRAFT) throw ApiError.notFound('Invoice not found');
 
   // Ensure a scannable QR + pay link exists (backfills older invoices).
   await ensurePayable(invoiceId);
