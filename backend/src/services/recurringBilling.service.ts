@@ -130,7 +130,8 @@ async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
       const discount = Number(cp.discountPercent) || 0;
       // The agreed price is per the product's charge period (daily, weekly,
       // annual or monthly) — see periodFactor.
-      const bp = cp.product.billingPeriod;
+      // An admin-set price basis (per day / per month) wins over the product's own.
+      const bp = cp.priceBasis ?? cp.product.billingPeriod;
       const byDays = bp === 'DAILY' || bp === 'WEEKLY' || bp === 'ANNUALLY';
       const factor = periodFactor(bp, period.billedDays, period.monthDays);
       const net = round2((Number(cp.price) || 0) * (1 - discount / 100) * units * factor);

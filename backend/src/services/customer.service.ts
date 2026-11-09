@@ -492,6 +492,7 @@ type CreateInput = {
     productId: string;
     price?: number;
     discountPercent?: number;
+    priceBasis?: 'DAILY' | 'MONTHLY' | null;
     unit?: string;
     unitHoursEnabled?: boolean;
     unitHours?: number;
@@ -823,6 +824,7 @@ async function assignProducts(
         productId: ap.productId,
         price: new Prisma.Decimal(price),
         discountPercent: new Prisma.Decimal(ap.discountPercent ?? 0),
+        priceBasis: ap.priceBasis ?? null,
         unit: ap.unit ?? null,
         unitHoursEnabled: ap.unitHoursEnabled ?? false,
         unitHours: ap.unitHours != null ? new Prisma.Decimal(ap.unitHours) : null,
@@ -923,6 +925,7 @@ export async function updateCustomerProduct(
     productId?: string;
     price?: number;
     discountPercent?: number;
+    priceBasis?: 'DAILY' | 'MONTHLY' | null;
     unit?: string;
     taxRate?: number;
     contractType?: 'LOCKED' | 'TRIAL';
@@ -965,6 +968,7 @@ export async function updateCustomerProduct(
         ...(input.productId ? { productId: input.productId } : {}),
         ...(input.price !== undefined ? { price: new Prisma.Decimal(input.price) } : {}),
         ...(input.discountPercent !== undefined ? { discountPercent: new Prisma.Decimal(input.discountPercent) } : {}),
+        ...(input.priceBasis !== undefined ? { priceBasis: input.priceBasis } : {}),
         ...(input.unit !== undefined ? { unit: input.unit || null } : {}),
         ...(input.taxRate !== undefined ? { taxRate: new Prisma.Decimal(input.taxRate) } : {}),
         ...(input.contractType !== undefined ? { contractType: input.contractType } : {}),
@@ -1040,6 +1044,7 @@ export async function updateProductGroup(
       productId: string;
       price?: number;
       discountPercent?: number;
+      priceBasis?: 'DAILY' | 'MONTHLY' | null;
       unitHoursEnabled?: boolean;
       unitHours?: number;
     }>;
@@ -1107,6 +1112,7 @@ export async function updateProductGroup(
                   ))
           ),
           discountPercent: new Prisma.Decimal(p.discountPercent ?? Number(cur?.discountPercent ?? 0)),
+          priceBasis: p.priceBasis !== undefined ? p.priceBasis : (cur?.priceBasis ?? null),
           contractType: input.contractType ?? cur?.contractType ?? 'LOCKED',
           gstType: input.gstType ?? cur?.gstType ?? 'EXCLUSIVE',
           invoicingTerm:

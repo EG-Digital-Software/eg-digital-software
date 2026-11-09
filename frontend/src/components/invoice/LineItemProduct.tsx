@@ -1,6 +1,22 @@
 import { Select } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/utils';
-import { productUnits, productBilled, findLicenceGroup, type LicenceGroup, type Proration } from '@/lib/proration';
+import {
+  productUnits,
+  productBilled,
+  chargePeriod,
+  findLicenceGroup,
+  type LicenceGroup,
+  type Proration,
+} from '@/lib/proration';
+
+/** "/day", "/month"… after an agreed price, so it's clear what it is per. */
+const PER: Record<string, string> = {
+  DAILY: '/day',
+  WEEKLY: '/week',
+  MONTHLY: '/month',
+  ANNUALLY: '/year',
+  ONE_TIME: ' one-time',
+};
 
 /**
  * The line-item "Product" field shared by the invoice create and edit forms, so
@@ -85,7 +101,11 @@ export function LineItemProduct({
                     up perfectly across every product. */}
                 <div className="grid grid-cols-3 gap-3 tabular-nums">
                   <span>
-                    Agreed: <span className="text-foreground">{formatCurrency(Number(cp.price) || 0)}</span>
+                    Agreed:{' '}
+                    <span className="text-foreground">
+                      {formatCurrency(Number(cp.price) || 0)}
+                      {PER[chargePeriod(cp) ?? ''] ?? '/month'}
+                    </span>
                     {Number(cp.discountPercent) > 0 && (
                       <span className="ml-1 text-emerald-600">−{Number(cp.discountPercent)}%</span>
                     )}

@@ -112,6 +112,8 @@ export interface CustomerProduct {
   price: string;
   /** Percentage taken off the agreed price (0–100), before GST. */
   discountPercent?: string | null;
+  /** What an admin-set agreed price is per (null = the product's own period). */
+  priceBasis?: 'DAILY' | 'MONTHLY' | null;
   unit?: string | null;
   /** Optional Unit/Hours multiplier (shared across a licence group). */
   unitHoursEnabled?: boolean;

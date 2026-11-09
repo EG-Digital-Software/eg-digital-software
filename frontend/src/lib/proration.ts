@@ -88,10 +88,16 @@ export function periodFactor(billingPeriod: string | null | undefined, proration
   }
 }
 
+/** The period an assignment's agreed price is per: the admin-set price basis
+ *  (per day / per month) when there is one, else the product's own. */
+export function chargePeriod(cp: CustomerProduct): string | null | undefined {
+  return cp.priceBasis ?? cp.product?.billingPeriod;
+}
+
 /** What a product bills for this invoice's period (see periodFactor). */
 export function productBilled(cp: CustomerProduct, proration: Proration | null): number {
   if (!proration) return productNet(cp);
-  return productNet(cp) * periodFactor(cp.product?.billingPeriod, proration);
+  return productNet(cp) * periodFactor(chargePeriod(cp), proration);
 }
 
 /** What a licence group bills for this invoice's period (sum of its products). */

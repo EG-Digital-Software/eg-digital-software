@@ -1014,6 +1014,9 @@ const cpUnits = (cp: CustomerProduct) => (cp.unitHoursEnabled ? Number(cp.unitHo
 const cpDiscount = (cp: CustomerProduct) => Number(cp.discountPercent) || 0;
 /** Net before GST = agreed price less discount × Qty/Hours. */
 const cpNet = (cp: CustomerProduct) => (Number(cp.price) || 0) * (1 - cpDiscount(cp) / 100) * cpUnits(cp);
+/** " / day" or " / month" after an agreed price the admin set a basis for. */
+const cpBasisSuffix = (cp: CustomerProduct) =>
+  cp.priceBasis === 'DAILY' ? ' / day' : cp.priceBasis === 'MONTHLY' ? ' / month' : '';
 
 const EMPTY_ASSIGN = {
   productId: '',
@@ -1026,6 +1029,8 @@ const EMPTY_ASSIGN = {
   issueDate: '',
   expiryDate: '',
 };
+
+type PriceBasis = 'DAILY' | 'MONTHLY';
 
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -1313,6 +1318,10 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
   const [units, setUnits] = useState<Record<string, string>>({});
   // Per-product Discount % (productId -> string), taken off the agreed price.
   const [discounts, setDiscounts] = useState<Record<string, string>>({});
+  // Per-product price basis (productId -> 'DAILY' | 'MONTHLY'). Asked for once
+  // the admin types an agreed price different from the product's own: per day
+  // bills price × remaining days, per month pro-rates it by the remaining days.
+  const [bases, setBases] = useState<Record<string, PriceBasis>>({});
   // Advance recurring billing for this licence group. When on, invoices
   // auto-generate at the start of each billing period and email to the client.
   const [advancePay, setAdvancePay] = useState(false);
@@ -1352,6 +1361,18 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
   // Discount % for a ticked product, clamped to 0–100.
   const discountOf = (id: string) => Math.min(100, Math.max(0, Number(discounts[id]) || 0));
 
+  // The product's own list price, and whether the agreed price was set by hand
+  // (differs from it) — only then is the admin asked what the price is per.
+  const productOf = (id: string) => products?.items.find((p) => p.id === id);
+  const listPriceOf = (id: string) => Number(productOf(id)?.pricePerQty) || 0;
+  const showBasis = (id: string) =>
+    !!bases[id] || (selected[id] !== '' && selected[id] !== undefined && Number(selected[id]) !== listPriceOf(id));
+  const basisOf = (id: string): PriceBasis =>
+    bases[id] || (productOf(id)?.billingPeriod === 'DAILY' ? 'DAILY' : 'MONTHLY');
+  // What to save: the chosen basis for a hand-set price, else null so the
+  // product's own charge period applies.
+  const priceBasisFor = (id: string): PriceBasis | null => (showBasis(id) ? basisOf(id) : null);
+
   // Each product's net = its agreed price less discount × its own Qty/Hours
   // (default 1) + GST.
   const total = selectedIds.reduce(
@@ -1381,6 +1402,7 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
         unitHoursEnabled: true,
         unitHours: Number(units[id]) || 1,
         discountPercent: discountOf(id),
+        priceBasis: priceBasisFor(id),
         ...(selected[id] !== '' ? { price: Number(selected[id]) } : {}),
         ...(selectedIds.length === 1 && form.licence.trim() ? { licence: form.licence.trim() } : {}),
       }));
@@ -1393,6 +1415,7 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
       setSelected({});
       setUnits({});
       setDiscounts({});
+      setBases({});
       setAdvancePay(false);
       setAdding(false);
     },
@@ -1409,6 +1432,7 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
         productId: id,
         price: Number(selected[id]) || 0,
         discountPercent: discountOf(id),
+        priceBasis: priceBasisFor(id),
         // Qty/Hours is per product (defaults to 1).
         unitHoursEnabled: true,
         unitHours: Number(units[id]) || 1,
@@ -1432,6 +1456,7 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
       setSelected({});
       setUnits({});
       setDiscounts({});
+      setBases({});
       setAdvancePay(false);
       setEditingKey(null);
     },
@@ -1451,6 +1476,11 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
     );
     setDiscounts(
       Object.fromEntries(group.items.map((cp) => [cp.product.id, cpDiscount(cp) ? String(cpDiscount(cp)) : '']))
+    );
+    setBases(
+      Object.fromEntries(
+        group.items.filter((cp) => cp.priceBasis).map((cp) => [cp.product.id, cp.priceBasis as PriceBasis])
+      )
     );
     setAdvancePay(rep.advancePayment ?? false);
     setForm({
@@ -1472,6 +1502,7 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
     setSelected({});
     setUnits({});
     setDiscounts({});
+    setBases({});
     setAdvancePay(false);
   }
   const toggleProduct = (id: string) => {
@@ -1502,6 +1533,12 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
     setDiscounts((d) => {
       if (!picked) return d;
       const { [id]: _drop, ...rest } = d;
+      void _drop;
+      return rest;
+    });
+    setBases((b) => {
+      if (!picked) return b;
+      const { [id]: _drop, ...rest } = b;
       void _drop;
       return rest;
     });
@@ -1585,6 +1622,22 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
                                   placeholder="0.00"
                                   className="h-8 w-24"
                                 />
+                                {/* A hand-set price: is it per day (× remaining
+                                    days) or per month (pro-rated by remaining
+                                    days)? Drives what the invoice bills. */}
+                                {showBasis(p.id) && (
+                                  <Select
+                                    aria-label="Price per"
+                                    value={basisOf(p.id)}
+                                    onChange={(e) =>
+                                      setBases((b) => ({ ...b, [p.id]: e.target.value as PriceBasis }))
+                                    }
+                                    className="h-8 w-28"
+                                  >
+                                    <option value="DAILY">Per day</option>
+                                    <option value="MONTHLY">Per month</option>
+                                  </Select>
+                                )}
                                 <span className="text-xs text-muted-foreground">Discount %</span>
                                 <Input
                                   type="number"
@@ -1758,7 +1811,10 @@ function ProductsTab({ customer, readOnly = false }: { customer: Customer; readO
                       <TableCell className="whitespace-nowrap text-center text-sm font-medium tabular-nums align-top">
                         <div className="space-y-1">
                           {group.items.map((it) => (
-                            <div key={it.id}>{formatCurrency(it.price)}</div>
+                            <div key={it.id}>
+                              {formatCurrency(it.price)}
+                              {cpBasisSuffix(it)}
+                            </div>
                           ))}
                         </div>
                       </TableCell>
@@ -1938,7 +1994,10 @@ function LicenceGroupDetailsDialog({
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(cp.price)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {formatCurrency(cp.price)}
+                          {cpBasisSuffix(cp)}
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums">{cpDiscount(cp) ? `${cpDiscount(cp)}%` : '—'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{cpUnits(cp)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(net)}</td>

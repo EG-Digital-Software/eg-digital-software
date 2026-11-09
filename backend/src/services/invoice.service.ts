@@ -264,6 +264,7 @@ type Assignment = {
   productId: string;
   price: Prisma.Decimal;
   discountPercent: Prisma.Decimal | null;
+  priceBasis: string | null;
   unit: string | null;
   unitHoursEnabled: boolean;
   unitHours: Prisma.Decimal | null;
@@ -296,6 +297,7 @@ async function loadAssignments(
       productId: true,
       price: true,
       discountPercent: true,
+      priceBasis: true,
       unit: true,
       unitHoursEnabled: true,
       unitHours: true,
@@ -336,7 +338,10 @@ function billedPeriod(invoiceDate: Date, nextBillingDate: Date): BilledPeriod {
  */
 function assignmentBilled(a: Assignment, period: BilledPeriod): Money {
   if (period.billedDays <= 0) return assignmentNet(a);
-  return assignmentNet(a).mul(periodFactor(a.product.billingPeriod, period.billedDays, period.periodDays));
+  // An admin-set price basis (per day / per month) wins over the product's own.
+  return assignmentNet(a).mul(
+    periodFactor(a.priceBasis ?? a.product.billingPeriod, period.billedDays, period.periodDays)
+  );
 }
 
 /**

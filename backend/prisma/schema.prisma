@@ -530,6 +530,10 @@ model CustomerProduct {
   /// Percentage taken off the agreed price (0–100). The billed net is
   /// agreed price × (1 − discount/100) × Unit/Hours, before GST.
   discountPercent  Decimal       @default(0) @db.Decimal(5, 2)
+  /// What the agreed price is per when an admin set it by hand: DAILY (billed
+  /// per remaining day) or MONTHLY (pro-rated by the remaining days of the
+  /// month). Null = follow the product's own "Charged" period.
+  priceBasis       String?
   unit             String?
   /// Optional Unit/Hours multiplier. When enabled, the total is agreed price ×
   /// unitHours (+ GST); when disabled it is the agreed price as-is. Shared across
