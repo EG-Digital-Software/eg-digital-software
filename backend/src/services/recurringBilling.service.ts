@@ -103,6 +103,9 @@ async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
   const term = group[0]?.invoicingTerm ?? null;
   const clientId = group[0]?.customer.clientId;
   if (!cursor || !clientId) return 0;
+  // The customer's latest invoice was deleted, so automatic invoicing is paused
+  // until an admin raises their next invoice (see Customer.autoInvoicePausedAt).
+  const paused = !!group[0]?.customer.autoInvoicePausedAt;
 
   const today = endOfDay(asOf);
   // Stop once the period start passes the licence expiry, if any.
@@ -116,6 +119,11 @@ async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
       break;
     }
     const period = computePeriod(cursor);
+    if (paused) {
+      // Let the period pass unbilled, so nothing piles up to catch up on later.
+      cursor = period.nextStart;
+      continue;
+    }
 
     const items = group.map((cp) => {
       const units = cp.unitHoursEnabled ? Number(cp.unitHours) || 0 : 1;
@@ -143,18 +151,39 @@ async function billGroup(group: CpWithRels[], asOf: Date): Promise<number> {
       };
     });
 
+    // Claim the period before raising it: the group's cursor (held on its first
+    // row) advances only if no other run — a second instance, an overlapping
+    // restart — has advanced it first, so a period can never be invoiced twice.
+    const lead = group[0].id;
+    const claimed = await prisma.customerProduct.updateMany({
+      where: { id: lead, nextInvoiceDate: cursor },
+      data: { nextInvoiceDate: period.nextStart },
+    });
+    if (!claimed.count) return made; // another run got here first
+
     // Dated at the period start, carrying the next period's start as its billing
     // cycle. The due date is left to the term's payment window (resolveDueDate).
-    const invoice = await createInvoice({
-      clientId,
-      invoiceDate: period.start,
-      nextBillingDate: period.nextStart,
-      term: term ?? undefined,
-      discount: 0,
-      status: 'SENT',
-      notes: `Advance billing — ${fmtDay(period.start)} to ${fmtDay(period.end)}`,
-      items,
-    });
+    let invoice;
+    try {
+      invoice = await createInvoice({
+        clientId,
+        invoiceDate: period.start,
+        nextBillingDate: period.nextStart,
+        term: term ?? undefined,
+        discount: 0,
+        status: 'SENT',
+        auto: true,
+        notes: `Advance billing — ${fmtDay(period.start)} to ${fmtDay(period.end)}`,
+        items,
+      });
+    } catch (err) {
+      // Nothing was raised — release the claim so the next run retries.
+      await prisma.customerProduct.updateMany({
+        where: { id: lead, nextInvoiceDate: period.nextStart },
+        data: { nextInvoiceDate: cursor },
+      });
+      throw err;
+    }
     made++;
 
     // Email the client (best-effort — the invoice already exists and is payable

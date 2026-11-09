@@ -244,6 +244,8 @@ type CreateInput = {
   discount: number;
   notes?: string;
   status?: 'DRAFT' | 'SENT' | 'PENDING';
+  /** Raised by a scheduled job (rollover / advance billing), not by an admin. */
+  auto?: boolean;
   items: Array<{
     productId?: string;
     sku?: string;
@@ -487,6 +489,12 @@ export async function createInvoice(input: CreateInput) {
       },
     });
 
+    // An admin raising an invoice by hand resumes automatic invoicing that a
+    // deleted invoice paused.
+    if (!input.auto && customer.autoInvoicePausedAt) {
+      await tx.customer.update({ where: { id: customer.id }, data: { autoInvoicePausedAt: null } });
+    }
+
     return created;
   });
 
@@ -719,17 +727,38 @@ export async function updateStatus(id: string, status: InvoiceStatus) {
 
 /**
  * Permanently delete an invoice (admin only). Line items cascade automatically;
- * any recorded payments are removed first in the same transaction (the Payment
- * → Invoice relation has no cascade), so no orphan rows are left behind.
+ * any recorded payments and the invoice's notifications are removed in the same
+ * transaction (the Payment → Invoice relation has no cascade), so no orphan rows
+ * are left behind. Deleting a customer's latest invoice also pauses their
+ * automatic invoicing (see Customer.autoInvoicePausedAt).
  */
 export async function deleteInvoice(id: string): Promise<{ invoiceNumber: string }> {
   const invoice = await prisma.invoice.findUniqueOrThrow({
     where: { id },
-    select: { id: true, invoiceNumber: true },
+    select: { id: true, invoiceNumber: true, customerId: true },
   });
   await prisma.$transaction(async (tx) => {
+    // Was this the invoice the daily rollover would raise the next one from?
+    const latest = await tx.invoice.findFirst({
+      where: { customerId: invoice.customerId, status: { not: InvoiceStatus.CANCELLED } },
+      orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
+      select: { id: true },
+    });
+
     await tx.payment.deleteMany({ where: { invoiceId: id } });
-    await tx.invoice.delete({ where: { id } }); // items cascade
+    await tx.invoice.delete({ where: { id } }); // items + per-product snapshots cascade
+    // Its "new invoice" / overdue / payment alerts would only link to nothing.
+    await tx.notification.deleteMany({ where: { entityType: 'Invoice', entityId: id } });
+
+    // Deleting the latest invoice ends the billing it started: no automatic
+    // invoice follows from it (or from the one before it) until an admin raises
+    // the customer's next invoice by hand.
+    if (latest?.id === id) {
+      await tx.customer.update({
+        where: { id: invoice.customerId },
+        data: { autoInvoicePausedAt: new Date() },
+      });
+    }
   });
   return { invoiceNumber: invoice.invoiceNumber };
 }
@@ -1134,14 +1163,19 @@ export async function runInvoiceRollover(
       nextBillingDate: true,
       term: true,
       customerId: true,
-      customer: { select: { clientId: true } },
+      customer: { select: { clientId: true, billedThrough: true, autoInvoicePausedAt: true } },
     },
   });
 
   for (const prev of latest) {
+    // Their latest invoice was deleted — wait for an admin to raise the next one.
+    if (prev.customer.autoInvoicePausedAt) continue;
     try {
       let from = prev.invoiceNumber;
       let start = prev.nextBillingDate ?? defaultNextBillingDate(prev.invoiceDate);
+      // Never roll back over a period an earlier run already billed.
+      let cursor = prev.customer.billedThrough;
+      if (cursor && cursor > start) start = cursor;
       // Capped so a bad date can never spin forever.
       for (let guard = 0; guard < 12 && start <= today; guard++) {
         const end = defaultNextBillingDate(start);
@@ -1178,16 +1212,37 @@ export async function runInvoiceRollover(
           break; // later periods depend on this one being raised
         }
 
-        const invoice = await createInvoice({
-          clientId: prev.customer.clientId,
-          invoiceDate: start,
-          nextBillingDate: end,
-          term: prev.term ?? undefined,
-          discount: 0,
-          status: 'SENT',
-          notes: `Advance billing — ${ymd(start)} to ${ymd(periodEnd)}`,
-          items,
+        // Claim the period before raising it: the cursor moves only if no other
+        // run (a second instance, an overlapping restart) has moved it first, so
+        // a period can never be invoiced twice.
+        const claimed = await prisma.customer.updateMany({
+          where: { id: prev.customerId, billedThrough: cursor },
+          data: { billedThrough: end },
         });
+        if (!claimed.count) break;
+
+        let invoice;
+        try {
+          invoice = await createInvoice({
+            clientId: prev.customer.clientId,
+            invoiceDate: start,
+            nextBillingDate: end,
+            term: prev.term ?? undefined,
+            discount: 0,
+            status: 'SENT',
+            auto: true,
+            notes: `Advance billing — ${ymd(start)} to ${ymd(periodEnd)}`,
+            items,
+          });
+        } catch (err) {
+          // Nothing was raised — release the claim so the next run retries.
+          await prisma.customer.updateMany({
+            where: { id: prev.customerId, billedThrough: end },
+            data: { billedThrough: cursor },
+          });
+          throw err;
+        }
+        cursor = end;
         entry.invoiceNumber = invoice.invoiceNumber;
         raised.push(entry);
         // Best-effort: the invoice exists and is payable in the portal even if

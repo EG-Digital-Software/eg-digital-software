@@ -341,6 +341,16 @@ model Customer {
   /// Set when an admin renews the account: until this moment the account reads
   /// as ACTIVE even without recent invoices. Null = never renewed.
   accountRenewedUntil DateTime?
+  /// Automatic invoices (rollover) have billed this customer up to, not
+  /// including, this date. Only ever moves forward, and each run claims its
+  /// period through it, so a period is never invoiced twice. Null = fall back
+  /// to the latest invoice's next billing date.
+  billedThrough       DateTime?
+  /// Set when the customer's latest invoice is deleted: automatic invoicing
+  /// (rollover and advance billing) stops for them, so nothing about the
+  /// deleted invoice comes back next month. Cleared when an admin creates the
+  /// customer's next invoice by hand. Null = automatic invoicing runs.
+  autoInvoicePausedAt DateTime?
   /// Team member (EmployeeUser) an admin assigns as this client's account
   /// manager — shown to the client in their portal. Optional.
   accountManagerId    String?

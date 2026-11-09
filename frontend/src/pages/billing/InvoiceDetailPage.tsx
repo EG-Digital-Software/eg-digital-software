@@ -310,7 +310,7 @@ export default function InvoiceDetailPage() {
         title="Delete this invoice?"
         description={`Permanently deletes ${invoice.invoiceNumber} and its line items${
           invoice.payments?.length ? ' and recorded payments' : ''
-        }. This cannot be undone.`}
+        }. If it is the customer's latest invoice, no automatic invoice follows from it — billing resumes when you create their next invoice. This cannot be undone.`}
         confirmLabel="Delete invoice"
         destructive
         loading={deleteInvoice.isPending}
