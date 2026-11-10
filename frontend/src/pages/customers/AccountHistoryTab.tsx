@@ -1,20 +1,16 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CreditCard, History, RefreshCw } from 'lucide-react';
+import { History, RefreshCw } from 'lucide-react';
 import { customerApi, type HistoryEvent, type HistoryKind, type HistorySummary } from '@/api/resources';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { LoadingBlock, ErrorState, EmptyState } from '@/components/shared/states';
 import { cn, formatDate } from '@/lib/utils';
 
-/** How each kind of event looks in the timeline, and its filter label. */
+/** How each kind of event looks in the timeline. */
 const KINDS: Record<HistoryKind, { label: string; icon: typeof History; tone: string }> = {
-  payment: { label: 'Paid', icon: CreditCard, tone: 'bg-emerald-500/10 text-emerald-600' },
   account: { label: 'Trial & Renewals', icon: RefreshCw, tone: 'bg-primary/10 text-primary' },
 };
-
-const FILTERS: Array<HistoryKind | 'all'> = ['all', 'payment', 'account'];
 
 const STATUS: Record<HistorySummary['status'], { label: string; variant: 'success' | 'warning' | 'muted' | 'destructive' }> = {
   ACTIVE: { label: 'Active', variant: 'success' },
@@ -34,11 +30,10 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
 
 /**
  * Account History — where the account stands today (trial or active, until
- * when), then a timeline of invoices paid and the account's trial and renewals:
+ * when), then a timeline of the account's trial and renewals:
  * when a trial started and how long it ran, and each renewal's length and dates.
  */
 export function AccountHistoryTab({ clientId }: { clientId: string }) {
-  const [filter, setFilter] = useState<HistoryKind | 'all'>('all');
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['customer', clientId, 'history'],
     queryFn: () => customerApi.history(clientId),
@@ -49,8 +44,6 @@ export function AccountHistoryTab({ clientId }: { clientId: string }) {
 
   const { summary, events } = data;
   const status = STATUS[summary.status];
-  const counts = events.reduce<Record<string, number>>((acc, e) => ({ ...acc, [e.kind]: (acc[e.kind] ?? 0) + 1 }), {});
-  const shown = filter === 'all' ? events : events.filter((e) => e.kind === filter);
 
   return (
     <div className="space-y-4">
@@ -82,34 +75,17 @@ export function AccountHistoryTab({ clientId }: { clientId: string }) {
           <CardTitle className="flex items-center gap-2 text-base">
             <History className="h-[18px] w-[18px] text-primary" /> Account History
           </CardTitle>
-          <div className="flex flex-wrap gap-1.5">
-            {FILTERS.map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setFilter(f)}
-                className={cn(
-                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                  filter === f
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:bg-secondary'
-                )}
-              >
-                {f === 'all' ? 'All' : KINDS[f].label} ({f === 'all' ? events.length : (counts[f] ?? 0)})
-              </button>
-            ))}
-          </div>
         </CardHeader>
         <CardContent>
-          {!shown.length ? (
+          {!events.length ? (
             <EmptyState
               icon={<History />}
               title="Nothing here yet"
-              description="Paid invoices, trials and renewals will appear here."
+              description="Trials and renewals will appear here."
             />
           ) : (
             <ol className="relative space-y-4 border-l border-border pl-6">
-              {shown.map((e: HistoryEvent) => {
+              {events.map((e: HistoryEvent) => {
                 const k = KINDS[e.kind];
                 const Icon = k.icon;
                 return (

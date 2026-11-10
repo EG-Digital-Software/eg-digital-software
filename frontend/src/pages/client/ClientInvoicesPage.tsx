@@ -292,7 +292,7 @@ export default function ClientInvoicesPage() {
                           </span>
                           {inv.reference && (
                             <div className="muted" style={{ fontSize: 12 }}>
-                              Ref {inv.reference}
+                              {inv.reference}
                             </div>
                           )}
                         </td>

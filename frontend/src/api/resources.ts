@@ -45,7 +45,7 @@ export const dashboardApi = {
 
 // ── Customers ────────────────────────────────────────────
 /** One entry on a customer's Account History timeline. */
-export type HistoryKind = 'payment' | 'account';
+export type HistoryKind = 'account';
 export interface HistoryEvent {
   id: string;
   at: string;

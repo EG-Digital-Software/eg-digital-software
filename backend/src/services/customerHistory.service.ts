@@ -1,21 +1,19 @@
-import { ActivityAction, CustomerAccountStatus, PaymentStatus, type Prisma } from '@prisma/client';
+import { ActivityAction, CustomerAccountStatus, type Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import { effectiveAccountStatus } from '../utils/accountStatus.js';
 
 /**
- * A customer's Account History: when invoices were paid, and the account's
- * standing over time — when a trial started and how long it ran, each renewal
+ * A customer's Account History: the account's standing over time — when a trial started and how long it ran, each renewal
  * (when, for how long, from and until), and other status changes — plus where
  * the account stands today. Newest first.
  *
- * Paid dates come from the payments themselves. Standing changes come from the
- * activity log (renewals, and status changes recorded from → to); an account
+ * Standing changes come from the activity log (renewals, and status changes recorded from → to); an account
  * that is on trial with no recorded start is taken to have started it when the
  * account was opened.
  */
 
-export type HistoryKind = 'payment' | 'account';
+export type HistoryKind = 'account';
 
 export interface HistoryEvent {
   id: string;
@@ -47,8 +45,6 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 /** 08 Sep 2026 */
 const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 
-const money = (v: Prisma.Decimal | number | string, currency = 'AUD') =>
-  `${currency} ${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const STATUS_LABEL: Record<CustomerAccountStatus, string> = {
   ACTIVE: 'Active',
@@ -75,37 +71,13 @@ export async function getCustomerHistory(
       accountStatus: true,
       accountRenewedUntil: true,
       invoices: {
-        select: {
-          id: true,
-          invoiceNumber: true,
-          invoiceDate: true,
-          payments: {
-            where: { status: PaymentStatus.SUCCESS },
-            select: { id: true, amount: true, currency: true, paymentMethod: true, paidAt: true, createdAt: true },
-          },
-        },
+        select: { invoiceDate: true },
       },
     },
   });
   if (!customer) throw ApiError.notFound('Customer not found');
 
   const events: HistoryEvent[] = [];
-
-  // ── Invoices paid ──
-  for (const inv of customer.invoices) {
-    for (const p of inv.payments) {
-      events.push({
-        id: `payment-${p.id}`,
-        at: p.paidAt ?? p.createdAt,
-        kind: 'payment',
-        title: `Invoice ${inv.invoiceNumber} paid`,
-        detail: [money(p.amount, p.currency), p.paymentMethod ? `via ${p.paymentMethod}` : null]
-          .filter(Boolean)
-          .join(' · '),
-        link: `/admin/billing/${inv.id}`,
-      });
-    }
-  }
 
   // ── Account standing, oldest first so each trial's start is known when it ends ──
   const logs = await prisma.activityLog.findMany({
@@ -125,6 +97,9 @@ export async function getCustomerHistory(
   };
   /** "Trial ran 26 Aug 2026 → 12 Nov 2026 (78 days)" for a trial ending at `end`. */
   const trialRan = (end: Date) => {
+    // No recorded start: the trial began when the account was opened. Put that
+    // start on the timeline too, so the trial sits below what ended it.
+    if (!trialStart) startTrial(`trial-${customer.id}`, customer.createdAt);
     const start = trialStart ?? customer.createdAt;
     trialStart = null;
     return `Trial ran ${fmt(start)} → ${fmt(end)} (${daysBetween(start, end)} days)`;
@@ -145,18 +120,20 @@ export async function getCustomerHistory(
       const endedTrial =
         statusOf(meta.previousStatus) === CustomerAccountStatus.ACTIVE_TRIAL ||
         (meta.previousStatus === undefined && trialStart !== null);
+      // The trial it ended gets its own entry, pushed after the renewal: the
+      // newest-first sort keeps same-time entries in order, so "Trial ended"
+      // lands just below the renewal and above "Trial started".
+      const trialDetail = endedTrial ? trialRan(l.createdAt) : null;
       events.push({
         id: `log-${l.id}`,
         at: l.createdAt,
         kind: 'account',
         title: `Account renewed for ${months} month${months === 1 ? '' : 's'}${until ? ` (${daysBetween(from, until)} days)` : ''}`,
-        detail: [
-          until ? `Active ${fmt(from)} → ${fmt(until)}` : null,
-          endedTrial ? trialRan(l.createdAt) : null,
-        ]
-          .filter(Boolean)
-          .join(' · '),
+        detail: until ? `Active ${fmt(from)} → ${fmt(until)}` : null,
       });
+      if (trialDetail) {
+        events.push({ id: `log-${l.id}-trial`, at: l.createdAt, kind: 'account', title: 'Trial ended', detail: trialDetail });
+      }
       continue;
     }
 
