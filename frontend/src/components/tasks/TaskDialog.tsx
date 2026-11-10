@@ -26,6 +26,7 @@ import {
   Trash2,
   RotateCcw,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CornerDownRight,
   Pencil,
@@ -2445,7 +2446,28 @@ function ApprovalPanel({
   onResubmit: (id: string, v: { subject: string; message: string; files: File[] }) => Promise<unknown>;
   resubmitting: boolean;
 }) {
-  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
+  // The viewer holds every file of the approval it was opened from, so the
+  // slider can step through them all without closing it.
+  const [lightbox, setLightbox] = useState<{ files: { url: string; name: string }[]; index: number } | null>(null);
+  const openLightbox = (a: TaskApproval, index: number) =>
+    setLightbox({ files: (a.attachments ?? []).map((f) => ({ url: mediaUrl(f.url) ?? '', name: f.fileName })), index });
+  const stepLightbox = (by: number) =>
+    setLightbox((lb) => {
+      if (!lb) return lb;
+      // No wrap-around: the slider stops at the first and last file.
+      const index = Math.min(lb.files.length - 1, Math.max(0, lb.index + by));
+      return index === lb.index ? lb : { ...lb, index };
+    });
+  // ← / → step through the approval's files while the viewer is open.
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') stepLightbox(-1);
+      if (e.key === 'ArrowRight') stepLightbox(1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
   // Resubmissions nest under the request they answer (parentId). The API sends
   // one flat list, so group it here: top-level requests newest first, each one's
   // resubmissions oldest first (#1, #2, …).
@@ -2522,7 +2544,7 @@ function ApprovalPanel({
           <p className="max-w-[360px] whitespace-pre-wrap break-words"><Linkify text={a.message} /></p>
           {a.attachments && a.attachments.length > 0 && (
             <div className="mt-2 flex max-w-[360px] flex-wrap gap-2">
-              {a.attachments.map((f) => {
+              {a.attachments.map((f, i) => {
                 const url = mediaUrl(f.url) ?? '';
                 const isImage = (f.contentType ?? '').startsWith('image/');
                 if (isImage) {
@@ -2530,7 +2552,7 @@ function ApprovalPanel({
                     <div key={f.id} className="group relative">
                       <button
                         type="button"
-                        onClick={() => setLightbox({ url, name: f.fileName })}
+                        onClick={() => openLightbox(a, i)}
                         title={`Preview ${f.fileName}`}
                         className="block overflow-hidden rounded-lg border border-border transition hover:border-primary/40"
                       >
@@ -2559,7 +2581,7 @@ function ApprovalPanel({
                     <span className="max-w-[120px] truncate font-medium text-foreground">{f.fileName}</span>
                     <button
                       type="button"
-                      onClick={() => setLightbox({ url, name: f.fileName })}
+                      onClick={() => openLightbox(a, i)}
                       title={`View ${f.fileName}`}
                       className="shrink-0 text-muted-foreground transition hover:text-primary"
                     >
@@ -2899,57 +2921,76 @@ function ApprovalPanel({
       )}
 
       {/* Attachment viewer — full-screen preview for images, PDFs, video and
-          audio; download always gives the original file. */}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-[60] flex flex-col bg-black/80 p-4 animate-fade-in"
-          onClick={() => setLightbox(null)}
-        >
-          <div className="mx-auto flex w-full max-w-5xl shrink-0 items-center gap-2 pb-3 text-white" onClick={(e) => e.stopPropagation()}>
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">{lightbox.name}</span>
-            <a
-              href={lightbox.url}
-              download={lightbox.name}
-              onClick={downloadOnClick(lightbox.url, lightbox.name)}
-              target="_blank"
-              rel="noreferrer"
-              title="Download original"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
-            >
-              <Download className="h-4 w-4" />
-            </a>
-            <button
-              type="button"
-              onClick={() => setLightbox(null)}
-              title="Close"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 items-center justify-center" onClick={(e) => e.stopPropagation()}>
-            {(() => {
-              const kind = previewKind(lightbox.name);
-              if (kind === 'image')
-                return <img src={lightbox.url} alt={lightbox.name} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />;
-              if (kind === 'pdf')
-                return <iframe src={lightbox.url} title={lightbox.name} className="h-full w-full rounded-lg bg-white shadow-2xl" />;
-              if (kind === 'video')
-                return <video src={lightbox.url} controls autoPlay className="max-h-full max-w-full rounded-lg shadow-2xl" />;
-              if (kind === 'audio')
-                return <audio src={lightbox.url} controls autoPlay className="w-full max-w-lg" />;
-              return (
+          audio; download always gives the original file. With several files on
+          the approval, the arrows (or ← / →) slide through all of them. */}
+      {lightbox && (() => {
+        const current = lightbox.files[lightbox.index];
+        const many = lightbox.files.length > 1;
+        const kind = previewKind(current.name);
+        const arrow = 'absolute top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-sm transition hover:bg-black/90';
+        return (
+          <div
+            className="fixed inset-0 z-[60] flex flex-col bg-black/80 p-4 animate-fade-in"
+            onClick={() => setLightbox(null)}
+          >
+            <div className="mx-auto flex w-full max-w-5xl shrink-0 items-center gap-2 pb-3 text-white" onClick={(e) => e.stopPropagation()}>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{current.name}</span>
+              {many && (
+                <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium tabular-nums">
+                  {lightbox.index + 1} / {lightbox.files.length}
+                </span>
+              )}
+              <a
+                href={current.url}
+                download={current.name}
+                onClick={downloadOnClick(current.url, current.name)}
+                target="_blank"
+                rel="noreferrer"
+                title="Download original"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
+              >
+                <Download className="h-4 w-4" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setLightbox(null)}
+                title="Close"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="relative mx-auto flex min-h-0 w-full max-w-5xl flex-1 items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              {many && lightbox.index > 0 && (
+                <button type="button" onClick={() => stepLightbox(-1)} title="Previous file" className={cn(arrow, 'left-2')}>
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+              )}
+              {kind === 'image' ? (
+                <img key={current.url} src={current.url} alt={current.name} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />
+              ) : kind === 'pdf' ? (
+                <iframe key={current.url} src={current.url} title={current.name} className="h-full w-full rounded-lg bg-white shadow-2xl" />
+              ) : kind === 'video' ? (
+                <video key={current.url} src={current.url} controls autoPlay className="max-h-full max-w-full rounded-lg shadow-2xl" />
+              ) : kind === 'audio' ? (
+                <audio key={current.url} src={current.url} controls autoPlay className="w-full max-w-lg" />
+              ) : (
                 <div className="rounded-xl bg-card p-8 text-center">
                   <p className="text-sm text-muted-foreground">This file type can't be previewed here.</p>
-                  <a href={lightbox.url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-medium text-primary hover:underline">
+                  <a href={current.url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-medium text-primary hover:underline">
                     Open in a new tab
                   </a>
                 </div>
-              );
-            })()}
+              )}
+              {many && lightbox.index < lightbox.files.length - 1 && (
+                <button type="button" onClick={() => stepLightbox(1)} title="Next file" className={cn(arrow, 'right-2')}>
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
