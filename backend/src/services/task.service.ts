@@ -960,6 +960,53 @@ export async function deleteArchiveFile(customerId: string, taskId: string, atta
   return { id: attachmentId };
 }
 
+/**
+ * Every archived file across all customers' tasks, newest first — the admin
+ * Preview tab lists them in one place. Read-only: it reflects whatever is in the
+ * tasks' Archive tabs, so a file appears here as soon as it is archived.
+ */
+export async function listAllArchiveFiles() {
+  const files = await prisma.taskAttachment.findMany({
+    where: { kind: 'ARCHIVE' },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      taskId: true,
+      fileName: true,
+      url: true,
+      size: true,
+      contentType: true,
+      uploadedById: true,
+      createdAt: true,
+      task: {
+        select: {
+          taskNumber: true,
+          title: true,
+          customer: { select: { clientId: true, companyName: true } },
+        },
+      },
+    },
+  });
+  const names = await resolveUploaderNames(files.map((f) => f.uploadedById).filter((x): x is string => !!x));
+  return files.map(({ task, ...f }) => ({
+    ...f,
+    uploadedByName: f.uploadedById ? names.get(f.uploadedById) ?? null : null,
+    taskNumber: task.taskNumber,
+    taskTitle: task.title,
+    clientId: task.customer.clientId,
+    companyName: task.customer.companyName,
+  }));
+}
+
+/** Every active customer, for the Preview tab's customer filter. */
+export function listPreviewCustomers() {
+  return prisma.customer.findMany({
+    where: { status: 'ACTIVE' },
+    orderBy: { companyName: 'asc' },
+    select: { clientId: true, companyName: true, contactPerson: true },
+  });
+}
+
 // ─── Approvals ────────────────────────────────────────────
 
 export interface ApprovalRequester {

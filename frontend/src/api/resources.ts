@@ -318,6 +318,15 @@ export const adminApi = {
   /** Per-task activity across all customers — for the sidebar/picker "new activity" dots. */
   taskActivityByTask: async () =>
     (await api.get<ApiEnvelope<(ActivityTask & { clientId: string })[]>>('/admin/tasks/activity/tasks')).data.data,
+  /** Every file archived on any task, newest first — the Preview tab. */
+  archiveFiles: async () => (await api.get<ApiEnvelope<ArchiveFile[]>>('/admin/preview/archive')).data.data,
+  /** Every active customer — the Preview tab's customer filter. */
+  previewCustomers: async () =>
+    (
+      await api.get<ApiEnvelope<{ clientId: string; companyName?: string | null; contactPerson?: string | null }[]>>(
+        '/admin/preview/customers'
+      )
+    ).data.data,
   /** Mint a session to open this team member's portal as them (impersonation). */
   impersonateEmployee: async (id: string) =>
     (
@@ -326,6 +335,23 @@ export const adminApi = {
       >(`/admin/employees/${id}/impersonate`)
     ).data.data,
 };
+
+/** A task Archive file as the Preview tab lists it, with its task and customer. */
+export interface ArchiveFile {
+  id: string;
+  taskId: string;
+  fileName: string;
+  url: string;
+  size: number;
+  contentType?: string | null;
+  uploadedById?: string | null;
+  uploadedByName?: string | null;
+  createdAt: string;
+  taskNumber: string;
+  taskTitle: string;
+  clientId: string;
+  companyName?: string | null;
+}
 
 export interface PaymentRow {
   id: string;

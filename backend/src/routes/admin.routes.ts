@@ -23,7 +23,7 @@ import { asyncHandler, ok } from '../utils/http.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
 import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
 import { runTokenCleanup } from '../services/housekeeping.service.js';
-import { taskActivityByCustomer, taskActivityByTask } from '../services/task.service.js';
+import { listAllArchiveFiles, listPreviewCustomers, taskActivityByCustomer, taskActivityByTask } from '../services/task.service.js';
 import * as accessPoint from '../services/accessPoint.service.js';
 import { ApiError } from '../utils/ApiError.js';
 
@@ -46,6 +46,21 @@ router.get(
   authenticate,
   authorizeTab(['tasks']),
   asyncHandler(async (_req, res) => ok(res, await taskActivityByTask()))
+);
+
+// Preview tab: every file archived on any task, in one place. Shared with team
+// members granted the Preview tab, so it sits ahead of the admin-only guard too.
+router.get(
+  '/preview/archive',
+  authenticate,
+  authorizeTab(['preview']),
+  asyncHandler(async (_req, res) => ok(res, await listAllArchiveFiles()))
+);
+router.get(
+  '/preview/customers',
+  authenticate,
+  authorizeTab(['preview']),
+  asyncHandler(async (_req, res) => ok(res, await listPreviewCustomers()))
 );
 
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
