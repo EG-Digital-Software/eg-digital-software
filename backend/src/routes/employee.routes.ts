@@ -6,7 +6,7 @@ import * as teamRoles from '../controllers/teamRole.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
-import { taskProgressSchema, updateTaskSchema, createAppointmentSchema, submitApprovalSchema, approvalUploadSchema, timeEntrySchema, updateTimeEntrySchema } from '../validators/task.validator.js';
+import { taskProgressSchema, updateTaskSchema, createAppointmentSchema, submitApprovalSchema, approvalUploadSchema, timeEntrySchema, updateTimeEntrySchema, timeSheetEntrySchema } from '../validators/task.validator.js';
 
 // Chat files and attachments: no size cap — mirrors the admin task board.
 const upload = multer({ storage: multer.memoryStorage() });
@@ -30,6 +30,9 @@ router.get('/tasks/assignable-users', ctrl.employeeAssignableUsers);
 router.get('/tasks/appointments', ctrl.employeeListAppointments);
 router.post('/tasks/appointments', validate({ body: createAppointmentSchema }), ctrl.employeeCreateAppointment);
 router.delete('/tasks/appointments/:appointmentId', ctrl.employeeDeleteAppointment);
+// Board Time Sheet — pools covering the employee's tasks; they log time on their own tasks.
+router.get('/tasks/timesheet', ctrl.employeeTimeSheet);
+router.post('/tasks/timesheet/pools/:poolId/entries', validate({ body: timeSheetEntrySchema }), ctrl.employeeAddTimeSheetEntry);
 router.get('/tasks/tasks/:taskId', ctrl.employeeGetTask);
 router.get('/tasks/tasks/:taskId/mentionable-users', ctrl.employeeMentionableUsers);
 router.get('/tasks/tasks/:taskId/hour-products', ctrl.employeeHourProducts);

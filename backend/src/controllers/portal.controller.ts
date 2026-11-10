@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import * as supplierService from '../services/supplier.service.js';
 import * as employeeService from '../services/employee.service.js';
 import * as taskService from '../services/task.service.js';
+import * as timesheet from '../services/timesheet.service.js';
 import * as appointmentService from '../services/appointment.service.js';
 import { findById } from '../services/accounts.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
@@ -75,6 +76,15 @@ export const employeeHourProducts = asyncHandler(async (req: Request, res: Respo
 export const employeeTimeEntries = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
   return ok(res, await taskService.listTimeEntries(customerId, req.params.taskId));
+});
+
+/** Hour pools covering the team member's tasks (board Time Sheet). */
+export const employeeTimeSheet = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await timesheet.listEmployeePools(req.user!.sub));
+});
+
+export const employeeAddTimeSheetEntry = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await timesheet.addEmployeePoolEntry(req.user!.sub, req.params.poolId, req.body, await employeeAuthor(req)), 'Time logged', 201);
 });
 
 export const employeeAddTimeEntry = asyncHandler(async (req: Request, res: Response) => {

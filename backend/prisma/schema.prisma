@@ -842,15 +842,16 @@ model Task {
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 
-  assignees   TaskAssignee[]
-  labels      TaskLabelLink[]
-  checklist   ChecklistItem[]
-  comments    TaskComment[]
-  notes       TaskNote[]
-  accessPointLogs AccessPointLog[]
-  attachments TaskAttachment[]
-  approvals   TaskApproval[]
-  timeEntries TaskTimeEntry[]
+  assignees          TaskAssignee[]
+  labels             TaskLabelLink[]
+  checklist          ChecklistItem[]
+  comments           TaskComment[]
+  notes              TaskNote[]
+  accessPointLogs    AccessPointLog[]
+  attachments        TaskAttachment[]
+  approvals          TaskApproval[]
+  timeEntries        TaskTimeEntry[]
+  timeSheetPoolTasks TimeSheetPoolTask[]
 
   @@index([customerId])
   @@index([bucketId])
@@ -879,12 +880,87 @@ model TaskTimeEntry {
   authorId          String
   authorType        Role
   authorName        String
+  /// Time Sheet pool this entry draws on (board Time Sheet). Null for entries
+  /// logged against purchased hours before pools existed.
+  pool              TimeSheetPool?   @relation(fields: [poolId], references: [id], onDelete: SetNull)
+  poolId            String?
+  /// Client-facing request reference, e.g. REQ-5014-001.
+  requestId         String?
+  /// Phase, P1, P2, P3 or P4.
+  priority          String?
+  /// Kind of work: Build, Fix, Meeting, …
+  category          String?
+  description       String?
+  /// Who did the work, as shown to the client (may differ from the author).
+  staff             String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
   @@index([customerId])
   @@index([taskId])
   @@index([customerProductId])
+  @@index([poolId])
+}
+
+/// A block of hours a customer has bought, shared by one or more of its tasks,
+/// with the rules the board's Time Sheet applies: a term, a monthly maximum,
+/// alert levels, billing blocks and the rate for approved extra hours.
+/// `kind` = "shared-pool" (one pool for the whole term) or "monthly-expiry"
+/// (a monthly allocation; unused hours expire at month end). customerId is a
+/// plain column, like TaskTimeEntry's, so nothing cascades into logged time.
+model TimeSheetPool {
+  id                 String   @id @default(uuid())
+  customerId         String
+  name               String
+  kind               String   @default("shared-pool")
+  termStart          DateTime @db.Date
+  termEnd            DateTime @db.Date
+  poolHours          Decimal  @db.Decimal(8, 2)
+  monthlyAllocation  Decimal? @db.Decimal(8, 2)
+  monthlyMax         Decimal  @db.Decimal(8, 2)
+  monthlyAlertAt     Decimal  @db.Decimal(8, 2)
+  poolAlertAt        Decimal  @db.Decimal(8, 2)
+  extraRate          Decimal  @db.Decimal(10, 2)
+  minHoursPerRequest Decimal  @default(1) @db.Decimal(6, 2)
+  blockHours         Decimal  @default(0.5) @db.Decimal(6, 2)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tasks     TimeSheetPoolTask[]
+  approvals TimeSheetExtraApproval[]
+  entries   TaskTimeEntry[]
+
+  @@index([customerId])
+}
+
+/// A task that draws on a pool, with the short label the Time Sheet shows for
+/// it (e.g. "Redesign", "Maintenance").
+model TimeSheetPoolTask {
+  pool   TimeSheetPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  poolId String
+  task   Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId String
+  label  String?
+
+  @@id([poolId, taskId])
+  @@index([taskId])
+}
+
+/// Extra hours the client approved beyond a pool, at the pool's extra rate.
+/// Only hours actually used are invoiced.
+model TimeSheetExtraApproval {
+  id             String        @id @default(uuid())
+  pool           TimeSheetPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  poolId         String
+  approvedOn     DateTime      @db.Date
+  hours          Decimal       @db.Decimal(8, 2)
+  reference      String?
+  approvedById   String
+  approvedByType Role
+  approvedByName String
+  createdAt      DateTime      @default(now())
+
+  @@index([poolId])
 }
 
 model TaskNote {

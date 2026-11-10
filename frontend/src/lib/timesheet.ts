@@ -1,0 +1,218 @@
+/**
+ * Time Sheet arithmetic — how a pool is drawn
+ * down month by month. Mirrors backend/src/utils/timesheet.ts, which enforces
+ * the same rules when time is logged; keep the two in step.
+ */
+
+export interface PoolRules {
+  taskIds: string[];
+  /** YYYY-MM-DD */
+  termStart: string;
+  /** YYYY-MM-DD */
+  termEnd: string;
+  poolHours: number;
+  /** Hours normally used in a month. */
+  monthlyHours: number;
+  /** Most that may be used in one month when needed. */
+  monthlyMax: number;
+  monthlyAlertAt: number;
+  poolAlertAt: number;
+  extraRate: number;
+}
+
+export interface PoolEntry {
+  taskId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  actualHours: number;
+}
+
+export interface PoolApproval {
+  /** YYYY-MM-DD */
+  date: string;
+  hours: number;
+}
+
+export const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const monthOf = (date: string) => date.slice(0, 7);
+
+function monthsBetween(start: string, end: string): string[] {
+  const out: string[] = [];
+  let [y, m] = start.slice(0, 7).split('-').map(Number);
+  const [ey, em] = end.slice(0, 7).split('-').map(Number);
+  while (y < ey || (y === ey && m <= em)) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+
+export interface PoolMonth {
+  month: string;
+  status: 'closed' | 'current' | 'upcoming';
+  usedByTask: Record<string, number>;
+  used: number;
+  balanceStart: number;
+  balanceEnd: number;
+  cumulativeUsed: number;
+  extraHours: number;
+  extraCharge: number;
+  overMonthlyHours: number;
+  overMonthlyMax: number;
+  monthlyAlert: boolean;
+  poolAlert: boolean;
+}
+
+/** Where a pool stands on `asOf` (YYYY-MM-DD): every month of the term plus the totals. */
+export function summarisePool(rules: PoolRules, entries: PoolEntry[], asOf: string, approvals: PoolApproval[] = []) {
+  const mine = entries.filter((e) => rules.taskIds.includes(e.taskId));
+  const thisMonth = monthOf(asOf);
+  let balance = rules.poolHours;
+  let cumulative = 0;
+  const rows: PoolMonth[] = [];
+
+  for (const month of monthsBetween(rules.termStart, rules.termEnd)) {
+    const usedByTask: Record<string, number> = Object.fromEntries(rules.taskIds.map((id) => [id, 0]));
+    for (const e of mine) {
+      if (monthOf(e.date) === month) usedByTask[e.taskId] = round2(usedByTask[e.taskId] + e.actualHours);
+    }
+    const used = round2(Object.values(usedByTask).reduce((a, b) => a + b, 0));
+    const status: PoolMonth['status'] = month < thisMonth ? 'closed' : month === thisMonth ? 'current' : 'upcoming';
+    const balanceStart = balance;
+    const cumulativeBefore = cumulative;
+    cumulative = round2(cumulative + used);
+    const extraHours = round2(Math.max(0, used - balanceStart));
+    balance = round2(Math.max(0, balanceStart - used));
+
+    rows.push({
+      month,
+      status,
+      usedByTask,
+      used,
+      balanceStart,
+      balanceEnd: balance,
+      cumulativeUsed: cumulative,
+      extraHours,
+      extraCharge: round2(extraHours * rules.extraRate),
+      overMonthlyHours: round2(Math.max(0, used - rules.monthlyHours)),
+      overMonthlyMax: round2(Math.max(0, used - rules.monthlyMax)),
+      monthlyAlert: used >= rules.monthlyAlertAt,
+      poolAlert: cumulativeBefore < rules.poolAlertAt && cumulative >= rules.poolAlertAt,
+    });
+  }
+
+  const current = rows.find((r) => r.status === 'current');
+  const extraHours = round2(rows.reduce((a, r) => a + r.extraHours, 0));
+  const extraApproved = round2(approvals.filter((a) => a.date <= asOf).reduce((a, x) => a + x.hours, 0));
+  const extraRemaining = round2(Math.max(0, extraApproved - extraHours));
+  const poolLeft = current ? current.balanceStart - current.used : balance;
+  const headroom = current ? Math.max(0, current.balanceStart - current.used) : 0;
+  return {
+    rows,
+    current,
+    totalUsed: cumulative,
+    balance: poolLeft,
+    extraHours,
+    extraCharge: round2(extraHours * rules.extraRate),
+    extraApproved,
+    extraRemaining,
+    extraUnapproved: round2(Math.max(0, extraHours - extraApproved)),
+    availableThisMonth: current ? round2(Math.max(0, Math.min(rules.monthlyMax - current.used, headroom + extraRemaining))) : 0,
+    poolExhausted: poolLeft <= 0,
+    workPaused: poolLeft <= 0 && extraRemaining <= 0,
+  };
+}
+
+// ─── Board data (as the API returns it) ──────────────────
+
+export interface TimeSheetEntry extends PoolEntry {
+  id: string;
+  requestId: string;
+  priority: string;
+  category: string;
+  description: string;
+  staff: string;
+  notes?: string | null;
+  authorName: string;
+}
+
+export interface TimeSheetApproval extends PoolApproval {
+  id: string;
+  reference?: string | null;
+  approvedBy: string;
+}
+
+export interface TimeSheetPool extends PoolRules {
+  id: string;
+  name: string;
+  tasks: { taskId: string; taskNumber: string; title: string; label?: string | null }[];
+  entries: TimeSheetEntry[];
+  approvals: TimeSheetApproval[];
+}
+
+export interface TimeSheetData {
+  /** Today on the business calendar (YYYY-MM-DD). */
+  today: string;
+  pools: TimeSheetPool[];
+}
+
+export interface TimeSheetPoolInput {
+  name: string;
+  termStart: string;
+  termEnd: string;
+  poolHours: number;
+  monthlyHours: number;
+  monthlyMax: number;
+  monthlyAlertAt: number;
+  poolAlertAt: number;
+  extraRate: number;
+  tasks: { taskId: string; label?: string | null }[];
+}
+
+export interface TimeSheetEntryInput {
+  taskId: string;
+  date: string;
+  requestId: string;
+  priority: string;
+  category: string;
+  description: string;
+  staff: string;
+  actualHours: number;
+  notes?: string;
+}
+
+export const TIME_PRIORITIES = ['Phase', 'P1', 'P2', 'P3', 'P4'] as const;
+export const TIME_CATEGORIES = [
+  'Discovery', 'Design', 'Build', 'Integration', 'Testing', 'Azure', 'Deployment',
+  'Fix', 'Change', 'Content', 'Maintenance', 'Meeting', 'Training', 'Documentation',
+] as const;
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "2026-11" → "Nov 2026" */
+export const monthLabel = (month: string) => {
+  const [y, m] = month.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${y}`;
+};
+/** "2026-11-03" → "03 Nov 2026" */
+export const dayLabel = (date: string) => {
+  const [y, m, d] = date.slice(0, 10).split('-');
+  return `${d} ${MONTHS[Number(m) - 1]} ${y}`;
+};
+/** 2 → "2 h", 2.5 → "2.5 h" */
+export const hoursLabel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(1)} h`;
+/** 360 → "$360" */
+export const money = (n: number) => `$${n.toLocaleString('en-AU', { maximumFractionDigits: 0 })}`;
+
+/** The time sheet as CSV, oldest entry first. */
+export function timeSheetCsv(entries: TimeSheetEntry[], taskName: (id: string) => string): string {
+  const head = ['Date', 'Task', 'Request ID', 'Priority', 'Category', 'Description', 'Staff', 'Hours', 'Notes'];
+  const cell = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = entries.map((e) =>
+    [e.date, taskName(e.taskId), e.requestId, e.priority, e.category, e.description, e.staff, e.actualHours, e.notes ?? '']
+      .map(cell)
+      .join(',')
+  );
+  return [head.map(cell).join(','), ...rows].join('\n');
+}

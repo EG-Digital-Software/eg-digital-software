@@ -18,6 +18,9 @@ import {
   createAppointmentSchema,
   timeEntrySchema,
   updateTimeEntrySchema,
+  timeSheetPoolSchema,
+  timeSheetEntrySchema,
+  timeSheetApprovalSchema,
 } from '../validators/task.validator.js';
 
 // Chat files and attachments: no size cap. Large files normally skip the API
@@ -58,6 +61,13 @@ export function buildTaskRouter(readOnly = false): Router {
   // Hours the customer has bought — the Time Sheet tab's summary (read-only).
   router.get('/tasks/:taskId/hour-products', ctrl.hourProducts);
   router.get('/tasks/:taskId/time-entries', ctrl.timeEntries);
+
+  // Board Time Sheet — everyone with the board views it; logging time is for the
+  // admin/team and approving extra hours for the client/admin (both enforced in
+  // the controller). Setting pools up is admin-only (below).
+  router.get('/timesheet', ctrl.timeSheet);
+  router.post('/timesheet/pools/:poolId/entries', validate({ body: timeSheetEntrySchema }), ctrl.addTimeSheetEntry);
+  router.post('/timesheet/pools/:poolId/approvals', validate({ body: timeSheetApprovalSchema }), ctrl.approveTimeSheetExtra);
 
   // Collaboration — available to clients too.
   router.patch('/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.setProgress);
@@ -113,6 +123,9 @@ export function buildTaskRouter(readOnly = false): Router {
     router.post('/tasks/:taskId/time-entries', validate({ body: timeEntrySchema }), ctrl.addTimeEntry);
     router.patch('/tasks/:taskId/time-entries/:entryId', validate({ body: updateTimeEntrySchema }), ctrl.updateTimeEntry);
     router.delete('/tasks/:taskId/time-entries/:entryId', ctrl.deleteTimeEntry);
+
+    router.post('/timesheet/pools', validate({ body: timeSheetPoolSchema }), ctrl.createTimeSheetPool);
+    router.patch('/timesheet/pools/:poolId', validate({ body: timeSheetPoolSchema }), ctrl.updateTimeSheetPool);
 
     router.post('/labels', validate({ body: createLabelSchema }), ctrl.createLabel);
     router.patch('/labels/:labelId', validate({ body: updateLabelSchema }), ctrl.updateLabel);

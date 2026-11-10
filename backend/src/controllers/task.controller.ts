@@ -9,6 +9,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { taskUploadRefSchema } from '../validators/task.validator.js';
 import { isAdminLike } from '../middleware/staffAccess.js';
 import * as accessPoint from '../services/accessPoint.service.js';
+import * as timesheet from '../services/timesheet.service.js';
 
 /**
  * One controller drives both the admin board (customer addressed by the public
@@ -94,6 +95,33 @@ export const updateTimeEntry = asyncHandler(async (req: Request, res: Response) 
 
 export const deleteTimeEntry = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, await taskService.deleteTimeEntry(await resolve(req), req.params.taskId, req.params.entryId, await author(req)), 'Time entry deleted');
+});
+
+// ─── Board Time Sheet ─────────────────────────────────────
+
+/** The customer's hour pools with their time entries and approvals. */
+export const timeSheet = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await timesheet.listPools(await resolve(req)));
+});
+
+export const createTimeSheetPool = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await timesheet.createPool(await resolve(req), req.body), 'Pool created', 201);
+});
+
+export const updateTimeSheetPool = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await timesheet.updatePool(await resolve(req), req.params.poolId, req.body), 'Pool updated');
+});
+
+/** Logging time is for the admin and team; the client board only views it. */
+export const addTimeSheetEntry = asyncHandler(async (req: Request, res: Response) => {
+  if (!isAdminLike(req)) throw ApiError.forbidden('Only the EG Eloma team can log time');
+  return ok(res, await timesheet.addPoolEntry(await resolve(req), req.params.poolId, req.body, await author(req)), 'Time logged', 201);
+});
+
+/** Extra hours are approved by the client, or by the admin on their behalf. */
+export const approveTimeSheetExtra = asyncHandler(async (req: Request, res: Response) => {
+  if (!CAN_DECIDE.includes(req.user!.role)) throw ApiError.forbidden('Only the client or an admin can approve extra hours');
+  return ok(res, await timesheet.approveExtraHours(await resolve(req), req.params.poolId, req.body, await author(req)), 'Extra hours approved', 201);
 });
 
 export const updateTask = asyncHandler(async (req: Request, res: Response) => {

@@ -41,6 +41,7 @@ import { isTaskUnseen, newSinceFromSig, taskActivityMeta, taskRowSeenKey, writeS
 import { GridView } from './GridView';
 import { ScheduleView } from './ScheduleView';
 import { TaskDialog } from './TaskDialog';
+import { TimeSheetView } from './TimeSheetView';
 
 type ViewKey = 'grid' | 'schedule' | 'timesheet';
 
@@ -354,17 +355,12 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
         />
       )}
       {view === 'timesheet' && (
-        /* Time Sheet — coming soon. */
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
-            <Clock className="h-7 w-7 text-muted-foreground" />
-          </div>
-          <h4 className="mt-4 text-base font-semibold">Time Sheet</h4>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">Time tracking for these tasks is on the way. This space is coming soon.</p>
-          <span className="mt-4 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-            Coming soon
-          </span>
-        </div>
+        <TimeSheetView
+          api={api}
+          scopeKey={scopeKey}
+          portal={groupTabs ? 'team' : readOnly ? 'client' : 'admin'}
+          buckets={board.buckets}
+        />
       )}
 
       {dialog && (

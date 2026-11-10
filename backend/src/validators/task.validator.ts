@@ -140,3 +140,46 @@ export const timeEntrySchema = z.object({
 });
 
 export const updateTimeEntrySchema = timeEntrySchema.partial();
+
+// ─── Board Time Sheet ────────────────────────────────────
+
+const isoDate = (msg: string) => z.string().regex(/^\d{4}-\d{2}-\d{2}$/, msg);
+const hours = (msg: string) => z.coerce.number({ invalid_type_error: msg }).min(0, msg).max(100000, msg);
+
+export const TIME_PRIORITIES = ['Phase', 'P1', 'P2', 'P3', 'P4'] as const;
+export const TIME_CATEGORIES = [
+  'Discovery', 'Design', 'Build', 'Integration', 'Testing', 'Azure', 'Deployment',
+  'Fix', 'Change', 'Content', 'Maintenance', 'Meeting', 'Training', 'Documentation',
+] as const;
+
+export const timeSheetPoolSchema = z.object({
+  name: z.string().trim().min(1, 'Name the pool').max(120),
+  termStart: isoDate('Pick the term start'),
+  termEnd: isoDate('Pick the term end'),
+  poolHours: hours('Enter the pool hours').refine((n) => n > 0, 'Enter the pool hours'),
+  monthlyHours: hours('Enter the monthly hours').refine((n) => n > 0, 'Enter the monthly hours'),
+  monthlyMax: hours('Enter the monthly maximum').refine((n) => n > 0, 'Enter the monthly maximum'),
+  monthlyAlertAt: hours('Enter the monthly alert'),
+  poolAlertAt: hours('Enter the pool alert'),
+  extraRate: hours('Enter the extra-hour rate'),
+  tasks: z
+    .array(z.object({ taskId: z.string().uuid(), label: z.string().trim().max(60).nullable().optional() }))
+    .min(1, 'Pick at least one task'),
+});
+
+export const timeSheetEntrySchema = z.object({
+  taskId: z.string().uuid('Pick the task'),
+  date: isoDate('Pick a date'),
+  requestId: z.string().trim().min(1, 'Enter the request ID').max(60),
+  priority: z.enum(TIME_PRIORITIES),
+  category: z.enum(TIME_CATEGORIES),
+  description: z.string().trim().min(1, 'Describe the work').max(500),
+  staff: z.string().trim().min(1, 'Enter who did the work').max(120),
+  actualHours: z.coerce.number().min(0, 'Enter the hours worked').max(24, 'At most 24 hours per entry'),
+  notes: z.string().trim().max(1000).nullable().optional(),
+});
+
+export const timeSheetApprovalSchema = z.object({
+  hours: z.coerce.number().positive('Enter the hours').max(10000),
+  reference: z.string().trim().max(120).nullable().optional(),
+});

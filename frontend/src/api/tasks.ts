@@ -1,5 +1,6 @@
 import { api } from './client';
 import { describeUploadError, uploadToBlob } from '@/lib/directUpload';
+import type { TimeSheetData, TimeSheetEntryInput, TimeSheetPool, TimeSheetPoolInput } from '@/lib/timesheet';
 import type {
   AccessPointData,
   ApiEnvelope,
@@ -312,6 +313,17 @@ export function taskApi(base: string) {
     updateLabel: (labelId: string, body: { name?: string; color?: string }) =>
       unwrap<TaskLabel>(api.patch(`${base}/labels/${labelId}`, body)),
     deleteLabel: (labelId: string) => unwrap<{ id: string }>(api.delete(`${base}/labels/${labelId}`)),
+
+    // Board Time Sheet — hour pools, the time logged against them, and the
+    // client's approvals of extra hours. Creating/editing pools is admin-only.
+    timeSheet: () => unwrap<TimeSheetData>(api.get(`${base}/timesheet`)),
+    createTimeSheetPool: (body: TimeSheetPoolInput) => unwrap<TimeSheetPool>(api.post(`${base}/timesheet/pools`, body)),
+    updateTimeSheetPool: (poolId: string, body: TimeSheetPoolInput) =>
+      unwrap<TimeSheetPool>(api.patch(`${base}/timesheet/pools/${poolId}`, body)),
+    addTimeSheetEntry: (poolId: string, body: TimeSheetEntryInput) =>
+      unwrap<TimeSheetPool>(api.post(`${base}/timesheet/pools/${poolId}/entries`, body)),
+    approveTimeSheetExtra: (poolId: string, body: { hours: number; reference?: string }) =>
+      unwrap<TimeSheetPool>(api.post(`${base}/timesheet/pools/${poolId}/approvals`, body)),
   };
 }
 
