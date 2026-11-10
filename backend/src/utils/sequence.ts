@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -35,15 +36,28 @@ export function formatSku(n: number): string {
   return `SKU-${4999 + n}`;
 }
 
-// Invoice numbers are EGE-INV-2627-<n>, starting at EGE-INV-2627-5555 and
-// incrementing by 1. They draw on their own counter (INVOICE_NUMBER_COUNTER),
-// separate from the old EGD-INV-<year>-<n> series, so the first new invoice is
-// 5555 (nextSequence returns 1, so offset by 5554) and existing invoices keep
-// their numbers.
-export const INVOICE_NUMBER_COUNTER = 'invoiceNumber:EGE-INV-2627';
+// Invoice numbers are EGE-INV-2627-<XXXX>: a fixed prefix plus four random
+// uppercase letters (e.g. EGE-INV-2627-QKTB). The column is unique, so the
+// caller retries on the rare collision (see generateInvoiceNumber).
+export function formatInvoiceNumber(): string {
+  const letters = Array.from({ length: 4 }, () =>
+    String.fromCharCode(65 + randomInt(26))
+  ).join('');
+  return `EGE-INV-2627-${letters}`;
+}
 
-export function formatInvoiceNumber(n: number): string {
-  return `EGE-INV-2627-${5554 + n}`;
+// A random invoice number no other invoice holds yet. 26^4 ≈ 457k combinations,
+// so a clash is rare; a few retries make it vanishingly unlikely.
+export async function generateInvoiceNumber(tx: Prisma.TransactionClient): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const candidate = formatInvoiceNumber();
+    const taken = await tx.invoice.findUnique({
+      where: { invoiceNumber: candidate },
+      select: { id: true },
+    });
+    if (!taken) return candidate;
+  }
+  throw new Error('Could not allocate a unique invoice number');
 }
 
 // Every invoice carries a unique reference of its own: REF-EGD-2627-5000,

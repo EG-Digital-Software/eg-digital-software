@@ -5,9 +5,8 @@ import type { PageQuery } from '../utils/http.js';
 import { computeInvoiceTotals, computeLine, D, periodFactor, round2, type Money } from '../utils/money.js';
 import {
   nextSequence,
-  formatInvoiceNumber,
+  generateInvoiceNumber,
   formatInvoiceReference,
-  INVOICE_NUMBER_COUNTER,
 } from '../utils/sequence.js';
 import { paymentProvider, generateQrDataUrl } from './payments/index.js';
 import { notify } from './notification.service.js';
@@ -443,7 +442,7 @@ export async function createInvoice(input: CreateInput) {
   const period = billedPeriod(invoiceDate, nextBillingDate);
 
   const invoice = await prisma.$transaction(async (tx) => {
-    const invoiceNumber = formatInvoiceNumber(await nextSequence(tx, INVOICE_NUMBER_COUNTER));
+    const invoiceNumber = await generateInvoiceNumber(tx);
 
     // Every invoice gets its own unique reference. An admin-supplied reference
     // wins; otherwise one is generated from a dedicated counter. The column is
