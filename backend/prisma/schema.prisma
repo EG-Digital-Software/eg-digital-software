@@ -280,6 +280,23 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+/// A one-time code emailed after a correct password; the session is issued only
+/// once the code is entered. Only an HMAC of the code is stored.
+model LoginOtp {
+  id         String    @id @default(uuid())
+  userId     String
+  userType   Role
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  sendCount  Int       @default(1)
+  lastSentAt DateTime  @default(now())
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, userType])
+}
+
 // ─── Customers ────────────────────────────────────────────
 
 model Customer {

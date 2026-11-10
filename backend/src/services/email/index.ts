@@ -331,6 +331,23 @@ export function sendResetEmail(msg: EmailMessage): void {
     .catch((err) => logger.error({ err, to: msg.to, provider: resetProvider.name }, 'Password-reset email send failed'));
 }
 
+/**
+ * Awaitable send through the same no-reply mailbox as password resets — for
+ * security mail the caller must know arrived (the sign-in code). Throws an
+ * ApiError so the person signing in sees why no code came.
+ */
+export async function deliverSecurityEmail(msg: EmailMessage): Promise<void> {
+  if (resetProvider === emailProvider && undeliverableReason) {
+    throw ApiError.internal(`Email is not configured, so the sign-in code could not be sent. ${undeliverableReason}`);
+  }
+  try {
+    await resetProvider.send(msg);
+  } catch (err) {
+    logger.error({ err, to: msg.to, provider: resetProvider.name }, 'Sign-in code email send failed');
+    throw ApiError.badGateway('We could not email your sign-in code. Please try again in a moment.');
+  }
+}
+
 /** Fire-and-forget send — never breaks the primary flow (used by notifications). */
 export function sendEmail(msg: EmailMessage): void {
   emailProvider.send(msg).catch((err) => logger.error({ err }, 'Email send failed'));

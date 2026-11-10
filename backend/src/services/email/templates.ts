@@ -1,6 +1,6 @@
 import { env } from '../../config/env.js';
 import type { Role } from '@prisma/client';
-import { sendEmail, sendResetEmail, type EmailMessage } from './index.js';
+import { deliverSecurityEmail, sendEmail, sendResetEmail, type EmailMessage } from './index.js';
 
 const ROLE_SLUG: Record<string, string> = {
   SUPER_ADMIN: 'admin',
@@ -75,6 +75,19 @@ export function sendPasswordReset(
       'Reset your password',
       `Hi ${user.firstName},<br/><br/>We received a request to reset the password for your EG Eloma account. Use the button below to choose a new one.<br/><br/>This link expires in <strong>${expiresInMinutes} minutes</strong> and can only be used once.<br/><br/><span style="color:#94a3b8">If you did not request this, you can safely ignore this email — your password will stay unchanged.</span>`,
       { label: 'Choose a new password', url: resetUrl }
+    ),
+  });
+}
+
+/** The one-time sign-in code, sent after a correct password. Awaited: no code, no sign-in. */
+export function sendLoginCode(user: { email: string; firstName: string }, code: string, expiresInMinutes: number) {
+  return deliverSecurityEmail({
+    to: user.email,
+    subject: `${code} is your EG Eloma sign-in code`,
+    text: `Hi ${user.firstName}, your EG Eloma sign-in code is ${code}. It expires in ${expiresInMinutes} minutes. If you did not just try to sign in, change your password straight away.`,
+    html: shell(
+      'Your sign-in code',
+      `Hi ${user.firstName},<br/><br/>Enter this code to finish signing in to EG Eloma:<br/><br/><div style="font-size:30px;font-weight:700;letter-spacing:8px;color:#0B223B;background:#f4f7fb;border-radius:10px;padding:14px 0;text-align:center">${code}</div><br/>It expires in <strong>${expiresInMinutes} minutes</strong> and works once.<br/><br/><span style="color:#94a3b8">If you did not just try to sign in, someone may know your password — change it straight away. Never share this code.</span>`
     ),
   });
 }

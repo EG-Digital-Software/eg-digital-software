@@ -16,6 +16,9 @@ const schema = z.object({
   CREDENTIAL_ENC_KEY: z.string().optional(),
   JWT_ACCESS_EXPIRES: z.string().default('15m'),
   JWT_REFRESH_EXPIRES: z.string().default('7d'),
+  // Emailed one-time code after the password on every login. 'off' is an
+  // emergency switch (e.g. email is down) that restores password-only login.
+  LOGIN_OTP: z.enum(['on', 'off']).default('on'),
 
   SUPER_ADMIN_EMAIL: z.string().email().default('admin@egdigital.com.au'),
   SUPER_ADMIN_PASSWORD: z.string().default('ChangeMe!2026'),

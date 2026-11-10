@@ -11,6 +11,15 @@ export const loginSchema = z.object({
   portal: portalEnum.optional(),
 });
 
+export const loginOtpSchema = z.object({
+  challengeId: z.string().uuid(),
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+});
+
+export const loginOtpResendSchema = z.object({
+  challengeId: z.string().uuid(),
+});
+
 export const forgotPasswordSchema = z.object({
   email: z.string().email(),
   portal: portalEnum.optional(),

@@ -50,9 +50,10 @@ function presentedRefreshToken(req: Request): string | undefined {
   return req.cookies?.[REFRESH_COOKIE] ?? bodyToken;
 }
 
-export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password, portal } = req.body;
-  const result = await authService.login(email, password, portal);
+type SignedIn = Exclude<Awaited<ReturnType<typeof authService.login>>, authService.LoginChallenge>;
+
+/** Hand a completed sign-in its session: the refresh cookie (or body token for the app). */
+function finishLogin(req: Request, res: Response, result: SignedIn) {
   const nativeApp = isNativeApp(req);
   if (!nativeApp) setRefreshCookie(res, result.refreshToken);
   logActivity({
@@ -67,6 +68,27 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     { user: result.user, accessToken: result.accessToken, ...(nativeApp && { refreshToken: result.refreshToken }) },
     'Logged in'
   );
+}
+
+/**
+ * Step one: email + password. A correct password emails a one-time code and
+ * answers `{ otpRequired, challengeId, ... }`; the session comes from
+ * /login/verify. Admins, and everyone when LOGIN_OTP=off, get the session here directly.
+ */
+export const login = asyncHandler(async (req: Request, res: Response) => {
+  const { email, password, portal } = req.body;
+  const result = await authService.login(email, password, portal);
+  if (result.otpRequired) return ok(res, result, 'Sign-in code sent');
+  return finishLogin(req, res, result);
+});
+
+export const verifyLoginOtp = asyncHandler(async (req: Request, res: Response) => {
+  const result = await authService.verifyLoginOtp(req.body.challengeId, req.body.code);
+  return finishLogin(req, res, result);
+});
+
+export const resendLoginOtp = asyncHandler(async (req: Request, res: Response) => {
+  return ok(res, await authService.resendLoginOtp(req.body.challengeId), 'A new code is on its way');
 });
 
 export const register = asyncHandler(async (req: Request, res: Response) => {

@@ -2,8 +2,19 @@ import { api } from './client';
 import type { ApiEnvelope, User } from '@/types';
 
 interface LoginResponse {
+  otpRequired?: false;
   user: User;
   accessToken: string;
+}
+
+/** A correct password emails a one-time code; the session waits for it. */
+export interface LoginChallenge {
+  otpRequired: true;
+  challengeId: string;
+  /** Masked address the code went to. */
+  email: string;
+  expiresInMinutes: number;
+  resendInSeconds: number;
 }
 
 export type Portal = 'SUPER_ADMIN' | 'CLIENT' | 'SUPPLIER' | 'EMPLOYEE';
@@ -14,12 +25,22 @@ export async function loginRequest(
   rememberMe?: boolean,
   portal?: Portal
 ) {
-  const { data } = await api.post<ApiEnvelope<LoginResponse>>('/auth/login', {
+  const { data } = await api.post<ApiEnvelope<LoginResponse | LoginChallenge>>('/auth/login', {
     email,
     password,
     rememberMe,
     portal,
   });
+  return data.data;
+}
+
+export async function verifyLoginOtpRequest(challengeId: string, code: string) {
+  const { data } = await api.post<ApiEnvelope<LoginResponse>>('/auth/login/verify', { challengeId, code });
+  return data.data;
+}
+
+export async function resendLoginOtpRequest(challengeId: string) {
+  const { data } = await api.post<ApiEnvelope<LoginChallenge>>('/auth/login/resend', { challengeId });
   return data.data;
 }
 

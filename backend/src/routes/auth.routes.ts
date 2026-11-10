@@ -11,6 +11,8 @@ const avatarUpload = multer({
 });
 import {
   loginSchema,
+  loginOtpSchema,
+  loginOtpResendSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
@@ -21,6 +23,9 @@ import {
 const router = Router();
 
 router.post('/login', authLimiter, validate({ body: loginSchema }), ctrl.login);
+// Second sign-in step: the code emailed after a correct password.
+router.post('/login/verify', authLimiter, validate({ body: loginOtpSchema }), ctrl.verifyLoginOtp);
+router.post('/login/resend', authLimiter, validate({ body: loginOtpResendSchema }), ctrl.resendLoginOtp);
 router.post(
   '/register',
   authLimiter,

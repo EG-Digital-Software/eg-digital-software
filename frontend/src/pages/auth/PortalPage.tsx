@@ -7,6 +7,9 @@ import { toast } from 'sonner';
 import { brand } from '@/config/brand';
 import { useAuth } from '@/store/auth';
 import { useLogin } from '@/hooks/useSession';
+import type { LoginChallenge } from '@/api/auth';
+import type { User } from '@/types';
+import { LoginOtpStep } from '@/components/auth/LoginOtpStep';
 import { apiErrorMessage } from '@/api/client';
 import { PORTAL_ROLE, ROLE_HOME, authPaths, type PortalSlug } from '@/lib/portal';
 import {
@@ -71,18 +74,26 @@ export default function PortalPage() {
 
   const from = (location.state as { from?: string })?.from;
 
+  // Set once the password is right: the page then asks for the emailed code.
+  const [challenge, setChallenge] = useState<LoginChallenge | null>(null);
+
+  const finish = (signedIn: User) => {
+    toast.success('Welcome back');
+    const base: Record<string, string> = {
+      SUPER_ADMIN: '/admin',
+      CLIENT: '/client',
+      EMPLOYEE: '/employee',
+    };
+    const home = ROLE_HOME[signedIn.role] ?? '/admin/dashboard';
+    const target = from?.startsWith(base[signedIn.role] ?? '') ? from : home;
+    navigate(target, { replace: true });
+  };
+
   const onSubmit = async (values: FormValues) => {
     try {
-      const signedIn = await login(values.email, values.password, values.rememberMe, PORTAL_ROLE[mode]);
-      toast.success('Welcome back');
-      const base: Record<string, string> = {
-        SUPER_ADMIN: '/admin',
-        CLIENT: '/client',
-        EMPLOYEE: '/employee',
-      };
-      const home = ROLE_HOME[signedIn.role] ?? '/admin/dashboard';
-      const target = from?.startsWith(base[signedIn.role] ?? '') ? from : home;
-      navigate(target, { replace: true });
+      const result = await login(values.email, values.password, values.rememberMe, PORTAL_ROLE[mode]);
+      if ('otpRequired' in result && result.otpRequired) setChallenge(result);
+      else finish(result as User);
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Login failed'));
     }
@@ -94,6 +105,14 @@ export default function PortalPage() {
   }
 
   const fieldError = errors.email?.message ?? errors.password?.message;
+
+  if (challenge) {
+    return (
+      <SpotlightShell title="Check your email" subtitle={active.subtitle}>
+        <LoginOtpStep challenge={challenge} onChallenge={setChallenge} onSignedIn={finish} onBack={() => setChallenge(null)} />
+      </SpotlightShell>
+    );
+  }
 
   return (
     <SpotlightShell subtitle={active.subtitle}>

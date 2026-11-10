@@ -14,7 +14,7 @@ import { logger } from '../config/logger.js';
 import { storage } from './storage/index.js';
 import { encryptSecret } from '../utils/secretBox.js';
 import { notifySuperAdmins } from './notification.service.js';
-import { sendPasswordReset } from './email/templates.js';
+import { sendLoginCode, sendPasswordReset } from './email/templates.js';
 import * as accounts from './accounts.js';
 import type { Account } from './accounts.js';
 
@@ -160,6 +160,63 @@ export async function registerUser(input: {
   return publicUser(account);
 }
 
+const OTP_TTL_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_MAX_SENDS = 5;
+const OTP_RESEND_SECONDS = 30;
+
+/** Only an HMAC of the code is stored, bound to its challenge. */
+const otpHash = (challengeId: string, code: string) =>
+  crypto.createHmac('sha256', env.JWT_SECRET).update(`${challengeId}:${code}`).digest('hex');
+const newOtpCode = () => crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+
+/** "ritesh.raj@elomagroup.org" → "ri*******@elomagroup.org" */
+function maskEmail(email: string) {
+  const [name, domain] = email.split('@');
+  return `${name.slice(0, 2)}${'*'.repeat(Math.max(name.length - 2, 3))}@${domain}`;
+}
+
+export type LoginChallenge = {
+  otpRequired: true;
+  challengeId: string;
+  email: string;
+  expiresInMinutes: number;
+  resendInSeconds: number;
+};
+
+async function emailLoginCode(account: Account, challengeId: string, code: string) {
+  if (env.NODE_ENV !== 'production') {
+    logger.info({ email: account.email, role: account.role, code }, '🔑 Sign-in code (dev only)');
+  }
+  await sendLoginCode(account, code, OTP_TTL_MINUTES);
+  return {
+    otpRequired: true as const,
+    challengeId,
+    email: maskEmail(account.email),
+    expiresInMinutes: OTP_TTL_MINUTES,
+    resendInSeconds: OTP_RESEND_SECONDS,
+  };
+}
+
+/** Whether the account may hold a session right now. */
+function assertCanSignIn(account: Account | null): asserts account is Account {
+  if (!account || !account.isActive) throw ApiError.unauthorized('Invalid email or password');
+  if (account.approvalStatus === 'PENDING') {
+    throw ApiError.forbidden('Your account is awaiting Admin approval');
+  }
+  if (account.approvalStatus === 'REJECTED') {
+    throw ApiError.forbidden('Your account request was declined. Please contact EG Eloma.');
+  }
+}
+
+async function completeLogin(account: Account) {
+  const updated = await accounts.updateAccount(account.role, account.id, {
+    lastLoginAt: new Date(),
+  });
+  const tokens = await issueTokens(updated);
+  return { otpRequired: false as const, user: publicUser(updated), ...tokens };
+}
+
 /**
  * Sign in. When `portal` is supplied (from a portal-specific login page) the
  * lookup is scoped to that portal's table — a Supplier can never sign in on the
@@ -175,19 +232,90 @@ export async function login(email: string, password: string, portal?: Role) {
 
   const valid = await verifyPassword(account.passwordHash, password);
   if (!valid) throw ApiError.unauthorized('Invalid email or password');
+  assertCanSignIn(account);
 
-  if (account.approvalStatus === 'PENDING') {
-    throw ApiError.forbidden('Your account is awaiting Admin approval');
-  }
-  if (account.approvalStatus === 'REJECTED') {
-    throw ApiError.forbidden('Your account request was declined. Please contact EG Eloma.');
-  }
+  // Admins sign in with the password alone; clients and the team get a code.
+  if (env.LOGIN_OTP === 'off' || account.role === 'SUPER_ADMIN') return completeLogin(account);
 
-  const updated = await accounts.updateAccount(account.role, account.id, {
-    lastLoginAt: new Date(),
+  // Correct password: email a one-time code; the session waits for it.
+  const challengeId = crypto.randomUUID();
+  const code = newOtpCode();
+  await prisma.loginOtp.create({
+    data: {
+      id: challengeId,
+      userId: account.id,
+      userType: account.role,
+      codeHash: otpHash(challengeId, code),
+      expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
+    },
   });
-  const tokens = await issueTokens(updated);
-  return { user: publicUser(updated), ...tokens };
+  return emailLoginCode(account, challengeId, code);
+}
+
+const OTP_EXPIRED = 'This code has expired. Please sign in again.';
+
+/** Second step of sign-in: the emailed code issues the session. */
+export async function verifyLoginOtp(challengeId: string, code: string) {
+  const otp = await prisma.loginOtp.findUnique({ where: { id: challengeId } });
+  if (!otp || otp.usedAt || otp.expiresAt < new Date()) throw ApiError.badRequest(OTP_EXPIRED);
+  if (otp.attempts >= OTP_MAX_ATTEMPTS) {
+    throw ApiError.badRequest('Too many incorrect codes. Please sign in again.');
+  }
+
+  const expected = Buffer.from(otp.codeHash, 'hex');
+  const given = Buffer.from(otpHash(challengeId, code), 'hex');
+  if (!crypto.timingSafeEqual(expected, given)) {
+    const { attempts } = await prisma.loginOtp.update({
+      where: { id: otp.id },
+      data: { attempts: { increment: 1 } },
+    });
+    const left = OTP_MAX_ATTEMPTS - attempts;
+    throw ApiError.badRequest(
+      left > 0
+        ? `Incorrect code. ${left} ${left === 1 ? 'attempt' : 'attempts'} left.`
+        : 'Too many incorrect codes. Please sign in again.'
+    );
+  }
+
+  // Consume it once, even if two requests race.
+  const { count } = await prisma.loginOtp.updateMany({
+    where: { id: otp.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+  if (count === 0) throw ApiError.badRequest(OTP_EXPIRED);
+
+  const account = await accounts.findById(otp.userType, otp.userId);
+  assertCanSignIn(account);
+  return completeLogin(account);
+}
+
+/** Email a fresh code for the same sign-in (the old one stops working). */
+export async function resendLoginOtp(challengeId: string) {
+  const otp = await prisma.loginOtp.findUnique({ where: { id: challengeId } });
+  if (!otp || otp.usedAt || otp.expiresAt < new Date() || otp.attempts >= OTP_MAX_ATTEMPTS) {
+    throw ApiError.badRequest(OTP_EXPIRED);
+  }
+  if (otp.sendCount >= OTP_MAX_SENDS) {
+    throw ApiError.badRequest('Too many codes sent. Please sign in again.');
+  }
+  const wait = Math.ceil((otp.lastSentAt.getTime() + OTP_RESEND_SECONDS * 1000 - Date.now()) / 1000);
+  if (wait > 0) throw ApiError.badRequest(`Please wait ${wait} seconds before asking for a new code.`);
+
+  const account = await accounts.findById(otp.userType, otp.userId);
+  assertCanSignIn(account);
+
+  const code = newOtpCode();
+  await prisma.loginOtp.update({
+    where: { id: otp.id },
+    data: {
+      codeHash: otpHash(otp.id, code),
+      expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
+      attempts: 0,
+      sendCount: { increment: 1 },
+      lastSentAt: new Date(),
+    },
+  });
+  return emailLoginCode(account, otp.id, code);
 }
 
 export async function refresh(refreshToken: string) {

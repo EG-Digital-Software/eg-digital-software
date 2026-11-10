@@ -9,11 +9,27 @@ import { loadSeen } from '../lib/seen';
 // Team (EMPLOYEE) accounts can't use the mobile app — they sign in on the web portal.
 export type Portal = 'CLIENT' | 'SUPER_ADMIN';
 
+/** A correct password emails a one-time code; the session waits for it. */
+export interface LoginChallenge {
+  otpRequired: true;
+  challengeId: string;
+  /** Masked address the code went to. */
+  email: string;
+  expiresInMinutes: number;
+  resendInSeconds: number;
+}
+
+type SignedIn = { otpRequired?: false; user: User; accessToken: string; refreshToken?: string };
+
 interface AuthState {
   ready: boolean;
   user: User | null;
   role: Role | null;
-  signIn: (email: string, password: string, portal: Portal) => Promise<void>;
+  /** Step one: resolves to the emailed-code challenge, or null when already signed in. */
+  signIn: (email: string, password: string, portal: Portal) => Promise<LoginChallenge | null>;
+  /** Step two: the emailed code starts the session. */
+  verifyOtp: (challengeId: string, code: string) => Promise<void>;
+  resendOtp: (challengeId: string) => Promise<LoginChallenge>;
   signOut: () => Promise<void>;
 }
 
@@ -85,17 +101,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const signIn = async (email: string, password: string, portal: Portal) => {
-    const data = await request<{ user: User; accessToken: string; refreshToken?: string }>('/auth/login', {
-      method: 'POST',
-      body: { email: email.trim(), password, portal },
-      noRetry: true,
-    });
+  const startSession = (data: SignedIn) => {
     if (data.user.role === 'EMPLOYEE') {
       throw new Error('Team accounts can’t sign in on the app. Please use the web portal.');
     }
     setSession({ user: data.user, accessToken: data.accessToken, refreshToken: data.refreshToken ?? null });
   };
+
+  const signIn = async (email: string, password: string, portal: Portal) => {
+    const data = await request<SignedIn | LoginChallenge>('/auth/login', {
+      method: 'POST',
+      body: { email: email.trim(), password, portal },
+      noRetry: true,
+    });
+    if (data.otpRequired) return data;
+    startSession(data);
+    return null;
+  };
+
+  const verifyOtp = async (challengeId: string, code: string) => {
+    startSession(
+      await request<SignedIn>('/auth/login/verify', { method: 'POST', body: { challengeId, code }, noRetry: true })
+    );
+  };
+
+  const resendOtp = (challengeId: string) =>
+    request<LoginChallenge>('/auth/login/resend', { method: 'POST', body: { challengeId }, noRetry: true });
 
   const signOut = async () => {
     // Revoke the refresh token server-side (best effort), then forget it locally.
@@ -109,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ ready, user, role: user?.role ?? null, signIn, signOut }}>
+    <AuthContext.Provider value={{ ready, user, role: user?.role ?? null, signIn, verifyOtp, resendOtp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

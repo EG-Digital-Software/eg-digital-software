@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/store/auth';
 import { toPortal, PORTAL_ROLEKEY, PORTAL_ROLE, ROLE_HOME, authPaths } from '@/lib/portal';
@@ -7,6 +8,8 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { useLogin } from '@/hooks/useSession';
 import { apiErrorMessage } from '@/api/client';
+import type { LoginChallenge } from '@/api/auth';
+import type { User } from '@/types';
 import { brand } from '@/config/brand';
 import {
   SpotlightShell,
@@ -16,6 +19,7 @@ import {
   SPOTLIGHT_INPUT,
   SPOTLIGHT_LINK,
 } from '@/components/auth/SpotlightShell';
+import { LoginOtpStep } from '@/components/auth/LoginOtpStep';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -62,6 +66,8 @@ export default function LoginPage() {
   const params = useParams();
   const sessionUser = useAuth((s) => s.user);
   const initialized = useAuth((s) => s.initialized);
+  // Set once the password is right: the page then asks for the emailed code.
+  const [challenge, setChallenge] = useState<LoginChallenge | null>(null);
 
   // NOTE: every hook must run before the "already signed in" early return
   // below. A successful login flips `sessionUser`, which re-renders this page;
@@ -81,18 +87,23 @@ export default function LoginPage() {
 
   const forgotPath = authPaths.forgot(portal);
 
+  const signedIn = (user: User) => {
+    toast.success('Welcome back');
+    const base: Record<string, string> = {
+      SUPER_ADMIN: '/admin',
+      CLIENT: '/client',
+      EMPLOYEE: '/employee',
+    };
+    const home = ROLE_HOME[user.role] ?? '/admin/dashboard';
+    const target = from?.startsWith(base[user.role]) ? from : home;
+    navigate(target, { replace: true });
+  };
+
   const onSubmit = async (values: FormValues) => {
     try {
-      const user = await login(values.email, values.password, values.rememberMe, PORTAL_ROLE[portal]);
-      toast.success('Welcome back');
-      const base: Record<string, string> = {
-        SUPER_ADMIN: '/admin',
-        CLIENT: '/client',
-        EMPLOYEE: '/employee',
-      };
-      const home = ROLE_HOME[user.role] ?? '/admin/dashboard';
-      const target = from?.startsWith(base[user.role]) ? from : home;
-      navigate(target, { replace: true });
+      const result = await login(values.email, values.password, values.rememberMe, PORTAL_ROLE[portal]);
+      if ('otpRequired' in result && result.otpRequired) setChallenge(result);
+      else signedIn(result as User);
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Login failed'));
     }
@@ -105,6 +116,14 @@ export default function LoginPage() {
   }
 
   const fieldError = errors.email?.message ?? errors.password?.message;
+
+  if (challenge) {
+    return (
+      <SpotlightShell title="Check your email" subtitle={role.subtitle}>
+        <LoginOtpStep challenge={challenge} onChallenge={setChallenge} onSignedIn={signedIn} onBack={() => setChallenge(null)} />
+      </SpotlightShell>
+    );
+  }
 
   return (
     <SpotlightShell subtitle={role.subtitle}>
@@ -155,4 +174,3 @@ export default function LoginPage() {
     </SpotlightShell>
   );
 }
-
