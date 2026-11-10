@@ -5,7 +5,7 @@ import { useAuth } from '@/store/auth';
 import {
   Rows3,
   CalendarDays,
-  PieChart,
+  Clock,
   Search,
   Tag,
   Plus,
@@ -40,15 +40,14 @@ import {
 import { isTaskUnseen, newSinceFromSig, taskActivityMeta, taskRowSeenKey, writeSeen, type NewSince } from '@/lib/taskSeen';
 import { GridView } from './GridView';
 import { ScheduleView } from './ScheduleView';
-import { ChartsView } from './ChartsView';
 import { TaskDialog } from './TaskDialog';
 
-type ViewKey = 'grid' | 'schedule' | 'charts';
+type ViewKey = 'grid' | 'schedule' | 'timesheet';
 
 const VIEWS: { key: ViewKey; label: string; icon: React.ReactNode }[] = [
   { key: 'grid', label: 'Grid', icon: <Rows3 className="h-4 w-4" /> },
   { key: 'schedule', label: 'Schedule', icon: <CalendarDays className="h-4 w-4" /> },
-  { key: 'charts', label: 'Charts', icon: <PieChart className="h-4 w-4" /> },
+  { key: 'timesheet', label: 'Time Sheet', icon: <Clock className="h-4 w-4" /> },
 ];
 
 interface Filters {
@@ -354,7 +353,19 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
           booking={bookAppt.isPending}
         />
       )}
-      {view === 'charts' && <ChartsView buckets={visibleBuckets} />}
+      {view === 'timesheet' && (
+        /* Time Sheet — coming soon. */
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
+            <Clock className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <h4 className="mt-4 text-base font-semibold">Time Sheet</h4>
+          <p className="mt-1 max-w-sm text-sm text-muted-foreground">Time tracking for these tasks is on the way. This space is coming soon.</p>
+          <span className="mt-4 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+            Coming soon
+          </span>
+        </div>
+      )}
 
       {dialog && (
         <TaskDialog

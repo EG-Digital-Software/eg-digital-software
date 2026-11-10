@@ -55,6 +55,37 @@ export function mediaUrl(path?: string | null): string | undefined {
 }
 
 /**
+ * Save a file under its own name. Uploaded files live on the storage origin,
+ * where browsers ignore an <a download> link and just open the file, so fetch
+ * it as a blob and save that; if the fetch is blocked, open it in a new tab.
+ */
+export async function downloadFile(url: string, fileName: string): Promise<void> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(String(res.status));
+    const href = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  } catch {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+/** Click handler for a download link: saves the file instead of opening it. */
+export function downloadOnClick(url: string, fileName: string) {
+  return (e: { preventDefault(): void; stopPropagation(): void }) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void downloadFile(url, fileName);
+  };
+}
+
+/**
  * Days an invoice is past its due date, or 0 when nothing is owed.
  *
  * Lives here rather than in each page so the admin Billing list, the invoice

@@ -1,10 +1,10 @@
 // ── "New feature" announcements in the task form ─────────────────────────────
 // When a new feature ships in the task form (a tab, a tool), add it here. Each
-// user sees it once in the task's "What's new" box — "New feature "Time Sheet"
-// added — by admin" — and then it is remembered as seen for them (localStorage,
-// per user). Entries older than SHOW_DAYS are no longer announced.
+// user sees it once in the task's "What's new" box — "New feature "Access Point
+// PIN lock" added — by admin" — and then it is remembered as seen for them
+// (localStorage, per user). Entries older than SHOW_DAYS are no longer announced.
 
-export type FeatureTab = 'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive' | 'timesheet';
+export type FeatureTab = 'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive';
 
 export interface FeatureUpdate {
   /** Stable id — never reuse or change it, or users see it again. */
@@ -18,7 +18,6 @@ export interface FeatureUpdate {
 }
 
 export const FEATURE_UPDATES: FeatureUpdate[] = [
-  { id: 'task-timesheet', name: 'Time Sheet', addedAt: '2026-10-19', tab: 'timesheet' },
   { id: 'access-point-pin', name: 'Access Point PIN lock', addedAt: '2026-11-09', tab: 'access' },
 ];
 

@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/shared/misc';
 import { Input, Select } from '@/components/ui/input';
 import { EmptyState, ErrorState, LoadingBlock } from '@/components/shared/states';
 import { customerName } from '@/lib/customer';
-import { formatDate, mediaUrl } from '@/lib/utils';
+import { downloadFile, formatDate, mediaUrl } from '@/lib/utils';
 
 type FileType = 'all' | 'image' | 'video' | 'other';
 
@@ -18,26 +18,6 @@ const typeOf = (f: ArchiveFile): Exclude<FileType, 'all'> =>
 function humanSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-/**
- * Save a file under its own name. Storage lives on another origin, where the
- * `download` attribute is ignored, so fetch it as a blob first; if that is
- * blocked, open it in a new tab instead.
- */
-async function downloadFile(url: string, fileName: string) {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(String(res.status));
-    const href = URL.createObjectURL(await res.blob());
-    const a = document.createElement('a');
-    a.href = href;
-    a.download = fileName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(href), 1000);
-  } catch {
-    window.open(url, '_blank', 'noopener');
-  }
 }
 
 /**

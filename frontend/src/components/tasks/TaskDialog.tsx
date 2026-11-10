@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
@@ -60,7 +61,7 @@ import type { NewSince } from '@/lib/taskSeen';
 import { markFeaturesSeen, unseenFeatures } from '@/lib/featureUpdates';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
-import { cn, formatDate, initials, mediaUrl } from '@/lib/utils';
+import { cn, downloadOnClick, formatDate, initials, mediaUrl } from '@/lib/utils';
 import { downloadChatDoc, printChatPdf } from '@/lib/chatExport';
 import { renderMessageBody, stripMentions } from '@/lib/mentions';
 import { NotoEmoji, withNotoEmoji } from '@/lib/emoji';
@@ -98,7 +99,7 @@ interface Props {
   newSince?: NewSince | null;
 }
 
-type WhatsNewTarget = 'chat' | 'details' | 'attachments' | 'approval' | 'access' | 'archive' | 'performance' | 'timesheet' | null;
+type WhatsNewTarget = 'chat' | 'details' | 'attachments' | 'approval' | 'access' | 'archive' | 'performance' | null;
 interface WhatsNewItem {
   key: string;
   icon: React.ElementType;
@@ -288,7 +289,7 @@ export function TaskDialog({
     : `/${me?.role === 'CLIENT' ? 'client' : 'employee'}/account?tab=pin`;
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
-  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive' | 'timesheet'>('details');
+  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive'>('details');
   const [approvalSubject, setApprovalSubject] = useState('');
   const [approvalMessage, setApprovalMessage] = useState('');
   const [approvalFiles, setApprovalFiles] = useState<File[]>([]);
@@ -948,7 +949,13 @@ export function TaskDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className={cn('flex !max-w-none !max-h-[95vh] !h-[92vh] flex-col gap-0 overflow-hidden p-0', chatVisible ? '!w-[min(1680px,96vw)]' : '!w-[min(1200px,94vw)]')}>
+      <DialogContent
+        // The attachment viewer renders outside this dialog, so a click or Esc in
+        // it would count as "outside" and close the whole task. While it is open,
+        // Esc closes just the viewer and outside clicks are left to it.
+        onInteractOutside={(e) => { if (preview) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (preview) { e.preventDefault(); setPreview(null); } }}
+        className={cn('flex !max-w-none !max-h-[95vh] !h-[92vh] flex-col gap-0 overflow-hidden p-0', chatVisible ? '!w-[min(1680px,96vw)]' : '!w-[min(1200px,94vw)]')}>
         <DialogTitle className="sr-only">Task</DialogTitle>
 
         {/* Top bar */}
@@ -1127,11 +1134,6 @@ export function TaskDialog({
                   Archive{liveTask && liveTask.archive && liveTask.archive.length > 0 ? ` (${liveTask.archive.length})` : ''}
                 </TabPill>
               )}
-              {isEdit && (
-                <TabPill active={tab === 'timesheet'} onClick={() => setTab('timesheet')} icon={<Clock className="h-4 w-4" />}>
-                  Time Sheet
-                </TabPill>
-              )}
             </div>
 
             {tab === 'details' ? (
@@ -1278,7 +1280,7 @@ export function TaskDialog({
                     </div>
                     <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
                     <button type="button" onClick={() => setPreview({ url: mediaUrl(f.url) ?? '', name: f.fileName })} title="View" className="text-muted-foreground hover:text-primary"><Eye className="h-4 w-4" /></button>
-                    <a href={mediaUrl(f.url)} download={f.fileName} title="Download" className="text-muted-foreground hover:text-primary"><Download className="h-4 w-4" /></a>
+                    <a href={mediaUrl(f.url)} download={f.fileName} onClick={downloadOnClick(mediaUrl(f.url) ?? '', f.fileName)} title="Download" className="text-muted-foreground hover:text-primary"><Download className="h-4 w-4" /></a>
                     <button type="button" onClick={() => removeFile.mutate(f.id)} className="opacity-0 transition group-hover:opacity-100"><X className="h-4 w-4 text-muted-foreground hover:text-rose-500" /></button>
                   </div>
                 ))}
@@ -1344,13 +1346,6 @@ export function TaskDialog({
                 icon={LineChart}
                 title="Performance Dashboard"
                 text="Task analytics and performance insights are on the way. This space is coming soon."
-              />
-            ) : tab === 'timesheet' ? (
-              /* Time Sheet — coming soon. */
-              <ComingSoonPanel
-                icon={Clock}
-                title="Time Sheet"
-                text="Time tracking for this task is on the way. This space is coming soon."
               />
             ) : (
               /* Archive tab — admin stores files/images/videos (original quality);
@@ -1513,6 +1508,7 @@ export function TaskDialog({
                               <a
                                 href={furl}
                                 download={f.fileName}
+                                onClick={downloadOnClick(furl, f.fileName)}
                                 target="_blank"
                                 rel="noreferrer"
                                 title={`Download ${f.fileName}`}
@@ -1717,8 +1713,11 @@ export function TaskDialog({
       </DialogContent>
     </Dialog>
 
-    {/* Attachment viewer — preview a file before downloading it. */}
-    {preview && (
+    {/* Attachment viewer — preview a file before downloading it. Portalled to
+        <body>: rendered in place it would sit inside the board's animated
+        (transformed) section, which traps position:fixed, and so stay hidden
+        behind the task dialog. */}
+    {preview && createPortal(
       <div
         // The task dialog (Radix) marks the rest of the page inert with
         // pointer-events:none while open; this viewer renders outside that
@@ -1731,6 +1730,7 @@ export function TaskDialog({
           <a
             href={preview.url}
             download={preview.name}
+            onClick={downloadOnClick(preview.url, preview.name)}
             title="Download original"
             className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20"
           >
@@ -1766,7 +1766,8 @@ export function TaskDialog({
             );
           })()}
         </div>
-      </div>
+      </div>,
+      document.body
     )}
     </>
   );
@@ -2333,7 +2334,7 @@ function ArchivePanel({
                     <span className="text-[11px] text-muted-foreground">{humanSize(f.size)}</span>
                     {isAdmin && (
                       <div className="flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
-                        <a href={url} download={f.fileName} className="text-muted-foreground hover:text-primary" title="Download (original quality)">
+                        <a href={url} download={f.fileName} onClick={downloadOnClick(url, f.fileName)} className="text-muted-foreground hover:text-primary" title="Download (original quality)">
                           <Download className="h-4 w-4" />
                         </a>
                         <button type="button" className="text-muted-foreground hover:text-primary" title="Rename" onClick={() => { setRenaming(f.id); setRenameValue(f.fileName); }}>
@@ -2538,6 +2539,7 @@ function ApprovalPanel({
                       <a
                         href={url}
                         download={f.fileName}
+                        onClick={downloadOnClick(url, f.fileName)}
                         target="_blank"
                         rel="noreferrer"
                         title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
@@ -2566,6 +2568,7 @@ function ApprovalPanel({
                     <a
                       href={url}
                       download={f.fileName}
+                      onClick={downloadOnClick(url, f.fileName)}
                       target="_blank"
                       rel="noreferrer"
                       title={`Download ${f.fileName} (${(f.size / 1024).toFixed(0)} KB)`}
@@ -2907,6 +2910,7 @@ function ApprovalPanel({
             <a
               href={lightbox.url}
               download={lightbox.name}
+              onClick={downloadOnClick(lightbox.url, lightbox.name)}
               target="_blank"
               rel="noreferrer"
               title="Download original"
