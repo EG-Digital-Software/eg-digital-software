@@ -315,14 +315,27 @@ function ownedEntry(pool: PoolRow, entryId: string) {
   return entry;
 }
 
-/** The admin edits an entry; it goes back to the client for approval. */
-export async function updatePoolEntry(customerId: string, poolId: string, entryId: string, input: PoolEntryInput) {
+/**
+ * The admin edits an entry; it goes back to the client for approval. Editing a
+ * request over the monthly maximum passes it on, so it is recorded as the
+ * admin's approval and shows in the Approvals history.
+ */
+export async function updatePoolEntry(customerId: string, poolId: string, entryId: string, input: PoolEntryInput, actor: TimeActor) {
   const pool = await ownedPool(customerId, poolId);
-  ownedEntry(pool, entryId);
+  const entry = ownedEntry(pool, entryId);
   await checkEntry(pool, input, entryId);
+  const passedOn = ADMIN_ONLY.includes(entry.approvalStatus);
   await prisma.taskTimeEntry.update({
     where: { id: entryId },
-    data: { ...entryData(input), approvalStatus: 'PENDING', rejectReason: null, decidedAt: null, decidedById: null, decidedByName: null },
+    data: {
+      ...entryData(input),
+      approvalStatus: 'PENDING',
+      rejectReason: null,
+      decidedAt: null,
+      decidedById: null,
+      decidedByName: null,
+      ...(passedOn && { adminDecision: 'APPROVED', adminDecidedAt: new Date(), adminDecidedById: actor.id, adminDecidedByName: actor.name }),
+    },
   });
   await askClientToApprove(customerId, entryId, input, true);
   return reloadPool(poolId);
@@ -413,8 +426,10 @@ export async function decideAdminRequest(entryId: string, input: EntryDecisionIn
   if (entry.approvalStatus !== 'ADMIN_PENDING') throw ApiError.badRequest('This request is already decided');
   const rejected = input.decision === 'REJECTED';
   const reason = rejected ? input.reason?.trim() || null : null;
-  await prisma.taskTimeEntry.update({
-    where: { id: entryId },
+  // Only a still-waiting request is decided, so two admins deciding at once
+  // cannot both go through (or notify twice).
+  const { count } = await prisma.taskTimeEntry.updateMany({
+    where: { id: entryId, approvalStatus: 'ADMIN_PENDING' },
     data: {
       ...(rejected
         ? { approvalStatus: 'ADMIN_REJECTED', rejectReason: reason, decidedAt: new Date(), decidedById: actor.id, decidedByName: actor.name }
@@ -425,6 +440,7 @@ export async function decideAdminRequest(entryId: string, input: EntryDecisionIn
       adminDecidedByName: actor.name,
     },
   });
+  if (count === 0) throw ApiError.badRequest('This request is already decided');
   if (entry.authorType === 'EMPLOYEE') {
     notify({
       userId: entry.authorId,

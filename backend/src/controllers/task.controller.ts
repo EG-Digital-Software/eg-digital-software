@@ -121,7 +121,7 @@ export const addTimeSheetEntry = asyncHandler(async (req: Request, res: Response
 /** Editing or deleting logged time is the admin's; an edit goes back to the client. */
 export const updateTimeSheetEntry = asyncHandler(async (req: Request, res: Response) => {
   if (!isAdminLike(req)) throw ApiError.forbidden('Only the admin can edit time entries');
-  const pool = await timesheet.updatePoolEntry(await resolve(req), req.params.poolId, req.params.entryId, req.body);
+  const pool = await timesheet.updatePoolEntry(await resolve(req), req.params.poolId, req.params.entryId, req.body, await author(req));
   return ok(res, pool, 'Time entry updated — sent to the client for approval');
 });
 
