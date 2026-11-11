@@ -22,7 +22,11 @@ export interface PoolRules {
 
 export interface PoolEntry {
   taskId: string;
-  /** PENDING, APPROVED or REJECTED — rejected entries do not count. */
+  /**
+   * ADMIN_PENDING (over the monthly maximum, waiting for the admin), PENDING
+   * (waiting for the client), APPROVED, REJECTED or ADMIN_REJECTED. Only
+   * PENDING and APPROVED entries count against the pool.
+   */
   status?: string;
   /** YYYY-MM-DD */
   date: string;
@@ -36,6 +40,9 @@ export interface PoolApproval {
 }
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Whether an entry draws on the pool: not yet with the client, or rejected, it does not. */
+export const counts = (e: { status?: string }) => !e.status || e.status === 'PENDING' || e.status === 'APPROVED';
 
 const monthOf = (date: string) => date.slice(0, 7);
 
@@ -69,7 +76,7 @@ export interface PoolMonth {
 
 /** Where a pool stands on `asOf` (YYYY-MM-DD): every month of the term plus the totals. */
 export function summarisePool(rules: PoolRules, entries: PoolEntry[], asOf: string, approvals: PoolApproval[] = []) {
-  const mine = entries.filter((e) => rules.taskIds.includes(e.taskId) && e.status !== 'REJECTED');
+  const mine = entries.filter((e) => rules.taskIds.includes(e.taskId) && counts(e));
   const thisMonth = monthOf(asOf);
   let balance = rules.poolHours;
   let cumulative = 0;
@@ -109,8 +116,9 @@ export function summarisePool(rules: PoolRules, entries: PoolEntry[], asOf: stri
   const extraHours = round2(rows.reduce((a, r) => a + r.extraHours, 0));
   const extraApproved = round2(approvals.filter((a) => a.date <= asOf).reduce((a, x) => a + x.hours, 0));
   const extraRemaining = round2(Math.max(0, extraApproved - extraHours));
-  const poolLeft = current ? current.balanceStart - current.used : balance;
-  const headroom = current ? Math.max(0, current.balanceStart - current.used) : 0;
+  // Every logged hour of the term draws on the pool, whichever month it is dated in.
+  const poolLeft = round2(rules.poolHours - cumulative);
+  const headroom = Math.max(0, poolLeft);
   return {
     rows,
     current,

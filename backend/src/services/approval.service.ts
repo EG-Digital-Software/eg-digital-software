@@ -53,8 +53,13 @@ export async function listRequests(params: {
   };
 }
 
+/** The Approvals badge: sign-ups waiting, plus Time Sheet entries over the monthly maximum. */
 export async function pendingCount() {
-  return accounts.pendingCountAll();
+  const [signups, timeSheet] = await Promise.all([
+    accounts.pendingCountAll(),
+    prisma.taskTimeEntry.count({ where: { approvalStatus: 'ADMIN_PENDING' } }),
+  ]);
+  return signups + timeSheet;
 }
 
 export async function approve(userId: string, approverId: string) {

@@ -275,6 +275,35 @@ export interface TeamRole {
   updatedAt: string;
 }
 
+export interface TimeSheetRequest {
+  id: string;
+  poolId: string;
+  poolName: string;
+  customerId: string;
+  clientId: string;
+  customerName: string;
+  taskNumber: string;
+  taskTitle: string;
+  date: string;
+  endDate: string;
+  requestId: string;
+  priority: string;
+  category: string;
+  description: string;
+  staff: string;
+  hours: number;
+  authorName: string;
+  month: string;
+  /** Hours the month holds without this request. */
+  monthUsed: number;
+  monthlyHours: number;
+  monthlyMax: number;
+  rejectReason?: string | null;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
+}
+
 export const adminApi = {
   registrations: async (params: Record<string, unknown> = {}) => {
     const { data } = await api.get<
@@ -282,6 +311,11 @@ export const adminApi = {
     >(`/admin/registrations${qs(params)}`);
     return { items: data.data, meta: data.meta };
   },
+  // Time Sheet entries logged over the month's maximum, waiting for the admin.
+  timeSheetRequests: async (status: 'ADMIN_PENDING' | 'ADMIN_REJECTED') =>
+    (await api.get<ApiEnvelope<TimeSheetRequest[]>>(`/admin/timesheet-requests?status=${status}`)).data.data,
+  decideTimeSheetRequest: async (id: string, body: { decision: 'APPROVED' | 'REJECTED'; reason?: string }) =>
+    (await api.post(`/admin/timesheet-requests/${id}/decision`, body)).data,
   pendingCount: async () =>
     (await api.get<ApiEnvelope<{ count: number }>>('/admin/registrations/count')).data.data.count,
   approve: async (id: string) => (await api.post(`/admin/registrations/${id}/approve`)).data,

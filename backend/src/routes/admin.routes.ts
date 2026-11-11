@@ -25,6 +25,9 @@ import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
 import { runTokenCleanup } from '../services/housekeeping.service.js';
 import { listAllArchiveFiles, listPreviewCustomers, taskActivityByCustomer, taskActivityByTask } from '../services/task.service.js';
 import * as accessPoint from '../services/accessPoint.service.js';
+import * as timesheet from '../services/timesheet.service.js';
+import { timeSheetDecisionSchema } from '../validators/task.validator.js';
+import { findById } from '../services/accounts.js';
 import { ApiError } from '../utils/ApiError.js';
 
 const router = Router();
@@ -61,6 +64,31 @@ router.get(
   authenticate,
   authorizeTab(['preview']),
   asyncHandler(async (_req, res) => ok(res, await listPreviewCustomers()))
+);
+
+// Time Sheet entries a team member logged over the month's maximum — the
+// admin approves (then the client is asked) or rejects them with a reason.
+// Shared with admin staff who can edit Tasks, so it sits ahead of the admin-only guard.
+router.get(
+  '/timesheet-requests',
+  authenticate,
+  authorizeTab(['tasks']),
+  asyncHandler(async (req, res) =>
+    ok(res, await timesheet.listAdminRequests(req.query.status === 'ADMIN_REJECTED' ? 'ADMIN_REJECTED' : 'ADMIN_PENDING'))
+  )
+);
+router.post(
+  '/timesheet-requests/:entryId/decision',
+  authenticate,
+  authorizeTab(['tasks']),
+  validate({ body: timeSheetDecisionSchema }),
+  asyncHandler(async (req, res) => {
+    const { sub, role, email } = req.user!;
+    const acc = await findById(role, sub);
+    const actor = { id: sub, type: role, name: acc ? `${acc.firstName} ${acc.lastName}`.trim() : email };
+    const result = await timesheet.decideAdminRequest(req.params.entryId, req.body, actor);
+    return ok(res, result, req.body.decision === 'APPROVED' ? 'Request approved — sent to the client' : 'Request rejected');
+  })
 );
 
 router.use(authenticate, authorize(Role.SUPER_ADMIN));

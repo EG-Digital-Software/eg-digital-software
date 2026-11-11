@@ -24,6 +24,7 @@ import { EmptyState, ErrorState, Spinner } from '@/components/shared/states';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { formatDate, initials } from '@/lib/utils';
 import { EditEmployeeDialog, ManageEmployeePasswordDialog } from '@/components/team/EmployeeDialogs';
+import { TimeSheetRequests } from './TimeSheetRequests';
 
 const ROLE_BADGE: Record<string, { label: string; cls: string }> = {
   CLIENT: { label: 'Customer', cls: 'c-on' },
@@ -55,7 +56,14 @@ export default function ApprovalsPage() {
   const qc = useQueryClient();
   // Arriving via "Manage Team" (?role=EMPLOYEE) opens pre-filtered to team,
   // showing every status (not just pending) so all team members are listed.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Approvals has two lists: sign-ups, and Time Sheet entries over the monthly maximum.
+  const view = searchParams.get('view') === 'timesheet' ? 'timesheet' : 'registrations';
+  const { data: tsPending } = useQuery({
+    queryKey: ['admin', 'timesheet-requests', 'ADMIN_PENDING'],
+    queryFn: () => adminApi.timeSheetRequests('ADMIN_PENDING'),
+    refetchInterval: 30_000,
+  });
   const initialRole = searchParams.get('role') ?? '';
   const [tab, setTab] = useState(initialRole ? 'ALL' : 'PENDING');
   const [page, setPage] = useState(1);
@@ -123,14 +131,49 @@ export default function ApprovalsPage() {
     <div className="ec-page">
       <PageHeader
         eyebrow="Approvals"
-        title="Registration approvals"
-        description="Review Customer and Team sign-up requests, and manage access after the fact."
+        title={view === 'timesheet' ? 'Time Sheet approvals' : 'Registration approvals'}
+        description={
+          view === 'timesheet'
+            ? "Time logged by the team over a pool's monthly maximum — approve it before it goes to the client."
+            : 'Review Customer and Team sign-up requests, and manage access after the fact.'
+        }
         actions={
-          <button type="button" className="btn bp" onClick={() => setAddOpen(true)}>
-            <UserPlus /> Add Employee
-          </button>
+          view === 'registrations' && (
+            <button type="button" className="btn bp" onClick={() => setAddOpen(true)}>
+              <UserPlus /> Add Employee
+            </button>
+          )
         }
       />
+
+      <div className="segs" role="group" aria-label="Approval type" style={{ alignSelf: 'flex-start' }}>
+        {(
+          [
+            { value: 'registrations', label: 'Registrations' },
+            { value: 'timesheet', label: 'Time Sheet' },
+          ] as const
+        ).map((v) => (
+          <button
+            key={v.value}
+            type="button"
+            className={`seg${view === v.value ? ' on' : ''}`}
+            aria-pressed={view === v.value}
+            onClick={() => setSearchParams(v.value === 'timesheet' ? { view: 'timesheet' } : {})}
+          >
+            {v.label}
+            {v.value === 'timesheet' && !!tsPending?.length && (
+              <span className="mono" style={{ opacity: 0.7, marginLeft: 6 }}>
+                {tsPending.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {view === 'timesheet' ? (
+        <TimeSheetRequests />
+      ) : (
+        <>
 
       <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
         {[
@@ -375,6 +418,8 @@ export default function ApprovalsPage() {
           </>
         )}
       </section>
+        </>
+      )}
 
       <ConfirmDialog
         open={!!confirm}

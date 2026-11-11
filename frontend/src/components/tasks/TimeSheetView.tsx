@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { AlertTriangle, Check, Clock, Download, Info, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import type { TaskApi } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
+import { adminApi } from '@/api/resources';
 import { useAuth } from '@/store/auth';
 import type { TaskBucket } from '@/types';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,8 @@ import {
   hoursLabel,
   money,
   monthLabel,
+  counts,
+  round2,
   summarisePool,
   newRequestId,
   rangeLabel,
@@ -49,6 +52,8 @@ const PRIORITY_TONE: Record<string, string> = {
 const fieldLabel = 'mb-1 block text-xs font-medium text-muted-foreground';
 
 const STATUS_TONE: Record<EntryStatus, string> = {
+  ADMIN_PENDING: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
+  ADMIN_REJECTED: 'bg-red-50 text-red-700 ring-1 ring-red-200',
   PENDING: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
   APPROVED: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
   REJECTED: 'bg-red-50 text-red-700 ring-1 ring-red-200',
@@ -111,7 +116,8 @@ export function TimeSheetView({
   const qc = useQueryClient();
   const user = useAuth((s) => s.user);
   const queryKey = ['tasks', scopeKey, 'timesheet'];
-  const q = useQuery({ queryKey, queryFn: () => api.timeSheet() });
+  // Others change the sheet too (the client approves, the team logs): keep the cards current.
+  const q = useQuery({ queryKey, queryFn: () => api.timeSheet(), refetchInterval: 30_000, refetchOnWindowFocus: true });
   const [selected, setSelected] = useState<string>('');
   const [poolForm, setPoolForm] = useState<{ pool: TimeSheetPool | null } | null>(null);
 
@@ -254,30 +260,44 @@ function PoolPanel({
 
   const entries = useMemo(() => [...pool.entries].sort((a, b) => b.date.localeCompare(a.date)), [pool.entries]);
   const months = useMemo(() => Array.from(new Set(entries.map((e) => e.date.slice(0, 7)))), [entries]);
-  const [month, setMonth] = useState<string>(() => (cur && months.includes(cur.month) ? cur.month : months[0] ?? 'all'));
+  const [month, setMonth] = useState<string>('all');
   const [tab, setTab] = useState<'entries' | 'monthly'>('entries');
   const [logging, setLogging] = useState(false);
   const [approving, setApproving] = useState(false);
   const [editing, setEditing] = useState<TimeSheetEntry | null>(null);
   const [deleting, setDeleting] = useState<TimeSheetEntry | null>(null);
   const [rejecting, setRejecting] = useState<TimeSheetEntry | null>(null);
+  // The admin board decides requests over the monthly maximum (ADMIN_PENDING).
+  const [adminRejecting, setAdminRejecting] = useState<TimeSheetEntry | null>(null);
   // Editing checks the pool's rules without the entry's own hours.
   const editSummary = useMemo(
     () => (editing ? summarisePool(pool, pool.entries.filter((e) => e.id !== editing.id), today, pool.approvals) : s),
     [editing, pool, today, s]
   );
   const pending = entries.filter((e) => e.status === 'PENDING').length;
+  const withAdmin = entries.filter((e) => e.status === 'ADMIN_PENDING').length;
 
   const shown = month === 'all' ? entries : entries.filter((e) => e.date.startsWith(month));
-  const shownActual = shown.reduce((n, e) => n + (e.status === 'REJECTED' ? 0 : e.actualHours), 0);
+  const shownActual = shown.reduce((n, e) => n + (counts(e) ? e.actualHours : 0), 0);
+  // The month card follows the month picked above; All months shows the current month.
+  const cardRow = month === 'all' ? cur : s.rows.find((r) => r.month === month) ?? cur;
+  const cardAvailable = !cardRow
+    ? 0
+    : cardRow.status === 'current'
+      ? s.availableThisMonth
+      : round2(Math.max(0, Math.min(pool.monthlyMax - cardRow.used, Math.max(0, s.balance) + s.extraRemaining)));
   const loggable = pool.tasks.filter((t) => !loggableTaskIds || loggableTaskIds.has(t.taskId));
 
   const terms = `${pool.poolHours} h pool shared by ${pool.tasks.map((t) => taskName(t.taskId)).join(' + ')} · ${pool.monthlyHours} h a month, up to ${pool.monthlyMax} h in a month if needed · ${money(pool.extraRate)}/h beyond the pool`;
 
   const refresh = () => qc.invalidateQueries({ queryKey });
   const addEntry = useMutation({
-    mutationFn: (body: TimeSheetEntryInput) => api.addTimeSheetEntry(pool.id, body),
-    onSuccess: (_p, body) => { refresh(); setLogging(false); setMonth(body.date.slice(0, 7)); toast.success('Time logged'); },
+    mutationFn: (v: { body: TimeSheetEntryInput; request: boolean }) => api.addTimeSheetEntry(pool.id, v.body),
+    onSuccess: (_p, v) => {
+      refresh();
+      setLogging(false);
+      toast.success(v.request ? 'Approval request sent to the admin' : 'Time logged');
+    },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const updateEntry = useMutation({
@@ -294,6 +314,18 @@ function PoolPanel({
     mutationFn: (v: { id: string; decision: 'APPROVED' | 'REJECTED'; reason?: string }) =>
       api.decideTimeSheetEntry(pool.id, v.id, { decision: v.decision, reason: v.reason }),
     onSuccess: (_p, v) => { refresh(); setRejecting(null); toast.success(v.decision === 'APPROVED' ? 'Entry approved' : 'Entry rejected'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const adminDecide = useMutation({
+    mutationFn: (v: { id: string; decision: 'APPROVED' | 'REJECTED'; reason?: string }) =>
+      adminApi.decideTimeSheetRequest(v.id, { decision: v.decision, reason: v.reason }),
+    onSuccess: (_r, v) => {
+      refresh();
+      qc.invalidateQueries({ queryKey: ['admin', 'timesheet-requests'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'pendingCount'] });
+      setAdminRejecting(null);
+      toast.success(v.decision === 'APPROVED' ? 'Approved — sent to the client for approval' : 'Request rejected');
+    },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const approve = useMutation({
@@ -345,6 +377,12 @@ function PoolPanel({
       </div>
 
       <div className="space-y-2">
+        {withAdmin > 0 && (
+          <Notice tone="blue">
+            <b>{withAdmin} {withAdmin === 1 ? 'request is' : 'requests are'} over the monthly maximum and waiting for the admin's approval.</b>
+            {' '}They do not count until the admin approves them; then they go to the client.
+          </Notice>
+        )}
         {pending > 0 && (
           <Notice tone="amber">
             <b>{pending} {pending === 1 ? 'entry is' : 'entries are'} waiting for the client's approval.</b>
@@ -371,11 +409,6 @@ function PoolPanel({
             <b>{monthLabel(cur.month)} is {hoursLabel(cur.overMonthlyMax)} over the {pool.monthlyMax} h monthly maximum.</b> Move that work to next month.
           </Notice>
         )}
-        {cur && cur.overMonthlyHours > 0 && cur.overMonthlyMax === 0 && (
-          <Notice tone="amber">
-            <b>{monthLabel(cur.month)} is {hoursLabel(cur.overMonthlyHours)} over the usual {pool.monthlyHours} h.</b> Up to {pool.monthlyMax} h can be used this month if needed.
-          </Notice>
-        )}
         {cur && cur.monthlyAlert && cur.overMonthlyMax === 0 && cur.overMonthlyHours === 0 && (
           <Notice tone="amber">
             <b>Monthly alert:</b> {hoursLabel(cur.used)} used in {monthLabel(cur.month)} (alert at {pool.monthlyAlertAt} h, maximum {pool.monthlyMax} h).
@@ -390,11 +423,23 @@ function PoolPanel({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          label={cur ? `This month · ${monthLabel(cur.month)}` : 'This month'}
-          value={cur ? `${hoursLabel(cur.used)} / ${pool.monthlyHours} h` : '—'}
-          sub={cur ? `Up to ${pool.monthlyMax} h if needed · ${hoursLabel(s.availableThisMonth)} still available` : 'Outside the term'}
+          label={cardRow ? `${cardRow.status === 'current' ? 'This month' : cardRow.status === 'closed' ? 'Past month' : 'Upcoming month'} · ${monthLabel(cardRow.month)}` : 'This month'}
+          value={cardRow ? `${hoursLabel(cardRow.used)} / ${pool.monthlyHours} h` : '—'}
+          sub={
+            !cardRow
+              ? 'Outside the term'
+              : cardRow.status === 'closed'
+                ? `Closed · up to ${pool.monthlyMax} h was allowed`
+                : monthLine(cardRow.used, pool.monthlyHours, pool.monthlyMax, cardAvailable)
+          }
         >
-          {cur && <Meter value={cur.used} max={pool.monthlyMax} tone={cur.used >= pool.monthlyMax ? 'red' : cur.used > pool.monthlyHours || cur.used >= pool.monthlyAlertAt ? 'amber' : 'navy'} />}
+          {cardRow && (
+            <Meter
+              value={cardRow.used}
+              max={pool.monthlyMax}
+              tone={cardRow.used >= pool.monthlyMax ? 'red' : cardRow.used > pool.monthlyHours || cardRow.used >= pool.monthlyAlertAt ? 'amber' : 'navy'}
+            />
+          )}
         </Stat>
         <Stat label="Pool balance" value={hoursLabel(Math.max(0, s.balance))} sub={`of ${pool.poolHours} h`}>
           <Meter value={Math.max(0, s.balance)} max={pool.poolHours} tone="green" />
@@ -438,7 +483,8 @@ function PoolPanel({
           tasks={loggable.map((t) => ({ id: t.taskId, name: taskName(t.taskId) }))}
           saving={addEntry.isPending}
           onCancel={() => setLogging(false)}
-          onSave={(body) => addEntry.mutate(body)}
+          requestOverMax={!canManage}
+          onSave={(body, request) => addEntry.mutate({ body, request })}
         />
       )}
       {editing && canManage && (
@@ -520,17 +566,17 @@ function PoolPanel({
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{e.staff}</td>
-                      <td className={cn('whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums', e.status === 'REJECTED' && 'text-muted-foreground line-through')}>
+                      <td className={cn('whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums', !counts(e) && 'text-muted-foreground', (e.status === 'REJECTED' || e.status === 'ADMIN_REJECTED') && 'line-through')}>
                         {e.actualHours.toFixed(2)}
                       </td>
                       <td className="px-3 py-3">
                         <span className={cn('whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium', STATUS_TONE[e.status] ?? STATUS_TONE.PENDING)}>
                           {ENTRY_STATUS_LABEL[e.status] ?? e.status}
                         </span>
-                        {e.status === 'REJECTED' && e.rejectReason && (
+                        {(e.status === 'REJECTED' || e.status === 'ADMIN_REJECTED') && e.rejectReason && (
                           <div className="mt-1 max-w-[220px] text-xs text-red-700">Reason: {e.rejectReason}</div>
                         )}
-                        {e.decidedBy && e.status !== 'PENDING' && <div className="mt-0.5 text-xs text-muted-foreground">by {e.decidedBy}</div>}
+                        {e.decidedBy && e.status !== 'PENDING' && e.status !== 'ADMIN_PENDING' && <div className="mt-0.5 text-xs text-muted-foreground">by {e.decidedBy}</div>}
                       </td>
                       {(canManage || canDecide) && (
                         <td className="whitespace-nowrap px-4 py-3 text-right">
@@ -546,6 +592,21 @@ function PoolPanel({
                                   <Check className="mr-1 h-3.5 w-3.5" /> Approve
                                 </Button>
                                 <Button size="sm" variant="outline" disabled={decide.isPending} onClick={() => setRejecting(e)}>
+                                  <X className="mr-1 h-3.5 w-3.5" /> Reject
+                                </Button>
+                              </>
+                            )}
+                            {canManage && e.status === 'ADMIN_PENDING' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={adminDecide.isPending}
+                                  onClick={() => adminDecide.mutate({ id: e.id, decision: 'APPROVED' })}
+                                >
+                                  <Check className="mr-1 h-3.5 w-3.5" /> Approve
+                                </Button>
+                                <Button size="sm" variant="outline" disabled={adminDecide.isPending} onClick={() => setAdminRejecting(e)}>
                                   <X className="mr-1 h-3.5 w-3.5" /> Reject
                                 </Button>
                               </>
@@ -610,6 +671,14 @@ function PoolPanel({
         loading={deleteEntry.isPending}
         onConfirm={() => deleting && deleteEntry.mutate(deleting.id)}
       />
+      {adminRejecting && (
+        <RejectEntryDialog
+          entry={adminRejecting}
+          saving={adminDecide.isPending}
+          onClose={() => setAdminRejecting(null)}
+          onReject={(reason) => adminDecide.mutate({ id: adminRejecting.id, decision: 'REJECTED', reason })}
+        />
+      )}
       {rejecting && (
         <RejectEntryDialog
           entry={rejecting}
@@ -624,6 +693,15 @@ function PoolPanel({
       </p>
     </section>
   );
+}
+
+/** The This month card's line: what is left of the usual hours, then of the monthly maximum. */
+function monthLine(used: number, usual: number, max: number, available: number): string {
+  if (used >= max) return `${max} h monthly maximum reached`;
+  // The pool (and approved extra hours) can leave less than the month allows.
+  const poolLimited = available < round2(max - used) ? ' (limited by the pool balance)' : '';
+  if (used < usual) return `${hoursLabel(round2(usual - used))} left of the usual ${usual} h · up to ${max} h if needed${poolLimited}`;
+  return `Usual ${usual} h used · ${hoursLabel(available)} more allowed, up to the ${max} h maximum${poolLimited}`;
 }
 
 function MonthlySummary({ pool, summary, taskName }: { pool: TimeSheetPool; summary: Summary; taskName: (id: string) => string }) {
@@ -723,6 +801,7 @@ function LogTimeForm({
   today,
   tasks,
   entry,
+  requestOverMax = false,
   saving,
   onSave,
   onCancel,
@@ -733,8 +812,10 @@ function LogTimeForm({
   tasks: { id: string; name: string }[];
   /** Editing this entry (admin); saving sends it back to the client for approval. */
   entry?: TimeSheetEntry;
+  /** Going over the monthly maximum sends an approval request to the admin instead of saving. */
+  requestOverMax?: boolean;
   saving: boolean;
-  onSave: (body: TimeSheetEntryInput) => void;
+  onSave: (body: TimeSheetEntryInput, request: boolean) => void;
   onCancel: () => void;
 }) {
   const [f, setF] = useState(() =>
@@ -776,6 +857,7 @@ function LogTimeForm({
   const overMax = !!month && after > pool.monthlyMax;
   const available = Math.max(0, summary.balance) + summary.extraRemaining;
   const needsApproval = hours > available && f.priority !== 'P1';
+  const isRequest = overMax && requestOverMax;
   const filled = !outside && !backwards && f.endDate && f.category && f.taskId && f.requestId.trim() && f.description.trim() && f.staff.trim() && Number.isFinite(actual) && actual >= 0;
 
   return (
@@ -783,7 +865,7 @@ function LogTimeForm({
       className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!filled || overMax || needsApproval) return;
+        if (!filled || legacyId || needsApproval) return;
         onSave({
           date: f.date,
           endDate: f.endDate,
@@ -795,7 +877,7 @@ function LogTimeForm({
           staff: f.staff.trim(),
           actualHours: actual,
           notes: f.notes.trim() || undefined,
-        });
+        }, isRequest);
       }}
     >
       {entry && <div className="text-sm font-semibold">Edit entry — saving sends it to the client for approval again</div>}
@@ -881,8 +963,11 @@ function LogTimeForm({
         </Notice>
       )}
       {overMax && month && (
-        <Notice tone="red">
-          This takes {monthLabel(month.month)} to {hoursLabel(after)}, over the {pool.monthlyMax} h monthly maximum. Date the work into next month.
+        <Notice tone={isRequest ? 'blue' : 'amber'}>
+          This takes {monthLabel(month.month)} to {hoursLabel(after)}, over the {pool.monthlyMax} h monthly maximum.
+          {isRequest
+            ? ' It goes to the admin as an approval request; once the admin approves it, it counts and goes to the client for approval.'
+            : ' As the admin you can log it; it goes to the client for approval.'}
         </Notice>
       )}
       {!overMax && month && after > pool.monthlyHours && month.used <= pool.monthlyHours && (
@@ -899,8 +984,8 @@ function LogTimeForm({
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" size="sm" disabled={!filled || legacyId || overMax || needsApproval || saving}>
-          {saving ? 'Saving…' : entry ? 'Save and send for approval' : 'Save entry'}
+        <Button type="submit" size="sm" disabled={!filled || legacyId || needsApproval || saving}>
+          {saving ? 'Saving…' : isRequest ? 'Send approval request' : entry ? 'Save and send for approval' : 'Save entry'}
         </Button>
       </div>
     </form>

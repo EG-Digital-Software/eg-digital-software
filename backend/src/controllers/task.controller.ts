@@ -101,7 +101,7 @@ export const deleteTimeEntry = asyncHandler(async (req: Request, res: Response) 
 
 /** The customer's hour pools with their time entries and approvals. */
 export const timeSheet = asyncHandler(async (req: Request, res: Response) => {
-  return ok(res, await timesheet.listPools(await resolve(req)));
+  return ok(res, await timesheet.listPools(await resolve(req), req.user!.role === 'CLIENT'));
 });
 
 export const createTimeSheetPool = asyncHandler(async (req: Request, res: Response) => {

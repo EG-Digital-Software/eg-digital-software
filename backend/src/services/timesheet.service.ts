@@ -2,7 +2,7 @@ import { Prisma, type Role } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import { notify, notifySuperAdmins } from './notification.service.js';
-import { round2, summarisePool, type PoolRules } from '../utils/timesheet.js';
+import { counts, round2, summarisePool, type PoolRules } from '../utils/timesheet.js';
 
 /**
  * Board Time Sheet. A customer's purchased hours live in pools; each pool is
@@ -114,10 +114,15 @@ function shapePool(p: PoolRow) {
   };
 }
 
+/** Entries the admin has not passed on (over the monthly maximum) stay off the client's sheet. */
+const ADMIN_ONLY = ['ADMIN_PENDING', 'ADMIN_REJECTED'];
+
 /** Every pool of one customer — the admin and client board. */
-export async function listPools(customerId: string) {
+export async function listPools(customerId: string, forClient = false) {
   const pools = await prisma.timeSheetPool.findMany({ where: { customerId }, include: poolInclude, orderBy: { createdAt: 'asc' } });
-  return { today: today(), pools: pools.map(shapePool) };
+  const shaped = pools.map(shapePool);
+  if (forClient) for (const p of shaped) p.entries = p.entries.filter((e) => !ADMIN_ONLY.includes(e.status));
+  return { today: today(), pools: shaped };
 }
 
 /** Pools covering any task the team member is assigned to — the team board. */
@@ -201,11 +206,13 @@ export async function updatePool(customerId: string, poolId: string, input: Pool
 
 /**
  * The pool's rules, the way the form shows them: the dates must fall inside the
- * term, the month may not go over its maximum, and once the pool is spent only
- * approved extra hours can be used (P1 fixes are exempt). An edited entry is
- * left out of the sums it is checked against. The request ID must be unused.
+ * term, and once the pool is spent only approved extra hours can be used (P1
+ * fixes are exempt). An edited entry is left out of the sums it is checked
+ * against. The request ID must be unused. Going over the month's maximum is not
+ * refused here: it is returned, and the caller decides (the team's entry goes
+ * to the admin for approval; the admin's own is allowed).
  */
-async function checkEntry(pool: PoolRow, input: PoolEntryInput, editingId?: string) {
+async function checkEntry(pool: PoolRow, input: PoolEntryInput, editingId?: string): Promise<{ overMax: boolean }> {
   if (!pool.tasks.some((t) => t.taskId === input.taskId)) throw ApiError.badRequest('That task does not draw on this pool');
   const rules = rulesOf(pool);
   if (input.date < rules.termStart || input.endDate > rules.termEnd) {
@@ -216,9 +223,7 @@ async function checkEntry(pool: PoolRow, input: PoolEntryInput, editingId?: stri
   const others = shaped.entries.filter((e) => e.id !== editingId);
   const summary = summarisePool(rules, others, today(), shaped.approvals);
   const month = summary.rows.find((r) => r.month === input.date.slice(0, 7));
-  if (month && round2(month.used + input.actualHours) > rules.monthlyMax) {
-    throw ApiError.badRequest(`This takes the month over the ${rules.monthlyMax} h monthly maximum. Date the work into next month.`);
-  }
+  const overMax = !!month && round2(month.used + input.actualHours) > rules.monthlyMax;
   const available = Math.max(0, summary.balance) + summary.extraRemaining;
   if (input.actualHours > available && input.priority !== 'P1') {
     throw ApiError.badRequest(
@@ -231,6 +236,7 @@ async function checkEntry(pool: PoolRow, input: PoolEntryInput, editingId?: stri
     select: { id: true },
   });
   if (taken) throw ApiError.conflict('This request ID is already used. Make a new one and save again.');
+  return { overMax };
 }
 
 /** The entry's work fields, as saved on create and edit. */
@@ -267,21 +273,38 @@ async function askClientToApprove(customerId: string, entryId: string, input: Po
 const reloadPool = async (poolId: string) =>
   shapePool(await prisma.timeSheetPool.findUniqueOrThrow({ where: { id: poolId }, include: poolInclude }));
 
-/** Log time against a pool. The entry waits for the client's approval. */
-async function addEntry(pool: PoolRow, input: PoolEntryInput, actor: TimeActor) {
-  await checkEntry(pool, input);
+/**
+ * Log time against a pool. The entry waits for the client's approval — unless
+ * a team member's entry takes the month over its maximum: then it is an
+ * approval request for the admin first, and does not count until approved.
+ */
+async function addEntry(pool: PoolRow, input: PoolEntryInput, actor: TimeActor, byAdmin: boolean) {
+  const { overMax } = await checkEntry(pool, input);
+  // Anyone on the admin board (super admin or admin staff) may log over the maximum.
+  const toAdmin = overMax && !byAdmin;
   const entry = await prisma.taskTimeEntry.create({
     data: {
       customerId: pool.customerId,
       poolId: pool.id,
       ...entryData(input),
-      approvalStatus: 'PENDING',
+      approvalStatus: toAdmin ? 'ADMIN_PENDING' : 'PENDING',
       authorId: actor.id,
       authorType: actor.type,
       authorName: actor.name,
     },
   });
-  await askClientToApprove(pool.customerId, entry.id, input, false);
+  if (toAdmin) {
+    notifySuperAdmins({
+      type: 'timesheet',
+      title: 'Time Sheet request over the monthly maximum',
+      body: `${input.requestId} — ${round2(input.actualHours)} h by ${actor.name} (${pool.name})`,
+      link: '/admin/approvals?view=timesheet',
+      entityType: 'TaskTimeEntry',
+      entityId: entry.id,
+    });
+  } else {
+    await askClientToApprove(pool.customerId, entry.id, input, false);
+  }
   return reloadPool(pool.id);
 }
 
@@ -312,6 +335,98 @@ export async function deletePoolEntry(customerId: string, poolId: string, entryI
   return reloadPool(poolId);
 }
 
+/** Time Sheet entries over the monthly maximum, for the admin's Approvals page. */
+export async function listAdminRequests(status: 'ADMIN_PENDING' | 'ADMIN_REJECTED') {
+  const rows = await prisma.taskTimeEntry.findMany({
+    where: { approvalStatus: status, poolId: { not: null } },
+    include: { pool: { include: poolInclude }, task: { select: { taskNumber: true, title: true } } },
+    orderBy: { createdAt: status === 'ADMIN_PENDING' ? 'asc' : 'desc' },
+    take: 200,
+  });
+  const customers = await prisma.customer.findMany({
+    where: { id: { in: [...new Set(rows.map((r) => r.customerId))] } },
+    select: { id: true, clientId: true, companyName: true },
+  });
+  const byId = new Map(customers.map((c) => [c.id, c]));
+  return rows.map((r) => {
+    const pool = r.pool!;
+    const rules = rulesOf(pool);
+    const shaped = shapePool(pool);
+    const month = day(r.workDate).slice(0, 7);
+    // What the month holds without this request, as the admin decides on it.
+    const monthUsed = round2(
+      shaped.entries.filter((e) => e.id !== r.id && counts(e) && e.date.slice(0, 7) === month).reduce((n, e) => n + e.actualHours, 0)
+    );
+    const customer = byId.get(r.customerId);
+    return {
+      id: r.id,
+      poolId: pool.id,
+      poolName: pool.name,
+      customerId: r.customerId,
+      clientId: customer?.clientId ?? '',
+      customerName: customer?.companyName ?? customer?.clientId ?? '',
+      taskNumber: r.task?.taskNumber ?? '',
+      taskTitle: r.task?.title ?? '',
+      date: day(r.workDate),
+      endDate: day(r.workEndDate ?? r.workDate),
+      requestId: r.requestId ?? '',
+      priority: r.priority ?? '',
+      category: r.category ?? '',
+      description: r.description ?? r.note ?? '',
+      staff: r.staff ?? r.authorName,
+      hours: Number(r.hours),
+      authorName: r.authorName,
+      month,
+      monthUsed,
+      monthlyHours: rules.monthlyHours,
+      monthlyMax: rules.monthlyMax,
+      rejectReason: r.rejectReason,
+      decidedBy: r.decidedByName,
+      decidedAt: r.decidedAt?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+    };
+  });
+}
+
+/**
+ * The admin decides a request over the monthly maximum. Approved, the entry
+ * counts and goes to the client for approval; rejected, it stays off the
+ * client's sheet and the author is told why.
+ */
+export async function decideAdminRequest(entryId: string, input: EntryDecisionInput, actor: TimeActor) {
+  const entry = await prisma.taskTimeEntry.findUnique({ where: { id: entryId } });
+  if (!entry || !entry.poolId) throw ApiError.notFound('Request not found');
+  if (entry.approvalStatus !== 'ADMIN_PENDING') throw ApiError.badRequest('This request is already decided');
+  const rejected = input.decision === 'REJECTED';
+  const reason = rejected ? input.reason?.trim() || null : null;
+  await prisma.taskTimeEntry.update({
+    where: { id: entryId },
+    data: rejected
+      ? { approvalStatus: 'ADMIN_REJECTED', rejectReason: reason, decidedAt: new Date(), decidedById: actor.id, decidedByName: actor.name }
+      : { approvalStatus: 'PENDING' },
+  });
+  if (entry.authorType === 'EMPLOYEE') {
+    notify({
+      userId: entry.authorId,
+      userType: 'EMPLOYEE',
+      type: 'timesheet',
+      title: rejected ? 'Time Sheet request rejected' : 'Time Sheet request approved',
+      body: `${entry.requestId ?? ''} — ${actor.name}${reason ? `: ${reason}` : ' approved it; it has gone to the client'}`,
+      link: '/employee/tasks',
+      entityType: 'TaskTimeEntry',
+      entityId: entryId,
+    });
+  }
+  if (!rejected) {
+    await askClientToApprove(entry.customerId, entryId, {
+      requestId: entry.requestId ?? '',
+      actualHours: Number(entry.hours),
+      description: entry.description ?? entry.note ?? '',
+    } as PoolEntryInput, false);
+  }
+  return { id: entryId, status: rejected ? 'ADMIN_REJECTED' : 'PENDING' };
+}
+
 /** The client approves an entry (it is settled) or rejects it with a reason. */
 export async function decidePoolEntry(customerId: string, poolId: string, entryId: string, input: EntryDecisionInput, actor: TimeActor) {
   const pool = await ownedPool(customerId, poolId);
@@ -336,7 +451,7 @@ export async function decidePoolEntry(customerId: string, poolId: string, entryI
 }
 
 export async function addPoolEntry(customerId: string, poolId: string, input: PoolEntryInput, actor: TimeActor) {
-  return addEntry(await ownedPool(customerId, poolId), input, actor);
+  return addEntry(await ownedPool(customerId, poolId), input, actor, true);
 }
 
 /** A team member logs time only on a pool task they are assigned to. */
@@ -345,7 +460,7 @@ export async function addEmployeePoolEntry(userId: string, poolId: string, input
   if (!assigned) throw ApiError.notFound('Task not found');
   const pool = await prisma.timeSheetPool.findUnique({ where: { id: poolId }, include: poolInclude });
   if (!pool) throw ApiError.notFound('Pool not found');
-  return addEntry(pool, input, actor);
+  return addEntry(pool, input, actor, false);
 }
 
 /** The client (or the admin on their behalf) approves extra hours beyond the pool. */
