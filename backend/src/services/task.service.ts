@@ -1317,11 +1317,12 @@ export async function getEmployeeBoard(userId: string) {
       customer: { select: { companyName: true, contactPerson: true, clientId: true } },
     },
   });
-  const byCustomer = new Map<string, { id: string; name: string; order: number; tasks: unknown[] }>();
+  const byCustomer = new Map<string, { id: string; customerId: string; name: string; order: number; tasks: unknown[] }>();
   for (const t of tasks) {
     if (!byCustomer.has(t.customerId)) {
       byCustomer.set(t.customerId, {
         id: t.customerId,
+        customerId: t.customerId,
         name: t.customer.companyName || t.customer.contactPerson || t.customer.clientId,
         order: byCustomer.size,
         tasks: [],

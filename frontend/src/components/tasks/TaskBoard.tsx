@@ -360,7 +360,8 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
           scopeKey={scopeKey}
           portal={groupTabs ? 'team' : readOnly ? 'client' : 'admin'}
           buckets={groupTabs ? visibleBuckets : board.buckets}
-          customerId={groupTabs ? visibleBuckets[0]?.customerId ?? '' : undefined}
+          // Team board groups are one per customer: the group id is the customer id.
+          customerId={groupTabs ? visibleBuckets[0]?.customerId || visibleBuckets[0]?.id || '' : undefined}
         />
       )}
 
