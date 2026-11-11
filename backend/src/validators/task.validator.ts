@@ -167,17 +167,26 @@ export const timeSheetPoolSchema = z.object({
     .min(1, 'Pick at least one task'),
 });
 
+/** Days from start to end, both included. */
+const entryDays = (start: string, end: string) => Math.max(1, Math.round((Date.parse(end) - Date.parse(start)) / 86_400_000) + 1);
+
 export const timeSheetEntrySchema = z.object({
   taskId: z.string().uuid('Pick the task'),
-  date: isoDate('Pick a date'),
-  requestId: z.string().trim().min(1, 'Enter the request ID').max(60),
+  date: isoDate('Pick the start date'),
+  endDate: isoDate('Pick the end date'),
+  requestId: z.string().trim().toUpperCase().regex(/^REQ-[A-Z0-9]{4}-[A-Z0-9]{4}$/, 'The request ID must look like REQ-5ABC-5DEF'),
   priority: z.enum(TIME_PRIORITIES),
   category: z.enum(TIME_CATEGORIES),
   description: z.string().trim().min(1, 'Describe the work').max(500),
   staff: z.string().trim().min(1, 'Enter who did the work').max(120),
-  actualHours: z.coerce.number().min(0, 'Enter the hours worked').max(24, 'At most 24 hours per entry'),
+  actualHours: z.coerce.number().min(0, 'Enter the hours worked'),
   notes: z.string().trim().max(1000).nullable().optional(),
-});
+})
+  .refine((v) => v.endDate >= v.date, { message: 'The end date must not be before the start date', path: ['endDate'] })
+  .refine((v) => v.actualHours <= 24 * entryDays(v.date, v.endDate), {
+    message: 'At most 24 hours per day of the entry',
+    path: ['actualHours'],
+  });
 
 export const timeSheetApprovalSchema = z.object({
   hours: z.coerce.number().positive('Enter the hours').max(10000),

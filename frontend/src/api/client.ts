@@ -76,8 +76,11 @@ api.interceptors.response.use(
 
 export function apiErrorMessage(err: unknown, fallback = 'Something went wrong'): string {
   if (axios.isAxiosError(err)) {
-    const message = (err.response?.data as { message?: string })?.message;
-    if (message) return message;
+    const data = err.response?.data as { message?: string; errors?: Record<string, string> } | undefined;
+    // A validation failure names the field that was wrong; show that instead of the bare "Validation failed".
+    const fieldError = data?.errors && typeof data.errors === 'object' ? Object.values(data.errors)[0] : undefined;
+    if (data?.message === 'Validation failed' && fieldError) return fieldError;
+    if (data?.message) return data.message;
     // No response at all: the connection dropped or timed out mid-request.
     if (!err.response) return 'Network error — the connection was interrupted. Please try again.';
   }

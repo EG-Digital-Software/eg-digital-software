@@ -892,6 +892,9 @@ model TaskTimeEntry {
   customerProduct   CustomerProduct? @relation(fields: [customerProductId], references: [id], onDelete: SetNull)
   customerProductId String?
   workDate          DateTime         @db.Date
+  /// Last day of the work (Time Sheet entries). Null means a one-day entry
+  /// ending on workDate.
+  workEndDate       DateTime?        @db.Date
   hours             Decimal          @db.Decimal(6, 2)
   note              String?
   authorId          String

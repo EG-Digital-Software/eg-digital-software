@@ -129,6 +129,8 @@ export function summarisePool(rules: PoolRules, entries: PoolEntry[], asOf: stri
 
 export interface TimeSheetEntry extends PoolEntry {
   id: string;
+  /** Last day of the work; the same as `date` for a one-day entry. */
+  endDate: string;
   requestId: string;
   priority: string;
   category: string;
@@ -174,6 +176,7 @@ export interface TimeSheetPoolInput {
 export interface TimeSheetEntryInput {
   taskId: string;
   date: string;
+  endDate: string;
   requestId: string;
   priority: string;
   category: string;
@@ -188,6 +191,8 @@ export const TIME_CATEGORIES = [
   'Discovery', 'Design', 'Build', 'Integration', 'Testing', 'Azure', 'Deployment',
   'Fix', 'Change', 'Content', 'Maintenance', 'Meeting', 'Training', 'Documentation',
 ] as const;
+/** Who did the work, as shown on the time sheet. */
+export const TIME_STAFF = ['Designer', 'Developer', 'Social Media', 'SEO'] as const;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** "2026-11" → "Nov 2026" */
@@ -200,17 +205,26 @@ export const dayLabel = (date: string) => {
   const [y, m, d] = date.slice(0, 10).split('-');
   return `${d} ${MONTHS[Number(m) - 1]} ${y}`;
 };
+/** One day, or "03 Nov 2026 – 05 Nov 2026" for a span. */
+export const rangeLabel = (start: string, end: string) => (end && end !== start ? `${dayLabel(start)} – ${dayLabel(end)}` : dayLabel(start));
 /** 2 → "2 h", 2.5 → "2.5 h" */
 export const hoursLabel = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(1)} h`;
 /** 360 → "$360" */
 export const money = (n: number) => `$${n.toLocaleString('en-AU', { maximumFractionDigits: 0 })}`;
 
+const ID_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+/** A fresh random request ID, e.g. REQ-5ABC-5DEF. The API rejects one already in use. */
+export function newRequestId(): string {
+  const group = () => Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => ID_CHARS[n % ID_CHARS.length]).join('');
+  return `REQ-${group()}-${group()}`;
+}
+
 /** The time sheet as CSV, oldest entry first. */
 export function timeSheetCsv(entries: TimeSheetEntry[], taskName: (id: string) => string): string {
-  const head = ['Date', 'Task', 'Request ID', 'Priority', 'Category', 'Description', 'Staff', 'Hours', 'Notes'];
+  const head = ['Start Date', 'End Date', 'Task', 'Request ID', 'Priority', 'Category', 'Description', 'Staff', 'Hours', 'Notes'];
   const cell = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`;
   const rows = entries.map((e) =>
-    [e.date, taskName(e.taskId), e.requestId, e.priority, e.category, e.description, e.staff, e.actualHours, e.notes ?? '']
+    [e.date, e.endDate, taskName(e.taskId), e.requestId, e.priority, e.category, e.description, e.staff, e.actualHours, e.notes ?? '']
       .map(cell)
       .join(',')
   );

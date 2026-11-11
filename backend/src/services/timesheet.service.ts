@@ -28,7 +28,9 @@ export interface PoolInput {
 
 export interface PoolEntryInput {
   taskId: string;
+  /** First day of the work; the hours count toward this day's month. */
   date: string;
+  endDate: string;
   requestId: string;
   priority: string;
   category: string;
@@ -89,6 +91,7 @@ function shapePool(p: PoolRow) {
         id: e.id,
         taskId: e.taskId!,
         date: day(e.workDate),
+        endDate: day(e.workEndDate ?? e.workDate),
         requestId: e.requestId ?? '',
         priority: e.priority ?? 'Phase',
         category: e.category ?? '',
@@ -103,7 +106,7 @@ function shapePool(p: PoolRow) {
 
 /** Every pool of one customer — the admin and client board. */
 export async function listPools(customerId: string) {
-  const pools = await prisma.timeSheetPool.findMany({ where: { customerId }, include: poolInclude, orderBy: { termStart: 'desc' } });
+  const pools = await prisma.timeSheetPool.findMany({ where: { customerId }, include: poolInclude, orderBy: { createdAt: 'asc' } });
   return { today: today(), pools: pools.map(shapePool) };
 }
 
@@ -112,7 +115,7 @@ export async function listEmployeePools(userId: string) {
   const pools = await prisma.timeSheetPool.findMany({
     where: { tasks: { some: { task: { assignees: { some: { userId } } } } } },
     include: poolInclude,
-    orderBy: { termStart: 'desc' },
+    orderBy: { createdAt: 'asc' },
   });
   return { today: today(), pools: pools.map(shapePool) };
 }
@@ -195,9 +198,10 @@ export async function updatePool(customerId: string, poolId: string, input: Pool
 async function addEntry(pool: PoolRow, input: PoolEntryInput, actor: TimeActor) {
   if (!pool.tasks.some((t) => t.taskId === input.taskId)) throw ApiError.badRequest('That task does not draw on this pool');
   const rules = rulesOf(pool);
-  if (input.date < rules.termStart || input.date > rules.termEnd) {
-    throw ApiError.badRequest(`This date is outside the term (${rules.termStart} – ${rules.termEnd})`);
+  if (input.date < rules.termStart || input.endDate > rules.termEnd) {
+    throw ApiError.badRequest(`These dates are outside the term (${rules.termStart} – ${rules.termEnd})`);
   }
+  if (input.endDate < input.date) throw ApiError.badRequest('The end date must not be before the start date');
   const shaped = shapePool(pool);
   const summary = summarisePool(rules, shaped.entries, today(), shaped.approvals);
   const month = summary.rows.find((r) => r.month === input.date.slice(0, 7));
@@ -211,12 +215,16 @@ async function addEntry(pool: PoolRow, input: PoolEntryInput, actor: TimeActor) 
     );
   }
 
+  const taken = await prisma.taskTimeEntry.findFirst({ where: { requestId: input.requestId }, select: { id: true } });
+  if (taken) throw ApiError.conflict('This request ID is already used. Make a new one and save again.');
+
   await prisma.taskTimeEntry.create({
     data: {
       customerId: pool.customerId,
       taskId: input.taskId,
       poolId: pool.id,
       workDate: new Date(input.date),
+      workEndDate: new Date(input.endDate),
       hours: input.actualHours,
       requestId: input.requestId,
       priority: input.priority,

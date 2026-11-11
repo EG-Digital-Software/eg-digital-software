@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, Clock, Download, Info, Pencil, Plus } from 'lucide-react';
+import { AlertTriangle, Clock, Download, Info, Pencil, Plus, RefreshCw } from 'lucide-react';
 import type { TaskApi } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
@@ -13,12 +13,15 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { LoadingBlock, ErrorState } from '@/components/shared/states';
 import {
   TIME_CATEGORIES,
+  TIME_STAFF,
   TIME_PRIORITIES,
   dayLabel,
   hoursLabel,
   money,
   monthLabel,
   summarisePool,
+  newRequestId,
+  rangeLabel,
   timeSheetCsv,
   type TimeSheetApproval,
   type TimeSheetEntryInput,
@@ -430,7 +433,7 @@ function PoolPanel({
             <table className="w-full min-w-[820px] text-left text-sm">
               <thead className="border-b border-border bg-secondary/50 text-xs font-medium text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-2.5">Date</th>
+                  <th className="px-4 py-2.5">Start – End</th>
                   <th className="px-3 py-2.5">Request</th>
                   {multi && <th className="px-3 py-2.5">Task</th>}
                   <th className="px-3 py-2.5">Priority</th>
@@ -443,7 +446,7 @@ function PoolPanel({
                 {shown.map((e) => {
                   return (
                     <tr key={e.id} className="align-top hover:bg-secondary/30">
-                      <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{dayLabel(e.date)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{rangeLabel(e.date, e.endDate)}</td>
                       <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-muted-foreground">{e.requestId}</td>
                       {multi && <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{taskName(e.taskId)}</td>}
                       <td className="px-3 py-3">
@@ -597,10 +600,11 @@ function LogTimeForm({
 }) {
   const [f, setF] = useState({
     date: today,
+    endDate: today,
     taskId: tasks[tasks.length - 1]?.id ?? '',
-    requestId: '',
+    requestId: newRequestId(),
     priority: 'P4',
-    category: 'Fix',
+    category: '',
     description: '',
     staff: '',
     actualHours: '',
@@ -611,11 +615,12 @@ function LogTimeForm({
   const hours = Number.isFinite(actual) ? actual : 0;
   const month = summary.rows.find((r) => r.month === f.date.slice(0, 7));
   const after = (month?.used ?? 0) + hours;
-  const outside = f.date < pool.termStart || f.date > pool.termEnd;
+  const outside = f.date < pool.termStart || f.endDate > pool.termEnd;
+  const backwards = !!f.endDate && f.endDate < f.date;
   const overMax = !!month && after > pool.monthlyMax;
   const available = Math.max(0, summary.balance) + summary.extraRemaining;
   const needsApproval = hours > available && f.priority !== 'P1';
-  const filled = !outside && f.taskId && f.requestId.trim() && f.description.trim() && f.staff.trim() && Number.isFinite(actual) && actual >= 0;
+  const filled = !outside && !backwards && f.endDate && f.category && f.taskId && f.requestId.trim() && f.description.trim() && f.staff.trim() && Number.isFinite(actual) && actual >= 0;
 
   return (
     <form
@@ -625,6 +630,7 @@ function LogTimeForm({
         if (!filled || overMax || needsApproval) return;
         onSave({
           date: f.date,
+          endDate: f.endDate,
           taskId: f.taskId,
           requestId: f.requestId.trim(),
           priority: f.priority,
@@ -638,8 +644,16 @@ function LogTimeForm({
     >
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <label>
-          <span className={fieldLabel}>Date</span>
-          <Input type="date" value={f.date} onChange={set('date')} />
+          <span className={fieldLabel}>Start Date</span>
+          <Input
+            type="date"
+            value={f.date}
+            onChange={(e) => setF({ ...f, date: e.target.value, endDate: f.endDate < e.target.value ? e.target.value : f.endDate })}
+          />
+        </label>
+        <label>
+          <span className={fieldLabel}>End Date</span>
+          <Input type="date" min={f.date} value={f.endDate} onChange={set('endDate')} />
         </label>
         {tasks.length > 1 && (
           <label>
@@ -651,7 +665,20 @@ function LogTimeForm({
         )}
         <label>
           <span className={fieldLabel}>Request ID</span>
-          <Input value={f.requestId} onChange={set('requestId')} placeholder="REQ-…" />
+          <div className="flex gap-1">
+            <Input value={f.requestId} readOnly className="font-mono" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 px-2"
+              title="Make a new request ID"
+              aria-label="Make a new request ID"
+              onClick={() => setF({ ...f, requestId: newRequestId() })}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </label>
         <label>
           <span className={fieldLabel}>Priority</span>
@@ -662,12 +689,16 @@ function LogTimeForm({
         <label>
           <span className={fieldLabel}>Category</span>
           <Select value={f.category} onChange={set('category')}>
+            <option value="" disabled>Select Category</option>
             {TIME_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
           </Select>
         </label>
         <label>
           <span className={fieldLabel}>Staff</span>
-          <Input value={f.staff} onChange={set('staff')} />
+          <Select value={f.staff} onChange={set('staff')}>
+            <option value="" disabled>Select Staff</option>
+            {TIME_STAFF.map((s) => <option key={s}>{s}</option>)}
+          </Select>
         </label>
         <label className="col-span-2 md:col-span-4">
           <span className={fieldLabel}>Description</span>
@@ -683,7 +714,8 @@ function LogTimeForm({
         </label>
       </div>
 
-      {outside && <Notice tone="red">This date is outside the term ({dayLabel(pool.termStart)} – {dayLabel(pool.termEnd)}).</Notice>}
+      {backwards && <Notice tone="red">The end date must not be before the start date.</Notice>}
+      {outside && <Notice tone="red">These dates are outside the term ({dayLabel(pool.termStart)} – {dayLabel(pool.termEnd)}).</Notice>}
       {needsApproval && (
         <Notice tone="red">
           Only {hoursLabel(available)} is left in the pool and approved extra hours. The client needs to approve at least {hoursLabel(hours - available)} more before this can be logged (P1 fixes are exempt).
