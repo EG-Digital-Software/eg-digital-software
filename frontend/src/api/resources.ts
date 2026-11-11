@@ -302,6 +302,10 @@ export interface TimeSheetRequest {
   decidedBy?: string | null;
   decidedAt?: string | null;
   createdAt: string;
+  /** Where the entry stands now (after the admin approved: the client's decision). */
+  status: string;
+  adminDecidedBy?: string | null;
+  adminDecidedAt?: string | null;
 }
 
 export const adminApi = {
@@ -312,7 +316,7 @@ export const adminApi = {
     return { items: data.data, meta: data.meta };
   },
   // Time Sheet entries logged over the month's maximum, waiting for the admin.
-  timeSheetRequests: async (status: 'ADMIN_PENDING' | 'ADMIN_REJECTED') =>
+  timeSheetRequests: async (status: 'ADMIN_PENDING' | 'ADMIN_APPROVED' | 'ADMIN_REJECTED') =>
     (await api.get<ApiEnvelope<TimeSheetRequest[]>>(`/admin/timesheet-requests?status=${status}`)).data.data,
   decideTimeSheetRequest: async (id: string, body: { decision: 'APPROVED' | 'REJECTED'; reason?: string }) =>
     (await api.post(`/admin/timesheet-requests/${id}/decision`, body)).data,

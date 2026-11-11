@@ -2,7 +2,6 @@ import { InvoiceStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
 import { D } from '../utils/money.js';
-import { sendInvoiceOverdueClient, sendInvoiceOverdueDigestAdmin } from './email/templates.js';
 
 function startOfToday(): Date {
   const d = new Date();
@@ -37,7 +36,8 @@ export interface OverdueResult {
 
 /**
  * Daily invoice-overdue sweep. Marks newly-overdue invoices, then notifies the
- * client users on each affected customer and sends the Super Admins a digest.
+ * client users on each affected customer and gives the Super Admins a digest —
+ * in-app only, no reminder emails.
  * Safe to run more than once a day — duplicate notifications are suppressed.
  */
 export async function runInvoiceOverdueSweep(): Promise<OverdueResult> {
@@ -79,10 +79,10 @@ export async function runInvoiceOverdueSweep(): Promise<OverdueResult> {
     return result;
   }
 
-  // ── 3. Per-customer client reminders ───────────────────
+  // ── 3. Per-customer client reminders (in-app only, no email) ──
   const clientUsers = await prisma.clientUser.findMany({
     where: { isActive: true, approvalStatus: 'APPROVED', customerId: { not: null } },
-    select: { id: true, email: true, firstName: true, customerId: true },
+    select: { id: true, customerId: true },
   });
   type ClientUser = (typeof clientUsers)[number];
   const clientsByCustomer = new Map<string, ClientUser[]>();
@@ -92,13 +92,6 @@ export async function runInvoiceOverdueSweep(): Promise<OverdueResult> {
     arr.push(u);
     clientsByCustomer.set(u.customerId, arr);
   }
-
-  // Batch each user's invoices into one email, so a customer with five overdue
-  // invoices gets one message rather than five.
-  const emailByUser = new Map<
-    ClientUser,
-    Array<{ invoiceNumber: string; balance: string; days: number }>
-  >();
 
   for (const inv of overdue) {
     const recipients = clientsByCustomer.get(inv.customerId) ?? [];
@@ -122,14 +115,7 @@ export async function runInvoiceOverdueSweep(): Promise<OverdueResult> {
         },
       });
       result.notificationsCreated++;
-      const lines = emailByUser.get(user) ?? [];
-      lines.push({ invoiceNumber: inv.invoiceNumber, balance, days });
-      emailByUser.set(user, lines);
     }
-  }
-
-  for (const [user, lines] of emailByUser) {
-    sendInvoiceOverdueClient({ email: user.email, firstName: user.firstName }, lines);
   }
 
   // ── 4. Super Admin digest ──────────────────────────────
@@ -139,7 +125,7 @@ export async function runInvoiceOverdueSweep(): Promise<OverdueResult> {
 
   const admins = await prisma.adminUser.findMany({
     where: { isActive: true, approvalStatus: 'APPROVED' },
-    select: { id: true, email: true, firstName: true },
+    select: { id: true },
   });
   for (const admin of admins) {
     if (await alreadySentToday(admin.id, 'invoice-overdue-digest')) continue;
@@ -155,10 +141,6 @@ export async function runInvoiceOverdueSweep(): Promise<OverdueResult> {
       },
     });
     result.notificationsCreated++;
-    sendInvoiceOverdueDigestAdmin(
-      { email: admin.email, firstName: admin.firstName },
-      { count: overdue.length, outstanding: outstandingTotal, newlyOverdue: result.markedOverdue }
-    );
   }
 
   logger.info({ ...result }, 'Invoice overdue sweep complete');

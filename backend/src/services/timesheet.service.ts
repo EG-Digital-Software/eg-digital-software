@@ -336,12 +336,21 @@ export async function deletePoolEntry(customerId: string, poolId: string, entryI
   return reloadPool(poolId);
 }
 
-/** Time Sheet entries over the monthly maximum, for the admin's Approvals page. */
-export async function listAdminRequests(status: 'ADMIN_PENDING' | 'ADMIN_REJECTED') {
+export type AdminRequestView = 'ADMIN_PENDING' | 'ADMIN_APPROVED' | 'ADMIN_REJECTED';
+
+/**
+ * Time Sheet entries over the monthly maximum, for the admin's Approvals page:
+ * waiting, or the history of those the admin approved (now with the client)
+ * or rejected.
+ */
+export async function listAdminRequests(status: AdminRequestView) {
   const rows = await prisma.taskTimeEntry.findMany({
-    where: { approvalStatus: status, poolId: { not: null } },
+    where: {
+      poolId: { not: null },
+      ...(status === 'ADMIN_APPROVED' ? { adminDecision: 'APPROVED' } : { approvalStatus: status }),
+    },
     include: { pool: { include: poolInclude }, task: { select: { taskNumber: true, title: true } } },
-    orderBy: { createdAt: status === 'ADMIN_PENDING' ? 'asc' : 'desc' },
+    orderBy: status === 'ADMIN_PENDING' ? { createdAt: 'asc' } : status === 'ADMIN_APPROVED' ? { adminDecidedAt: 'desc' } : { createdAt: 'desc' },
     take: 200,
   });
   const customers = await prisma.customer.findMany({
@@ -385,6 +394,10 @@ export async function listAdminRequests(status: 'ADMIN_PENDING' | 'ADMIN_REJECTE
       decidedBy: r.decidedByName,
       decidedAt: r.decidedAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),
+      /** Where the entry stands now — after the admin approved, the client's decision. */
+      status: r.approvalStatus,
+      adminDecidedBy: r.adminDecidedByName ?? (r.approvalStatus === 'ADMIN_REJECTED' ? r.decidedByName : null),
+      adminDecidedAt: (r.adminDecidedAt ?? (r.approvalStatus === 'ADMIN_REJECTED' ? r.decidedAt : null))?.toISOString() ?? null,
     };
   });
 }
@@ -402,9 +415,15 @@ export async function decideAdminRequest(entryId: string, input: EntryDecisionIn
   const reason = rejected ? input.reason?.trim() || null : null;
   await prisma.taskTimeEntry.update({
     where: { id: entryId },
-    data: rejected
-      ? { approvalStatus: 'ADMIN_REJECTED', rejectReason: reason, decidedAt: new Date(), decidedById: actor.id, decidedByName: actor.name }
-      : { approvalStatus: 'PENDING' },
+    data: {
+      ...(rejected
+        ? { approvalStatus: 'ADMIN_REJECTED', rejectReason: reason, decidedAt: new Date(), decidedById: actor.id, decidedByName: actor.name }
+        : { approvalStatus: 'PENDING' }),
+      adminDecision: input.decision,
+      adminDecidedAt: new Date(),
+      adminDecidedById: actor.id,
+      adminDecidedByName: actor.name,
+    },
   });
   if (entry.authorType === 'EMPLOYEE') {
     notify({

@@ -74,7 +74,12 @@ router.get(
   authenticate,
   authorizeTab(['tasks']),
   asyncHandler(async (req, res) =>
-    ok(res, await timesheet.listAdminRequests(req.query.status === 'ADMIN_REJECTED' ? 'ADMIN_REJECTED' : 'ADMIN_PENDING'))
+    ok(
+      res,
+      await timesheet.listAdminRequests(
+        req.query.status === 'ADMIN_REJECTED' || req.query.status === 'ADMIN_APPROVED' ? req.query.status : 'ADMIN_PENDING'
+      )
+    )
   )
 );
 router.post(

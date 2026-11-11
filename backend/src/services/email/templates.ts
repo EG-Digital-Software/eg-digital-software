@@ -92,51 +92,6 @@ export function sendLoginCode(user: { email: string; firstName: string }, code: 
   });
 }
 
-export function sendLicenceReminderClient(
-  user: { email: string; firstName: string },
-  lines: Array<{ product: string; message: string; expired: boolean }>
-) {
-  const loginUrl = `${env.APP_URL.replace(/\/$/, '')}/login/client`;
-  const rows = lines
-    .map(
-      (l) =>
-        `<li style="margin:6px 0"><strong>${l.product}</strong> — <span style="color:${l.expired ? '#dc2626' : '#b45309'}">${l.message}</span></li>`
-    )
-    .join('');
-  sendEmail({
-    to: user.email,
-    subject: 'Licence expiry reminder — action needed',
-    text: `Hi ${user.firstName}, some of your licences need attention: ${lines
-      .map((l) => `${l.product} (${l.message})`)
-      .join('; ')}. Sign in at ${loginUrl}`,
-    html: shell(
-      'Your licences need attention',
-      `Hi ${user.firstName},<br/><br/>The following licence${lines.length === 1 ? '' : 's'} on your account ${lines.length === 1 ? 'is' : 'are'} expiring soon or expired:<ul style="padding-left:18px;margin:12px 0">${rows}</ul>Please renew to avoid interruption.`,
-      { label: 'View my licences', url: `${env.APP_URL.replace(/\/$/, '')}/client/licences` }
-    ),
-  });
-}
-
-export function sendLicenceDigestAdmin(
-  user: { email: string; firstName: string },
-  summary: { critical: number; expiringSoon: number; expired: number; total: number }
-) {
-  sendEmail({
-    to: user.email,
-    subject: `Licence reminders — ${summary.total} need attention`,
-    text: `${summary.total} licences need attention: ${summary.critical} critical, ${summary.expiringSoon} expiring soon, ${summary.expired} expired.`,
-    html: shell(
-      'Daily licence report',
-      `Hi ${user.firstName},<br/><br/><strong>${summary.total}</strong> licence${summary.total === 1 ? '' : 's'} need attention today:<ul style="padding-left:18px;margin:12px 0">
-        <li style="margin:6px 0;color:#dc2626">${summary.critical} critical (0–7 days)</li>
-        <li style="margin:6px 0;color:#b45309">${summary.expiringSoon} expiring soon (8–30 days)</li>
-        <li style="margin:6px 0;color:#64748b">${summary.expired} expired</li>
-      </ul>`,
-      { label: 'Open dashboard', url: `${env.APP_URL.replace(/\/$/, '')}/admin/dashboard` }
-    ),
-  });
-}
-
 export function sendAccountRejected(user: { email: string; firstName: string; role: Role }) {
   const label = ROLE_LABEL[user.role] ?? 'account';
   sendEmail({
@@ -146,38 +101,6 @@ export function sendAccountRejected(user: { email: string; firstName: string; ro
     html: shell(
       'About your account request',
       `Hi ${user.firstName},<br/><br/>Thank you for your interest. Unfortunately your <strong>${label}</strong> account request was not approved at this time. Please contact EG Eloma if you believe this is a mistake.`
-    ),
-  });
-}
-
-export function sendInvoiceOverdueClient(
-  user: { email: string; firstName: string },
-  lines: Array<{ invoiceNumber: string; balance: string; days: number }>
-) {
-  const loginUrl = `${env.APP_URL.replace(/\/$/, '')}/login/client`;
-  const rows = lines
-    .map(
-      (l) =>
-        `<tr>
-           <td style="padding:6px 0;color:#0B223B;font-weight:600">${l.invoiceNumber}</td>
-           <td style="padding:6px 0;color:#dc2626;text-align:right">${env.DEFAULT_CURRENCY} ${l.balance}</td>
-           <td style="padding:6px 0;color:#64748b;text-align:right">${l.days} day${l.days === 1 ? '' : 's'} overdue</td>
-         </tr>`
-    )
-    .join('');
-  const plural = lines.length === 1 ? 'invoice is' : 'invoices are';
-  sendEmail({
-    to: user.email,
-    subject: `Payment overdue — ${lines.length} ${lines.length === 1 ? 'invoice' : 'invoices'}`,
-    text: `Hi ${user.firstName}, ${lines.length} ${plural} past due: ${lines
-      .map((l) => `${l.invoiceNumber} (${env.DEFAULT_CURRENCY} ${l.balance}, ${l.days} days overdue)`)
-      .join('; ')}. View and pay at ${loginUrl}`,
-    html: shell(
-      'Payment overdue',
-      `Hi ${user.firstName},<br/><br/>${lines.length} ${plural} past their due date:<br/><br/>
-       <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>
-       <br/>If you have already paid, please ignore this message.`,
-      { label: 'View and pay online', url: loginUrl }
     ),
   });
 }
@@ -229,24 +152,4 @@ export function buildInvoiceEmail(params: {
       { label: 'View & pay invoice', url: params.payUrl }
     ),
   };
-}
-
-export function sendInvoiceOverdueDigestAdmin(
-  admin: { email: string; firstName: string },
-  stats: { count: number; outstanding: string; newlyOverdue: number }
-) {
-  const url = `${env.APP_URL.replace(/\/$/, '')}/admin/billing`;
-  sendEmail({
-    to: admin.email,
-    subject: `Overdue invoices — ${stats.count} outstanding`,
-    text: `${stats.count} invoices overdue (${stats.newlyOverdue} newly overdue today), ${env.DEFAULT_CURRENCY} ${stats.outstanding} outstanding.`,
-    html: shell(
-      'Overdue invoices',
-      `Hi ${admin.firstName},<br/><br/>
-       <strong>${stats.count}</strong> invoice${stats.count === 1 ? '' : 's'} past due —
-       <strong>${env.DEFAULT_CURRENCY} ${stats.outstanding}</strong> outstanding.<br/>
-       ${stats.newlyOverdue} became overdue today.`,
-      { label: 'Open Billing', url }
-    ),
-  });
 }

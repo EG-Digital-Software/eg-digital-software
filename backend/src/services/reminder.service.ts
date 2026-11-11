@@ -2,7 +2,6 @@ import { LicenceStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
 import { computeLicenceStatus, daysRemaining } from '../utils/licence.js';
-import { sendLicenceReminderClient, sendLicenceDigestAdmin } from './email/templates.js';
 
 function startOfToday(): Date {
   const d = new Date();
@@ -26,8 +25,9 @@ export interface ReminderResult {
 }
 
 /**
- * Daily licence-expiry reminder. Notifies Super Admins with a digest and each
- * customer's Client users about their own expiring/critical/expired licences.
+ * Daily licence-expiry reminder. In-app only (no email): notifies Super Admins
+ * with a digest and each customer's Client users about their own
+ * expiring/critical/expired licences.
  * Safe to run more than once per day — duplicates are suppressed.
  */
 export async function runLicenceReminders(): Promise<ReminderResult> {
@@ -56,10 +56,10 @@ export async function runLicenceReminders(): Promise<ReminderResult> {
     return result;
   }
 
-  // ── Per-customer client reminders ──────────────────────
+  // ── Per-customer client reminders (in-app only, no email) ──
   const clientUsers = await prisma.clientUser.findMany({
     where: { isActive: true, approvalStatus: 'APPROVED', customerId: { not: null } },
-    select: { id: true, email: true, firstName: true, customerId: true },
+    select: { id: true, customerId: true },
   });
   type ClientUser = (typeof clientUsers)[number];
   const clientsByCustomer = new Map<string, ClientUser[]>();
@@ -69,13 +69,6 @@ export async function runLicenceReminders(): Promise<ReminderResult> {
     arr.push(u);
     clientsByCustomer.set(u.customerId, arr);
   }
-
-  // Collect per-user email digests — only for users who got a NEW reminder today
-  // (this naturally throttles email to once per user per day).
-  const emailByUser = new Map<
-    ClientUser,
-    Array<{ product: string; message: string; expired: boolean }>
-  >();
 
   for (const cp of attention) {
     const recipients = clientsByCustomer.get(cp.customer.id) ?? [];
@@ -103,21 +96,13 @@ export async function runLicenceReminders(): Promise<ReminderResult> {
         },
       });
       result.notificationsCreated++;
-      const lines = emailByUser.get(user) ?? [];
-      lines.push({ product: cp.product.name, message, expired });
-      emailByUser.set(user, lines);
     }
-  }
-
-  // One digest email per affected client user.
-  for (const [user, lines] of emailByUser) {
-    sendLicenceReminderClient({ email: user.email, firstName: user.firstName }, lines);
   }
 
   // ── Super Admin daily digest ───────────────────────────
   const admins = await prisma.adminUser.findMany({
     where: { isActive: true, approvalStatus: 'APPROVED' },
-    select: { id: true, email: true, firstName: true },
+    select: { id: true },
   });
   const digestBody = `${result.critical} critical · ${result.expiringSoon} expiring soon · ${result.expired} expired`;
   for (const admin of admins) {
@@ -134,15 +119,6 @@ export async function runLicenceReminders(): Promise<ReminderResult> {
       },
     });
     result.notificationsCreated++;
-    sendLicenceDigestAdmin(
-      { email: admin.email, firstName: admin.firstName },
-      {
-        critical: result.critical,
-        expiringSoon: result.expiringSoon,
-        expired: result.expired,
-        total: attention.length,
-      }
-    );
   }
 
   logger.info({ ...result }, 'Licence reminders sent');

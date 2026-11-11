@@ -920,6 +920,12 @@ model TaskTimeEntry {
   decidedAt         DateTime?
   decidedById       String?
   decidedByName     String?
+  /// The admin's decision on a request over the monthly maximum (APPROVED or
+  /// REJECTED), kept apart from the client's so the Approvals history survives.
+  adminDecision      String?
+  adminDecidedAt     DateTime?
+  adminDecidedById   String?
+  adminDecidedByName String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 

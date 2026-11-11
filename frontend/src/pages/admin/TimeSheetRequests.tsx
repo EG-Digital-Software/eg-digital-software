@@ -14,12 +14,20 @@ import { EmptyState, ErrorState, Spinner } from '@/components/shared/states';
 import { formatDate } from '@/lib/utils';
 import { dayLabel, hoursLabel, monthLabel, rangeLabel } from '@/lib/timesheet';
 
-type Status = 'ADMIN_PENDING' | 'ADMIN_REJECTED';
+type Status = 'ADMIN_PENDING' | 'ADMIN_APPROVED' | 'ADMIN_REJECTED';
 
 const TABS: Array<{ value: Status; label: string }> = [
   { value: 'ADMIN_PENDING', label: 'Pending' },
+  { value: 'ADMIN_APPROVED', label: 'Approved' },
   { value: 'ADMIN_REJECTED', label: 'Rejected' },
 ];
+
+/** After the admin approves, the entry is the client's to decide. */
+const CLIENT_STATUS: Record<string, { label: string; cls: string }> = {
+  PENDING: { label: 'With the client', cls: 'c-warn' },
+  APPROVED: { label: 'Client approved', cls: 'c-ok' },
+  REJECTED: { label: 'Client rejected', cls: 'c-red' },
+};
 
 /**
  * Approvals → Time Sheet: entries a team member logged over the month's
@@ -90,7 +98,9 @@ export function TimeSheetRequests() {
             description={
               tab === 'ADMIN_PENDING'
                 ? 'Time Sheet requests over the monthly maximum will appear here for approval.'
-                : 'No rejected Time Sheet requests.'
+                : tab === 'ADMIN_APPROVED'
+                  ? 'Requests you approve are listed here, with what the client decided.'
+                  : 'No rejected Time Sheet requests.'
             }
           />
         </div>
@@ -104,7 +114,8 @@ export function TimeSheetRequests() {
                 <TableHead>Work</TableHead>
                 <TableHead>Month</TableHead>
                 <TableHead className="text-right">Hours</TableHead>
-                <TableHead>{tab === 'ADMIN_PENDING' ? 'Requested' : 'Rejected'}</TableHead>
+                <TableHead>{tab === 'ADMIN_PENDING' ? 'Requested' : tab === 'ADMIN_APPROVED' ? 'Approved' : 'Rejected'}</TableHead>
+                {tab === 'ADMIN_APPROVED' && <TableHead>Client</TableHead>}
                 {tab === 'ADMIN_PENDING' && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
@@ -130,7 +141,7 @@ export function TimeSheetRequests() {
                       <p className="muted text-xs">
                         {r.category} · {r.priority} · {r.staff} · by {r.authorName}
                       </p>
-                      {r.rejectReason && (
+                      {r.rejectReason && tab === 'ADMIN_REJECTED' && (
                         <p className="mt-1 text-xs" style={{ color: 'var(--rT)' }}>
                           Reason: {r.rejectReason}
                           {r.decidedBy ? ` — ${r.decidedBy}` : ''}
@@ -148,8 +159,32 @@ export function TimeSheetRequests() {
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">{r.hours.toFixed(2)}</TableCell>
                     <TableCell className="muted whitespace-nowrap text-sm">
-                      {tab === 'ADMIN_PENDING' ? formatDate(r.createdAt) : r.decidedAt ? dayLabel(r.decidedAt) : '—'}
+                      {tab === 'ADMIN_PENDING' ? (
+                        formatDate(r.createdAt)
+                      ) : (
+                        <>
+                          <p>{r.adminDecidedAt ? dayLabel(r.adminDecidedAt) : '—'}</p>
+                          {r.adminDecidedBy && <p className="text-xs">by {r.adminDecidedBy}</p>}
+                        </>
+                      )}
                     </TableCell>
+                    {tab === 'ADMIN_APPROVED' && (
+                      <TableCell>
+                        {CLIENT_STATUS[r.status] ? (
+                          <span className={`chip ${CLIENT_STATUS[r.status].cls}`}>
+                            <span className="dot" />
+                            {CLIENT_STATUS[r.status].label}
+                          </span>
+                        ) : (
+                          <span className="muted text-sm">—</span>
+                        )}
+                        {r.status === 'REJECTED' && r.rejectReason && (
+                          <p className="mt-1 max-w-[200px] text-xs" style={{ color: 'var(--rT)' }}>
+                            Reason: {r.rejectReason}
+                          </p>
+                        )}
+                      </TableCell>
+                    )}
                     {tab === 'ADMIN_PENDING' && (
                       <TableCell className="text-right">
                         <div className="inline-flex gap-1">
