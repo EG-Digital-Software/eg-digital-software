@@ -172,6 +172,7 @@ export interface TimeSheetApproval extends PoolApproval {
 
 export interface TimeSheetPool extends PoolRules {
   id: string;
+  customerId: string;
   name: string;
   tasks: { taskId: string; taskNumber: string; title: string; label?: string | null }[];
   entries: TimeSheetEntry[];

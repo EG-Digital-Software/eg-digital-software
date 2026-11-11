@@ -81,6 +81,7 @@ function rulesOf(p: PoolRow): PoolRules {
 function shapePool(p: PoolRow) {
   return {
     id: p.id,
+    customerId: p.customerId,
     name: p.name,
     ...rulesOf(p),
     tasks: p.tasks.map((t) => ({ taskId: t.taskId, taskNumber: t.task.taskNumber, title: t.task.title, label: t.label })),

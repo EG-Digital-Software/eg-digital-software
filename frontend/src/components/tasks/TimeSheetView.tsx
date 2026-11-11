@@ -106,12 +106,15 @@ export function TimeSheetView({
   scopeKey,
   portal,
   buckets,
+  customerId,
 }: {
   api: TaskApi;
   scopeKey: string;
   portal: TimeSheetPortal;
   /** The board's tasks: the admin picks pool tasks from them; the team logs only on these. */
   buckets: TaskBucket[];
+  /** Team portal: the customer picked on the board — only that company's pools show. */
+  customerId?: string;
 }) {
   const qc = useQueryClient();
   const user = useAuth((s) => s.user);
@@ -142,7 +145,8 @@ export function TimeSheetView({
   if (q.isLoading) return <LoadingBlock label="Loading time sheet…" />;
   if (q.isError || !q.data) return <ErrorState onRetry={() => q.refetch()} />;
 
-  const { pools, today } = q.data;
+  const { today } = q.data;
+  const pools = customerId === undefined ? q.data.pools : q.data.pools.filter((p) => p.customerId === customerId);
   const pool = pools.find((p) => p.id === selected) ?? pools[0];
 
   return (

@@ -359,7 +359,8 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
           api={api}
           scopeKey={scopeKey}
           portal={groupTabs ? 'team' : readOnly ? 'client' : 'admin'}
-          buckets={board.buckets}
+          buckets={groupTabs ? visibleBuckets : board.buckets}
+          customerId={groupTabs ? visibleBuckets[0]?.customerId ?? '' : undefined}
         />
       )}
 
