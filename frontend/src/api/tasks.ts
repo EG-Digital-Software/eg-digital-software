@@ -322,6 +322,12 @@ export function taskApi(base: string) {
       unwrap<TimeSheetPool>(api.patch(`${base}/timesheet/pools/${poolId}`, body)),
     addTimeSheetEntry: (poolId: string, body: TimeSheetEntryInput) =>
       unwrap<TimeSheetPool>(api.post(`${base}/timesheet/pools/${poolId}/entries`, body)),
+    updateTimeSheetEntry: (poolId: string, entryId: string, body: TimeSheetEntryInput) =>
+      unwrap<TimeSheetPool>(api.put(`${base}/timesheet/pools/${poolId}/entries/${entryId}`, body)),
+    deleteTimeSheetEntry: (poolId: string, entryId: string) =>
+      unwrap<TimeSheetPool>(api.delete(`${base}/timesheet/pools/${poolId}/entries/${entryId}`)),
+    decideTimeSheetEntry: (poolId: string, entryId: string, body: { decision: 'APPROVED' | 'REJECTED'; reason?: string }) =>
+      unwrap<TimeSheetPool>(api.post(`${base}/timesheet/pools/${poolId}/entries/${entryId}/decision`, body)),
     approveTimeSheetExtra: (poolId: string, body: { hours: number; reference?: string }) =>
       unwrap<TimeSheetPool>(api.post(`${base}/timesheet/pools/${poolId}/approvals`, body)),
   };

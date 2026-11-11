@@ -913,6 +913,13 @@ model TaskTimeEntry {
   description       String?
   /// Who did the work, as shown to the client (may differ from the author).
   staff             String?
+  /// Client sign-off on a Time Sheet entry: PENDING, APPROVED or REJECTED.
+  /// Rejected entries stop counting against the pool.
+  approvalStatus    String           @default("APPROVED")
+  rejectReason      String?
+  decidedAt         DateTime?
+  decidedById       String?
+  decidedByName     String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 

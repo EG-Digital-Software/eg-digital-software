@@ -22,6 +22,8 @@ export interface PoolRules {
 
 export interface PoolEntry {
   taskId: string;
+  /** PENDING, APPROVED or REJECTED — rejected entries do not count. */
+  status?: string;
   /** YYYY-MM-DD */
   date: string;
   actualHours: number;
@@ -67,7 +69,7 @@ export interface PoolMonth {
 
 /** Where a pool stands on `asOf` (YYYY-MM-DD): every month of the term plus the totals. */
 export function summarisePool(rules: PoolRules, entries: PoolEntry[], asOf: string, approvals: PoolApproval[] = []) {
-  const mine = entries.filter((e) => rules.taskIds.includes(e.taskId));
+  const mine = entries.filter((e) => rules.taskIds.includes(e.taskId) && e.status !== 'REJECTED');
   const thisMonth = monthOf(asOf);
   let balance = rules.poolHours;
   let cumulative = 0;

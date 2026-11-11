@@ -1,6 +1,7 @@
 import { Prisma, type Role } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
+import { notify, notifySuperAdmins } from './notification.service.js';
 import { round2, summarisePool, type PoolRules } from '../utils/timesheet.js';
 
 /**
@@ -38,6 +39,11 @@ export interface PoolEntryInput {
   staff: string;
   actualHours: number;
   notes?: string | null;
+}
+
+export interface EntryDecisionInput {
+  decision: 'APPROVED' | 'REJECTED';
+  reason?: string | null;
 }
 
 export interface ExtraApprovalInput {
@@ -100,6 +106,10 @@ function shapePool(p: PoolRow) {
         actualHours: Number(e.hours),
         notes: e.description ? e.note : null,
         authorName: e.authorName,
+        status: e.approvalStatus,
+        rejectReason: e.rejectReason,
+        decidedBy: e.decidedByName,
+        decidedAt: e.decidedAt?.toISOString() ?? null,
       })),
   };
 }
@@ -190,12 +200,12 @@ export async function updatePool(customerId: string, poolId: string, input: Pool
 }
 
 /**
- * Log time against a pool. Enforces the pool's rules the way the form shows
- * them: the date must fall inside the term, the month may not go over its
- * maximum, and once the pool is spent only approved extra hours can be used
- * (P1 fixes are exempt).
+ * The pool's rules, the way the form shows them: the dates must fall inside the
+ * term, the month may not go over its maximum, and once the pool is spent only
+ * approved extra hours can be used (P1 fixes are exempt). An edited entry is
+ * left out of the sums it is checked against. The request ID must be unused.
  */
-async function addEntry(pool: PoolRow, input: PoolEntryInput, actor: TimeActor) {
+async function checkEntry(pool: PoolRow, input: PoolEntryInput, editingId?: string) {
   if (!pool.tasks.some((t) => t.taskId === input.taskId)) throw ApiError.badRequest('That task does not draw on this pool');
   const rules = rulesOf(pool);
   if (input.date < rules.termStart || input.endDate > rules.termEnd) {
@@ -203,7 +213,8 @@ async function addEntry(pool: PoolRow, input: PoolEntryInput, actor: TimeActor) 
   }
   if (input.endDate < input.date) throw ApiError.badRequest('The end date must not be before the start date');
   const shaped = shapePool(pool);
-  const summary = summarisePool(rules, shaped.entries, today(), shaped.approvals);
+  const others = shaped.entries.filter((e) => e.id !== editingId);
+  const summary = summarisePool(rules, others, today(), shaped.approvals);
   const month = summary.rows.find((r) => r.month === input.date.slice(0, 7));
   if (month && round2(month.used + input.actualHours) > rules.monthlyMax) {
     throw ApiError.badRequest(`This takes the month over the ${rules.monthlyMax} h monthly maximum. Date the work into next month.`);
@@ -215,29 +226,113 @@ async function addEntry(pool: PoolRow, input: PoolEntryInput, actor: TimeActor) 
     );
   }
 
-  const taken = await prisma.taskTimeEntry.findFirst({ where: { requestId: input.requestId }, select: { id: true } });
+  const taken = await prisma.taskTimeEntry.findFirst({
+    where: { requestId: input.requestId, ...(editingId && { id: { not: editingId } }) },
+    select: { id: true },
+  });
   if (taken) throw ApiError.conflict('This request ID is already used. Make a new one and save again.');
+}
 
-  await prisma.taskTimeEntry.create({
+/** The entry's work fields, as saved on create and edit. */
+const entryData = (input: PoolEntryInput) => ({
+  taskId: input.taskId,
+  workDate: new Date(input.date),
+  workEndDate: new Date(input.endDate),
+  hours: input.actualHours,
+  requestId: input.requestId,
+  priority: input.priority,
+  category: input.category,
+  description: input.description,
+  staff: input.staff,
+  note: input.notes?.trim() || null,
+});
+
+/** A new or edited entry waits for the client: tell the customer's client users. */
+async function askClientToApprove(customerId: string, entryId: string, input: PoolEntryInput, edited: boolean) {
+  const clients = await prisma.clientUser.findMany({ where: { customerId, isActive: true }, select: { id: true } });
+  for (const c of clients) {
+    notify({
+      userId: c.id,
+      userType: 'CLIENT',
+      type: 'timesheet',
+      title: edited ? 'Edited time entry to approve' : 'Time entry to approve',
+      body: `${input.requestId} — ${round2(input.actualHours)} h · ${input.description}`,
+      link: '/client/tasks',
+      entityType: 'TaskTimeEntry',
+      entityId: entryId,
+    });
+  }
+}
+
+const reloadPool = async (poolId: string) =>
+  shapePool(await prisma.timeSheetPool.findUniqueOrThrow({ where: { id: poolId }, include: poolInclude }));
+
+/** Log time against a pool. The entry waits for the client's approval. */
+async function addEntry(pool: PoolRow, input: PoolEntryInput, actor: TimeActor) {
+  await checkEntry(pool, input);
+  const entry = await prisma.taskTimeEntry.create({
     data: {
       customerId: pool.customerId,
-      taskId: input.taskId,
       poolId: pool.id,
-      workDate: new Date(input.date),
-      workEndDate: new Date(input.endDate),
-      hours: input.actualHours,
-      requestId: input.requestId,
-      priority: input.priority,
-      category: input.category,
-      description: input.description,
-      staff: input.staff,
-      note: input.notes?.trim() || null,
+      ...entryData(input),
+      approvalStatus: 'PENDING',
       authorId: actor.id,
       authorType: actor.type,
       authorName: actor.name,
     },
   });
-  return shapePool(await prisma.timeSheetPool.findUniqueOrThrow({ where: { id: pool.id }, include: poolInclude }));
+  await askClientToApprove(pool.customerId, entry.id, input, false);
+  return reloadPool(pool.id);
+}
+
+function ownedEntry(pool: PoolRow, entryId: string) {
+  const entry = pool.entries.find((e) => e.id === entryId);
+  if (!entry) throw ApiError.notFound('Time entry not found');
+  return entry;
+}
+
+/** The admin edits an entry; it goes back to the client for approval. */
+export async function updatePoolEntry(customerId: string, poolId: string, entryId: string, input: PoolEntryInput) {
+  const pool = await ownedPool(customerId, poolId);
+  ownedEntry(pool, entryId);
+  await checkEntry(pool, input, entryId);
+  await prisma.taskTimeEntry.update({
+    where: { id: entryId },
+    data: { ...entryData(input), approvalStatus: 'PENDING', rejectReason: null, decidedAt: null, decidedById: null, decidedByName: null },
+  });
+  await askClientToApprove(customerId, entryId, input, true);
+  return reloadPool(poolId);
+}
+
+/** The admin removes an entry; its hours return to the pool. */
+export async function deletePoolEntry(customerId: string, poolId: string, entryId: string) {
+  const pool = await ownedPool(customerId, poolId);
+  ownedEntry(pool, entryId);
+  await prisma.taskTimeEntry.delete({ where: { id: entryId } });
+  return reloadPool(poolId);
+}
+
+/** The client approves an entry (it is settled) or rejects it with a reason. */
+export async function decidePoolEntry(customerId: string, poolId: string, entryId: string, input: EntryDecisionInput, actor: TimeActor) {
+  const pool = await ownedPool(customerId, poolId);
+  const entry = ownedEntry(pool, entryId);
+  if (entry.approvalStatus !== 'PENDING') throw ApiError.badRequest('This time entry is already decided');
+  const rejected = input.decision === 'REJECTED';
+  const reason = rejected ? input.reason?.trim() || null : null;
+  await prisma.taskTimeEntry.update({
+    where: { id: entryId },
+    data: { approvalStatus: input.decision, rejectReason: reason, decidedAt: new Date(), decidedById: actor.id, decidedByName: actor.name },
+  });
+  const message = {
+    type: 'timesheet',
+    title: rejected ? 'Time entry rejected' : 'Time entry approved',
+    body: `${entry.requestId ?? ''} — ${actor.name}${reason ? `: ${reason}` : ''}`,
+    entityType: 'TaskTimeEntry',
+    entityId: entryId,
+  };
+  notifySuperAdmins({ ...message, link: '/admin/tasks' });
+  if (entry.authorType === 'EMPLOYEE') notify({ ...message, userId: entry.authorId, userType: 'EMPLOYEE', link: '/employee/tasks' });
+  return reloadPool(poolId);
 }
 
 export async function addPoolEntry(customerId: string, poolId: string, input: PoolEntryInput, actor: TimeActor) {

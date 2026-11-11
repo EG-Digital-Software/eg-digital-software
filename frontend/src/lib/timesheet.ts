@@ -22,6 +22,8 @@ export interface PoolRules {
 
 export interface PoolEntry {
   taskId: string;
+  /** PENDING, APPROVED or REJECTED — rejected entries do not count. */
+  status?: string;
   /** YYYY-MM-DD */
   date: string;
   actualHours: number;
@@ -67,7 +69,7 @@ export interface PoolMonth {
 
 /** Where a pool stands on `asOf` (YYYY-MM-DD): every month of the term plus the totals. */
 export function summarisePool(rules: PoolRules, entries: PoolEntry[], asOf: string, approvals: PoolApproval[] = []) {
-  const mine = entries.filter((e) => rules.taskIds.includes(e.taskId));
+  const mine = entries.filter((e) => rules.taskIds.includes(e.taskId) && e.status !== 'REJECTED');
   const thisMonth = monthOf(asOf);
   let balance = rules.poolHours;
   let cumulative = 0;
@@ -138,7 +140,15 @@ export interface TimeSheetEntry extends PoolEntry {
   staff: string;
   notes?: string | null;
   authorName: string;
+  status: EntryStatus;
+  rejectReason?: string | null;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
 }
+
+/** The client's sign-off on a logged entry. */
+export type EntryStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export const ENTRY_STATUS_LABEL: Record<EntryStatus, string> = { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' };
 
 export interface TimeSheetApproval extends PoolApproval {
   id: string;
@@ -221,10 +231,10 @@ export function newRequestId(): string {
 
 /** The time sheet as CSV, oldest entry first. */
 export function timeSheetCsv(entries: TimeSheetEntry[], taskName: (id: string) => string): string {
-  const head = ['Start Date', 'End Date', 'Task', 'Request ID', 'Priority', 'Category', 'Description', 'Staff', 'Hours', 'Notes'];
+  const head = ['Start Date', 'End Date', 'Task', 'Request ID', 'Priority', 'Category', 'Description', 'Staff', 'Hours', 'Notes', 'Status', 'Reject Reason'];
   const cell = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`;
   const rows = entries.map((e) =>
-    [e.date, e.endDate, taskName(e.taskId), e.requestId, e.priority, e.category, e.description, e.staff, e.actualHours, e.notes ?? '']
+    [e.date, e.endDate, taskName(e.taskId), e.requestId, e.priority, e.category, e.description, e.staff, e.actualHours, e.notes ?? '', ENTRY_STATUS_LABEL[e.status] ?? e.status, e.rejectReason ?? '']
       .map(cell)
       .join(',')
   );

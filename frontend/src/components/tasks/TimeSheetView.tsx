@@ -1,19 +1,23 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, Clock, Download, Info, Pencil, Plus, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, Clock, Download, Info, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import type { TaskApi } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
 import type { TaskBucket } from '@/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { Input, Select, Textarea } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LoadingBlock, ErrorState } from '@/components/shared/states';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import {
   TIME_CATEGORIES,
   TIME_STAFF,
+  ENTRY_STATUS_LABEL,
+  type EntryStatus,
+  type TimeSheetEntry,
   TIME_PRIORITIES,
   dayLabel,
   hoursLabel,
@@ -43,6 +47,12 @@ const PRIORITY_TONE: Record<string, string> = {
 };
 
 const fieldLabel = 'mb-1 block text-xs font-medium text-muted-foreground';
+
+const STATUS_TONE: Record<EntryStatus, string> = {
+  PENDING: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  APPROVED: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  REJECTED: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+};
 
 function Notice({ tone, children }: { tone: 'amber' | 'red' | 'blue'; children: React.ReactNode }) {
   const tones = {
@@ -188,6 +198,7 @@ export function TimeSheetView({
           canManage={canManage}
           canLog={canLog}
           canApprove={canApprove}
+          canDecide={portal === 'client'}
           approverName={user ? `${user.firstName} ${user.lastName}`.trim() : ''}
           loggableTaskIds={portal === 'team' ? myTaskIds : null}
           onEdit={() => setPoolForm({ pool })}
@@ -215,6 +226,7 @@ function PoolPanel({
   canManage,
   canLog,
   canApprove,
+  canDecide,
   approverName,
   loggableTaskIds,
   onEdit,
@@ -226,6 +238,8 @@ function PoolPanel({
   canManage: boolean;
   canLog: boolean;
   canApprove: boolean;
+  /** Client portal: approves or rejects each logged entry. */
+  canDecide: boolean;
   approverName: string;
   /** Team portal: only these tasks may be logged on. Null = any pool task. */
   loggableTaskIds: Set<string> | null;
@@ -244,9 +258,18 @@ function PoolPanel({
   const [tab, setTab] = useState<'entries' | 'monthly'>('entries');
   const [logging, setLogging] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [editing, setEditing] = useState<TimeSheetEntry | null>(null);
+  const [deleting, setDeleting] = useState<TimeSheetEntry | null>(null);
+  const [rejecting, setRejecting] = useState<TimeSheetEntry | null>(null);
+  // Editing checks the pool's rules without the entry's own hours.
+  const editSummary = useMemo(
+    () => (editing ? summarisePool(pool, pool.entries.filter((e) => e.id !== editing.id), today, pool.approvals) : s),
+    [editing, pool, today, s]
+  );
+  const pending = entries.filter((e) => e.status === 'PENDING').length;
 
   const shown = month === 'all' ? entries : entries.filter((e) => e.date.startsWith(month));
-  const shownActual = shown.reduce((n, e) => n + e.actualHours, 0);
+  const shownActual = shown.reduce((n, e) => n + (e.status === 'REJECTED' ? 0 : e.actualHours), 0);
   const loggable = pool.tasks.filter((t) => !loggableTaskIds || loggableTaskIds.has(t.taskId));
 
   const terms = `${pool.poolHours} h pool shared by ${pool.tasks.map((t) => taskName(t.taskId)).join(' + ')} · ${pool.monthlyHours} h a month, up to ${pool.monthlyMax} h in a month if needed · ${money(pool.extraRate)}/h beyond the pool`;
@@ -255,6 +278,22 @@ function PoolPanel({
   const addEntry = useMutation({
     mutationFn: (body: TimeSheetEntryInput) => api.addTimeSheetEntry(pool.id, body),
     onSuccess: (_p, body) => { refresh(); setLogging(false); setMonth(body.date.slice(0, 7)); toast.success('Time logged'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const updateEntry = useMutation({
+    mutationFn: (v: { id: string; body: TimeSheetEntryInput }) => api.updateTimeSheetEntry(pool.id, v.id, v.body),
+    onSuccess: () => { refresh(); setEditing(null); toast.success('Entry updated — sent to the client for approval'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const deleteEntry = useMutation({
+    mutationFn: (id: string) => api.deleteTimeSheetEntry(pool.id, id),
+    onSuccess: () => { refresh(); setDeleting(null); toast.success('Entry deleted'); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const decide = useMutation({
+    mutationFn: (v: { id: string; decision: 'APPROVED' | 'REJECTED'; reason?: string }) =>
+      api.decideTimeSheetEntry(pool.id, v.id, { decision: v.decision, reason: v.reason }),
+    onSuccess: (_p, v) => { refresh(); setRejecting(null); toast.success(v.decision === 'APPROVED' ? 'Entry approved' : 'Entry rejected'); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const approve = useMutation({
@@ -298,7 +337,7 @@ function PoolPanel({
             </Button>
           )}
           {canLog && loggable.length > 0 && (
-            <Button size="sm" onClick={() => setLogging((v) => !v)}>
+            <Button size="sm" onClick={() => { setEditing(null); setLogging((v) => !v); }}>
               <Plus className="mr-1.5 h-4 w-4" /> Log time
             </Button>
           )}
@@ -306,6 +345,12 @@ function PoolPanel({
       </div>
 
       <div className="space-y-2">
+        {pending > 0 && (
+          <Notice tone="amber">
+            <b>{pending} {pending === 1 ? 'entry is' : 'entries are'} waiting for the client's approval.</b>
+            {canDecide ? ' Approve or reject each one below.' : ' They count against the pool until the client decides; rejected entries stop counting.'}
+          </Notice>
+        )}
         {s.workPaused && (
           <Notice tone="red">
             <b>Pool used up.</b> Work pauses until extra hours are approved in the customer portal at {money(pool.extraRate)}/h. P1 fixes for EG Eloma's own code continue.
@@ -396,6 +441,19 @@ function PoolPanel({
           onSave={(body) => addEntry.mutate(body)}
         />
       )}
+      {editing && canManage && (
+        <LogTimeForm
+          key={editing.id}
+          pool={pool}
+          summary={editSummary}
+          today={today}
+          tasks={pool.tasks.map((t) => ({ id: t.taskId, name: taskName(t.taskId) }))}
+          entry={editing}
+          saving={updateEntry.isPending}
+          onCancel={() => setEditing(null)}
+          onSave={(body) => updateEntry.mutate({ id: editing.id, body })}
+        />
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-lg bg-secondary p-1 text-sm">
@@ -430,7 +488,7 @@ function PoolPanel({
               No time logged{month !== 'all' ? ` in ${monthLabel(month)}` : ''}.
             </div>
           ) : (
-            <table className="w-full min-w-[820px] text-left text-sm">
+            <table className="w-full min-w-[1040px] text-left text-sm">
               <thead className="border-b border-border bg-secondary/50 text-xs font-medium text-muted-foreground">
                 <tr>
                   <th className="px-4 py-2.5">Start – End</th>
@@ -439,7 +497,9 @@ function PoolPanel({
                   <th className="px-3 py-2.5">Priority</th>
                   <th className="px-3 py-2.5">Work</th>
                   <th className="px-3 py-2.5">Staff</th>
-                  <th className="px-4 py-2.5 text-right">Hours</th>
+                  <th className="px-3 py-2.5 text-right">Hours</th>
+                  <th className="px-3 py-2.5">Status</th>
+                  {(canManage || canDecide) && <th className="px-4 py-2.5 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -460,7 +520,63 @@ function PoolPanel({
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{e.staff}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums">{e.actualHours.toFixed(2)}</td>
+                      <td className={cn('whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums', e.status === 'REJECTED' && 'text-muted-foreground line-through')}>
+                        {e.actualHours.toFixed(2)}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={cn('whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium', STATUS_TONE[e.status] ?? STATUS_TONE.PENDING)}>
+                          {ENTRY_STATUS_LABEL[e.status] ?? e.status}
+                        </span>
+                        {e.status === 'REJECTED' && e.rejectReason && (
+                          <div className="mt-1 max-w-[220px] text-xs text-red-700">Reason: {e.rejectReason}</div>
+                        )}
+                        {e.decidedBy && e.status !== 'PENDING' && <div className="mt-0.5 text-xs text-muted-foreground">by {e.decidedBy}</div>}
+                      </td>
+                      {(canManage || canDecide) && (
+                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                          <div className="inline-flex gap-1">
+                            {canDecide && e.status === 'PENDING' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={decide.isPending}
+                                  onClick={() => decide.mutate({ id: e.id, decision: 'APPROVED' })}
+                                >
+                                  <Check className="mr-1 h-3.5 w-3.5" /> Approve
+                                </Button>
+                                <Button size="sm" variant="outline" disabled={decide.isPending} onClick={() => setRejecting(e)}>
+                                  <X className="mr-1 h-3.5 w-3.5" /> Reject
+                                </Button>
+                              </>
+                            )}
+                            {canManage && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="px-2"
+                                  title="Edit entry"
+                                  aria-label="Edit entry"
+                                  onClick={() => { setLogging(false); setEditing(e); }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="px-2 text-red-600 hover:text-red-700"
+                                  title="Delete entry"
+                                  aria-label="Delete entry"
+                                  onClick={() => setDeleting(e)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -470,7 +586,8 @@ function PoolPanel({
                   <td className="px-4 py-2.5" colSpan={multi ? 6 : 5}>
                     {shown.length} {shown.length === 1 ? 'entry' : 'entries'}
                   </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{shownActual.toFixed(2)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{shownActual.toFixed(2)}</td>
+                  <td colSpan={canManage || canDecide ? 2 : 1} />
                 </tr>
               </tfoot>
             </table>
@@ -481,6 +598,25 @@ function PoolPanel({
           <MonthlySummary pool={pool} summary={s} taskName={taskName} />
           <ApprovalsTable pool={pool} approvals={pool.approvals} />
         </>
+      )}
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title="Delete this time entry?"
+        description={deleting ? `${deleting.requestId} — ${deleting.actualHours} h · ${deleting.description}. Its hours go back to the pool. This cannot be undone.` : undefined}
+        confirmLabel="Delete"
+        destructive
+        loading={deleteEntry.isPending}
+        onConfirm={() => deleting && deleteEntry.mutate(deleting.id)}
+      />
+      {rejecting && (
+        <RejectEntryDialog
+          entry={rejecting}
+          saving={decide.isPending}
+          onClose={() => setRejecting(null)}
+          onReject={(reason) => decide.mutate({ id: rejecting.id, decision: 'REJECTED', reason })}
+        />
       )}
 
       <p className="text-xs text-muted-foreground">
@@ -586,6 +722,7 @@ function LogTimeForm({
   summary,
   today,
   tasks,
+  entry,
   saving,
   onSave,
   onCancel,
@@ -594,22 +731,41 @@ function LogTimeForm({
   summary: Summary;
   today: string;
   tasks: { id: string; name: string }[];
+  /** Editing this entry (admin); saving sends it back to the client for approval. */
+  entry?: TimeSheetEntry;
   saving: boolean;
   onSave: (body: TimeSheetEntryInput) => void;
   onCancel: () => void;
 }) {
-  const [f, setF] = useState({
-    date: today,
-    endDate: today,
-    taskId: tasks[tasks.length - 1]?.id ?? '',
-    requestId: newRequestId(),
-    priority: 'P4',
-    category: '',
-    description: '',
-    staff: '',
-    actualHours: '',
-    notes: '',
-  });
+  const [f, setF] = useState(() =>
+    entry
+      ? {
+          date: entry.date,
+          endDate: entry.endDate,
+          taskId: entry.taskId,
+          requestId: entry.requestId,
+          priority: entry.priority,
+          category: entry.category,
+          description: entry.description,
+          staff: entry.staff,
+          actualHours: String(entry.actualHours),
+          notes: entry.notes ?? '',
+        }
+      : {
+          date: today,
+          endDate: today,
+          taskId: tasks[tasks.length - 1]?.id ?? '',
+          requestId: newRequestId(),
+          priority: 'P4',
+          category: '',
+          description: '',
+          staff: '',
+          actualHours: '',
+          notes: '',
+        }
+  );
+  // Older entries may carry a request ID or staff from before these were fixed.
+  const legacyId = !/^REQ-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(f.requestId);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const actual = parseFloat(f.actualHours);
   const hours = Number.isFinite(actual) ? actual : 0;
@@ -642,6 +798,7 @@ function LogTimeForm({
         });
       }}
     >
+      {entry && <div className="text-sm font-semibold">Edit entry — saving sends it to the client for approval again</div>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <label>
           <span className={fieldLabel}>Start Date</span>
@@ -698,6 +855,7 @@ function LogTimeForm({
           <Select value={f.staff} onChange={set('staff')}>
             <option value="" disabled>Select Staff</option>
             {TIME_STAFF.map((s) => <option key={s}>{s}</option>)}
+            {f.staff && !(TIME_STAFF as readonly string[]).includes(f.staff) && <option>{f.staff}</option>}
           </Select>
         </label>
         <label className="col-span-2 md:col-span-4">
@@ -714,6 +872,7 @@ function LogTimeForm({
         </label>
       </div>
 
+      {legacyId && <Notice tone="amber">This entry's old request ID is not in the REQ-XXXX-XXXX format — press ↻ to make a new one before saving.</Notice>}
       {backwards && <Notice tone="red">The end date must not be before the start date.</Notice>}
       {outside && <Notice tone="red">These dates are outside the term ({dayLabel(pool.termStart)} – {dayLabel(pool.termEnd)}).</Notice>}
       {needsApproval && (
@@ -740,11 +899,53 @@ function LogTimeForm({
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" size="sm" disabled={!filled || overMax || needsApproval || saving}>
-          {saving ? 'Saving…' : 'Save entry'}
+        <Button type="submit" size="sm" disabled={!filled || legacyId || overMax || needsApproval || saving}>
+          {saving ? 'Saving…' : entry ? 'Save and send for approval' : 'Save entry'}
         </Button>
       </div>
     </form>
+  );
+}
+
+function RejectEntryDialog({
+  entry,
+  saving,
+  onReject,
+  onClose,
+}: {
+  entry: TimeSheetEntry;
+  saving: boolean;
+  onReject: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="md">
+        <DialogHeader>
+          <DialogTitle>Reject time entry</DialogTitle>
+        </DialogHeader>
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (reason.trim()) onReject(reason.trim());
+          }}
+        >
+          <p className="text-sm text-muted-foreground">
+            {entry.requestId} — {hoursLabel(entry.actualHours)} · {entry.description}
+          </p>
+          <label className="block">
+            <span className={fieldLabel}>Why are you rejecting it?</span>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={1000} autoFocus />
+          </label>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" variant="destructive" disabled={!reason.trim() || saving}>{saving ? 'Rejecting…' : 'Reject'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

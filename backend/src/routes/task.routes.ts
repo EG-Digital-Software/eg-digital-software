@@ -21,6 +21,7 @@ import {
   timeSheetPoolSchema,
   timeSheetEntrySchema,
   timeSheetApprovalSchema,
+  timeSheetDecisionSchema,
 } from '../validators/task.validator.js';
 
 // Chat files and attachments: no size cap. Large files normally skip the API
@@ -68,6 +69,8 @@ export function buildTaskRouter(readOnly = false): Router {
   router.get('/timesheet', ctrl.timeSheet);
   router.post('/timesheet/pools/:poolId/entries', validate({ body: timeSheetEntrySchema }), ctrl.addTimeSheetEntry);
   router.post('/timesheet/pools/:poolId/approvals', validate({ body: timeSheetApprovalSchema }), ctrl.approveTimeSheetExtra);
+  // The client approves or rejects each logged entry (role checked in the controller).
+  router.post('/timesheet/pools/:poolId/entries/:entryId/decision', validate({ body: timeSheetDecisionSchema }), ctrl.decideTimeSheetEntry);
 
   // Collaboration — available to clients too.
   router.patch('/tasks/:taskId/progress', validate({ body: taskProgressSchema }), ctrl.setProgress);
@@ -126,6 +129,9 @@ export function buildTaskRouter(readOnly = false): Router {
 
     router.post('/timesheet/pools', validate({ body: timeSheetPoolSchema }), ctrl.createTimeSheetPool);
     router.patch('/timesheet/pools/:poolId', validate({ body: timeSheetPoolSchema }), ctrl.updateTimeSheetPool);
+    // The admin edits (back to the client for approval) or deletes a logged entry.
+    router.put('/timesheet/pools/:poolId/entries/:entryId', validate({ body: timeSheetEntrySchema }), ctrl.updateTimeSheetEntry);
+    router.delete('/timesheet/pools/:poolId/entries/:entryId', ctrl.deleteTimeSheetEntry);
 
     router.post('/labels', validate({ body: createLabelSchema }), ctrl.createLabel);
     router.patch('/labels/:labelId', validate({ body: updateLabelSchema }), ctrl.updateLabel);

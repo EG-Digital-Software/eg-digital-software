@@ -188,6 +188,13 @@ export const timeSheetEntrySchema = z.object({
     path: ['actualHours'],
   });
 
+export const timeSheetDecisionSchema = z
+  .object({
+    decision: z.enum(['APPROVED', 'REJECTED']),
+    reason: z.string().trim().max(1000).nullable().optional(),
+  })
+  .refine((v) => v.decision === 'APPROVED' || !!v.reason, { message: 'Give the reason for rejecting', path: ['reason'] });
+
 export const timeSheetApprovalSchema = z.object({
   hours: z.coerce.number().positive('Enter the hours').max(10000),
   reference: z.string().trim().max(120).nullable().optional(),

@@ -118,6 +118,25 @@ export const addTimeSheetEntry = asyncHandler(async (req: Request, res: Response
   return ok(res, await timesheet.addPoolEntry(await resolve(req), req.params.poolId, req.body, await author(req)), 'Time logged', 201);
 });
 
+/** Editing or deleting logged time is the admin's; an edit goes back to the client. */
+export const updateTimeSheetEntry = asyncHandler(async (req: Request, res: Response) => {
+  if (!isAdminLike(req)) throw ApiError.forbidden('Only the admin can edit time entries');
+  const pool = await timesheet.updatePoolEntry(await resolve(req), req.params.poolId, req.params.entryId, req.body);
+  return ok(res, pool, 'Time entry updated — sent to the client for approval');
+});
+
+export const deleteTimeSheetEntry = asyncHandler(async (req: Request, res: Response) => {
+  if (!isAdminLike(req)) throw ApiError.forbidden('Only the admin can delete time entries');
+  return ok(res, await timesheet.deletePoolEntry(await resolve(req), req.params.poolId, req.params.entryId), 'Time entry deleted');
+});
+
+/** Only the client approves or rejects logged time. */
+export const decideTimeSheetEntry = asyncHandler(async (req: Request, res: Response) => {
+  if (req.user!.role !== 'CLIENT') throw ApiError.forbidden('Only the client can approve or reject time entries');
+  const pool = await timesheet.decidePoolEntry(await resolve(req), req.params.poolId, req.params.entryId, req.body, await author(req));
+  return ok(res, pool, req.body.decision === 'APPROVED' ? 'Time entry approved' : 'Time entry rejected');
+});
+
 /** Extra hours are approved by the client, or by the admin on their behalf. */
 export const approveTimeSheetExtra = asyncHandler(async (req: Request, res: Response) => {
   if (!CAN_DECIDE.includes(req.user!.role)) throw ApiError.forbidden('Only the client or an admin can approve extra hours');
