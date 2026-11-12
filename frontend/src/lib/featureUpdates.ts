@@ -4,7 +4,7 @@
 // PIN lock" added — by admin" — and then it is remembered as seen for them
 // (localStorage, per user). Entries older than SHOW_DAYS are no longer announced.
 
-export type FeatureTab = 'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive';
+export type FeatureTab = 'details' | 'attachments' | 'approval' | 'access' | 'social' | 'archive';
 
 export interface FeatureUpdate {
   /** Stable id — never reuse or change it, or users see it again. */
@@ -19,6 +19,8 @@ export interface FeatureUpdate {
 
 export const FEATURE_UPDATES: FeatureUpdate[] = [
   { id: 'access-point-pin', name: 'Access Point PIN lock', addedAt: '2026-11-09', tab: 'access' },
+  // No `tab`: the Social Media Dashboard tab only exists on tasks where it is ticked.
+  { id: 'social-media-dashboard', name: 'Social Media Dashboard', addedAt: '2026-11-12' },
 ];
 
 const SHOW_DAYS = 30;

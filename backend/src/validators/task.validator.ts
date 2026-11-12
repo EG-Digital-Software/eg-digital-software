@@ -44,6 +44,7 @@ export const createTaskSchema = z.object({
   assignees: z.array(assignee).optional(),
   labelIds: z.array(z.string()).optional(),
   checklist: z.array(checklistItem).optional(),
+  showSocialDashboard: z.boolean().optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -57,6 +58,7 @@ export const updateTaskSchema = z.object({
   assignees: z.array(assignee).optional(),
   labelIds: z.array(z.string()).optional(),
   checklist: z.array(checklistItem).optional(),
+  showSocialDashboard: z.boolean().optional(),
 });
 
 export const moveTaskSchema = z.object({

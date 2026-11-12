@@ -67,7 +67,10 @@ export const reorderBuckets = asyncHandler(async (req: Request, res: Response) =
 // ─── Tasks ────────────────────────────────────────────────
 
 export const createTask = asyncHandler(async (req: Request, res: Response) => {
-  const task = await taskService.createTask(await resolve(req), req.body, req.user?.sub);
+  const body = { ...req.body };
+  // The Social Media Dashboard tab is switched on by the admin or team only.
+  if (req.user?.role === 'CLIENT') delete body.showSocialDashboard;
+  const task = await taskService.createTask(await resolve(req), body, req.user?.sub);
   return ok(res, task, 'Task created', 201);
 });
 
@@ -153,6 +156,8 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     delete body.priority;
     delete body.bucketId;
     delete body.assignees;
+    // The Social Media Dashboard tab is switched on by the admin or team only.
+    delete body.showSocialDashboard;
   }
   // Stamp the notes author only when the notes actually change.
   const actorName = body.description !== undefined ? (await author(req)).name : undefined;

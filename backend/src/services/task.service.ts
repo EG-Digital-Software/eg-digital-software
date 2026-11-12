@@ -310,6 +310,8 @@ export interface TaskInput {
   assignees?: AssigneeInput[];
   labelIds?: string[];
   checklist?: ChecklistInput[];
+  /** Show the Social Media Dashboard tab on this task. */
+  showSocialDashboard?: boolean;
 }
 
 export async function ensureTask(customerId: string, taskId: string) {
@@ -351,6 +353,7 @@ export async function createTask(customerId: string, input: TaskInput, createdBy
         dueDate: input.dueDate ? new Date(input.dueDate) : null,
         order: count,
         completedAt: completed ? new Date() : null,
+        showSocialDashboard: input.showSocialDashboard ?? false,
         createdById,
         assignees: input.assignees?.length
           ? {
@@ -559,6 +562,7 @@ export async function updateTask(
     }
   }
   if (input.priority !== undefined) data.priority = input.priority;
+  if (input.showSocialDashboard !== undefined) data.showSocialDashboard = input.showSocialDashboard;
   if (input.startDate !== undefined) data.startDate = input.startDate ? new Date(input.startDate) : null;
   if (input.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
   if (input.bucketId !== undefined) data.bucket = { connect: { id: input.bucketId } };

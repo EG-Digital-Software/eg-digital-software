@@ -854,6 +854,9 @@ model Task {
   /// Position within the bucket (0-based, ascending).
   order                 Int          @default(0)
   completedAt           DateTime?
+  /// Whether this task shows the Social Media Dashboard tab. Ticked per task by
+  /// an admin or team member; the client sees the tab but cannot switch it.
+  showSocialDashboard   Boolean      @default(false)
   /// AdminUser id that created the task (for the activity trail).
   createdById           String?
   createdAt             DateTime     @default(now())

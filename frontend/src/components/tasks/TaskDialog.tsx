@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -100,7 +100,7 @@ interface Props {
   newSince?: NewSince | null;
 }
 
-type WhatsNewTarget = 'chat' | 'details' | 'attachments' | 'approval' | 'access' | 'archive' | 'performance' | null;
+type WhatsNewTarget = 'chat' | 'details' | 'attachments' | 'approval' | 'access' | 'archive' | 'social' | null;
 interface WhatsNewItem {
   key: string;
   icon: React.ElementType;
@@ -184,6 +184,7 @@ interface Draft {
   assignees: AssignableUser[];
   labelIds: string[];
   checklist: { text: string; done: boolean }[];
+  showSocialDashboard: boolean;
 }
 
 
@@ -197,6 +198,9 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
     el.style.height = `${el.scrollHeight}px`;
   }, [ref, value]);
 }
+
+// The Social Media Dashboard is a large page — only fetched when its tab is opened.
+const SocialDashboardPanel = lazy(() => import('./SocialDashboardPanel'));
 
 const toDateInput = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : '');
 const toIso = (d: string) => (d ? new Date(d + 'T00:00:00').toISOString() : '');
@@ -220,6 +224,7 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
       })),
       labelIds: task.labels.map((l) => l.id),
       checklist: task.checklist.map((c) => ({ text: c.text, done: c.done })),
+      showSocialDashboard: !!task.showSocialDashboard,
     };
   }
   return {
@@ -233,6 +238,7 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
     assignees: [],
     labelIds: [],
     checklist: [],
+    showSocialDashboard: false,
   };
 }
 
@@ -290,7 +296,10 @@ export function TaskDialog({
     : `/${me?.role === 'CLIENT' ? 'client' : 'employee'}/account?tab=pin`;
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
-  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'performance' | 'archive'>('details');
+  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'social' | 'archive'>('details');
+  // The Social Media Dashboard tab is per task: an admin or team member ticks it
+  // in the form; the client sees the tab when it is on but cannot switch it.
+  const canToggleSocial = !!me && me.role !== 'CLIENT';
   const [approvalSubject, setApprovalSubject] = useState('');
   const [approvalMessage, setApprovalMessage] = useState('');
   const [approvalFiles, setApprovalFiles] = useState<File[]>([]);
@@ -356,6 +365,7 @@ export function TaskDialog({
     refetchIntervalInBackground: false,
   });
   const liveTask = taskQ.data ?? task;
+  const showSocial = canToggleSocial ? draft.showSocialDashboard : !!liveTask?.showSocialDashboard;
   const invalidateTask = () => qc.invalidateQueries({ queryKey: taskKey });
 
   // People who can be @mentioned in this task's chat — admins, team members and
@@ -804,6 +814,7 @@ export function TaskDialog({
       assignees: draft.assignees,
       labelIds: draft.labelIds,
       checklist: draft.checklist,
+      showSocialDashboard: draft.showSocialDashboard,
     });
   }
 
@@ -1125,9 +1136,9 @@ export function TaskDialog({
                   Access Point{accessEntries.length > 0 ? ` (${accessEntries.length})` : ''}
                 </TabPill>
               )}
-              {isEdit && (
-                <TabPill active={tab === 'performance'} onClick={() => setTab('performance')} icon={<LineChart className="h-4 w-4" />}>
-                  Performance Dashboard
+              {isEdit && showSocial && (
+                <TabPill active={tab === 'social'} onClick={() => setTab('social')} icon={<LineChart className="h-4 w-4" />}>
+                  Social Media Dashboard
                 </TabPill>
               )}
               {isEdit && (
@@ -1137,7 +1148,9 @@ export function TaskDialog({
               )}
             </div>
 
-            {tab === 'details' ? (
+            {/* The Social Media Dashboard tab can be switched off while open
+                (by the admin elsewhere, for a client) — fall back to the details. */}
+            {tab === 'details' || (tab === 'social' && !showSocial) ? (
               <div className="mt-5 space-y-5">
                 {/* Field grid */}
                 <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -1188,6 +1201,24 @@ export function TaskDialog({
                       {task?.taskNumber ?? nextTaskNumber ?? 'Auto-generated'}
                     </div>
                   </Field>
+
+                  {canToggleSocial && (
+                    <Field label="Social Media Dashboard" hint="Tick to show the Social Media Dashboard tab on this task. Only an admin or team member can switch it; the client sees the tab when it is on.">
+                      <label className="flex h-10 cursor-pointer items-center gap-2.5 rounded-md border border-input px-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                          checked={draft.showSocialDashboard}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            update({ showSocialDashboard: on }, { showSocialDashboard: on });
+                            if (!on && tab === 'social') setTab('details');
+                          }}
+                        />
+                        Show this tab on this task
+                      </label>
+                    </Field>
+                  )}
                 </div>
 
                 {/* Checklist */}
@@ -1341,13 +1372,11 @@ export function TaskDialog({
                 accountLink={accountLink}
                 onChanged={() => { invalidateTask(); invalidate(); }}
               />
-            ) : tab === 'performance' ? (
-              /* Performance Dashboard — coming soon. */
-              <ComingSoonPanel
-                icon={LineChart}
-                title="Performance Dashboard"
-                text="Task analytics and performance insights are on the way. This space is coming soon."
-              />
+            ) : tab === 'social' && task ? (
+              /* Social Media Dashboard — the full dashboard page, loaded on demand. */
+              <Suspense fallback={<div className="mt-5 py-16 text-center text-sm text-muted-foreground">Loading dashboard…</div>}>
+                <SocialDashboardPanel taskId={task.id} isClient={!canToggleSocial} />
+              </Suspense>
             ) : (
               /* Archive tab — admin stores files/images/videos (original quality);
                  the client and team can only view them. */
@@ -2207,22 +2236,6 @@ function TabPill({ active, onClick, icon, children, dot }: { active: boolean; on
         <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" aria-label="New activity" />
       )}
     </button>
-  );
-}
-
-/** Performance Dashboard tab — placeholder until the analytics view ships. */
-function ComingSoonPanel({ icon: Icon, title, text }: { icon: React.ElementType; title: string; text: string }) {
-  return (
-    <div className="mt-5 flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
-        <Icon className="h-7 w-7 text-muted-foreground" />
-      </div>
-      <h4 className="mt-4 text-base font-semibold">{title}</h4>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{text}</p>
-      <span className="mt-4 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-        Coming soon
-      </span>
-    </div>
   );
 }
 

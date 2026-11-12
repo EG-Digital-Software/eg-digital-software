@@ -579,6 +579,8 @@ export interface Task {
   dueDate?: string | null;
   order: number;
   completedAt?: string | null;
+  /** Whether this task shows the Social Media Dashboard tab (set by admin/team). */
+  showSocialDashboard?: boolean;
   createdById?: string | null;
   createdAt: string;
   updatedAt: string;

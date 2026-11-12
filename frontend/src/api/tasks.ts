@@ -29,6 +29,7 @@ export interface TaskInput {
   assignees?: AssignableUser[];
   labelIds?: string[];
   checklist?: { text: string; done?: boolean }[];
+  showSocialDashboard?: boolean;
 }
 
 const unwrap = <T>(p: Promise<{ data: ApiEnvelope<T> }>) => p.then((r) => r.data.data);
