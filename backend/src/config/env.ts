@@ -19,6 +19,13 @@ const schema = z.object({
   // Emailed one-time code after the password on every login. 'off' is an
   // emergency switch (e.g. email is down) that restores password-only login.
   LOGIN_OTP: z.enum(['on', 'off']).default('on'),
+  // Customers (by their client ID, e.g. EGD-2627-5002) whose client logins skip
+  // the emailed code — for the demo customer, so a reviewer (e.g. Meta App
+  // Review) can sign in. Comma separated; empty = nobody is exempt.
+  LOGIN_OTP_EXEMPT_CUSTOMERS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)),
 
   SUPER_ADMIN_EMAIL: z.string().email().default('admin@egdigital.com.au'),
   SUPER_ADMIN_PASSWORD: z.string().default('ChangeMe!2026'),

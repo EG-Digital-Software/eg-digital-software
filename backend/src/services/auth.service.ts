@@ -209,6 +209,14 @@ function assertCanSignIn(account: Account | null): asserts account is Account {
   }
 }
 
+/** A client login of a customer exempt from the sign-in code (see LOGIN_OTP_EXEMPT_CUSTOMERS). */
+async function otpExemptClient(clientUserId: string) {
+  if (env.LOGIN_OTP_EXEMPT_CUSTOMERS.length === 0) return false;
+  const user = await prisma.clientUser.findUnique({ where: { id: clientUserId }, select: { customer: { select: { clientId: true } } } });
+  const clientId = user?.customer?.clientId?.toUpperCase();
+  return !!clientId && env.LOGIN_OTP_EXEMPT_CUSTOMERS.includes(clientId);
+}
+
 async function completeLogin(account: Account) {
   const updated = await accounts.updateAccount(account.role, account.id, {
     lastLoginAt: new Date(),
@@ -234,8 +242,10 @@ export async function login(email: string, password: string, portal?: Role) {
   if (!valid) throw ApiError.unauthorized('Invalid email or password');
   assertCanSignIn(account);
 
-  // Admins sign in with the password alone; clients and the team get a code.
+  // Admins sign in with the password alone; clients and the team get a code —
+  // except client logins of a customer listed in LOGIN_OTP_EXEMPT_CUSTOMERS (demo).
   if (env.LOGIN_OTP === 'off' || account.role === 'SUPER_ADMIN') return completeLogin(account);
+  if (account.role === 'CLIENT' && (await otpExemptClient(account.id))) return completeLogin(account);
 
   // Correct password: email a one-time code; the session waits for it.
   const challengeId = crypto.randomUUID();
