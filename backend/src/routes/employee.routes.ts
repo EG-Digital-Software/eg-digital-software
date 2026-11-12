@@ -3,6 +3,7 @@ import multer from 'multer';
 import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/portal.controller.js';
 import * as teamRoles from '../controllers/teamRole.controller.js';
+import * as social from '../controllers/social.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
@@ -53,6 +54,14 @@ router.delete('/tasks/tasks/:taskId/notes/:noteId', ctrl.employeeDeleteNote);
 // Access Point tab: locked behind the team member's own PIN, like the admin board.
 router.post('/tasks/tasks/:taskId/access-point/unlock', ctrl.employeeUnlockAccessPoint);
 router.get('/tasks/tasks/:taskId/access-point', ctrl.employeeGetAccessPoint);
+// Social Media Dashboard — same as the admin board, scoped to the member's tasks.
+router.get('/tasks/tasks/:taskId/social', social.employee.get);
+router.put('/tasks/tasks/:taskId/social', social.employee.save);
+router.put('/tasks/tasks/:taskId/social/metrics', social.employee.saveMetrics);
+router.post('/tasks/tasks/:taskId/social/sync', social.employee.sync);
+router.post('/tasks/tasks/:taskId/social/connect/:provider', social.employee.connect);
+router.patch('/tasks/tasks/:taskId/social/connections/:connectionId', social.employee.select);
+router.delete('/tasks/tasks/:taskId/social/connections/:connectionId', social.employee.disconnect);
 router.post('/tasks/tasks/:taskId/attachments', upload.single('file'), ctrl.employeeAddAttachment);
 router.delete('/tasks/tasks/:taskId/attachments/:attachmentId', ctrl.employeeDeleteAttachment);
 // Raise an approval request (subject/message + optional files). Deciding stays admin/customer-only.

@@ -202,6 +202,19 @@ export function taskApi(base: string) {
     getAccessPoint: (taskId: string, accessKey: string) =>
       unwrap<AccessPointData>(api.get(`${base}/tasks/${taskId}/access-point`, accessHeaders(accessKey))),
 
+    // Social Media Dashboard (tasks where it is switched on). The dashboard page
+    // works with the raw payload, so these stay loosely typed.
+    socialDashboard: (taskId: string) => unwrap<unknown>(api.get(`${base}/tasks/${taskId}/social`)),
+    saveSocialDashboard: (taskId: string, patch: unknown) => unwrap<unknown>(api.put(`${base}/tasks/${taskId}/social`, patch)),
+    saveSocialMetrics: (taskId: string, rows: unknown[]) => unwrap<unknown>(api.put(`${base}/tasks/${taskId}/social/metrics`, { rows })),
+    syncSocial: (taskId: string) => unwrap<unknown>(api.post(`${base}/tasks/${taskId}/social/sync`, {}, { timeout: 180_000 })),
+    connectSocial: (taskId: string, provider: string) =>
+      unwrap<{ url: string }>(api.post(`${base}/tasks/${taskId}/social/connect/${encodeURIComponent(provider)}`, {})),
+    selectSocialAccounts: (taskId: string, connectionId: string, body: unknown) =>
+      unwrap<unknown>(api.patch(`${base}/tasks/${taskId}/social/connections/${connectionId}`, body, { timeout: 180_000 })),
+    disconnectSocial: (taskId: string, connectionId: string) =>
+      unwrap<unknown>(api.delete(`${base}/tasks/${taskId}/social/connections/${connectionId}`)),
+
     // Attachments
     addAttachment: async (taskId: string, file: File, onProgress?: UploadProgress) => {
       const upload = await uploadTaskFile(base, taskId, file, onProgress);

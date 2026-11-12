@@ -12,10 +12,13 @@ import adminRoutes from './admin.routes.js';
 import notificationRoutes from './notification.routes.js';
 import geoRoutes from './geo.routes.js';
 import abnRoutes from './abn.routes.js';
+import * as socialCtrl from '../controllers/social.controller.js';
 
 const router = Router();
 
 router.get('/health', (_req, res) => res.json({ success: true, message: 'ok', data: { up: true } }));
+// Meta sends the customer back here after they sign in (public; the signed state identifies them).
+router.get('/social/oauth/meta/callback', socialCtrl.metaCallback);
 
 router.use('/auth', authRoutes);
 router.use('/customers', customerRoutes);

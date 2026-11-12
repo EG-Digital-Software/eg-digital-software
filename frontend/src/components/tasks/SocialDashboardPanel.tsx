@@ -1,31 +1,70 @@
-import { useMemo } from 'react';
+import { useEffect, useRef } from 'react';
 import dashboardHtml from './social-dashboard.html?raw';
+import type { taskApi } from '@/api/tasks';
+import { apiErrorMessage } from '@/api/client';
+
+type TaskApi = ReturnType<typeof taskApi>;
 
 /**
- * Social Media Dashboard tab — the standalone dashboard page, shown as it is
- * inside the task. The page is kept untouched in social-dashboard.html; only
- * three things are adjusted when it is loaded here:
- *  - its own mock tab bar is hidden (the task form already has the tabs),
- *  - figures entered through "Update data" are kept per task, and
- *  - a client does not get the team-only view or the "Update data" button.
+ * Social Media Dashboard tab — the dashboard page (social-dashboard.html, kept as
+ * one self-contained page with its own design) runs in a frame. It has no data
+ * of its own: it asks the portal for everything over postMessage, and the portal
+ * answers by calling the API with the signed-in user's session. Figures come
+ * from the customer's connected accounts or from what the team entered.
  */
-function buildDocument(taskId: string, isClient: boolean): string {
-  const hide = ['#tabs', '#shareBtn', ...(isClient ? ['.viewbar', '#updateBtn'] : [])];
-  const style = `<style>${hide.join(',')}{display:none!important}</style>`;
-  // The id only ever feeds a storage key; keep it to characters safe inside the script.
-  const key = taskId.replace(/[^A-Za-z0-9_-]/g, '');
-  return dashboardHtml
-    .replace("const KEY='egeloma-dashboard-v2'", `const KEY='egeloma-dashboard-v2:${key}'`)
-    .replace("const IKEY='egeloma-insights-v1'", `const IKEY='egeloma-insights-v1:${key}'`)
-    .replace('</head>', `${style}</head>`);
-}
+export default function SocialDashboardPanel({ api, taskId }: { api: TaskApi; taskId: string }) {
+  const frame = useRef<HTMLIFrameElement>(null);
 
-export default function SocialDashboardPanel({ taskId, isClient }: { taskId: string; isClient: boolean }) {
-  const doc = useMemo(() => buildDocument(taskId, isClient), [taskId, isClient]);
+  useEffect(() => {
+    const onMessage = async (e: MessageEvent) => {
+      const win = frame.current?.contentWindow;
+      const m = e.data as { __sd?: boolean; id?: number; type?: string; payload?: Record<string, unknown> } | null;
+      if (!win || e.source !== win || !m?.__sd || typeof m.id !== 'number') return;
+      const p = m.payload ?? {};
+      try {
+        let result: unknown;
+        switch (m.type) {
+          case 'load':
+            result = await api.socialDashboard(taskId);
+            break;
+          case 'sync':
+            result = await api.syncSocial(taskId);
+            break;
+          case 'save':
+            result = await api.saveSocialDashboard(taskId, p);
+            break;
+          case 'saveMetrics':
+            result = await api.saveSocialMetrics(taskId, Array.isArray(p.rows) ? p.rows : []);
+            break;
+          case 'connect':
+            result = await api.connectSocial(taskId, String(p.provider ?? ''));
+            break;
+          case 'select': {
+            const { id, ...body } = p;
+            result = await api.selectSocialAccounts(taskId, String(id ?? ''), body);
+            break;
+          }
+          case 'disconnect':
+            result = await api.disconnectSocial(taskId, String(p.id ?? ''));
+            break;
+          default:
+            throw new Error('Unknown request');
+        }
+        win.postMessage({ __sdr: true, id: m.id, ok: true, result }, '*');
+      } catch (err) {
+        win.postMessage({ __sdr: true, id: m.id, ok: false, error: apiErrorMessage(err) }, '*');
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [api, taskId]);
+
   return (
     <iframe
+      ref={frame}
+      key={taskId}
       title="Social Media Dashboard"
-      srcDoc={doc}
+      srcDoc={dashboardHtml}
       className="mt-5 w-full rounded-xl border border-border bg-white"
       style={{ height: '78vh', minHeight: 520 }}
     />

@@ -103,6 +103,22 @@ const schema = z.object({
   ABR_GUID: z.string().optional(),
   ABR_USER_AGENT: z.string().default('EG-Digital-SaaS/1.0 (customer ABN autofill)'),
 
+  // ── Social Media Dashboard: Meta (Facebook, Instagram, Meta Ads) login ──
+  // From the Meta developer app (developers.facebook.com → the app → Settings →
+  // Basic). Until both are set the dashboard shows "Connect" as unavailable.
+  // META_REDIRECT_URI must be added to the app's "Valid OAuth Redirect URIs":
+  // <API base>/api/social/oauth/meta/callback. Tokens are stored encrypted with
+  // CREDENTIAL_ENC_KEY, so that must be set too.
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  META_REDIRECT_URI: z.string().optional(),
+  META_GRAPH_VERSION: z.string().default('v23.0'),
+  META_SCOPES: z
+    .string()
+    .default(
+      'pages_show_list,pages_read_engagement,read_insights,instagram_basic,instagram_manage_insights,ads_read,business_management'
+    ),
+
   DEFAULT_CURRENCY: z.string().default('AUD'),
   DEFAULT_LOCALE: z.string().default('en-AU'),
 })

@@ -375,17 +375,21 @@ model Customer {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
-  addresses        Address[]
-  customerProducts CustomerProduct[]
-  invoices         Invoice[]
-  users            ClientUser[]
-  directors        Director[]
-  itContacts       CustomerITContact[]
-  documents        CustomerDocument[]
-  taskBuckets      TaskBucket[]
-  tasks            Task[]
-  taskLabels       TaskLabel[]
-  appointments     Appointment[]
+  addresses         Address[]
+  customerProducts  CustomerProduct[]
+  invoices          Invoice[]
+  users             ClientUser[]
+  directors         Director[]
+  itContacts        CustomerITContact[]
+  documents         CustomerDocument[]
+  taskBuckets       TaskBucket[]
+  tasks             Task[]
+  taskLabels        TaskLabel[]
+  appointments      Appointment[]
+  socialConnections SocialConnection[]
+  socialMetrics     SocialMetricDaily[]
+  socialPosts       SocialPost[]
+  socialCampaigns   SocialCampaignDaily[]
 
   @@index([status])
   @@index([businessType])
@@ -872,6 +876,7 @@ model Task {
   approvals          TaskApproval[]
   timeEntries        TaskTimeEntry[]
   timeSheetPoolTasks TimeSheetPoolTask[]
+  socialDashboard    SocialDashboard?
 
   @@index([customerId])
   @@index([bucketId])
@@ -888,49 +893,49 @@ model Task {
 /// are kept if the task or the product assignment is removed (links go null),
 /// so a customer's used hours never silently reset.
 model TaskTimeEntry {
-  id                String           @id @default(uuid())
-  customerId        String
-  task              Task?            @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  taskId            String?
-  customerProduct   CustomerProduct? @relation(fields: [customerProductId], references: [id], onDelete: SetNull)
-  customerProductId String?
-  workDate          DateTime         @db.Date
+  id                 String           @id @default(uuid())
+  customerId         String
+  task               Task?            @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskId             String?
+  customerProduct    CustomerProduct? @relation(fields: [customerProductId], references: [id], onDelete: SetNull)
+  customerProductId  String?
+  workDate           DateTime         @db.Date
   /// Last day of the work (Time Sheet entries). Null means a one-day entry
   /// ending on workDate.
-  workEndDate       DateTime?        @db.Date
-  hours             Decimal          @db.Decimal(6, 2)
-  note              String?
-  authorId          String
-  authorType        Role
-  authorName        String
+  workEndDate        DateTime?        @db.Date
+  hours              Decimal          @db.Decimal(6, 2)
+  note               String?
+  authorId           String
+  authorType         Role
+  authorName         String
   /// Time Sheet pool this entry draws on (board Time Sheet). Null for entries
   /// logged against purchased hours before pools existed.
-  pool              TimeSheetPool?   @relation(fields: [poolId], references: [id], onDelete: SetNull)
-  poolId            String?
+  pool               TimeSheetPool?   @relation(fields: [poolId], references: [id], onDelete: SetNull)
+  poolId             String?
   /// Client-facing request reference, e.g. REQ-5014-001.
-  requestId         String?
+  requestId          String?
   /// Phase, P1, P2, P3 or P4.
-  priority          String?
+  priority           String?
   /// Kind of work: Build, Fix, Meeting, …
-  category          String?
-  description       String?
+  category           String?
+  description        String?
   /// Who did the work, as shown to the client (may differ from the author).
-  staff             String?
+  staff              String?
   /// Client sign-off on a Time Sheet entry: PENDING, APPROVED or REJECTED.
   /// Rejected entries stop counting against the pool.
-  approvalStatus    String           @default("APPROVED")
-  rejectReason      String?
-  decidedAt         DateTime?
-  decidedById       String?
-  decidedByName     String?
+  approvalStatus     String           @default("APPROVED")
+  rejectReason       String?
+  decidedAt          DateTime?
+  decidedById        String?
+  decidedByName      String?
   /// The admin's decision on a request over the monthly maximum (APPROVED or
   /// REJECTED), kept apart from the client's so the Approvals history survives.
   adminDecision      String?
   adminDecidedAt     DateTime?
   adminDecidedById   String?
   adminDecidedByName String?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@index([customerId])
   @@index([taskId])
@@ -1242,4 +1247,114 @@ model AppointmentAttendee {
   email         String
 
   @@index([appointmentId])
+}
+
+// ─── Social Media Dashboard ─────────────────────────────────
+
+/// Per-task Social Media Dashboard content written by the admin/team: goal
+/// targets, ad budgets, the summary notes, posts/campaigns entered by hand and
+/// the Team insights progress. Figures fetched from connected accounts live in
+/// the Social* tables below (per customer).
+model SocialDashboard {
+  id            String   @id @default(uuid())
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId        String   @unique
+  data          Json     @default("{}")
+  updatedById   String?
+  updatedByName String?
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+}
+
+/// A customer's social media / ads account connected through the platform's
+/// own login (OAuth). The access token is encrypted (secretBox); the password
+/// never reaches us. `assets` lists the pages / Instagram / ad accounts the
+/// login can read, and `selected` which of them feed the dashboard.
+model SocialConnection {
+  id              String    @id @default(uuid())
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId      String
+  provider        String
+  externalUserId  String
+  externalName    String?
+  accessTokenEnc  String
+  tokenExpiresAt  DateTime?
+  scopes          String?
+  assets          Json      @default("{}")
+  selected        Json      @default("{}")
+  status          String    @default("ACTIVE")
+  lastError       String?
+  lastSyncAt      DateTime?
+  connectedById   String
+  connectedByType Role
+  connectedByName String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([customerId, provider])
+}
+
+/// One day of figures for one platform of a customer. `platform` is ig, fb,
+/// tt, li, yt (organic) or google_ads, meta_ads (ads). `source` is manual
+/// (entered by the team) or the provider that fetched it (meta).
+model SocialMetricDaily {
+  id           String   @id @default(uuid())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId   String
+  platform     String
+  date         DateTime @db.Date
+  reach        Float    @default(0)
+  engagements  Float    @default(0)
+  newFollowers Float    @default(0)
+  linkClicks   Float    @default(0)
+  followers    Float?
+  spend        Float    @default(0)
+  clicks       Float    @default(0)
+  leads        Float    @default(0)
+  revenue      Float    @default(0)
+  impressions  Float    @default(0)
+  source       String   @default("manual")
+  updatedAt    DateTime @updatedAt
+
+  @@unique([customerId, platform, date])
+  @@index([customerId, date])
+}
+
+/// A post fetched from a connected account (top posts on the dashboard).
+model SocialPost {
+  id          String   @id @default(uuid())
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId  String
+  platform    String
+  externalId  String
+  title       String
+  type        String
+  publishedAt DateTime
+  reach       Float    @default(0)
+  engagements Float    @default(0)
+  shares      Float?
+  permalink   String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([customerId, platform, externalId])
+  @@index([customerId, publishedAt])
+}
+
+/// One day of one ad campaign fetched from a connected ad account.
+model SocialCampaignDaily {
+  id           String   @id @default(uuid())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId   String
+  platform     String
+  campaignId   String
+  campaignName String
+  active       Boolean  @default(true)
+  date         DateTime @db.Date
+  spend        Float    @default(0)
+  leads        Float    @default(0)
+  revenue      Float    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([customerId, platform, campaignId, date])
+  @@index([customerId, date])
 }

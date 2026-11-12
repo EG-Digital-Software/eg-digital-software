@@ -1375,7 +1375,7 @@ export function TaskDialog({
             ) : tab === 'social' && task ? (
               /* Social Media Dashboard — the full dashboard page, loaded on demand. */
               <Suspense fallback={<div className="mt-5 py-16 text-center text-sm text-muted-foreground">Loading dashboard…</div>}>
-                <SocialDashboardPanel taskId={task.id} isClient={!canToggleSocial} />
+                <SocialDashboardPanel api={api} taskId={task.id} />
               </Suspense>
             ) : (
               /* Archive tab — admin stores files/images/videos (original quality);

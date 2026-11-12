@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import * as ctrl from '../controllers/task.controller.js';
+import * as social from '../controllers/social.controller.js';
 import { validate } from '../middleware/validate.js';
 import {
   createBucketSchema,
@@ -91,6 +92,16 @@ export function buildTaskRouter(readOnly = false): Router {
   // short-lived key that Access Point reads and changes must carry.
   router.post('/tasks/:taskId/access-point/unlock', ctrl.unlockAccessPoint);
   router.get('/tasks/:taskId/access-point', ctrl.getAccessPoint);
+  // Social Media Dashboard (only on tasks where it is switched on). Everyone with
+  // the board views it and may connect their accounts; entering figures is for
+  // the admin/team (checked in the service).
+  router.get('/tasks/:taskId/social', social.board.get);
+  router.put('/tasks/:taskId/social', social.board.save);
+  router.put('/tasks/:taskId/social/metrics', social.board.saveMetrics);
+  router.post('/tasks/:taskId/social/sync', social.board.sync);
+  router.post('/tasks/:taskId/social/connect/:provider', social.board.connect);
+  router.patch('/tasks/:taskId/social/connections/:connectionId', social.board.select);
+  router.delete('/tasks/:taskId/social/connections/:connectionId', social.board.disconnect);
   router.post('/tasks/:taskId/attachments', upload.single('file'), ctrl.addAttachment);
   router.delete('/tasks/:taskId/attachments/:attachmentId', ctrl.deleteAttachment);
 
