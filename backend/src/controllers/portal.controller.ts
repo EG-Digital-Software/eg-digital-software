@@ -4,6 +4,7 @@ import * as employeeService from '../services/employee.service.js';
 import * as taskService from '../services/task.service.js';
 import * as timesheet from '../services/timesheet.service.js';
 import * as appointmentService from '../services/appointment.service.js';
+import * as accessPoint from '../services/accessPoint.service.js';
 import { findById } from '../services/accounts.js';
 import { asyncHandler, ok, parsePagination, paginated } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -141,7 +142,12 @@ export const employeeAddNote = asyncHandler(async (req: Request, res: Response) 
   if (!body) throw ApiError.badRequest('A note is required');
   const kind = req.body.kind === 'ACCESS_POINT' ? 'ACCESS_POINT' : 'NOTE';
   const subject = typeof req.body.subject === 'string' && req.body.subject.trim() ? req.body.subject.trim() : null;
-  return ok(res, await taskService.addNote(customerId, req.params.taskId, await employeeAuthor(req), body, kind, subject), 'Note added', 201);
+  const actor = await employeeAuthor(req);
+  // Access Point entries need the tab unlocked with the user's PIN, and are recorded — same as the admin board.
+  if (kind === 'ACCESS_POINT') accessPoint.assertUnlocked(req.params.taskId, actor, req.get(accessPoint.ACCESS_KEY_HEADER));
+  const note = await taskService.addNote(customerId, req.params.taskId, actor, body, kind, subject);
+  if (kind === 'ACCESS_POINT') await accessPoint.record(note.taskId, actor, 'ADDED', accessPoint.describeEntry(note));
+  return ok(res, note, 'Note added', 201);
 });
 
 export const employeeEditNote = asyncHandler(async (req: Request, res: Response) => {
@@ -150,13 +156,38 @@ export const employeeEditNote = asyncHandler(async (req: Request, res: Response)
   if (!body) throw ApiError.badRequest('A note is required');
   // Ownership (own notes only) is enforced in the service.
   const subject = req.body.subject === undefined ? undefined : (typeof req.body.subject === 'string' && req.body.subject.trim() ? req.body.subject.trim() : null);
-  return ok(res, await taskService.editNote(customerId, req.params.taskId, req.params.noteId, await employeeAuthor(req), body, subject), 'Note updated');
+  const actor = await employeeAuthor(req);
+  const entry = await accessPoint.findEntry(req.params.taskId, req.params.noteId);
+  if (entry) accessPoint.assertUnlocked(req.params.taskId, actor, req.get(accessPoint.ACCESS_KEY_HEADER));
+  const note = await taskService.editNote(customerId, req.params.taskId, req.params.noteId, actor, body, subject);
+  if (entry) await accessPoint.record(note.taskId, actor, 'EDITED', accessPoint.describeEntry(entry));
+  return ok(res, note, 'Note updated');
 });
 
 export const employeeDeleteNote = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  const actor = await employeeAuthor(req);
+  const entry = await accessPoint.findEntry(req.params.taskId, req.params.noteId);
+  if (entry) accessPoint.assertUnlocked(req.params.taskId, actor, req.get(accessPoint.ACCESS_KEY_HEADER));
   // Owner-or-admin rule is enforced in the service (an employee is never admin).
-  return ok(res, await taskService.deleteNote(customerId, req.params.taskId, req.params.noteId, await employeeAuthor(req)), 'Entry deleted');
+  const removed = await taskService.deleteNote(customerId, req.params.taskId, req.params.noteId, actor);
+  if (entry) await accessPoint.record(entry.taskId, actor, 'DELETED', accessPoint.describeEntry(entry));
+  return ok(res, removed, 'Entry deleted');
+});
+
+// ── Employee Access Point lock — mirrors the admin/client task board ──
+/** Open a task's Access Point tab with the team member's own PIN. */
+export const employeeUnlockAccessPoint = asyncHandler(async (req: Request, res: Response) => {
+  await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  const key = await accessPoint.unlock(req.params.taskId, await employeeAuthor(req), req.body?.pin);
+  return ok(res, { key, ...(await accessPoint.getAccessPoint(req.params.taskId)) }, 'Access Point unlocked');
+});
+
+/** The tab's entries and record — only while unlocked. */
+export const employeeGetAccessPoint = asyncHandler(async (req: Request, res: Response) => {
+  await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+  accessPoint.assertUnlocked(req.params.taskId, { id: req.user!.sub, type: req.user!.role }, req.get(accessPoint.ACCESS_KEY_HEADER));
+  return ok(res, await accessPoint.getAccessPoint(req.params.taskId));
 });
 
 // ── Employee appointments (Schedule calendar) ────────────

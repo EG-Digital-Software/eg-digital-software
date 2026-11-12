@@ -50,6 +50,9 @@ router.post('/tasks/tasks/:taskId/comments/:commentId/reactions', ctrl.employeeT
 router.post('/tasks/tasks/:taskId/notes', ctrl.employeeAddNote);
 router.patch('/tasks/tasks/:taskId/notes/:noteId', ctrl.employeeEditNote);
 router.delete('/tasks/tasks/:taskId/notes/:noteId', ctrl.employeeDeleteNote);
+// Access Point tab: locked behind the team member's own PIN, like the admin board.
+router.post('/tasks/tasks/:taskId/access-point/unlock', ctrl.employeeUnlockAccessPoint);
+router.get('/tasks/tasks/:taskId/access-point', ctrl.employeeGetAccessPoint);
 router.post('/tasks/tasks/:taskId/attachments', upload.single('file'), ctrl.employeeAddAttachment);
 router.delete('/tasks/tasks/:taskId/attachments/:attachmentId', ctrl.employeeDeleteAttachment);
 // Raise an approval request (subject/message + optional files). Deciding stays admin/customer-only.
