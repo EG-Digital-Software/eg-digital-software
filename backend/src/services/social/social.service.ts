@@ -6,6 +6,7 @@ import { logger } from '../../config/logger.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { encryptSecret } from '../../utils/secretBox.js';
 import * as meta from './meta.service.js';
+import { storage } from '../storage/index.js';
 
 /**
  * Social Media Dashboard data. Figures belong to the customer (their accounts),
@@ -150,6 +151,7 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
       eng: p.engagements,
       shares: p.shares,
       url: p.permalink,
+      img: p.imageUrl,
     })),
     campaigns: Object.values(camps),
     data,
@@ -405,6 +407,7 @@ export async function syncConnection(connectionId: string, days = 30) {
       );
     }
     for (let i = 0; i < ops.length; i += 500) await prisma.$transaction(ops.slice(i, i + 500));
+    await storePostImages(cid, res.posts).catch((err) => logger.warn({ err }, 'Social: storing post pictures failed'));
     await prisma.socialConnection.update({
       where: { id: conn.id },
       data: { status: 'ACTIVE', lastSyncAt: new Date(), lastError: res.warnings.length ? res.warnings.join('; ').slice(0, 500) : null },
@@ -415,10 +418,53 @@ export async function syncConnection(connectionId: string, days = 30) {
   }
 }
 
+// ─── Post pictures ──────────────────────────────────────────
+
+/** Meta's image hosts — anything else is never downloaded. */
+const PICTURE_HOST = /(^|\.)(fbcdn\.net|cdninstagram\.com|fbsbx\.com)$/i;
+const PICTURE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+const PICTURE_MAX_BYTES = 8 * 1024 * 1024;
+/** Pictures copied per sync — the rest follow on the next sync. */
+const PICTURES_PER_SYNC = 60;
+
+/**
+ * Copy each post's picture into our storage once. Meta's image links expire
+ * after a while, so the dashboard shows our copy instead.
+ */
+async function storePostImages(customerId: string, posts: meta.FetchedPost[]) {
+  const withPic = posts.filter((p) => p.pictureUrl);
+  if (!withPic.length) return;
+  const missing = await prisma.socialPost.findMany({
+    where: { customerId, imageUrl: null, externalId: { in: withPic.map((p) => p.externalId) } },
+    select: { id: true, platform: true, externalId: true },
+  });
+  const byKey = new Map(withPic.map((p) => [`${p.platform}:${p.externalId}`, p.pictureUrl!]));
+  for (const row of missing.slice(0, PICTURES_PER_SYNC)) {
+    const src = byKey.get(`${row.platform}:${row.externalId}`);
+    if (!src) continue;
+    try {
+      const url = new URL(src);
+      if (url.protocol !== 'https:' || !PICTURE_HOST.test(url.hostname)) continue;
+      const res = await fetch(url, { signal: AbortSignal.timeout(20_000), redirect: 'follow' });
+      const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+      const ext = PICTURE_TYPES[type];
+      if (!res.ok || !ext) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (!buf.length || buf.length > PICTURE_MAX_BYTES) continue;
+      const safeId = row.externalId.replace(/[^A-Za-z0-9_-]/g, '_');
+      const stored = await storage.save(`social/${customerId}/${row.platform}-${safeId}.${ext}`, buf, type);
+      await prisma.socialPost.update({ where: { id: row.id }, data: { imageUrl: stored } });
+    } catch (err) {
+      logger.warn({ err, post: row.externalId }, 'Social: could not copy a post picture');
+    }
+  }
+}
+
 /** Refresh button: re-fetch every active connection of this customer, then return the dashboard. */
 export async function syncCustomer(customerId: string, taskId: string, viewer: Actor) {
   await ensureDashboardTask(customerId, taskId);
   const conns = await prisma.socialConnection.findMany({ where: { customerId, status: { not: 'EXPIRED' } }, select: { id: true } });
-  for (const c of conns) await syncConnection(c.id).catch(() => undefined);
+  // A refresh asked for by a person reads 90 days, so older posts and figures fill in too.
+  for (const c of conns) await syncConnection(c.id, 90).catch(() => undefined);
   return getDashboard(customerId, taskId, viewer);
 }

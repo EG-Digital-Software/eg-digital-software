@@ -2,8 +2,16 @@ import { useEffect, useRef } from 'react';
 import dashboardHtml from './social-dashboard.html?raw';
 import type { taskApi } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
+import { mediaUrl } from '@/lib/utils';
 
 type TaskApi = ReturnType<typeof taskApi>;
+
+/** Post pictures stored locally come back as "/uploads/…" — make them absolute for the frame. */
+function withMediaUrls(result: unknown): unknown {
+  const r = result as { posts?: { img?: string | null }[] } | null;
+  if (!r || !Array.isArray(r.posts)) return result;
+  return { ...r, posts: r.posts.map((p) => ({ ...p, img: mediaUrl(p.img) ?? null })) };
+}
 
 /**
  * Social Media Dashboard tab — the dashboard page (social-dashboard.html, kept as
@@ -50,7 +58,7 @@ export default function SocialDashboardPanel({ api, taskId }: { api: TaskApi; ta
           default:
             throw new Error('Unknown request');
         }
-        win.postMessage({ __sdr: true, id: m.id, ok: true, result }, '*');
+        win.postMessage({ __sdr: true, id: m.id, ok: true, result: withMediaUrls(result) }, '*');
       } catch (err) {
         win.postMessage({ __sdr: true, id: m.id, ok: false, error: apiErrorMessage(err) }, '*');
       }

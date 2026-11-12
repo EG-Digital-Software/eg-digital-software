@@ -169,6 +169,8 @@ export interface FetchedPost {
   engagements: number;
   shares: number | null;
   permalink: string | null;
+  /** Meta's link to the post picture (expires — copied into our storage on sync). */
+  pictureUrl: string | null;
 }
 export interface FetchedCampaignDay {
   campaignId: string;
@@ -195,12 +197,15 @@ const insightDay = (endTime: string) => dayKey(new Date(new Date(endTime).getTim
 
 type InsightRow = { name: string; values: { value: number | Record<string, number>; end_time: string }[] };
 
-/** Daily values of one insight metric, in ≤90-day windows. Null when Meta refuses the metric. */
-async function dailyMetric(objectId: string, metric: string, since: Date, until: Date, token: string, extra: Record<string, string> = {}) {
+/**
+ * Daily values of one insight metric, in windows of `windowDays` (Pages allow
+ * 90 days per request, Instagram 30). Null when Meta refuses the metric.
+ */
+async function dailyMetric(objectId: string, metric: string, since: Date, until: Date, token: string, extra: Record<string, string> = {}, windowDays = 90) {
   const out = new Map<DayKey, number>();
   try {
     for (let start = new Date(since); start < until; ) {
-      const end = new Date(Math.min(until.getTime(), start.getTime() + 90 * 86400_000));
+      const end = new Date(Math.min(until.getTime(), start.getTime() + windowDays * 86400_000));
       const res = await graph<{ data: InsightRow[] }>(`/${objectId}/insights`, { metric, period: 'day', since: unix(start), until: unix(end), ...extra }, token);
       for (const row of res.data ?? []) {
         for (const v of row.values ?? []) {
@@ -218,13 +223,39 @@ async function dailyMetric(objectId: string, metric: string, since: Date, until:
 }
 
 /** First metric name Meta accepts, of several (names change between Graph versions). */
-async function firstMetric(objectId: string, names: string[], since: Date, until: Date, token: string, warnings: string[], label: string) {
+async function firstMetric(objectId: string, names: string[], since: Date, until: Date, token: string, warnings: string[], label: string, windowDays = 90) {
   for (const name of names) {
-    const m = await dailyMetric(objectId, name, since, until, token);
+    const m = await dailyMetric(objectId, name, since, until, token, {}, windowDays);
     if (m) return m;
   }
   warnings.push(`${label} is not available from Meta for this account`);
   return null;
+}
+
+/**
+ * Instagram metrics Meta only gives as a total (metric_type=total_value), read
+ * one day at a time for the last `days` days. Null when Meta refuses the metric.
+ */
+async function dailyTotals(objectId: string, metric: string, until: Date, days: number, token: string) {
+  const out = new Map<DayKey, number>();
+  const endDay = Date.UTC(until.getUTCFullYear(), until.getUTCMonth(), until.getUTCDate());
+  try {
+    for (let i = days - 1; i >= 0; i--) {
+      const start = new Date(endDay - i * 86400_000);
+      const end = new Date(start.getTime() + 86400_000);
+      const res = await graph<{ data: { total_value?: { value?: number } }[] }>(
+        `/${objectId}/insights`,
+        { metric, period: 'day', metric_type: 'total_value', since: unix(start), until: unix(end) },
+        token
+      );
+      const v = Number(res.data?.[0]?.total_value?.value ?? 0) || 0;
+      if (v) out.set(dayKey(start), v);
+    }
+    return out;
+  } catch (err) {
+    if (err instanceof MetaError && err.expired) throw err;
+    return null;
+  }
 }
 
 function mergeInto(target: Map<DayKey, OrganicDay>, src: Map<DayKey, number> | null, field: keyof OrganicDay) {
@@ -276,6 +307,7 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
       message?: string;
       created_time: string;
       permalink_url?: string;
+      full_picture?: string;
       status_type?: string;
       shares?: { count: number };
       reactions?: { summary?: { total_count: number } };
@@ -283,7 +315,7 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
     }>(
       `/${page.id}/posts`,
       {
-        fields: 'id,message,created_time,permalink_url,status_type,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)',
+        fields: 'id,message,created_time,permalink_url,full_picture,status_type,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)',
         since: unix(since),
         until: unix(until),
         limit: 50,
@@ -295,9 +327,18 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
       warnings.push('Facebook posts could not be read');
       return [];
     });
+    // Post reach: the older metric first, then its replacement (Meta renamed it).
+    let postMetric: string | null = null;
     for (const p of fbPosts.slice(0, 100)) {
-      const ins = await graph<{ data: InsightRow[] }>(`/${p.id}/insights`, { metric: 'post_impressions_unique' }, pageToken).catch(() => null);
-      const reach = Number(ins?.data?.[0]?.values?.[0]?.value ?? 0) || 0;
+      let reach = 0;
+      const candidates: string[] = postMetric ? [postMetric] : ['post_impressions_unique', 'post_total_media_view_unique'];
+      for (const metric of candidates) {
+        const ins = await graph<{ data: InsightRow[] }>(`/${p.id}/insights`, { metric }, pageToken).catch(() => null);
+        if (!ins) continue;
+        postMetric = metric;
+        reach = Number(ins.data?.[0]?.values?.[0]?.value ?? 0) || 0;
+        break;
+      }
       const shares = p.shares?.count ?? 0;
       result.posts.push({
         platform: 'fb',
@@ -309,6 +350,7 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
         engagements: (p.reactions?.summary?.total_count ?? 0) + (p.comments?.summary?.total_count ?? 0) + shares,
         shares,
         permalink: p.permalink_url ?? null,
+        pictureUrl: p.full_picture ?? null,
       });
     }
   }
@@ -318,11 +360,17 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
   const igToken = igPage?.tokenEnc ? decryptSecret(igPage.tokenEnc) : null;
   if (sel.igId && igToken) {
     const ig = result.organic.ig;
-    mergeInto(ig, await firstMetric(sel.igId, ['reach'], since, until, igToken, warnings, 'Instagram reach'), 'reach');
+    // Instagram allows at most 30 days per insights request.
+    mergeInto(ig, await firstMetric(sel.igId, ['reach'], since, until, igToken, warnings, 'Instagram reach', 30), 'reach');
     // Meta only returns daily follower gains for the last 30 days.
     const from30 = new Date(Math.max(since.getTime(), until.getTime() - 29 * 86400_000));
-    mergeInto(ig, await firstMetric(sel.igId, ['follower_count'], from30, until, igToken, warnings, 'Instagram new followers'), 'newFollowers');
-    mergeInto(ig, await firstMetric(sel.igId, ['website_clicks'], since, until, igToken, warnings, 'Instagram link clicks'), 'linkClicks');
+    mergeInto(ig, await firstMetric(sel.igId, ['follower_count'], from30, until, igToken, warnings, 'Instagram new followers', 30), 'newFollowers');
+    // Link clicks: the old daily metric, else taps on the profile's links (a daily total, last 30 days).
+    const clicks =
+      (await dailyMetric(sel.igId, 'website_clicks', from30, until, igToken, {}, 30)) ??
+      (await dailyTotals(sel.igId, 'profile_links_taps', until, Math.min(30, Math.ceil((until.getTime() - since.getTime()) / 86400_000)), igToken));
+    if (clicks) mergeInto(ig, clicks, 'linkClicks');
+    else warnings.push('Instagram link clicks is not available from Meta for this account');
     const info = await graph<{ followers_count?: number }>(`/${sel.igId}`, { fields: 'followers_count' }, igToken).catch(() => null);
     if (info?.followers_count != null) ig.set(today, { ...(ig.get(today) ?? {}), followers: info.followers_count });
 
@@ -333,11 +381,13 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
       media_product_type?: string;
       timestamp: string;
       permalink?: string;
+      media_url?: string;
+      thumbnail_url?: string;
       like_count?: number;
       comments_count?: number;
     }>(
       `/${sel.igId}/media`,
-      { fields: 'id,caption,media_type,media_product_type,timestamp,permalink,like_count,comments_count', limit: 50 },
+      { fields: 'id,caption,media_type,media_product_type,timestamp,permalink,media_url,thumbnail_url,like_count,comments_count', limit: 50 },
       igToken,
       (rows) => rows.some((r) => new Date(r.timestamp) < since),
       6
@@ -364,6 +414,8 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
         engagements: eng,
         shares,
         permalink: m.permalink ?? null,
+        // Videos and reels: the cover frame; photos and carousels: the (first) image.
+        pictureUrl: m.thumbnail_url ?? (m.media_type === 'VIDEO' ? null : (m.media_url ?? null)),
       });
     }
     mergeInto(ig, engByDay, 'engagements');

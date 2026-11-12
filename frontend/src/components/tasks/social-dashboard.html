@@ -514,6 +514,8 @@ const int=n=>Math.round(n).toLocaleString('en-AU');
 const pct=(a,b)=>(a-b)/b*100;
 /** a ÷ b, or null when there is nothing to divide by (no figures yet). */
 const ratio=(a,b)=>b>0?a/b:null;
+/** A post picture link that is safe to put in src / url(): http(s) only, no quotes or brackets. */
+const safeImg=u=>typeof u==='string'&&/^https?:\/\/[^\s"'()<>]+$/.test(u)?u:null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- bridge to the portal (it calls the API) ---------- */
@@ -635,7 +637,7 @@ function organic(){
  const pn=k=>(PL.find(q=>q.k===k)||{n:k}).n,img='<svg viewBox="0 0 40 40" fill="none" stroke="#14171c" stroke-width="1.5"><rect x="8" y="10" width="24" height="20" rx="3"/><circle cx="15" cy="17" r="2.5"/><path d="M8 27l7-6 5 4 4-3 8 6"/></svg>';
  const list=POSTS.map((q,i)=>({q,i})).filter(({q})=>{const i=fromIso(q.d);return i>=R.s&&i<=R.e&&(state.plat==='all'||q.pl===state.plat);}).sort((m,o)=>o.q.eng-m.q.eng).slice(0,4);
  $('postSub').textContent=(state.plat==='all'?'Highest engagement':'Highest engagement on '+pn(state.plat))+', '+rangeText(R.s,R.e,' – ');
- $('posts').innerHTML=list.map(({q,i})=>{const er=ratio(q.eng,q.reach);return `<button class="post" data-i="${i}"><div class="img"><span>${esc(q.type)}</span>${img}</div><h4>${esc(q.t)}</h4><p>${pn(q.pl)} · ${dfmt(fromIso(q.d))} · ${q.reach?fmt(q.reach).join('')+' reach':'reach not available'}${er==null?'':' · '+(er*100).toFixed(1)+'%'}</p></button>`;}).join('')||'<div class="empty">No posts recorded in this date range'+(state.plat==='all'?'':' for '+pn(state.plat))+'.</div>';
+ $('posts').innerHTML=list.map(({q,i})=>{const er=ratio(q.eng,q.reach),pic=safeImg(q.img);return `<button class="post" data-i="${i}"><div class="img">${img}${pic?`<img src="${esc(pic)}" alt="" loading="lazy" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:8px">`:''}<span>${esc(q.type)}</span></div><h4>${esc(q.t)}</h4><p>${pn(q.pl)} · ${dfmt(fromIso(q.d))} · ${q.reach?fmt(q.reach).join('')+' reach':'reach not available'}${er==null?'':' · '+(er*100).toFixed(1)+'%'}</p></button>`;}).join('')||'<div class="empty">No posts recorded in this date range'+(state.plat==='all'?'':' for '+pn(state.plat))+'.</div>';
 }
 function platTable(){
  $('platTable').innerHTML=PL.map(p=>{const D=DATA.pl[p.k],re=sumR(D.reach,R.s,R.e),en=sumR(D.eng,R.s,R.e),fo=folAt(p.k,R.e),er=ratio(en,re);return `<tr class="click${state.plat===p.k?' sel':''}" data-p="${p.k}"><td><span class="mono">${p.ab}</span>${p.n}${isConn(p.k)?' <span class="chip good" style="margin-left:6px">Connected</span>':''}</td><td class="n">${fo==null?'–':fmt(fo).join('')}</td><td class="n">+${int(sumR(D.nf,R.s,R.e))}</td><td class="n">${fmt(re).join('')}</td><td class="n hide-m">${er==null?'–':(er*100).toFixed(1)+'%'}</td></tr>`}).join('');}
@@ -946,6 +948,7 @@ $('cmpToggle').onclick=()=>{state.cmp=!state.cmp;renderAll();};
 $('pdfBtn').onclick=()=>{toast('Choose "Save as PDF" in the print window');setTimeout(()=>window.print(),400);};
 $('posts').onclick=e=>{const b=e.target.closest('.post');if(!b)return;const q=POSTS[b.dataset.i];if(!q)return;$('mType').textContent=q.type+' · '+(PL.find(p=>p.k===q.pl)||{n:q.pl}).n+' · '+dfmt(fromIso(q.d),{year:'numeric'});$('mTitle').textContent=q.t;
  const er=ratio(q.eng,q.reach);$('mGrid').innerHTML=[[q.reach?fmt(q.reach).join(''):'–','Reach'],[fmt(q.eng||0).join(''),'Engagements'],[er==null?'–':(er*100).toFixed(1)+'%','Eng. rate'],[q.shares==null?'–':int(q.shares),'Shares']].map(s=>`<div><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
+ const pic=safeImg(q.img),box=document.querySelector('#modal .img');box.style.background=pic?`#f3f4f6 center/contain no-repeat url("${pic}")`:'';
  const o=$('mOpen');if(q.url&&/^https:\/\//.test(q.url)){o.href=q.url;o.hidden=false;}else o.hidden=true;$('modal').classList.add('open');};
 $('mClose').onclick=()=>$('modal').classList.remove('open');
 $('modal').onclick=e=>{if(e.target.id==='modal')$('modal').classList.remove('open');};

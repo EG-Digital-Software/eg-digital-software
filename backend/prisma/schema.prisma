@@ -1334,6 +1334,8 @@ model SocialPost {
   engagements Float    @default(0)
   shares      Float?
   permalink   String?
+  /// The post's picture, copied once into our storage (Meta's own image links expire).
+  imageUrl    String?
   updatedAt   DateTime @updatedAt
 
   @@unique([customerId, platform, externalId])
