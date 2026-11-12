@@ -10,7 +10,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Manrope,"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased;font-size:14px}
 button{font-family:inherit;cursor:pointer}
-.wrap{max-width:1280px;margin:0 auto;padding:16px 12px}
+.wrap{margin:0;padding:12px 0}
 .crumb{font-size:13px;color:var(--t2);margin-bottom:14px}.crumb a{color:var(--t2);text-decoration:none}.crumb a:hover{color:var(--strong)}
 .btn{border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;white-space:nowrap}
 .btn svg{width:15px;height:15px}
@@ -876,7 +876,7 @@ function accRender(){if(!S)return;const c=(S.connections||[]).find(x=>x.provider
   h+=`<div class="accsel"><label>Facebook Page<select data-sel="pageId">${opt(A.pages||[],sel.pageId,o=>o.name)}</select></label><label>Instagram account<select data-sel="igId">${opt(igs,sel.igId,o=>o.name)}</select></label><label class="full">Meta ad account<select data-sel="adAccountId">${opt(A.adAccounts||[],sel.adAccountId,o=>o.name+(o.currency?' ('+o.currency+')':''))}</select></label></div>`;
   if(!(A.pages||[]).length&&!(A.adAccounts||[]).length)h+=`<div class="msg err">This login cannot read any Page or ad account. Reconnect with the account that is an admin of the business Page.</div>`;
   if(c.lastError)h+=`<div class="msg ${exd?'err':'ok'}">${exd?'Meta stopped the access: ':'Note: '}${esc(c.lastError)}</div>`;
-  h+=`<div class="acts mt" style="justify-content:flex-start"><button class="btn ${exd?'primary':'outline'} sm" data-connect="meta">Reconnect</button><button class="btn outline sm" data-sync>Sync now</button><button class="btn outline sm" data-disc="${esc(c.id)}">Disconnect</button></div>`;}
+  h+=`<div class="acts mt" style="justify-content:flex-start"><button class="btn ${exd?'primary':'outline'} sm" data-connect="meta">Reconnect</button><button class="btn outline sm" data-sync${S.syncing?' disabled':''}>${S.syncing?'Syncing…':'Sync now'}</button><button class="btn outline sm" data-disc="${esc(c.id)}">Disconnect</button></div>`;}
  h+=`<h4>Other platforms</h4>`+OTHERS.map(n=>`<div class="wl"><div><b>${n}</b><small>Automatic connection is coming soon.${S.canEdit?' Enter its figures with Update data for now.':' Your EG Eloma team adds these figures for now.'}</small></div><div><span class="chip neu">Coming soon</span></div></div>`).join('');
  $('accBody').innerHTML=h;}
 const openAcc=()=>{accRender();$('drawer').classList.remove('open');$('accDrawer').classList.add('open');$('dbg').classList.add('open');};
@@ -885,16 +885,20 @@ let watchT=null;
 function watchConnect(){const startAt=new Date().toISOString();let n=0;clearInterval(watchT);
  watchT=setInterval(async()=>{if(++n>75){clearInterval(watchT);return;}try{const d=await bridge('load');setData(d);const c=(d.connections||[]).find(x=>x.provider==='meta');
   if(c&&c.lastSyncAt&&c.lastSyncAt>startAt){clearInterval(watchT);toast('Meta account connected. Figures updated');}}catch(_){}},4000);}
+/** A long read carries on on the server after the request returns: reload until it is done (up to 15 minutes). */
+let syncT=null;
+function watchSync(){let n=0;clearInterval(syncT);
+ syncT=setInterval(async()=>{if(++n>180){clearInterval(syncT);return;}try{const d=await bridge('load');setData(d);if(!d.syncing){clearInterval(syncT);toast('Figures updated from Meta');}}catch(_){}},5000);}
 $('accBody').onclick=async e=>{const cn=e.target.closest('[data-connect]'),sy=e.target.closest('[data-sync]'),dc=e.target.closest('[data-disc]');
  if(cn){const w=window.open('about:blank','eg-social-connect','width=620,height=760');
   try{const r=await bridge('connect',{provider:cn.dataset.connect});if(w&&!w.closed)w.location.href=r.url;else window.open(r.url,'_blank');toast('Sign in with Facebook in the new window');watchConnect();}
   catch(err){if(w)w.close();toast(err.message);}}
- else if(sy){sy.disabled=true;sy.textContent='Syncing…';try{setData(await bridge('sync'));toast('Figures updated from Meta');}catch(err){toast(err.message);}finally{sy.disabled=false;sy.textContent='Sync now';}}
+ else if(sy){sy.disabled=true;sy.textContent='Syncing…';try{const d=await bridge('sync');setData(d);if(d.syncing){toast('Still reading from Meta. Figures update here when it finishes');watchSync();}else toast('Figures updated from Meta');}catch(err){toast(err.message);accRender();}}
  else if(dc){if(!confirm('Disconnect this Meta account? Figures already fetched stay on the dashboard; new figures stop until it is connected again.'))return;
   try{await bridge('disconnect',{id:dc.dataset.disc});setData(await bridge('load'));toast('Account disconnected');}catch(err){toast(err.message);}}};
 $('accBody').onchange=async e=>{const s=e.target.closest('[data-sel]');if(!s)return;const c=(S.connections||[]).find(x=>x.provider==='meta');if(!c)return;
  const body={};document.querySelectorAll('#accBody [data-sel]').forEach(x=>body[x.dataset.sel]=x.value||null);
- try{toast('Updating accounts…');await bridge('select',{id:c.id,...body});setData(await bridge('load'));toast('Accounts updated');}catch(err){toast(err.message);}};
+ try{toast('Updating accounts…');await bridge('select',{id:c.id,...body});const d=await bridge('load');setData(d);toast(d.syncing?'Accounts updated. Reading figures from Meta…':'Accounts updated');if(d.syncing)watchSync();}catch(err){toast(err.message);}};
 
 /* ======================= START ======================= */
 function place(){}
@@ -906,7 +910,7 @@ document.body.classList.add('client');
 bridge('load').then(d=>{S=d;PERS=periods();PER=PERS[1]||PERS[0];fillPer();
  if(!S.canEdit){$('viewbar').style.display='none';}
  const has=c=>Object.keys(MD(c)).length||Object.keys(PV()[c]||{}).length;st.ch=has('fb')?'fb':has('ig')?'ig':has('meta_ads')||has('ma')?'ma':'fb';
- render();}).catch(err=>{$('story').innerHTML=`<span class="tag bad">Not available</span><p>${esc(err.message||'The dashboard could not be loaded.')}</p>`;});
+ render();if(S.syncing)watchSync();}).catch(err=>{$('story').innerHTML=`<span class="tag bad">Not available</span><p>${esc(err.message||'The dashboard could not be loaded.')}</p>`;});
 </script>
 </body>
 </html>

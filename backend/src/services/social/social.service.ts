@@ -149,6 +149,7 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
     providers: { meta: meta.metaConfigured() },
     connections: conns.map(shapeConnection),
     connected: [...connectedPlatforms(conns)],
+    syncing: isSyncing(conns.map((c) => c.id)),
     metrics: m,
     posts: posts.map((p) => ({
       id: p.id,
@@ -328,7 +329,7 @@ export async function selectAssets(customerId: string, taskId: string, connectio
       sel.adAccountId === null ? null : assets.adAccounts.some((a) => a.id === sel.adAccountId) ? sel.adAccountId : (conn.selected as meta.MetaSelection)?.adAccountId,
   };
   await prisma.socialConnection.update({ where: { id: conn.id }, data: { selected: next as Prisma.InputJsonValue } });
-  await syncConnection(conn.id, FULL_SYNC_DAYS).catch(() => undefined);
+  await syncInBackground([conn.id]);
   return { ok: true };
 }
 
@@ -346,6 +347,22 @@ export async function disconnect(customerId: string, taskId: string, connectionI
 const running = new Set<string>();
 /** Days read on connect and on a refresh asked for by a person — covers the months kept. */
 const FULL_SYNC_DAYS = 200;
+/**
+ * A full read can take minutes — longer than Azure keeps a request open (~230 s).
+ * The request waits this long, then answers with `syncing: true` while the read
+ * carries on in the background; the page polls until `lastSyncAt` moves.
+ */
+const SYNC_WAIT_MS = 20_000;
+
+async function syncInBackground(ids: string[]) {
+  const job = (async () => {
+    for (const id of ids) await syncConnection(id, FULL_SYNC_DAYS).catch((err) => logger.warn({ err }, 'Social: sync failed'));
+  })();
+  await Promise.race([job, new Promise((r) => setTimeout(r, SYNC_WAIT_MS))]);
+}
+
+/** True while a read of one of these connections is still running on this server. */
+export const isSyncing = (ids: string[]) => ids.some((id) => running.has(id));
 
 export async function syncConnection(connectionId: string, days = 30) {
   if (running.has(connectionId)) return { skipped: true };
@@ -570,6 +587,6 @@ export async function syncCustomer(customerId: string, taskId: string, viewer: A
   await ensureDashboardTask(customerId, taskId);
   const conns = await prisma.socialConnection.findMany({ where: { customerId, status: { not: 'EXPIRED' } }, select: { id: true } });
   // A refresh asked for by a person reads 90 days, so older posts and figures fill in too.
-  for (const c of conns) await syncConnection(c.id, FULL_SYNC_DAYS).catch(() => undefined);
+  await syncInBackground(conns.map((c) => c.id));
   return getDashboard(customerId, taskId, viewer);
 }
