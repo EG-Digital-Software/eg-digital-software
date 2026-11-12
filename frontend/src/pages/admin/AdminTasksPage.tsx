@@ -58,25 +58,6 @@ export default function AdminTasksPage() {
       <TasksHead
         actions={<CustomerPicker customers={customers} selected={current.clientId} onSelect={setSelected} isUpdated={isUpdated} />}
       />
-      <div className="stag" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-        <div className="glass card" style={{ padding: 16 }}>
-          <div className="eyebrow">Customers</div>
-          <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6 }}>{customers.length}</div>
-        </div>
-        <div className="glass card" style={{ padding: 16 }}>
-          <div className="eyebrow">With new activity</div>
-          <div className="disp stat" style={{ fontSize: 28, fontWeight: 700, marginTop: 6, color: 'var(--rT)' }}>
-            {customers.filter((c) => isUpdated(c.clientId)).length}
-          </div>
-        </div>
-        <div className="glass card" style={{ padding: 16, minWidth: 0 }}>
-          <div className="eyebrow">Showing</div>
-          <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {customerName(current)}
-          </div>
-          <div className="muted mono" style={{ fontSize: 11 }}>{current.clientId}</div>
-        </div>
-      </div>
       {current && (
         <section className="glass up" style={{ animationDelay: '.15s', padding: 16, overflow: 'hidden' }}>
           <TaskBoard

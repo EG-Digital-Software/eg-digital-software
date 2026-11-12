@@ -3,6 +3,7 @@ import {
   BarChart3,
   BadgeCheck,
   Building2,
+  Cloud,
   CreditCard,
   Eye,
   LayoutDashboard,
@@ -10,6 +11,7 @@ import {
   Package,
   Receipt,
   Settings,
+  TrendingUp,
   User,
   Users,
 } from 'lucide-react';
@@ -59,6 +61,8 @@ function SuperAdminLayout() {
         { to: '/admin/approvals', label: 'Approvals', icon: BadgeCheck, count: pending ?? 0, countTone: 'orange' },
         { to: '/admin/reports', label: 'Report', icon: BarChart3 },
         { to: '/admin/preview', label: 'Preview', icon: Eye },
+        { to: '/admin/marketing', label: 'Marketing', icon: TrendingUp },
+        { to: '/admin/cloud', label: 'Cloud', icon: Cloud },
       ]}
       menuItems={[
         { label: 'My Account', icon: User, to: '/admin/profile' },

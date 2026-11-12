@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
+import { Cloud, TrendingUp } from 'lucide-react';
 import { useSessionInit } from '@/hooks/useSession';
 import { ProtectedRoute } from '@/routes/ProtectedRoute';
 import { RequireTab, AdminHome } from '@/routes/RequireTab';
@@ -32,6 +33,7 @@ const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
 const SettingsPage = lazy(() => import('@/pages/misc/SettingsPage'));
 const ApprovalsPage = lazy(() => import('@/pages/admin/ApprovalsPage'));
 const PaymentsPage = lazy(() => import('@/pages/admin/PaymentsPage'));
+const ComingSoonPage = lazy(() => import('@/pages/admin/ComingSoonPage'));
 const PayPage = lazy(() => import('@/pages/pay/PayPage'));
 const ClientDashboard = lazy(() => import('@/pages/client/ClientDashboard'));
 const ClientInvoicesPage = lazy(() => import('@/pages/client/ClientInvoicesPage'));
@@ -147,6 +149,26 @@ export default function App() {
                 <Route element={<RequireTab />}>
                   <Route path="team" element={<TeamDashboardPage />} />
                   <Route path="approvals" element={<ApprovalsPage />} />
+                  <Route
+                    path="marketing"
+                    element={
+                      <ComingSoonPage
+                        icon={TrendingUp}
+                        title="Marketing"
+                        text="Campaigns and marketing tools are on the way. This space is coming soon."
+                      />
+                    }
+                  />
+                  <Route
+                    path="cloud"
+                    element={
+                      <ComingSoonPage
+                        icon={Cloud}
+                        title="Cloud"
+                        text="Cloud services and management are on the way. This space is coming soon."
+                      />
+                    }
+                  />
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
