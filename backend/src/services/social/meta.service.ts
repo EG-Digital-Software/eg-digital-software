@@ -194,6 +194,26 @@ export interface MetaSyncResult {
   warnings: string[];
 }
 
+/**
+ * `fn` over `items`, at most `limit` at a time, results in input order. Meta
+ * answers each request in about a second, so one-by-one reads of hundreds of
+ * posts took minutes; a few in parallel stay well inside Meta's rate limits.
+ */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+/** Requests sent to Meta at once by one sync. */
+export const META_PARALLEL = 6;
+
 export const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 export const unix = (d: Date) => Math.floor(d.getTime() / 1000);
 /** Insight end_time is the end of the day it covers (midnight after), so step back a day. */
@@ -244,8 +264,8 @@ async function dailyTotals(objectId: string, metric: string, until: Date, days: 
   const out = new Map<DayKey, number>();
   const endDay = Date.UTC(until.getUTCFullYear(), until.getUTCMonth(), until.getUTCDate());
   try {
-    for (let i = days - 1; i >= 0; i--) {
-      const start = new Date(endDay - i * 86400_000);
+    const starts = Array.from({ length: days }, (_, i) => new Date(endDay - i * 86400_000));
+    await mapLimit(starts, META_PARALLEL, async (start) => {
       const end = new Date(start.getTime() + 86400_000);
       const res = await graph<{ data: { total_value?: { value?: number } }[] }>(
         `/${objectId}/insights`,
@@ -254,7 +274,7 @@ async function dailyTotals(objectId: string, metric: string, until: Date, days: 
       );
       const v = Number(res.data?.[0]?.total_value?.value ?? 0) || 0;
       if (v) out.set(dayKey(start), v);
-    }
+    });
     return out;
   } catch (err) {
     if (err instanceof MetaError && err.expired) throw err;
@@ -316,15 +336,17 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
       ['views_3s', ['page_video_views']],
       ['watch_time', ['page_video_view_time'], 1000], // milliseconds → seconds
     ];
-    for (const [id, names, divide] of extra) {
-      for (const name of names) {
-        const m = await dailyMetric(page.id, name, since, until, pageToken);
-        if (!m) continue;
-        if (divide) for (const [d, v] of m) m.set(d, v / divide);
-        result.fbExtra[id] = m;
-        break;
-      }
-    }
+    await Promise.all(
+      extra.map(async ([id, names, divide]) => {
+        for (const name of names) {
+          const m = await dailyMetric(page.id, name, since, until, pageToken);
+          if (!m) continue;
+          if (divide) for (const [d, v] of m) m.set(d, v / divide);
+          result.fbExtra[id] = m;
+          break;
+        }
+      })
+    );
 
     const fbPosts = await graphPages<{
       id: string;
@@ -353,16 +375,21 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
     });
     // Post reach: the older metric first, then its replacement (Meta renamed it).
     let postMetric: string | null = null;
-    for (const p of fbPosts.slice(0, 100)) {
-      let reach = 0;
+    const postReach = async (id: string) => {
       const candidates: string[] = postMetric ? [postMetric] : ['post_impressions_unique', 'post_total_media_view_unique'];
       for (const metric of candidates) {
-        const ins = await graph<{ data: InsightRow[] }>(`/${p.id}/insights`, { metric }, pageToken).catch(() => null);
+        const ins = await graph<{ data: InsightRow[] }>(`/${id}/insights`, { metric }, pageToken).catch(() => null);
         if (!ins) continue;
         postMetric = metric;
-        reach = Number(ins.data?.[0]?.values?.[0]?.value ?? 0) || 0;
-        break;
+        return Number(ins.data?.[0]?.values?.[0]?.value ?? 0) || 0;
       }
+      return 0;
+    };
+    const list = fbPosts.slice(0, 100);
+    // The first post finds which metric name this Page accepts; the rest are read in parallel.
+    const reaches = list.length ? [await postReach(list[0].id), ...(await mapLimit(list.slice(1), META_PARALLEL, (p) => postReach(p.id)))] : [];
+    for (const [i, p] of list.entries()) {
+      const reach = reaches[i];
       const shares = p.shares?.count ?? 0;
       const likes = p.reactions?.summary?.total_count ?? 0;
       const comments = p.comments?.summary?.total_count ?? 0;
@@ -425,11 +452,17 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
     // Engagement per day = interactions on the posts published that day (Meta gives no daily account total).
     const engByDay = new Map<DayKey, number>();
     // At most 120 posts per sync are read in detail (two requests each), newest first.
-    for (const m of media.filter((x) => new Date(x.timestamp) >= since && new Date(x.timestamp) <= until).slice(0, 120)) {
-      // "views" is asked separately: older media may not support it, and one
-      // unsupported metric would fail the whole request.
-      const ins = await graph<{ data: InsightRow[] }>(`/${m.id}/insights`, { metric: 'reach,shares,saved' }, igToken).catch(() => null);
-      const vIns = await graph<{ data: InsightRow[] }>(`/${m.id}/insights`, { metric: 'views' }, igToken).catch(() => null);
+    const recent = media.filter((x) => new Date(x.timestamp) >= since && new Date(x.timestamp) <= until).slice(0, 120);
+    // "views" is asked separately: older media may not support it, and one
+    // unsupported metric would fail the whole request.
+    const insights = await mapLimit(recent, META_PARALLEL, (m) =>
+      Promise.all([
+        graph<{ data: InsightRow[] }>(`/${m.id}/insights`, { metric: 'reach,shares,saved' }, igToken).catch(() => null),
+        graph<{ data: InsightRow[] }>(`/${m.id}/insights`, { metric: 'views' }, igToken).catch(() => null),
+      ])
+    );
+    for (const [i, m] of recent.entries()) {
+      const [ins, vIns] = insights[i];
       const val = (n: string) => Number(ins?.data?.find((r) => r.name === n)?.values?.[0]?.value ?? 0) || 0;
       const shares = ins ? val('shares') : null;
       const saves = ins ? val('saved') : undefined;

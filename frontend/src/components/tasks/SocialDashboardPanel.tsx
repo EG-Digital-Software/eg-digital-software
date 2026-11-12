@@ -73,8 +73,7 @@ export default function SocialDashboardPanel({ api, taskId }: { api: TaskApi; ta
       key={taskId}
       title="Social Media Dashboard"
       srcDoc={dashboardHtml}
-      // Runs edge to edge: cancels the task body's side padding (p-4 / sm:p-6).
-      className="-mx-4 mt-5 block w-[calc(100%+2rem)] border-y border-border bg-white sm:-mx-6 sm:w-[calc(100%+3rem)]"
+      className="mt-5 w-full rounded-xl border border-border bg-white"
       style={{ height: '78vh', minHeight: 520 }}
     />
   );

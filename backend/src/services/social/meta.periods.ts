@@ -1,5 +1,5 @@
 import { decryptSecret } from '../../utils/secretBox.js';
-import { MetaError, dayKey, graph, graphPages, unix, type MetaAssets, type MetaSelection } from './meta.service.js';
+import { MetaError, dayKey, graph, graphPages, mapLimit, unix, type MetaAssets, type MetaSelection } from './meta.service.js';
 
 /**
  * Channel insights figures Meta only gives as a total for a date range (not day
@@ -90,7 +90,15 @@ async function igPeriod(igId: string, token: string, p: Period): Promise<PeriodR
   const put = (metric: string, value: number | null | undefined) => {
     if (value != null && Number.isFinite(value)) rows.push({ platform: 'ig', metric, key: p.key, start: p.start, end: p.end, value: r2(value) });
   };
-  const A = await igTotals(igId, token, ['views', 'reach', 'profile_views', 'total_interactions', 'likes', 'comments', 'shares', 'saves', 'reposts'], p.start, p.end);
+  // All of a month's requests at once; each is independent.
+  const [A, vfAll, vtAll, rfAll, fuAll, ltAll] = await Promise.all([
+    igTotals(igId, token, ['views', 'reach', 'profile_views', 'total_interactions', 'likes', 'comments', 'shares', 'saves', 'reposts'], p.start, p.end),
+    igTotals(igId, token, ['views'], p.start, p.end, 'follow_type'),
+    igTotals(igId, token, ['views'], p.start, p.end, 'media_product_type'),
+    igTotals(igId, token, ['reach'], p.start, p.end, 'follow_type'),
+    igTotals(igId, token, ['follows_and_unfollows'], p.start, p.end, 'follow_type'),
+    igTotals(igId, token, ['profile_links_taps'], p.start, p.end, 'contact_button_type'),
+  ]);
   const map: [string, string][] = [
     ['views', 'views'],
     ['reach', 'reach'],
@@ -105,25 +113,25 @@ async function igPeriod(igId: string, token: string, p: Period): Promise<PeriodR
   // Meta reports these net of un-likes and un-saves, so a quiet month can come back below zero.
   for (const [meta, id] of map) if (A.has(meta)) put(id, Math.max(0, A.get(meta)!.value));
 
-  const vf = (await igTotals(igId, token, ['views'], p.start, p.end, 'follow_type')).get('views');
+  const vf = vfAll.get('views');
   if (vf && vf.by.size) {
     const f = byKey(vf, 'FOLLOWER'),
       n = byKey(vf, 'NON_FOLLOWER');
     put('views_followers', pctOf(f, f + n));
     put('views_nonfollowers', pctOf(n, f + n));
   }
-  const vt = (await igTotals(igId, token, ['views'], p.start, p.end, 'media_product_type')).get('views');
+  const vt = vtAll.get('views');
   if (vt && vt.by.size) {
     put('views_posts', byKey(vt, 'POST') + byKey(vt, 'CAROUSEL_CONTAINER'));
     put('views_reels', byKey(vt, 'REEL'));
     put('views_stories', byKey(vt, 'STORY'));
   }
-  const rf = (await igTotals(igId, token, ['reach'], p.start, p.end, 'follow_type')).get('reach');
+  const rf = rfAll.get('reach');
   if (rf && rf.by.size) {
     put('reach_followers', byKey(rf, 'FOLLOWER'));
     put('reach_nonfollowers', byKey(rf, 'NON_FOLLOWER'));
   }
-  const fu = (await igTotals(igId, token, ['follows_and_unfollows'], p.start, p.end, 'follow_type')).get('follows_and_unfollows');
+  const fu = fuAll.get('follows_and_unfollows');
   if (fu && fu.by.size) {
     const follows = byKey(fu, 'FOLLOWER'),
       unfollows = byKey(fu, 'NON_FOLLOWER');
@@ -131,7 +139,7 @@ async function igPeriod(igId: string, token: string, p: Period): Promise<PeriodR
     put('unfollows', unfollows);
     put('net_follows', follows - unfollows);
   }
-  const lt = (await igTotals(igId, token, ['profile_links_taps'], p.start, p.end, 'contact_button_type')).get('profile_links_taps');
+  const lt = ltAll.get('profile_links_taps');
   if (lt) {
     const call = byKey(lt, 'CALL'),
       email = byKey(lt, 'EMAIL'),
@@ -433,7 +441,8 @@ export async function fetchPeriods(userTokenEnc: string, assets: MetaAssets, sel
   const igPage = assets.pages.find((p) => p.ig?.id === sel.igId);
   const igToken = igPage?.tokenEnc ? decryptSecret(igPage.tokenEnc) : null;
   if (sel.igId && igToken) {
-    for (const p of periods) rows.push(...(await igPeriod(sel.igId, igToken, p)));
+    // Each month sends its own requests in parallel, so only two months run at once.
+    for (const r of await mapLimit(periods, 2, (p) => igPeriod(sel.igId!, igToken, p))) rows.push(...r);
     const aud = await igAudience(sel.igId, igToken).catch((err) => {
       if (err instanceof MetaError && err.expired) throw err;
       return null;
@@ -446,7 +455,7 @@ export async function fetchPeriods(userTokenEnc: string, assets: MetaAssets, sel
       () => []
     );
     const active = new Map(statuses.map((c) => [c.id, c.effective_status === 'ACTIVE']));
-    for (const p of periods) rows.push(...(await adsPeriod(sel.adAccountId, userToken, p, active, warnings)));
+    for (const r of await mapLimit(periods, 3, (p) => adsPeriod(sel.adAccountId!, userToken, p, active, warnings))) rows.push(...r);
   }
   return rows;
 }
