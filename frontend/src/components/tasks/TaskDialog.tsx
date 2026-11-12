@@ -967,7 +967,7 @@ export function TaskDialog({
         // Esc closes just the viewer and outside clicks are left to it.
         onInteractOutside={(e) => { if (preview) e.preventDefault(); }}
         onEscapeKeyDown={(e) => { if (preview) { e.preventDefault(); setPreview(null); } }}
-        className={cn('flex !max-w-none !max-h-[95vh] !h-[92vh] flex-col gap-0 overflow-hidden p-0', chatVisible ? '!w-[min(1680px,96vw)]' : '!w-[min(1200px,94vw)]')}>
+        className="flex !h-[100dvh] !max-h-none !w-screen !max-w-none flex-col gap-0 overflow-hidden !rounded-none !border-0 p-0">
         <DialogTitle className="sr-only">Task</DialogTitle>
 
         {/* Top bar */}
