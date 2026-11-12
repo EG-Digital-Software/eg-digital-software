@@ -20,7 +20,8 @@ export interface Period {
 }
 
 export interface PeriodRow {
-  platform: 'ig' | 'ma';
+  /** 'meta' holds bookkeeping rows (which months have been read), not figures. */
+  platform: 'ig' | 'ma' | 'meta';
   metric: string;
   key: string;
   start: Date;
@@ -101,9 +102,10 @@ async function igPeriod(igId: string, token: string, p: Period): Promise<PeriodR
     ['saves', 'saves'],
     ['reposts', 'reposts'],
   ];
-  for (const [meta, id] of map) if (A.has(meta)) put(id, A.get(meta)!.value);
+  // Meta reports these net of un-likes and un-saves, so a quiet month can come back below zero.
+  for (const [meta, id] of map) if (A.has(meta)) put(id, Math.max(0, A.get(meta)!.value));
 
-  const vf = (await igTotals(igId, token, ['views'], p.start, p.end, 'follower_type')).get('views');
+  const vf = (await igTotals(igId, token, ['views'], p.start, p.end, 'follow_type')).get('views');
   if (vf && vf.by.size) {
     const f = byKey(vf, 'FOLLOWER'),
       n = byKey(vf, 'NON_FOLLOWER');
@@ -267,16 +269,17 @@ async function adsPeriod(actId: string, token: string, p: Period, active: Map<st
     video_thruplay_watched_actions?: Action[];
     video_avg_time_watched_actions?: Action[];
   };
-  const acc = (
-    await ask<Acc>(
+  const accRows = await ask<Acc>(
       {
         level: 'account',
         fields:
           'spend,reach,impressions,frequency,cpm,inline_link_clicks,inline_link_click_ctr,actions,action_values,video_thruplay_watched_actions,video_avg_time_watched_actions',
       },
       'totals'
-    )
-  )?.[0];
+  );
+  const acc = accRows?.[0];
+  // Meta answers a month with no ads running with no rows: that month really spent nothing.
+  if (accRows && !acc) for (const m of ['ma_spend', 'ma_reach', 'ma_impr', 'ma_clicks', 'ma_results']) put(m, 0);
   if (acc) {
     const spend = Number(acc.spend) || 0,
       impr = Number(acc.impressions) || 0,

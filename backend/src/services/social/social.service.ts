@@ -101,7 +101,7 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
     prisma.customer.findUnique({ where: { id: customerId }, select: { companyName: true, tradingAs: true } }),
   ]);
   const periodRows = await prisma.socialPeriodValue.findMany({
-    where: { customerId },
+    where: { customerId, platform: { not: 'meta' } },
     select: { platform: true, metric: true, periodKey: true, value: true, data: true },
   });
 
@@ -493,6 +493,9 @@ export function reportPeriods(now = new Date()): Period[] {
  * the month just finished are refreshed every time — Meta keeps adjusting
  * recent figures; older months are read once.
  */
+/** Bump when the monthly fetch reads new or corrected figures. */
+const PERIOD_FETCH_VERSION = 2;
+
 async function syncPeriods(conn: { id: string; customerId: string; accessTokenEnc: string; assets: Prisma.JsonValue; selected: Prisma.JsonValue }, warnings: string[]) {
   const sel = conn.selected as meta.MetaSelection;
   if (!sel?.igId && !sel?.adAccountId) return;
@@ -500,14 +503,15 @@ async function syncPeriods(conn: { id: string; customerId: string; accessTokenEn
   const stored = new Set(
     (
       await prisma.socialPeriodValue.findMany({
-        where: { customerId: conn.customerId, periodKey: { in: all.map((p) => p.key) }, platform: { in: ['ig', 'ma'] } },
+        where: { customerId: conn.customerId, periodKey: { in: all.map((p) => p.key) }, platform: 'meta', metric: '_fetched', value: { gte: PERIOD_FETCH_VERSION } },
         select: { periodKey: true },
-        distinct: ['periodKey'],
       })
     ).map((r) => r.periodKey)
   );
   const want = all.filter((p, i) => i < 3 || !stored.has(p.key));
   const rows = await fetchPeriods(conn.accessTokenEnc, conn.assets as unknown as meta.MetaAssets, sel, want, warnings);
+  // Marks each month as read with this version of the fetch, so a later fix re-reads older months once.
+  for (const p of want) rows.push({ platform: 'meta', metric: '_fetched', key: p.key, start: p.start, end: p.end, value: PERIOD_FETCH_VERSION });
   const ops = rows.map((r) => {
     const data = r.data === undefined ? Prisma.DbNull : (r.data as Prisma.InputJsonValue);
     return prisma.socialPeriodValue.upsert({
