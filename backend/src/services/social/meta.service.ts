@@ -65,7 +65,9 @@ export function authUrl(state: string): string {
   url.searchParams.set('redirect_uri', env.META_REDIRECT_URI!);
   url.searchParams.set('state', state);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', env.META_SCOPES);
+  // Business apps log in through a "Facebook Login for Business" configuration.
+  if (env.META_CONFIG_ID) url.searchParams.set('config_id', env.META_CONFIG_ID);
+  else url.searchParams.set('scope', env.META_SCOPES);
   return url.toString();
 }
 

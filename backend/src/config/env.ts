@@ -113,6 +113,10 @@ const schema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_REDIRECT_URI: z.string().optional(),
   META_GRAPH_VERSION: z.string().default('v23.0'),
+  // "Facebook Login for Business" configuration (Business-type apps). When set,
+  // the login asks for the permissions and assets chosen in that configuration
+  // and META_SCOPES is not sent.
+  META_CONFIG_ID: z.string().optional(),
   META_SCOPES: z
     .string()
     .default(
