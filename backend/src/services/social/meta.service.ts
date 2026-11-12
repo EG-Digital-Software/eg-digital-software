@@ -33,7 +33,7 @@ export class MetaError extends Error {
   }
 }
 
-async function graph<T>(path: string, params: Record<string, string | number | undefined>, token?: string): Promise<T> {
+export async function graph<T>(path: string, params: Record<string, string | number | undefined>, token?: string): Promise<T> {
   const url = new URL(path.startsWith('http') ? path : `${graphBase()}${path}`);
   for (const [k, v] of Object.entries(params)) if (v !== undefined) url.searchParams.set(k, String(v));
   if (token) url.searchParams.set('access_token', token);
@@ -46,7 +46,7 @@ async function graph<T>(path: string, params: Record<string, string | number | u
 }
 
 /** Follow `paging.next` until `stop` says enough (or a hard page cap). */
-async function graphPages<T>(path: string, params: Record<string, string | number | undefined>, token: string, stop?: (rows: T[]) => boolean, maxPages = 10) {
+export async function graphPages<T>(path: string, params: Record<string, string | number | undefined>, token: string, stop?: (rows: T[]) => boolean, maxPages = 10) {
   const out: T[] = [];
   let page = await graph<{ data?: T[]; paging?: { next?: string } }>(path, params, token);
   for (let i = 0; i < maxPages; i++) {
@@ -171,6 +171,8 @@ export interface FetchedPost {
   permalink: string | null;
   /** Meta's link to the post picture (expires — copied into our storage on sync). */
   pictureUrl: string | null;
+  /** Per-post breakdown for the content table (missing = Meta did not report it). */
+  stats: { views?: number; likes?: number; comments?: number; shares?: number; saves?: number };
 }
 export interface FetchedCampaignDay {
   campaignId: string;
@@ -183,6 +185,8 @@ export interface FetchedCampaignDay {
 }
 export interface MetaSyncResult {
   organic: { fb: Map<DayKey, OrganicDay>; ig: Map<DayKey, OrganicDay> };
+  /** Extra daily Facebook Page figures, by Channel insights metric id (views, visits, …). */
+  fbExtra: Record<string, Map<DayKey, number>>;
   ads: Map<DayKey, AdsDay> | null;
   campaigns: FetchedCampaignDay[];
   posts: FetchedPost[];
@@ -190,8 +194,8 @@ export interface MetaSyncResult {
   warnings: string[];
 }
 
-const dayKey = (d: Date) => d.toISOString().slice(0, 10);
-const unix = (d: Date) => Math.floor(d.getTime() / 1000);
+export const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+export const unix = (d: Date) => Math.floor(d.getTime() / 1000);
 /** Insight end_time is the end of the day it covers (midnight after), so step back a day. */
 const insightDay = (endTime: string) => dayKey(new Date(new Date(endTime).getTime() - 12 * 3600 * 1000));
 
@@ -280,6 +284,7 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
   const warnings: string[] = [];
   const result: MetaSyncResult = {
     organic: { fb: new Map(), ig: new Map() },
+    fbExtra: {},
     ads: null,
     campaigns: [],
     posts: [],
@@ -301,6 +306,25 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
     const followers = info?.followers_count ?? info?.fan_count;
     if (followers != null) fb.set(today, { ...(fb.get(today) ?? {}), followers });
     result.synced.fb = true;
+
+    // Extra daily Page figures for Channel insights. Each is optional: a metric
+    // Meta refuses is simply left out (it shows as "Not reported").
+    const extra: [string, string[], number?][] = [
+      ['views', ['page_media_view', 'page_impressions']],
+      ['visits', ['page_views_total']],
+      ['unfollows', ['page_daily_unfollows_unique', 'page_fan_removes_unique']],
+      ['views_3s', ['page_video_views']],
+      ['watch_time', ['page_video_view_time'], 1000], // milliseconds → seconds
+    ];
+    for (const [id, names, divide] of extra) {
+      for (const name of names) {
+        const m = await dailyMetric(page.id, name, since, until, pageToken);
+        if (!m) continue;
+        if (divide) for (const [d, v] of m) m.set(d, v / divide);
+        result.fbExtra[id] = m;
+        break;
+      }
+    }
 
     const fbPosts = await graphPages<{
       id: string;
@@ -340,7 +364,10 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
         break;
       }
       const shares = p.shares?.count ?? 0;
+      const likes = p.reactions?.summary?.total_count ?? 0;
+      const comments = p.comments?.summary?.total_count ?? 0;
       result.posts.push({
+        stats: { likes, comments, shares },
         platform: 'fb',
         externalId: p.id,
         title: (p.message ?? 'Facebook post').split('\n')[0].slice(0, 140),
@@ -397,14 +424,21 @@ export async function fetchAll(userTokenEnc: string, assets: MetaAssets, sel: Me
     });
     // Engagement per day = interactions on the posts published that day (Meta gives no daily account total).
     const engByDay = new Map<DayKey, number>();
-    for (const m of media.filter((x) => new Date(x.timestamp) >= since && new Date(x.timestamp) <= until)) {
+    // At most 120 posts per sync are read in detail (two requests each), newest first.
+    for (const m of media.filter((x) => new Date(x.timestamp) >= since && new Date(x.timestamp) <= until).slice(0, 120)) {
+      // "views" is asked separately: older media may not support it, and one
+      // unsupported metric would fail the whole request.
       const ins = await graph<{ data: InsightRow[] }>(`/${m.id}/insights`, { metric: 'reach,shares,saved' }, igToken).catch(() => null);
+      const vIns = await graph<{ data: InsightRow[] }>(`/${m.id}/insights`, { metric: 'views' }, igToken).catch(() => null);
       const val = (n: string) => Number(ins?.data?.find((r) => r.name === n)?.values?.[0]?.value ?? 0) || 0;
       const shares = ins ? val('shares') : null;
-      const eng = (m.like_count ?? 0) + (m.comments_count ?? 0) + (shares ?? 0) + (ins ? val('saved') : 0);
+      const saves = ins ? val('saved') : undefined;
+      const views = vIns ? Number(vIns.data?.[0]?.values?.[0]?.value ?? 0) || 0 : undefined;
+      const eng = (m.like_count ?? 0) + (m.comments_count ?? 0) + (shares ?? 0) + (saves ?? 0);
       const d = dayKey(new Date(m.timestamp));
       engByDay.set(d, (engByDay.get(d) ?? 0) + eng);
       result.posts.push({
+        stats: { views, likes: m.like_count ?? 0, comments: m.comments_count ?? 0, shares: shares ?? undefined, saves },
         platform: 'ig',
         externalId: m.id,
         title: (m.caption ?? 'Instagram post').split('\n')[0].slice(0, 140),

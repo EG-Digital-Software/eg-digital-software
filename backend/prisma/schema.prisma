@@ -375,21 +375,22 @@ model Customer {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
-  addresses         Address[]
-  customerProducts  CustomerProduct[]
-  invoices          Invoice[]
-  users             ClientUser[]
-  directors         Director[]
-  itContacts        CustomerITContact[]
-  documents         CustomerDocument[]
-  taskBuckets       TaskBucket[]
-  tasks             Task[]
-  taskLabels        TaskLabel[]
-  appointments      Appointment[]
-  socialConnections SocialConnection[]
-  socialMetrics     SocialMetricDaily[]
-  socialPosts       SocialPost[]
-  socialCampaigns   SocialCampaignDaily[]
+  addresses          Address[]
+  customerProducts   CustomerProduct[]
+  invoices           Invoice[]
+  users              ClientUser[]
+  directors          Director[]
+  itContacts         CustomerITContact[]
+  documents          CustomerDocument[]
+  taskBuckets        TaskBucket[]
+  tasks              Task[]
+  taskLabels         TaskLabel[]
+  appointments       Appointment[]
+  socialConnections  SocialConnection[]
+  socialMetrics      SocialMetricDaily[]
+  socialPosts        SocialPost[]
+  socialCampaigns    SocialCampaignDaily[]
+  socialPeriodValues SocialPeriodValue[]
 
   @@index([status])
   @@index([businessType])
@@ -1336,6 +1337,8 @@ model SocialPost {
   permalink   String?
   /// The post's picture, copied once into our storage (Meta's own image links expire).
   imageUrl    String?
+  /// Per-post breakdown for Channel insights: { views, likes, comments, shares, saves }.
+  stats       Json     @default("{}")
   updatedAt   DateTime @updatedAt
 
   @@unique([customerId, platform, externalId])
@@ -1359,4 +1362,26 @@ model SocialCampaignDaily {
 
   @@unique([customerId, platform, campaignId, date])
   @@index([customerId, date])
+}
+
+/// A Channel insights figure for one platform and one period. `periodKey` is a
+/// month ("2026-10"), the matching part of the month before ("prev:2026-11"),
+/// one day ("d:2026-11-03") or "now" (audience snapshot). Scalar figures use
+/// `value`; breakdowns and tables (audience, placements, campaigns) use `data`.
+model SocialPeriodValue {
+  id          String   @id @default(uuid())
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId  String
+  platform    String
+  metric      String
+  periodKey   String
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+  value       Float?
+  data        Json?
+  source      String   @default("meta")
+  updatedAt   DateTime @updatedAt
+
+  @@unique([customerId, platform, metric, periodKey])
+  @@index([customerId, periodKey])
 }

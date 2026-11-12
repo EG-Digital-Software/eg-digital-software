@@ -1,11 +1,12 @@
 import jwt from 'jsonwebtoken';
-import type { Prisma, Role } from '@prisma/client';
+import { Prisma, type Role } from '@prisma/client';
 import { prisma } from '../../config/prisma.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { encryptSecret } from '../../utils/secretBox.js';
 import * as meta from './meta.service.js';
+import { fetchPeriods, type Period } from './meta.periods.js';
 import { storage } from '../storage/index.js';
 
 /**
@@ -99,6 +100,10 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
     prisma.socialCampaignDaily.findMany({ where: { customerId }, orderBy: { date: 'asc' } }),
     prisma.customer.findUnique({ where: { id: customerId }, select: { companyName: true, tradingAs: true } }),
   ]);
+  const periodRows = await prisma.socialPeriodValue.findMany({
+    where: { customerId },
+    select: { platform: true, metric: true, periodKey: true, value: true, data: true },
+  });
 
   // Refresh connected accounts in the background when the data is a few hours old.
   for (const c of conns) {
@@ -128,6 +133,10 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
     c.days[r.date.toISOString().slice(0, 10)] = [r.spend, r.leads, r.revenue];
   }
 
+  // Compact: { platform: { metric: { periodKey: value | data } } }
+  const pv: Record<string, Record<string, Record<string, unknown>>> = {};
+  for (const r of periodRows) ((pv[r.platform] ??= {})[r.metric] ??= {})[r.periodKey] = r.value ?? r.data;
+
   const data = (dash?.data ?? {}) as Record<string, unknown>;
   // Team insights progress is the team's own working view — not sent to clients.
   if (!isStaff(viewer)) delete data.insights;
@@ -152,8 +161,11 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
       shares: p.shares,
       url: p.permalink,
       img: p.imageUrl,
+      st: p.stats,
     })),
     campaigns: Object.values(camps),
+    periodValues: pv,
+    today: new Date().toISOString().slice(0, 10),
     data,
     updatedAt: dash?.updatedAt ?? null,
     updatedByName: dash?.updatedByName ?? null,
@@ -164,7 +176,9 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
 // ─── Team edits ─────────────────────────────────────────────
 
 /** Top-level keys of SocialDashboard.data the team may write. */
-const DATA_KEYS = ['budgets', 'goals', 'notes', 'posts', 'campaigns', 'insights', 'meta'] as const;
+// manual: Channel insights figures entered by hand, { month: { channel: { metric: [value, % change] } } };
+// next: "What we'll do" cards, { month: { channel: [[severity, title, detail, next step]] } }.
+const DATA_KEYS = ['budgets', 'goals', 'notes', 'posts', 'campaigns', 'insights', 'meta', 'manual', 'next'] as const;
 
 export async function saveDashboard(customerId: string, taskId: string, actor: Actor, patch: Record<string, unknown>) {
   if (!isStaff(actor)) throw ApiError.forbidden('Only the admin or team can change the dashboard');
@@ -291,7 +305,7 @@ export async function completeMetaConnect(code: string | undefined, state: strin
       create: { customerId: s.cid, provider: 'meta', ...common },
       update: common,
     });
-    void syncConnection(conn.id, 90).catch(() => undefined);
+    void syncConnection(conn.id, FULL_SYNC_DAYS).catch(() => undefined);
     if (!assets.pages.length && !assets.adAccounts.length) {
       return { ok: true, message: 'Connected, but this Facebook login has no Pages or ad accounts it can read. Check that it is an admin of the business Page.' };
     }
@@ -314,7 +328,7 @@ export async function selectAssets(customerId: string, taskId: string, connectio
       sel.adAccountId === null ? null : assets.adAccounts.some((a) => a.id === sel.adAccountId) ? sel.adAccountId : (conn.selected as meta.MetaSelection)?.adAccountId,
   };
   await prisma.socialConnection.update({ where: { id: conn.id }, data: { selected: next as Prisma.InputJsonValue } });
-  await syncConnection(conn.id, 90).catch(() => undefined);
+  await syncConnection(conn.id, FULL_SYNC_DAYS).catch(() => undefined);
   return { ok: true };
 }
 
@@ -330,6 +344,8 @@ export async function disconnect(customerId: string, taskId: string, connectionI
 // ─── Syncing ────────────────────────────────────────────────
 
 const running = new Set<string>();
+/** Days read on connect and on a refresh asked for by a person — covers the months kept. */
+const FULL_SYNC_DAYS = 200;
 
 export async function syncConnection(connectionId: string, days = 30) {
   if (running.has(connectionId)) return { skipped: true };
@@ -396,8 +412,31 @@ export async function syncConnection(connectionId: string, days = 30) {
         );
       }
     }
+    // Extra daily Page figures (views, visits, unfollows, video) — one row per day.
+    for (const [metric, map] of Object.entries(res.fbExtra)) {
+      for (const [day, value] of map) {
+        const date = new Date(`${day}T00:00:00.000Z`);
+        const periodKey = `d:${day}`;
+        ops.push(
+          prisma.socialPeriodValue.upsert({
+            where: { customerId_platform_metric_periodKey: { customerId: cid, platform: 'fb', metric, periodKey } },
+            create: { customerId: cid, platform: 'fb', metric, periodKey, periodStart: date, periodEnd: date, value, source: 'meta' },
+            update: { value, source: 'meta' },
+          })
+        );
+      }
+    }
     for (const p of res.posts) {
-      const fields = { title: p.title, type: p.type, publishedAt: p.publishedAt, reach: p.reach, engagements: p.engagements, shares: p.shares, permalink: p.permalink };
+      const fields = {
+        title: p.title,
+        type: p.type,
+        publishedAt: p.publishedAt,
+        reach: p.reach,
+        engagements: p.engagements,
+        shares: p.shares,
+        permalink: p.permalink,
+        stats: p.stats as Prisma.InputJsonValue,
+      };
       ops.push(
         prisma.socialPost.upsert({
           where: { customerId_platform_externalId: { customerId: cid, platform: p.platform, externalId: p.externalId } },
@@ -408,6 +447,10 @@ export async function syncConnection(connectionId: string, days = 30) {
     }
     for (let i = 0; i < ops.length; i += 500) await prisma.$transaction(ops.slice(i, i + 500));
     await storePostImages(cid, res.posts).catch((err) => logger.warn({ err }, 'Social: storing post pictures failed'));
+    await syncPeriods(conn, res.warnings).catch((err) => {
+      logger.warn({ err }, 'Social: period figures failed');
+      res.warnings.push(`Monthly totals could not be read: ${(err as Error).message}`);
+    });
     await prisma.socialConnection.update({
       where: { id: conn.id },
       data: { status: 'ACTIVE', lastSyncAt: new Date(), lastError: res.warnings.length ? res.warnings.join('; ').slice(0, 500) : null },
@@ -416,6 +459,64 @@ export async function syncConnection(connectionId: string, days = 30) {
   } finally {
     running.delete(connectionId);
   }
+}
+
+// ─── Monthly figures (Channel insights) ─────────────────────
+
+/** Full months kept, besides the current one. */
+const MONTHS_BACK = 6;
+const utcDay = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d));
+const monthKey = (d: Date) => d.toISOString().slice(0, 7);
+
+/**
+ * The reporting periods: the current month so far, the same days of the month
+ * before ("prev:YYYY-MM", its comparison), and the last full months (one extra,
+ * so the oldest month still has something to compare with).
+ */
+export function reportPeriods(now = new Date()): Period[] {
+  const y = now.getUTCFullYear(),
+    m = now.getUTCMonth(),
+    today = utcDay(y, m, now.getUTCDate());
+  const out: Period[] = [{ key: monthKey(today), start: utcDay(y, m, 1), end: today }];
+  const prevLast = utcDay(y, m, 0).getUTCDate();
+  out.push({ key: `prev:${monthKey(today)}`, start: utcDay(y, m - 1, 1), end: utcDay(y, m - 1, Math.min(now.getUTCDate(), prevLast)) });
+  for (let i = 1; i <= MONTHS_BACK + 1; i++) {
+    const start = utcDay(y, m - i, 1);
+    if (start < new Date(`${FIRST_DAY}T00:00:00Z`)) break;
+    out.push({ key: monthKey(start), start, end: utcDay(y, m - i + 1, 0) });
+  }
+  return out;
+}
+
+/**
+ * Read the period totals from Meta. The current month (and its comparison) and
+ * the month just finished are refreshed every time — Meta keeps adjusting
+ * recent figures; older months are read once.
+ */
+async function syncPeriods(conn: { id: string; customerId: string; accessTokenEnc: string; assets: Prisma.JsonValue; selected: Prisma.JsonValue }, warnings: string[]) {
+  const sel = conn.selected as meta.MetaSelection;
+  if (!sel?.igId && !sel?.adAccountId) return;
+  const all = reportPeriods();
+  const stored = new Set(
+    (
+      await prisma.socialPeriodValue.findMany({
+        where: { customerId: conn.customerId, periodKey: { in: all.map((p) => p.key) }, platform: { in: ['ig', 'ma'] } },
+        select: { periodKey: true },
+        distinct: ['periodKey'],
+      })
+    ).map((r) => r.periodKey)
+  );
+  const want = all.filter((p, i) => i < 3 || !stored.has(p.key));
+  const rows = await fetchPeriods(conn.accessTokenEnc, conn.assets as unknown as meta.MetaAssets, sel, want, warnings);
+  const ops = rows.map((r) => {
+    const data = r.data === undefined ? Prisma.DbNull : (r.data as Prisma.InputJsonValue);
+    return prisma.socialPeriodValue.upsert({
+      where: { customerId_platform_metric_periodKey: { customerId: conn.customerId, platform: r.platform, metric: r.metric, periodKey: r.key } },
+      create: { customerId: conn.customerId, platform: r.platform, metric: r.metric, periodKey: r.key, periodStart: r.start, periodEnd: r.end, value: r.value, data, source: 'meta' },
+      update: { periodStart: r.start, periodEnd: r.end, value: r.value, data, source: 'meta' },
+    });
+  });
+  for (let i = 0; i < ops.length; i += 500) await prisma.$transaction(ops.slice(i, i + 500));
 }
 
 // ─── Post pictures ──────────────────────────────────────────
@@ -465,6 +566,6 @@ export async function syncCustomer(customerId: string, taskId: string, viewer: A
   await ensureDashboardTask(customerId, taskId);
   const conns = await prisma.socialConnection.findMany({ where: { customerId, status: { not: 'EXPIRED' } }, select: { id: true } });
   // A refresh asked for by a person reads 90 days, so older posts and figures fill in too.
-  for (const c of conns) await syncConnection(c.id, 90).catch(() => undefined);
+  for (const c of conns) await syncConnection(c.id, FULL_SYNC_DAYS).catch(() => undefined);
   return getDashboard(customerId, taskId, viewer);
 }
