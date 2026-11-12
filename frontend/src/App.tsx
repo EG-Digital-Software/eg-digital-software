@@ -69,6 +69,9 @@ export default function App() {
             <Route path="/:portal/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/:portal/reset-password" element={<ResetPasswordPage />} />
             <Route path="/pay/:id" element={<PayPage />} />
+            {/* Public legal pages (linked from the Meta developer app) */}
+            <Route path="/privacy" element={<PrivacyLazy />} />
+            <Route path="/data-deletion" element={<DataDeletionLazy />} />
 
             {/* Back-compat redirects from the old flat auth URLs (query preserved) */}
             <Route path="/login" element={<LegacyAuthRedirect kind="login" />} />
@@ -196,6 +199,8 @@ function LegacyAuthRedirect({
   return <Navigate to={`/${portal}/${kind}${location.search}`} replace />;
 }
 
+const PrivacyLazy = lazy(() => import('@/pages/misc/LegalPages').then((m) => ({ default: m.PrivacyPage })));
+const DataDeletionLazy = lazy(() => import('@/pages/misc/LegalPages').then((m) => ({ default: m.DataDeletionPage })));
 const ForbiddenLazy = lazy(() =>
   import('@/pages/misc/ErrorPages').then((m) => ({ default: m.ForbiddenPage }))
 );
