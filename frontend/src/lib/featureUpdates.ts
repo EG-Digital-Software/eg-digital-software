@@ -23,6 +23,10 @@ export const FEATURE_UPDATES: FeatureUpdate[] = [
   { id: 'social-media-dashboard', name: 'Social Media Dashboard', addedAt: '2026-11-12' },
   // No `tab`: the Content Calendar tab only exists on tasks where it is ticked.
   { id: 'content-calendar', name: 'Content Calendar', addedAt: '2026-11-13' },
+  // Report tabs, shown only on tasks where each is ticked.
+  { id: 'seo-dashboard', name: 'SEO Dashboard', addedAt: '2026-11-13' },
+  { id: 'local-listing', name: 'Local Listing', addedAt: '2026-11-13' },
+  { id: 'azure-performance', name: 'Azure Performance', addedAt: '2026-11-13' },
 ];
 
 const SHOW_DAYS = 30;

@@ -5,6 +5,7 @@ import * as ctrl from '../controllers/portal.controller.js';
 import * as teamRoles from '../controllers/teamRole.controller.js';
 import * as social from '../controllers/social.controller.js';
 import * as content from '../controllers/content.controller.js';
+import * as report from '../controllers/report.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
@@ -74,6 +75,8 @@ router.post('/tasks/tasks/:taskId/content/posts/:postId/decision', content.emplo
 router.post('/tasks/tasks/:taskId/content/posts/:postId/schedule', content.employee.schedule);
 router.post('/tasks/tasks/:taskId/content/posts/:postId/unschedule', content.employee.unschedule);
 router.post('/tasks/tasks/:taskId/content/posts/:postId/publish', content.employee.publishNow);
+router.get('/tasks/tasks/:taskId/reports/:kind', report.employee.get);
+router.put('/tasks/tasks/:taskId/reports/:kind', report.employee.save);
 router.post('/tasks/tasks/:taskId/attachments', upload.single('file'), ctrl.employeeAddAttachment);
 router.delete('/tasks/tasks/:taskId/attachments/:attachmentId', ctrl.employeeDeleteAttachment);
 // Raise an approval request (subject/message + optional files). Deciding stays admin/customer-only.

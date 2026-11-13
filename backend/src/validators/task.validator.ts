@@ -46,6 +46,9 @@ export const createTaskSchema = z.object({
   checklist: z.array(checklistItem).optional(),
   showSocialDashboard: z.boolean().optional(),
   showContentCalendar: z.boolean().optional(),
+  showSeoDashboard: z.boolean().optional(),
+  showLocalListing: z.boolean().optional(),
+  showAzurePerformance: z.boolean().optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -61,6 +64,9 @@ export const updateTaskSchema = z.object({
   checklist: z.array(checklistItem).optional(),
   showSocialDashboard: z.boolean().optional(),
   showContentCalendar: z.boolean().optional(),
+  showSeoDashboard: z.boolean().optional(),
+  showLocalListing: z.boolean().optional(),
+  showAzurePerformance: z.boolean().optional(),
 });
 
 export const moveTaskSchema = z.object({

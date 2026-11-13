@@ -869,6 +869,11 @@ model Task {
   /// Content Calendar: approved, scheduled posts publish on their own at their
   /// time while this is on. Switched by the admin/team in the calendar.
   contentAutoPublish    Boolean      @default(true)
+  /// Report tabs ticked per task by an admin or team member: SEO Dashboard,
+  /// Local Listing and Azure Performance. Figures live in ReportDashboard.
+  showSeoDashboard      Boolean      @default(false)
+  showLocalListing      Boolean      @default(false)
+  showAzurePerformance  Boolean      @default(false)
   /// AdminUser id that created the task (for the activity trail).
   createdById           String?
   createdAt             DateTime     @default(now())
@@ -886,6 +891,7 @@ model Task {
   timeSheetPoolTasks TimeSheetPoolTask[]
   socialDashboard    SocialDashboard?
   contentPosts       ContentPost[]
+  reportDashboards   ReportDashboard[]
 
   @@index([customerId])
   @@index([bucketId])
@@ -1461,4 +1467,22 @@ model ContentPublishLog {
 
   @@index([taskId, createdAt])
   @@index([postId])
+}
+
+/// SEO Dashboard, Local Listing and Azure Performance report of one task
+/// (`kind` = seo | local | azure). Everything in `data` is entered by the
+/// admin/team (figures per month, findings, listings, keywords, work log,
+/// team insight progress). An empty report means nothing has been entered yet.
+model ReportDashboard {
+  id            String   @id @default(uuid())
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId        String
+  kind          String
+  data          Json     @default("{}")
+  updatedById   String?
+  updatedByName String?
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([taskId, kind])
 }

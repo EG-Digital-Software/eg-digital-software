@@ -31,7 +31,13 @@ export interface TaskInput {
   checklist?: { text: string; done?: boolean }[];
   showSocialDashboard?: boolean;
   showContentCalendar?: boolean;
+  showSeoDashboard?: boolean;
+  showLocalListing?: boolean;
+  showAzurePerformance?: boolean;
 }
+
+/** Report tabs: SEO Dashboard, Local Listing, Azure Performance. */
+export type ReportKind = 'seo' | 'local' | 'azure';
 
 // ─── Content Calendar ─────────────────────────────────────
 
@@ -291,6 +297,12 @@ export function taskApi(base: string) {
       unwrap<unknown>(api.patch(`${base}/tasks/${taskId}/social/connections/${connectionId}`, body, { timeout: 180_000 })),
     disconnectSocial: (taskId: string, connectionId: string) =>
       unwrap<unknown>(api.delete(`${base}/tasks/${taskId}/social/connections/${connectionId}`)),
+
+    // SEO Dashboard, Local Listing and Azure Performance (tasks where each is
+    // switched on). The report page works with the raw payload, so these stay loosely typed.
+    reportDashboard: (taskId: string, kind: ReportKind) => unwrap<unknown>(api.get(`${base}/tasks/${taskId}/reports/${kind}`)),
+    saveReportDashboard: (taskId: string, kind: ReportKind, patch: unknown) =>
+      unwrap<unknown>(api.put(`${base}/tasks/${taskId}/reports/${kind}`, patch)),
 
     // Content Calendar (tasks where it is switched on).
     contentCalendar: (taskId: string) => unwrap<ContentCalendar>(api.get(`${base}/tasks/${taskId}/content`)),

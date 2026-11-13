@@ -583,6 +583,10 @@ export interface Task {
   showSocialDashboard?: boolean;
   /** Whether this task shows the Content Calendar tab (set by admin/team). */
   showContentCalendar?: boolean;
+  /** Report tabs (set by admin/team): SEO Dashboard, Local Listing, Azure Performance. */
+  showSeoDashboard?: boolean;
+  showLocalListing?: boolean;
+  showAzurePerformance?: boolean;
   createdById?: string | null;
   createdAt: string;
   updatedAt: string;

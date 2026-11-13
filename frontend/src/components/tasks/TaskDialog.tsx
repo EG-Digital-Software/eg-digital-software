@@ -33,6 +33,9 @@ import {
   KeyRound,
   Archive,
   LineChart,
+  Search,
+  MapPin,
+  Cloud,
   Upload,
   Film,
   Image as ImageIcon,
@@ -186,6 +189,9 @@ interface Draft {
   checklist: { text: string; done: boolean }[];
   showSocialDashboard: boolean;
   showContentCalendar: boolean;
+  showSeoDashboard: boolean;
+  showLocalListing: boolean;
+  showAzurePerformance: boolean;
 }
 
 
@@ -203,6 +209,7 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
 // The Social Media Dashboard is a large page — only fetched when its tab is opened.
 const SocialDashboardPanel = lazy(() => import('./SocialDashboardPanel'));
 const ContentCalendarPanel = lazy(() => import('./ContentCalendarPanel'));
+const ReportDashboardPanel = lazy(() => import('./ReportDashboardPanel'));
 
 const toDateInput = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : '');
 const toIso = (d: string) => (d ? new Date(d + 'T00:00:00').toISOString() : '');
@@ -228,6 +235,9 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
       checklist: task.checklist.map((c) => ({ text: c.text, done: c.done })),
       showSocialDashboard: !!task.showSocialDashboard,
       showContentCalendar: !!task.showContentCalendar,
+      showSeoDashboard: !!task.showSeoDashboard,
+      showLocalListing: !!task.showLocalListing,
+      showAzurePerformance: !!task.showAzurePerformance,
     };
   }
   return {
@@ -243,6 +253,9 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
     checklist: [],
     showSocialDashboard: false,
     showContentCalendar: false,
+    showSeoDashboard: false,
+    showLocalListing: false,
+    showAzurePerformance: false,
   };
 }
 
@@ -300,7 +313,7 @@ export function TaskDialog({
     : `/${me?.role === 'CLIENT' ? 'client' : 'employee'}/account?tab=pin`;
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
-  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'social' | 'content' | 'archive'>('details');
+  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'social' | 'content' | 'seo' | 'local' | 'azure' | 'archive'>('details');
   // The Social Media Dashboard tab is per task: an admin or team member ticks it
   // in the form; the client sees the tab when it is on but cannot switch it.
   const canToggleSocial = !!me && me.role !== 'CLIENT';
@@ -371,6 +384,9 @@ export function TaskDialog({
   const liveTask = taskQ.data ?? task;
   const showSocial = canToggleSocial ? draft.showSocialDashboard : !!liveTask?.showSocialDashboard;
   const showContent = canToggleSocial ? draft.showContentCalendar : !!liveTask?.showContentCalendar;
+  const showSeo = canToggleSocial ? draft.showSeoDashboard : !!liveTask?.showSeoDashboard;
+  const showLocal = canToggleSocial ? draft.showLocalListing : !!liveTask?.showLocalListing;
+  const showAzure = canToggleSocial ? draft.showAzurePerformance : !!liveTask?.showAzurePerformance;
   const invalidateTask = () => qc.invalidateQueries({ queryKey: taskKey });
 
   // People who can be @mentioned in this task's chat — admins, team members and
@@ -821,6 +837,9 @@ export function TaskDialog({
       checklist: draft.checklist,
       showSocialDashboard: draft.showSocialDashboard,
       showContentCalendar: draft.showContentCalendar,
+      showSeoDashboard: draft.showSeoDashboard,
+      showLocalListing: draft.showLocalListing,
+      showAzurePerformance: draft.showAzurePerformance,
     });
   }
 
@@ -1152,6 +1171,21 @@ export function TaskDialog({
                   Content Calendar
                 </TabPill>
               )}
+              {isEdit && showSeo && (
+                <TabPill active={tab === 'seo'} onClick={() => setTab('seo')} icon={<Search className="h-4 w-4" />}>
+                  SEO Dashboard
+                </TabPill>
+              )}
+              {isEdit && showLocal && (
+                <TabPill active={tab === 'local'} onClick={() => setTab('local')} icon={<MapPin className="h-4 w-4" />}>
+                  Local Listing
+                </TabPill>
+              )}
+              {isEdit && showAzure && (
+                <TabPill active={tab === 'azure'} onClick={() => setTab('azure')} icon={<Cloud className="h-4 w-4" />}>
+                  Azure Performance
+                </TabPill>
+              )}
               {isEdit && (
                 <TabPill active={tab === 'archive'} onClick={() => setTab('archive')} icon={<Archive className="h-4 w-4" />} dot={tabHasDot('archive')}>
                   Archive{liveTask && liveTask.archive && liveTask.archive.length > 0 ? ` (${liveTask.archive.length})` : ''}
@@ -1161,7 +1195,12 @@ export function TaskDialog({
 
             {/* The Social Media Dashboard tab can be switched off while open
                 (by the admin elsewhere, for a client) — fall back to the details. */}
-            {tab === 'details' || (tab === 'social' && !showSocial) || (tab === 'content' && !showContent) ? (
+            {tab === 'details' ||
+            (tab === 'social' && !showSocial) ||
+            (tab === 'content' && !showContent) ||
+            (tab === 'seo' && !showSeo) ||
+            (tab === 'local' && !showLocal) ||
+            (tab === 'azure' && !showAzure) ? (
               <div className="mt-5 space-y-5">
                 {/* Field grid */}
                 <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -1241,6 +1280,57 @@ export function TaskDialog({
                             const on = e.target.checked;
                             update({ showContentCalendar: on }, { showContentCalendar: on });
                             if (!on && tab === 'content') setTab('details');
+                          }}
+                        />
+                        Show this tab on this task
+                      </label>
+                    </Field>
+                  )}
+                  {canToggleSocial && (
+                    <Field label="SEO Dashboard" hint="Tick to show the SEO Dashboard tab on this task: search performance, keyword rankings, site check findings and SEO work for the client. Only an admin or team member can switch it; the client sees the tab when it is on.">
+                      <label className="flex h-10 cursor-pointer items-center gap-2.5 rounded-md border border-input px-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                          checked={draft.showSeoDashboard}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            update({ showSeoDashboard: on }, { showSeoDashboard: on });
+                            if (!on && tab === 'seo') setTab('details');
+                          }}
+                        />
+                        Show this tab on this task
+                      </label>
+                    </Field>
+                  )}
+                  {canToggleSocial && (
+                    <Field label="Local Listing" hint="Tick to show the Local Listing tab on this task: Google Business Profile, reviews, business details, directory listings and local rankings. Only an admin or team member can switch it; the client sees the tab when it is on.">
+                      <label className="flex h-10 cursor-pointer items-center gap-2.5 rounded-md border border-input px-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                          checked={draft.showLocalListing}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            update({ showLocalListing: on }, { showLocalListing: on });
+                            if (!on && tab === 'local') setTab('details');
+                          }}
+                        />
+                        Show this tab on this task
+                      </label>
+                    </Field>
+                  )}
+                  {canToggleSocial && (
+                    <Field label="Azure Performance" hint="Tick to show the Azure Performance tab on this task: availability, incidents, resource usage, cost and savings, security and backup. Only an admin or team member can switch it; the client sees the tab when it is on.">
+                      <label className="flex h-10 cursor-pointer items-center gap-2.5 rounded-md border border-input px-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                          checked={draft.showAzurePerformance}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            update({ showAzurePerformance: on }, { showAzurePerformance: on });
+                            if (!on && tab === 'azure') setTab('details');
                           }}
                         />
                         Show this tab on this task
@@ -1409,6 +1499,11 @@ export function TaskDialog({
               /* Content Calendar — plan, approve and publish posts, loaded on demand. */
               <Suspense fallback={<div className="mt-5 py-16 text-center text-sm text-muted-foreground">Loading content calendar…</div>}>
                 <ContentCalendarPanel api={api} taskId={task.id} />
+              </Suspense>
+            ) : (tab === 'seo' || tab === 'local' || tab === 'azure') && task ? (
+              /* SEO Dashboard, Local Listing and Azure Performance — report pages, loaded on demand. */
+              <Suspense fallback={<div className="mt-5 py-16 text-center text-sm text-muted-foreground">Loading report…</div>}>
+                <ReportDashboardPanel api={api} taskId={task.id} kind={tab} />
               </Suspense>
             ) : (
               /* Archive tab — admin stores files/images/videos (original quality);

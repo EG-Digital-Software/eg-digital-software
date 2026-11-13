@@ -314,6 +314,10 @@ export interface TaskInput {
   showSocialDashboard?: boolean;
   /** Show the Content Calendar tab on this task. */
   showContentCalendar?: boolean;
+  /** Show the SEO Dashboard, Local Listing and Azure Performance tabs. */
+  showSeoDashboard?: boolean;
+  showLocalListing?: boolean;
+  showAzurePerformance?: boolean;
 }
 
 export async function ensureTask(customerId: string, taskId: string) {
@@ -357,6 +361,9 @@ export async function createTask(customerId: string, input: TaskInput, createdBy
         completedAt: completed ? new Date() : null,
         showSocialDashboard: input.showSocialDashboard ?? false,
         showContentCalendar: input.showContentCalendar ?? false,
+        showSeoDashboard: input.showSeoDashboard ?? false,
+        showLocalListing: input.showLocalListing ?? false,
+        showAzurePerformance: input.showAzurePerformance ?? false,
         createdById,
         assignees: input.assignees?.length
           ? {
@@ -567,6 +574,9 @@ export async function updateTask(
   if (input.priority !== undefined) data.priority = input.priority;
   if (input.showSocialDashboard !== undefined) data.showSocialDashboard = input.showSocialDashboard;
   if (input.showContentCalendar !== undefined) data.showContentCalendar = input.showContentCalendar;
+  if (input.showSeoDashboard !== undefined) data.showSeoDashboard = input.showSeoDashboard;
+  if (input.showLocalListing !== undefined) data.showLocalListing = input.showLocalListing;
+  if (input.showAzurePerformance !== undefined) data.showAzurePerformance = input.showAzurePerformance;
   if (input.startDate !== undefined) data.startDate = input.startDate ? new Date(input.startDate) : null;
   if (input.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
   if (input.bucketId !== undefined) data.bucket = { connect: { id: input.bucketId } };

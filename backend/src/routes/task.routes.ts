@@ -3,6 +3,7 @@ import multer from 'multer';
 import * as ctrl from '../controllers/task.controller.js';
 import * as social from '../controllers/social.controller.js';
 import * as content from '../controllers/content.controller.js';
+import * as report from '../controllers/report.controller.js';
 import { validate } from '../middleware/validate.js';
 import {
   createBucketSchema,
@@ -116,6 +117,8 @@ export function buildTaskRouter(readOnly = false): Router {
   router.post('/tasks/:taskId/content/posts/:postId/schedule', content.board.schedule);
   router.post('/tasks/:taskId/content/posts/:postId/unschedule', content.board.unschedule);
   router.post('/tasks/:taskId/content/posts/:postId/publish', content.board.publishNow);
+  router.get('/tasks/:taskId/reports/:kind', report.board.get);
+  router.put('/tasks/:taskId/reports/:kind', report.board.save);
   router.post('/tasks/:taskId/attachments', upload.single('file'), ctrl.addAttachment);
   router.delete('/tasks/:taskId/attachments/:attachmentId', ctrl.deleteAttachment);
 
