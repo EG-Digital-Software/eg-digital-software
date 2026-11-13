@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import * as ctrl from '../controllers/task.controller.js';
 import * as social from '../controllers/social.controller.js';
+import * as content from '../controllers/content.controller.js';
 import { validate } from '../middleware/validate.js';
 import {
   createBucketSchema,
@@ -102,6 +103,19 @@ export function buildTaskRouter(readOnly = false): Router {
   router.post('/tasks/:taskId/social/connect/:provider', social.board.connect);
   router.patch('/tasks/:taskId/social/connections/:connectionId', social.board.select);
   router.delete('/tasks/:taskId/social/connections/:connectionId', social.board.disconnect);
+  // Content Calendar (only on tasks where it is switched on). Everyone with the
+  // board views it; the team plans and schedules posts, the client (or an admin)
+  // approves them — checked in the service.
+  router.get('/tasks/:taskId/content', content.board.get);
+  router.put('/tasks/:taskId/content/auto-publish', content.board.autoPublish);
+  router.post('/tasks/:taskId/content/posts', content.board.create);
+  router.patch('/tasks/:taskId/content/posts/:postId', content.board.update);
+  router.delete('/tasks/:taskId/content/posts/:postId', content.board.remove);
+  router.post('/tasks/:taskId/content/posts/:postId/request-approval', content.board.requestApproval);
+  router.post('/tasks/:taskId/content/posts/:postId/decision', content.board.decide);
+  router.post('/tasks/:taskId/content/posts/:postId/schedule', content.board.schedule);
+  router.post('/tasks/:taskId/content/posts/:postId/unschedule', content.board.unschedule);
+  router.post('/tasks/:taskId/content/posts/:postId/publish', content.board.publishNow);
   router.post('/tasks/:taskId/attachments', upload.single('file'), ctrl.addAttachment);
   router.delete('/tasks/:taskId/attachments/:attachmentId', ctrl.deleteAttachment);
 

@@ -581,6 +581,8 @@ export interface Task {
   completedAt?: string | null;
   /** Whether this task shows the Social Media Dashboard tab (set by admin/team). */
   showSocialDashboard?: boolean;
+  /** Whether this task shows the Content Calendar tab (set by admin/team). */
+  showContentCalendar?: boolean;
   createdById?: string | null;
   createdAt: string;
   updatedAt: string;

@@ -40,6 +40,14 @@ export async function ensureDashboardTask(customerId: string, taskId: string) {
   return task;
 }
 
+/** Connecting accounts is offered on the Social Media Dashboard and on the Content Calendar. */
+async function ensureConnectTask(customerId: string, taskId: string) {
+  const task = await prisma.task.findFirst({ where: { id: taskId, customerId }, select: { id: true, showSocialDashboard: true, showContentCalendar: true } });
+  if (!task) throw ApiError.notFound('Task not found');
+  if (!task.showSocialDashboard && !task.showContentCalendar) throw ApiError.notFound('Social accounts are not used on this task');
+  return task;
+}
+
 // ─── Reading ────────────────────────────────────────────────
 
 /** Platforms a connection fills automatically (so hand-entered figures are not accepted for them). */
@@ -260,7 +268,7 @@ interface OAuthState {
 }
 
 export async function startConnect(customerId: string, taskId: string, actor: Actor, provider: string) {
-  await ensureDashboardTask(customerId, taskId);
+  await ensureConnectTask(customerId, taskId);
   if (provider !== 'meta') throw ApiError.badRequest('This platform cannot be connected yet');
   if (!meta.metaConfigured()) throw ApiError.badRequest('Connecting Meta accounts is not set up yet');
   const state = jwt.sign({ cid: customerId, tid: taskId, uid: actor.id, role: actor.type, name: actor.name, provider } satisfies OAuthState, env.JWT_SECRET, {
@@ -318,7 +326,7 @@ export async function completeMetaConnect(code: string | undefined, state: strin
 }
 
 export async function selectAssets(customerId: string, taskId: string, connectionId: string, sel: meta.MetaSelection) {
-  await ensureDashboardTask(customerId, taskId);
+  await ensureConnectTask(customerId, taskId);
   const conn = await prisma.socialConnection.findFirst({ where: { id: connectionId, customerId } });
   if (!conn) throw ApiError.notFound('Connection not found');
   const assets = conn.assets as unknown as meta.MetaAssets;
@@ -335,7 +343,7 @@ export async function selectAssets(customerId: string, taskId: string, connectio
 
 /** Disconnect: the token is removed. Figures already fetched stay so past reports keep their history. */
 export async function disconnect(customerId: string, taskId: string, connectionId: string) {
-  await ensureDashboardTask(customerId, taskId);
+  await ensureConnectTask(customerId, taskId);
   const conn = await prisma.socialConnection.findFirst({ where: { id: connectionId, customerId }, select: { id: true } });
   if (!conn) throw ApiError.notFound('Connection not found');
   await prisma.socialConnection.delete({ where: { id: conn.id } });

@@ -30,6 +30,83 @@ export interface TaskInput {
   labelIds?: string[];
   checklist?: { text: string; done?: boolean }[];
   showSocialDashboard?: boolean;
+  showContentCalendar?: boolean;
+}
+
+// ─── Content Calendar ─────────────────────────────────────
+
+export type ContentPostStatus = 'DRAFT' | 'AWAITING_APPROVAL' | 'CHANGES_REQUESTED' | 'APPROVED' | 'SCHEDULED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
+
+export interface ContentPost {
+  id: string;
+  title: string;
+  caption: string;
+  hashtags: string;
+  firstComment: string;
+  media: { url: string; name: string | null; type: string | null; size: number | null; width: number | null; height: number | null } | null;
+  platforms: string[];
+  scheduledAt: string | null;
+  timeZone: string;
+  status: ContentPostStatus;
+  approvedAt: string | null;
+  approvedByName: string | null;
+  publishedAt: string | null;
+  lastError: string | null;
+  activity: { label: string; meta: string; kind: 'info' | 'good' | 'bad' | 'plan'; at: string }[];
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Platform → link of the published post. */
+  published: Record<string, string | null>;
+  checks: { ok: boolean; title: string; detail: string }[];
+}
+
+export interface ContentPlatform {
+  key: 'fb' | 'ig';
+  name: string;
+  connected: boolean;
+  canPublish: boolean;
+  note: string;
+}
+
+export interface ContentCalendar {
+  customerName: string;
+  taskTitle: string;
+  autoPublish: boolean;
+  canEdit: boolean;
+  canApprove: boolean;
+  viewer: { name: string; role: string };
+  metaConfigured: boolean;
+  connection: {
+    id: string;
+    name: string | null;
+    status: string;
+    lastError: string | null;
+    tokenExpiresAt: string | null;
+    connectedByName: string;
+    connectedAt: string;
+    scopes: string | null;
+    assets: { pages: { id: string; name: string; ig: { id: string; username: string } | null }[] };
+    selected: { pageId?: string | null; igId?: string | null; adAccountId?: string | null } | null;
+  } | null;
+  platforms: ContentPlatform[];
+  timeZones: string[];
+  posts: ContentPost[];
+  log: { id: string; postId: string; post: string; platform: string; result: 'PUBLISHED' | 'FAILED'; permalink: string | null; error: string | null; trigger: string; at: string }[];
+  attachments: { id: string; fileName: string; url: string; size: number; contentType: string | null; createdAt: string }[];
+}
+
+export interface ContentPostInput {
+  title?: string;
+  caption?: string;
+  hashtags?: string;
+  firstComment?: string;
+  attachmentId?: string | null;
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
+  platforms?: string[];
+  scheduledAt?: string | null;
+  timeZone?: string;
 }
 
 const unwrap = <T>(p: Promise<{ data: ApiEnvelope<T> }>) => p.then((r) => r.data.data);
@@ -214,6 +291,19 @@ export function taskApi(base: string) {
       unwrap<unknown>(api.patch(`${base}/tasks/${taskId}/social/connections/${connectionId}`, body, { timeout: 180_000 })),
     disconnectSocial: (taskId: string, connectionId: string) =>
       unwrap<unknown>(api.delete(`${base}/tasks/${taskId}/social/connections/${connectionId}`)),
+
+    // Content Calendar (tasks where it is switched on).
+    contentCalendar: (taskId: string) => unwrap<ContentCalendar>(api.get(`${base}/tasks/${taskId}/content`)),
+    setContentAutoPublish: (taskId: string, on: boolean) =>
+      unwrap<{ autoPublish: boolean }>(api.put(`${base}/tasks/${taskId}/content/auto-publish`, { on })),
+    createContentPost: (taskId: string, body: ContentPostInput) => unwrap<{ id: string }>(api.post(`${base}/tasks/${taskId}/content/posts`, body)),
+    updateContentPost: (taskId: string, postId: string, body: ContentPostInput) =>
+      unwrap<{ ok: true }>(api.patch(`${base}/tasks/${taskId}/content/posts/${postId}`, body)),
+    deleteContentPost: (taskId: string, postId: string) => unwrap<{ ok: true }>(api.delete(`${base}/tasks/${taskId}/content/posts/${postId}`)),
+    contentPostAction: (taskId: string, postId: string, action: 'request-approval' | 'schedule' | 'unschedule' | 'publish') =>
+      unwrap<{ ok: true }>(api.post(`${base}/tasks/${taskId}/content/posts/${postId}/${action}`, {})),
+    decideContentPost: (taskId: string, postId: string, approve: boolean, note?: string) =>
+      unwrap<{ ok: true }>(api.post(`${base}/tasks/${taskId}/content/posts/${postId}/decision`, { approve, note })),
 
     // Attachments
     addAttachment: async (taskId: string, file: File, onProgress?: UploadProgress) => {

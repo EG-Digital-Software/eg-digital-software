@@ -4,6 +4,7 @@ import { Role } from '@prisma/client';
 import * as ctrl from '../controllers/portal.controller.js';
 import * as teamRoles from '../controllers/teamRole.controller.js';
 import * as social from '../controllers/social.controller.js';
+import * as content from '../controllers/content.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { listEmployeeCustomerQuerySchema } from '../validators/client.validator.js';
@@ -62,6 +63,17 @@ router.post('/tasks/tasks/:taskId/social/sync', social.employee.sync);
 router.post('/tasks/tasks/:taskId/social/connect/:provider', social.employee.connect);
 router.patch('/tasks/tasks/:taskId/social/connections/:connectionId', social.employee.select);
 router.delete('/tasks/tasks/:taskId/social/connections/:connectionId', social.employee.disconnect);
+// Content Calendar — same as the admin board, scoped to the member's tasks.
+router.get('/tasks/tasks/:taskId/content', content.employee.get);
+router.put('/tasks/tasks/:taskId/content/auto-publish', content.employee.autoPublish);
+router.post('/tasks/tasks/:taskId/content/posts', content.employee.create);
+router.patch('/tasks/tasks/:taskId/content/posts/:postId', content.employee.update);
+router.delete('/tasks/tasks/:taskId/content/posts/:postId', content.employee.remove);
+router.post('/tasks/tasks/:taskId/content/posts/:postId/request-approval', content.employee.requestApproval);
+router.post('/tasks/tasks/:taskId/content/posts/:postId/decision', content.employee.decide);
+router.post('/tasks/tasks/:taskId/content/posts/:postId/schedule', content.employee.schedule);
+router.post('/tasks/tasks/:taskId/content/posts/:postId/unschedule', content.employee.unschedule);
+router.post('/tasks/tasks/:taskId/content/posts/:postId/publish', content.employee.publishNow);
 router.post('/tasks/tasks/:taskId/attachments', upload.single('file'), ctrl.employeeAddAttachment);
 router.delete('/tasks/tasks/:taskId/attachments/:attachmentId', ctrl.employeeDeleteAttachment);
 // Raise an approval request (subject/message + optional files). Deciding stays admin/customer-only.

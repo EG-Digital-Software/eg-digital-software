@@ -100,7 +100,7 @@ interface Props {
   newSince?: NewSince | null;
 }
 
-type WhatsNewTarget = 'chat' | 'details' | 'attachments' | 'approval' | 'access' | 'archive' | 'social' | null;
+type WhatsNewTarget = 'chat' | 'details' | 'attachments' | 'approval' | 'access' | 'archive' | 'social' | 'content' | null;
 interface WhatsNewItem {
   key: string;
   icon: React.ElementType;
@@ -185,6 +185,7 @@ interface Draft {
   labelIds: string[];
   checklist: { text: string; done: boolean }[];
   showSocialDashboard: boolean;
+  showContentCalendar: boolean;
 }
 
 
@@ -201,6 +202,7 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
 
 // The Social Media Dashboard is a large page — only fetched when its tab is opened.
 const SocialDashboardPanel = lazy(() => import('./SocialDashboardPanel'));
+const ContentCalendarPanel = lazy(() => import('./ContentCalendarPanel'));
 
 const toDateInput = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : '');
 const toIso = (d: string) => (d ? new Date(d + 'T00:00:00').toISOString() : '');
@@ -225,6 +227,7 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
       labelIds: task.labels.map((l) => l.id),
       checklist: task.checklist.map((c) => ({ text: c.text, done: c.done })),
       showSocialDashboard: !!task.showSocialDashboard,
+      showContentCalendar: !!task.showContentCalendar,
     };
   }
   return {
@@ -239,6 +242,7 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
     labelIds: [],
     checklist: [],
     showSocialDashboard: false,
+    showContentCalendar: false,
   };
 }
 
@@ -296,7 +300,7 @@ export function TaskDialog({
     : `/${me?.role === 'CLIENT' ? 'client' : 'employee'}/account?tab=pin`;
 
   const [draft, setDraft] = useState<Draft>(() => draftFromTask(task, createBucketId, buckets[0]?.id ?? ''));
-  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'social' | 'archive'>('details');
+  const [tab, setTab] = useState<'details' | 'attachments' | 'approval' | 'access' | 'social' | 'content' | 'archive'>('details');
   // The Social Media Dashboard tab is per task: an admin or team member ticks it
   // in the form; the client sees the tab when it is on but cannot switch it.
   const canToggleSocial = !!me && me.role !== 'CLIENT';
@@ -366,6 +370,7 @@ export function TaskDialog({
   });
   const liveTask = taskQ.data ?? task;
   const showSocial = canToggleSocial ? draft.showSocialDashboard : !!liveTask?.showSocialDashboard;
+  const showContent = canToggleSocial ? draft.showContentCalendar : !!liveTask?.showContentCalendar;
   const invalidateTask = () => qc.invalidateQueries({ queryKey: taskKey });
 
   // People who can be @mentioned in this task's chat — admins, team members and
@@ -815,6 +820,7 @@ export function TaskDialog({
       labelIds: draft.labelIds,
       checklist: draft.checklist,
       showSocialDashboard: draft.showSocialDashboard,
+      showContentCalendar: draft.showContentCalendar,
     });
   }
 
@@ -1141,6 +1147,11 @@ export function TaskDialog({
                   Social Media Dashboard
                 </TabPill>
               )}
+              {isEdit && showContent && (
+                <TabPill active={tab === 'content'} onClick={() => setTab('content')} icon={<Calendar className="h-4 w-4" />}>
+                  Content Calendar
+                </TabPill>
+              )}
               {isEdit && (
                 <TabPill active={tab === 'archive'} onClick={() => setTab('archive')} icon={<Archive className="h-4 w-4" />} dot={tabHasDot('archive')}>
                   Archive{liveTask && liveTask.archive && liveTask.archive.length > 0 ? ` (${liveTask.archive.length})` : ''}
@@ -1150,7 +1161,7 @@ export function TaskDialog({
 
             {/* The Social Media Dashboard tab can be switched off while open
                 (by the admin elsewhere, for a client) — fall back to the details. */}
-            {tab === 'details' || (tab === 'social' && !showSocial) ? (
+            {tab === 'details' || (tab === 'social' && !showSocial) || (tab === 'content' && !showContent) ? (
               <div className="mt-5 space-y-5">
                 {/* Field grid */}
                 <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -1213,6 +1224,23 @@ export function TaskDialog({
                             const on = e.target.checked;
                             update({ showSocialDashboard: on }, { showSocialDashboard: on });
                             if (!on && tab === 'social') setTab('details');
+                          }}
+                        />
+                        Show this tab on this task
+                      </label>
+                    </Field>
+                  )}
+                  {canToggleSocial && (
+                    <Field label="Content Calendar" hint="Tick to show the Content Calendar tab on this task: plan posts, get the client's approval and publish them to the client's Facebook and Instagram. Only an admin or team member can switch it; the client sees the tab when it is on.">
+                      <label className="flex h-10 cursor-pointer items-center gap-2.5 rounded-md border border-input px-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                          checked={draft.showContentCalendar}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            update({ showContentCalendar: on }, { showContentCalendar: on });
+                            if (!on && tab === 'content') setTab('details');
                           }}
                         />
                         Show this tab on this task
@@ -1376,6 +1404,11 @@ export function TaskDialog({
               /* Social Media Dashboard — the full dashboard page, loaded on demand. */
               <Suspense fallback={<div className="mt-5 py-16 text-center text-sm text-muted-foreground">Loading dashboard…</div>}>
                 <SocialDashboardPanel api={api} taskId={task.id} />
+              </Suspense>
+            ) : tab === 'content' && task ? (
+              /* Content Calendar — plan, approve and publish posts, loaded on demand. */
+              <Suspense fallback={<div className="mt-5 py-16 text-center text-sm text-muted-foreground">Loading content calendar…</div>}>
+                <ContentCalendarPanel api={api} taskId={task.id} />
               </Suspense>
             ) : (
               /* Archive tab — admin stores files/images/videos (original quality);

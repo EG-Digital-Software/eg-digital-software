@@ -21,6 +21,8 @@ export const FEATURE_UPDATES: FeatureUpdate[] = [
   { id: 'access-point-pin', name: 'Access Point PIN lock', addedAt: '2026-11-09', tab: 'access' },
   // No `tab`: the Social Media Dashboard tab only exists on tasks where it is ticked.
   { id: 'social-media-dashboard', name: 'Social Media Dashboard', addedAt: '2026-11-12' },
+  // No `tab`: the Content Calendar tab only exists on tasks where it is ticked.
+  { id: 'content-calendar', name: 'Content Calendar', addedAt: '2026-11-13' },
 ];
 
 const SHOW_DAYS = 30;

@@ -6,6 +6,7 @@ import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
 import { runTokenCleanup } from '../services/housekeeping.service.js';
 import { runAdvanceBilling } from '../services/recurringBilling.service.js';
 import { runInvoiceRollover } from '../services/invoice.service.js';
+import { runDueContentPosts } from '../services/content.service.js';
 
 /**
  * Registers scheduled jobs. Runs in the app process (fine for a single App
@@ -55,7 +56,21 @@ export function startScheduler() {
     runInvoiceRollover().catch((err) => logger.error({ err }, 'Invoice rollover job failed'));
   });
 
+  // Content Calendar auto-publish: every minute, publish approved posts whose
+  // scheduled time has come (only on tasks with auto-publish on). A run still
+  // going when the next minute starts is skipped, so a post is never sent twice.
+  let contentRunning = false;
+  cron.schedule('* * * * *', () => {
+    if (contentRunning) return;
+    contentRunning = true;
+    runDueContentPosts()
+      .catch((err) => logger.error({ err }, 'Content auto-publish job failed'))
+      .finally(() => {
+        contentRunning = false;
+      });
+  });
+
   logger.info(
-    'Scheduler started — token cleanup 03:00, advance billing 06:00, invoice rollover 06:15, invoice overdue sweep 07:30, licence reminders 08:00'
+    'Scheduler started — content auto-publish every minute, token cleanup 03:00, advance billing 06:00, invoice rollover 06:15, invoice overdue sweep 07:30, licence reminders 08:00'
   );
 }

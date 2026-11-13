@@ -12,19 +12,19 @@ import { asyncHandler, ok } from '../utils/http.js';
  * portal (/employee/tasks). Only the way the customer is found differs.
  */
 
-type Resolver = (req: Request) => Promise<string>;
+export type Resolver = (req: Request) => Promise<string>;
 
 /** Admin board (customer in the path) or client portal (customer of the signed-in client). */
-const boardCustomer: Resolver = async (req) => {
+export const boardCustomer: Resolver = async (req) => {
   if (req.params.clientId) return taskService.resolveCustomerId(req.params.clientId);
   if (req.user?.cid) return req.user.cid;
   return clientService.resolveCustomerId(req.user!.sub);
 };
 
 /** Team portal: the customer of a task this team member is assigned to. */
-const employeeCustomer: Resolver = (req) => taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
+export const employeeCustomer: Resolver = (req) => taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
 
-async function actor(req: Request): Promise<social.Actor> {
+export async function actor(req: Request): Promise<social.Actor> {
   const { sub, role, email } = req.user!;
   const acc = await findById(role, sub);
   return { id: sub, type: role, name: acc ? `${acc.firstName} ${acc.lastName}`.trim() : email };

@@ -387,6 +387,7 @@ model Customer {
   taskLabels         TaskLabel[]
   appointments       Appointment[]
   socialConnections  SocialConnection[]
+  contentPosts       ContentPost[]
   socialMetrics      SocialMetricDaily[]
   socialPosts        SocialPost[]
   socialCampaigns    SocialCampaignDaily[]
@@ -862,6 +863,12 @@ model Task {
   /// Whether this task shows the Social Media Dashboard tab. Ticked per task by
   /// an admin or team member; the client sees the tab but cannot switch it.
   showSocialDashboard   Boolean      @default(false)
+  /// Whether this task shows the Content Calendar tab. Ticked per task by an
+  /// admin or team member, like the Social Media Dashboard.
+  showContentCalendar   Boolean      @default(false)
+  /// Content Calendar: approved, scheduled posts publish on their own at their
+  /// time while this is on. Switched by the admin/team in the calendar.
+  contentAutoPublish    Boolean      @default(true)
   /// AdminUser id that created the task (for the activity trail).
   createdById           String?
   createdAt             DateTime     @default(now())
@@ -878,6 +885,7 @@ model Task {
   timeEntries        TaskTimeEntry[]
   timeSheetPoolTasks TimeSheetPoolTask[]
   socialDashboard    SocialDashboard?
+  contentPosts       ContentPost[]
 
   @@index([customerId])
   @@index([bucketId])
@@ -1384,4 +1392,73 @@ model SocialPeriodValue {
 
   @@unique([customerId, platform, metric, periodKey])
   @@index([customerId, periodKey])
+}
+
+/// Content Calendar post: a design plus caption the team plans on a task's
+/// calendar. Only a post the client (or an admin) approved can be scheduled;
+/// at its time it is published to the chosen platforms through the customer's
+/// connected accounts (SocialConnection). Changing the design or caption after
+/// approval sends it back for approval.
+model ContentPost {
+  id             String    @id @default(uuid())
+  task           Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId         String
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId     String
+  title          String
+  caption        String    @default("")
+  hashtags       String    @default("")
+  firstComment   String    @default("")
+  /// The design: a file stored with the task (usually picked from Attachments).
+  mediaUrl       String?
+  mediaName      String?
+  mediaType      String?
+  mediaSize      Int?
+  mediaWidth     Int?
+  mediaHeight    Int?
+  /// Platform keys: fb, ig.
+  platforms      String[]  @default([])
+  /// Planned publish moment (UTC) and the time zone it was chosen in.
+  scheduledAt    DateTime?
+  timeZone       String    @default("Australia/Sydney")
+  /// DRAFT, AWAITING_APPROVAL, CHANGES_REQUESTED, APPROVED, SCHEDULED,
+  /// PUBLISHING, PUBLISHED, FAILED.
+  status         String    @default("DRAFT")
+  approvedAt     DateTime?
+  approvedByName String?
+  publishedAt    DateTime?
+  lastError      String?
+  /// [{ label, meta, kind, at }] — who did what, oldest first.
+  activity       Json      @default("[]")
+  createdById    String?
+  createdByName  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  logs ContentPublishLog[]
+
+  @@index([taskId, scheduledAt])
+  @@index([customerId])
+  @@index([status, scheduledAt])
+}
+
+/// One publish attempt of a Content Calendar post on one platform.
+model ContentPublishLog {
+  id         String      @id @default(uuid())
+  post       ContentPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId     String
+  taskId     String
+  customerId String
+  platform   String
+  /// PUBLISHED or FAILED.
+  result     String
+  externalId String?
+  permalink  String?
+  error      String?
+  /// "auto" (the scheduler) or the name of the person who pressed Publish now.
+  trigger    String
+  createdAt  DateTime    @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([postId])
 }
