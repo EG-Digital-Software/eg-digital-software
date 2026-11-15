@@ -874,6 +874,9 @@ model Task {
   showSeoDashboard      Boolean      @default(false)
   showLocalListing      Boolean      @default(false)
   showAzurePerformance  Boolean      @default(false)
+  /// Team the task is assigned to (Team Alpha/Beta/Gamma/Echo), set by an admin
+  /// or team member. The client sees this name instead of the employees.
+  assignedTeam          String?
   /// AdminUser id that created the task (for the activity trail).
   createdById           String?
   createdAt             DateTime     @default(now())

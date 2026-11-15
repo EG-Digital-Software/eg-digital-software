@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { ArrowUpDown, Pencil, Trash2, Eye } from 'lucide-react';
 import type { Task, TaskBucket } from '@/types';
-import { cn, formatDate, initials } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
 import { PRIORITY_META, PROGRESS_META, dueState, DUE_META } from '@/lib/tasks';
 import { NewActivityDot } from './NewActivityDot';
 
@@ -116,21 +115,8 @@ export function GridView({
                   <span className={cn(done && 'text-muted-foreground line-through')}>{t.title}</span>
                 </TableCell>
                 <TableCell className="text-sm">
-                  {t.assignees.length === 0 ? (
-                    <span className="text-muted-foreground">—</span>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <div className="flex -space-x-2">
-                        {t.assignees.slice(0, 3).map((a) => (
-                          <Avatar key={a.userId} className="h-6 w-6 border-2 border-card">
-                            {a.avatarUrl && <AvatarImage src={a.avatarUrl} alt={a.name} />}
-                            <AvatarFallback className="text-[9px]">{initials(a.name)}</AvatarFallback>
-                          </Avatar>
-                        ))}
-                      </div>
-                      <span className="min-w-0 truncate">{t.assignees.map((a) => a.name).join(', ')}</span>
-                    </div>
-                  )}
+                  {/* Everyone (admin, team, client) sees the assigned team here, not the employees. */}
+                  {t.assignedTeam ? <span className="font-medium">{t.assignedTeam}</span> : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell>
                   <span className="inline-flex items-center gap-1.5 text-sm">

@@ -36,6 +36,7 @@ import {
   PROGRESS_ORDER,
   labelColor,
   LABEL_COLOR_TOKENS,
+  TASK_TEAMS,
 } from '@/lib/tasks';
 import { isTaskUnseen, newSinceFromSig, taskActivityMeta, taskRowSeenKey, writeSeen, type NewSince } from '@/lib/taskSeen';
 import { GridView } from './GridView';
@@ -74,6 +75,8 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string; newSince?: NewSince | null } | null>(null);
 
   const meId = useAuth((s) => s.user?.id);
+  // The client filters by the assigned team; employee names stay hidden from them.
+  const isClient = useAuth((s) => s.user?.role === 'CLIENT');
   // Poll the board so another person's change surfaces here (and lights up the
   // affected task row) without a manual refresh — paused while we're mutating.
   const boardQ = useQuery({
@@ -170,12 +173,13 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
     const q = filters.search.trim().toLowerCase();
     const match = (t: Task) =>
       (!q || t.title.toLowerCase().includes(q) || (t.description ?? '').toLowerCase().includes(q)) &&
-      (!filters.assignee || t.assignees.some((a) => a.userId === filters.assignee)) &&
+      (!filters.assignee ||
+        (isClient ? t.assignedTeam === filters.assignee : t.assignees.some((a) => a.userId === filters.assignee))) &&
       (!filters.priority || t.priority === filters.priority) &&
       (!filters.progress || t.progress === filters.progress) &&
       (!filters.labelId || t.labels.some((l) => l.id === filters.labelId));
     return { ...board, buckets: board.buckets.map((b) => ({ ...b, tasks: b.tasks.filter(match) })) };
-  }, [board, filters]);
+  }, [board, filters, isClient]);
 
   const activeTask = useMemo(() => {
     if (!dialog?.taskId || !board) return null;
@@ -265,12 +269,12 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
           <DropdownMenuContent align="start" className="w-64 p-3">
             <DropdownMenuLabel className="px-0">Filter tasks</DropdownMenuLabel>
             <div className="mt-2 space-y-2.5">
-              <FilterRow label="Assignee">
+              <FilterRow label={isClient ? 'Team' : 'Assignee'}>
                 <Select value={filters.assignee} onChange={(e) => setFilters((f) => ({ ...f, assignee: e.target.value }))} className="h-8">
-                  <option value="">Anyone</option>
-                  {users.map((u) => (
-                    <option key={u.userId} value={u.userId}>{u.name}</option>
-                  ))}
+                  <option value="">{isClient ? 'Any team' : 'Anyone'}</option>
+                  {isClient
+                    ? TASK_TEAMS.map((t) => <option key={t} value={t}>{t}</option>)
+                    : users.map((u) => <option key={u.userId} value={u.userId}>{u.name}</option>)}
                 </Select>
               </FilterRow>
               <FilterRow label="Priority">

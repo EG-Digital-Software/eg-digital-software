@@ -587,6 +587,8 @@ export interface Task {
   showSeoDashboard?: boolean;
   showLocalListing?: boolean;
   showAzurePerformance?: boolean;
+  /** Team the task is assigned to; the client sees this instead of the employees. */
+  assignedTeam?: string | null;
   createdById?: string | null;
   createdAt: string;
   updatedAt: string;

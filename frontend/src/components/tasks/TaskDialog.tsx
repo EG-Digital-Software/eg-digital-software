@@ -12,6 +12,7 @@ import {
   Maximize2,
   FileText,
   UserPlus,
+  Users,
   X,
   Send,
   Download,
@@ -69,7 +70,7 @@ import { cn, downloadOnClick, formatDate, initials, mediaUrl } from '@/lib/utils
 import { downloadChatDoc, printChatPdf } from '@/lib/chatExport';
 import { renderMessageBody, stripMentions } from '@/lib/mentions';
 import { NotoEmoji, withNotoEmoji } from '@/lib/emoji';
-import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER } from '@/lib/tasks';
+import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER, TASK_TEAMS } from '@/lib/tasks';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input, Textarea, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -192,6 +193,7 @@ interface Draft {
   showSeoDashboard: boolean;
   showLocalListing: boolean;
   showAzurePerformance: boolean;
+  assignedTeam: string;
 }
 
 
@@ -238,6 +240,7 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
       showSeoDashboard: !!task.showSeoDashboard,
       showLocalListing: !!task.showLocalListing,
       showAzurePerformance: !!task.showAzurePerformance,
+      assignedTeam: task.assignedTeam ?? '',
     };
   }
   return {
@@ -256,6 +259,7 @@ function draftFromTask(task: Task | null | undefined, createBucketId: string | u
     showSeoDashboard: false,
     showLocalListing: false,
     showAzurePerformance: false,
+    assignedTeam: '',
   };
 }
 
@@ -317,6 +321,10 @@ export function TaskDialog({
   // The Social Media Dashboard tab is per task: an admin or team member ticks it
   // in the form; the client sees the tab when it is on but cannot switch it.
   const canToggleSocial = !!me && me.role !== 'CLIENT';
+  // The client is shown the assigned team's name, never the employees.
+  const isClientViewer = me?.role === 'CLIENT';
+  // A team tag in the chat is for the employees assigned to this task.
+  const amAssigned = !!meId && !!task?.assignees.some((a) => a.userId === meId);
   const [approvalSubject, setApprovalSubject] = useState('');
   const [approvalMessage, setApprovalMessage] = useState('');
   const [approvalFiles, setApprovalFiles] = useState<File[]>([]);
@@ -389,11 +397,12 @@ export function TaskDialog({
   const showAzure = canToggleSocial ? draft.showAzurePerformance : !!liveTask?.showAzurePerformance;
   const invalidateTask = () => qc.invalidateQueries({ queryKey: taskKey });
 
-  // People who can be @mentioned in this task's chat — admins, team members and
-  // this customer's clients. Fetched per task (the board-wide `assignableUsers`
-  // prop is admins + team only and drives the assignee picker, not mentions).
+  // Who can be @mentioned in this task's chat: the admin and the task's assigned
+  // team — never an employee or client by name. Fetched per task (the board-wide
+  // `assignableUsers` prop drives the assignee picker, not mentions).
   const mentionUsersQ = useQuery({
-    queryKey: ['mentionable', scopeKey, task?.id],
+    // Keyed on the team too, so a team change shows up in the list straight away.
+    queryKey: ['mentionable', scopeKey, task?.id, liveTask?.assignedTeam ?? ''],
     queryFn: () => api.mentionableUsers(task!.id),
     enabled: open && isEdit && !!task?.id,
     staleTime: 60_000,
@@ -840,6 +849,7 @@ export function TaskDialog({
       showSeoDashboard: draft.showSeoDashboard,
       showLocalListing: draft.showLocalListing,
       showAzurePerformance: draft.showAzurePerformance,
+      assignedTeam: draft.assignedTeam || null,
     });
   }
 
@@ -1092,8 +1102,19 @@ export function TaskDialog({
               </div>
             )}
 
-            {/* Assignees */}
-            <div className="mt-3 flex items-center gap-2">
+            {/* Assignees — the client sees only the assigned team, never the employees. */}
+            {isClientViewer ? (
+              <div className="mt-3 flex items-center gap-2">
+                <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                {liveTask?.assignedTeam ? (
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">{liveTask.assignedTeam}</span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">No team assigned yet</span>
+                )}
+              </div>
+            ) : (
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-2">
               <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="flex items-center gap-1.5">
                 <div className="flex -space-x-2">
@@ -1142,6 +1163,24 @@ export function TaskDialog({
                 )}
               </div>
             </div>
+            {/* Assign Team Name — what the client sees instead of the employees. */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="assigned-team" className="text-xs font-medium text-muted-foreground">Assign Team Name</label>
+              <Select
+                id="assigned-team"
+                value={draft.assignedTeam}
+                disabled={locked}
+                onChange={(e) => update({ assignedTeam: e.target.value }, { assignedTeam: e.target.value || null })}
+                className="h-8 w-40"
+              >
+                <option value="">No team</option>
+                {TASK_TEAMS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </Select>
+            </div>
+            </div>
+            )}
 
             {/* Tabs */}
             <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -1639,7 +1678,7 @@ export function TaskDialog({
                               <ReplyQuote comment={quoted} className="w-full" onClick={quoted ? () => jumpToMessage(quoted.id) : undefined} />
                             )}
                             {c.body && (
-                              <p className={cn('whitespace-pre-wrap break-words', c.replyToId && 'px-2 pb-1 pt-1.5')}>{renderMessageBody(c.body, { meId })}</p>
+                              <p className={cn('whitespace-pre-wrap break-words', c.replyToId && 'px-2 pb-1 pt-1.5')}>{renderMessageBody(c.body, { meId, inTeam: amAssigned })}</p>
                             )}
                           </div>
                         )}

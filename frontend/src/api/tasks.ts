@@ -34,6 +34,7 @@ export interface TaskInput {
   showSeoDashboard?: boolean;
   showLocalListing?: boolean;
   showAzurePerformance?: boolean;
+  assignedTeam?: string | null;
 }
 
 /** Report tabs: SEO Dashboard, Local Listing, Azure Performance. */

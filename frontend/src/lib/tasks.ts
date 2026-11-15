@@ -31,6 +31,9 @@ export const PRIORITY_META: Record<
   LOW: { label: 'Low', badge: 'bg-slate-100 text-slate-600 border-slate-200', bar: 'bg-slate-400', text: 'text-slate-500', rank: 3, icon: ChevronDown },
 };
 
+/** Teams a task can be assigned to. The client sees this name instead of the employees. */
+export const TASK_TEAMS = ['Team Alpha', 'Team Beta', 'Team Gamma', 'Team Echo'] as const;
+
 export const PRIORITY_ORDER: TaskPriority[] = ['URGENT', 'IMPORTANT', 'MEDIUM', 'LOW'];
 
 /** Colour palette for labels — token → Tailwind classes. */

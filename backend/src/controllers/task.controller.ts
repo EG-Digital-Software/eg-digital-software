@@ -41,9 +41,9 @@ export const assignableUsers = asyncHandler(async (_req: Request, res: Response)
   return ok(res, await taskService.listAssignableUsers());
 });
 
-/** People mentionable in a task's chat — admins, team, and (for staff) clients. */
+/** People mentionable in a task's chat — the admin and the task's assigned team. */
 export const mentionableUsers = asyncHandler(async (req: Request, res: Response) => {
-  return ok(res, await taskService.listMentionableUsers(await resolve(req), req.user!.role));
+  return ok(res, await taskService.listMentionableUsers(await resolve(req), req.params.taskId));
 });
 
 // ─── Buckets ──────────────────────────────────────────────
@@ -75,6 +75,7 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     delete body.showSeoDashboard;
     delete body.showLocalListing;
     delete body.showAzurePerformance;
+    delete body.assignedTeam;
   }
   const task = await taskService.createTask(await resolve(req), body, req.user?.sub);
   return ok(res, task, 'Task created', 201);
@@ -168,6 +169,7 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     delete body.showSeoDashboard;
     delete body.showLocalListing;
     delete body.showAzurePerformance;
+    delete body.assignedTeam;
   }
   // Stamp the notes author only when the notes actually change.
   const actorName = body.description !== undefined ? (await author(req)).name : undefined;

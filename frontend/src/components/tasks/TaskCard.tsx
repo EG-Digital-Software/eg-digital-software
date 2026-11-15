@@ -1,4 +1,5 @@
-import { MessageSquare, Paperclip, ListChecks } from 'lucide-react';
+import { MessageSquare, Paperclip, ListChecks, Users } from 'lucide-react';
+import { useAuth } from '@/store/auth';
 import type { Task } from '@/types';
 import { cn, formatDate, initials } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/misc';
@@ -24,6 +25,8 @@ export function TaskCard({
   const done = task.progress === 'COMPLETED';
   const StatusIcon = PROGRESS_META[task.progress].icon;
   const PriorityIcon = priority.icon;
+  // The client sees the assigned team's name, never the employees.
+  const isClient = useAuth((s) => s.user?.role === 'CLIENT');
 
   return (
     <button
@@ -89,7 +92,14 @@ export function TaskCard({
         )}
       </div>
 
-      {task.assignees.length > 0 && (
+      {isClient ? (
+        task.assignedTeam && (
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-primary">
+            <Users className="h-3.5 w-3.5" />
+            {task.assignedTeam}
+          </div>
+        )
+      ) : task.assignees.length > 0 && (
         <div className="mt-2.5 flex items-center pl-2">
           <div className="flex -space-x-2">
             {task.assignees.slice(0, 4).map((a) => (

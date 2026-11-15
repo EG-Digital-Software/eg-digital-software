@@ -27,6 +27,7 @@ export const FEATURE_UPDATES: FeatureUpdate[] = [
   { id: 'seo-dashboard', name: 'SEO Dashboard', addedAt: '2026-11-13' },
   { id: 'local-listing', name: 'Local Listing', addedAt: '2026-11-13' },
   { id: 'azure-performance', name: 'Azure Performance', addedAt: '2026-11-13' },
+  { id: 'assign-team', name: 'Assign Team Name', addedAt: '2026-11-15' },
 ];
 
 const SHOW_DAYS = 30;

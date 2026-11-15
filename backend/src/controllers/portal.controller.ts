@@ -54,7 +54,7 @@ export const employeeAssignableUsers = asyncHandler(async (_req: Request, res: R
 /** Mentionable people for one of the employee's tasks — scoped to that task's customer. */
 export const employeeMentionableUsers = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
-  return ok(res, await taskService.listMentionableUsers(customerId, req.user!.role));
+  return ok(res, await taskService.listMentionableUsers(customerId, req.params.taskId));
 });
 
 /** Display name + role for the signed-in employee, for comment attribution. */
@@ -111,8 +111,8 @@ export const employeeSetProgress = asyncHandler(async (req: Request, res: Respon
 export const employeeUpdateTask = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
   // Employees can update the work fields but not the schedule/priority/assignees.
-  const { startDate, dueDate, priority, assignees, bucketId, labelIds, ...allowed } = req.body ?? {};
-  void startDate; void dueDate; void priority; void assignees; void bucketId; void labelIds;
+  const { startDate, dueDate, priority, assignees, assignedTeam, bucketId, labelIds, ...allowed } = req.body ?? {};
+  void startDate; void dueDate; void priority; void assignees; void assignedTeam; void bucketId; void labelIds;
   // Stamp the notes author only when the notes actually change.
   const actorName = allowed.description !== undefined ? (await employeeAuthor(req)).name : undefined;
   return ok(res, await taskService.updateTask(customerId, req.params.taskId, allowed, actorName));

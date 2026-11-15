@@ -33,6 +33,10 @@ export const reorderBucketsSchema = z.object({
   orderedIds: z.array(z.string().min(1)).min(1),
 });
 
+/** Teams a task can be assigned to; the client sees this name, not the employees. */
+export const TASK_TEAMS = ['Team Alpha', 'Team Beta', 'Team Gamma', 'Team Echo'] as const;
+const assignedTeam = z.enum(TASK_TEAMS);
+
 export const createTaskSchema = z.object({
   bucketId: z.string().min(1),
   title: z.string().min(1).max(300),
@@ -49,6 +53,7 @@ export const createTaskSchema = z.object({
   showSeoDashboard: z.boolean().optional(),
   showLocalListing: z.boolean().optional(),
   showAzurePerformance: z.boolean().optional(),
+  assignedTeam: assignedTeam.nullish(),
 });
 
 export const updateTaskSchema = z.object({
@@ -67,6 +72,7 @@ export const updateTaskSchema = z.object({
   showSeoDashboard: z.boolean().optional(),
   showLocalListing: z.boolean().optional(),
   showAzurePerformance: z.boolean().optional(),
+  assignedTeam: assignedTeam.nullish(),
 });
 
 export const moveTaskSchema = z.object({

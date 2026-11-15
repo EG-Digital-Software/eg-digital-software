@@ -12,7 +12,42 @@ import { notify } from './notification.service.js';
  * `@[Full Name](ROLE:userId)`. Storing them in the existing `body` column keeps
  * mentions schema-free — no new table or column on the shared database.
  */
-const MENTION_RE = /@\[([^\]]+)\]\((SUPER_ADMIN|EMPLOYEE|CLIENT|SUPPLIER):([0-9a-fA-F-]+)\)/g;
+const MENTION_RE = /@\[([^\]]+)\]\((SUPER_ADMIN|EMPLOYEE|CLIENT|SUPPLIER|TEAM):([0-9a-fA-F-]+)\)/g;
+
+/**
+ * Employees are never named in a task's chat: everyone sees the task's assigned
+ * team instead (or this, when no team is set). A team is tagged in the chat as
+ * `@[Team Alpha](TEAM:taskId)` and reaches the employees assigned to the task.
+ */
+const STAFF_FALLBACK_NAME = 'EG Digital Team';
+const teamName = (task: { assignedTeam?: string | null }) => task.assignedTeam || STAFF_FALLBACK_NAME;
+
+/** The name shown for a chat author: the assigned team for an employee. */
+function chatName(task: { assignedTeam?: string | null }, who: { type: Role | string; name: string }): string {
+  return who.type === Role.EMPLOYEE ? teamName(task) : who.name;
+}
+
+/** A message body with every employee tag shown as the task's team tag. */
+function maskEmployeeMentions(body: string, task: { id: string; assignedTeam?: string | null }): string {
+  return body.replace(MENTION_RE, (whole, _name, type) =>
+    type === Role.EMPLOYEE ? `@[${teamName(task)}](TEAM:${task.id})` : whole
+  );
+}
+
+/** A chat message (and its reactions) with employee names swapped for the team. */
+function maskComment<C extends { authorType: Role; authorName: string; body: string; reactions?: { userType: Role; userName: string }[] }>(
+  task: { id: string; assignedTeam?: string | null },
+  c: C
+): C {
+  return {
+    ...c,
+    authorName: chatName(task, { type: c.authorType, name: c.authorName }),
+    body: maskEmployeeMentions(c.body, task),
+    ...(c.reactions
+      ? { reactions: c.reactions.map((r) => ({ ...r, userName: chatName(task, { type: r.userType, name: r.userName }) })) }
+      : {}),
+  };
+}
 
 /** The task board each mentioned role lands on when they open the notification. */
 const MENTION_HOME: Partial<Record<Role, string>> = {
@@ -43,25 +78,43 @@ function stripMentions(body: string): string {
 
 /** Fire-and-forget a notification to everyone tagged in a chat message. */
 function notifyMentions(
-  task: { id: string; title: string },
+  task: { id: string; title: string; assignedTeam?: string | null },
   author: { id: string; type: Role; name: string },
   body: string
 ): void {
-  const preview = stripMentions(body).replace(/\s+/g, ' ').trim();
-  for (const m of parseMentions(body)) {
-    // Tagging yourself does not notify you.
-    if (m.userId === author.id) continue;
-    notify({
-      userId: m.userId,
-      userType: m.userType,
-      type: 'TASK_MENTION',
-      title: `${author.name} mentioned you`,
-      body: preview ? `${task.title} — ${preview.slice(0, 140)}` : task.title,
-      link: MENTION_HOME[m.userType] ?? '/',
-      entityType: 'task',
-      entityId: task.id,
-    });
-  }
+  void (async () => {
+    const preview = stripMentions(maskEmployeeMentions(body, task)).replace(/\s+/g, ' ').trim();
+    const targets: Array<{ userId: string; userType: Role }> = [];
+    for (const m of parseMentions(body)) {
+      if ((m.userType as string) === 'TEAM') {
+        // A team tag reaches the employees assigned to this task.
+        if (m.userId !== task.id) continue;
+        const assignees = await prisma.taskAssignee.findMany({
+          where: { taskId: task.id, userType: Role.EMPLOYEE },
+          select: { userId: true, userType: true },
+        });
+        targets.push(...assignees);
+      } else {
+        targets.push(m);
+      }
+    }
+    const seen = new Set<string>();
+    for (const t of targets) {
+      // Tagging yourself does not notify you.
+      if (t.userId === author.id || seen.has(t.userId)) continue;
+      seen.add(t.userId);
+      notify({
+        userId: t.userId,
+        userType: t.userType,
+        type: 'TASK_MENTION',
+        title: `${chatName(task, author)} mentioned you`,
+        body: preview ? `${task.title} — ${preview.slice(0, 140)}` : task.title,
+        link: MENTION_HOME[t.userType] ?? '/',
+        entityType: 'task',
+        entityId: task.id,
+      });
+    }
+  })().catch((err) => logger.warn({ err, taskId: task.id }, 'Mention notification failed'));
 }
 
 /**
@@ -70,19 +123,19 @@ function notifyMentions(
  * reply (the mention notification covers it).
  */
 function notifyReply(
-  task: { id: string; title: string },
+  task: { id: string; title: string; assignedTeam?: string | null },
   author: { id: string; type: Role; name: string },
   original: { authorId: string; authorType: Role },
   body: string
 ): void {
   if (original.authorId === author.id) return;
   if (parseMentions(body).some((m) => m.userId === original.authorId)) return;
-  const preview = stripMentions(body).replace(/\s+/g, ' ').trim();
+  const preview = stripMentions(maskEmployeeMentions(body, task)).replace(/\s+/g, ' ').trim();
   notify({
     userId: original.authorId,
     userType: original.authorType,
     type: 'TASK_REPLY',
-    title: `${author.name} replied to your message`,
+    title: `${chatName(task, author)} replied to your message`,
     body: preview ? `${task.title} — ${preview.slice(0, 140)}` : task.title,
     link: MENTION_HOME[original.authorType] ?? '/',
     entityType: 'task',
@@ -132,12 +185,20 @@ function shapeTask<T extends { labels: { label: unknown }[] }>(task: T) {
   // accessPoint.service); every read keeps who added them and when, not the text.
   const withNotes = task as T & { notes?: { kind: string }[] };
   const notes = withNotes.notes?.map((n) => (n.kind === 'ACCESS_POINT' ? { ...n, subject: null, body: '' } : n));
+  // Employees are never named in the chat — everyone sees the assigned team.
+  const withChat = task as T & {
+    id: string;
+    assignedTeam?: string | null;
+    comments?: { authorType: Role; authorName: string; body: string; reactions?: { userType: Role; userName: string }[] }[];
+  };
+  const comments = withChat.comments?.map((c) => maskComment(withChat, c));
   return {
     ...task,
     labels: task.labels.map((l) => l.label),
     attachments,
     archive,
     ...(notes ? { notes } : {}),
+    ...(comments ? { comments } : {}),
   };
 }
 
@@ -318,6 +379,8 @@ export interface TaskInput {
   showSeoDashboard?: boolean;
   showLocalListing?: boolean;
   showAzurePerformance?: boolean;
+  /** Team shown to the client instead of the assigned employees. */
+  assignedTeam?: string | null;
 }
 
 export async function ensureTask(customerId: string, taskId: string) {
@@ -364,6 +427,7 @@ export async function createTask(customerId: string, input: TaskInput, createdBy
         showSeoDashboard: input.showSeoDashboard ?? false,
         showLocalListing: input.showLocalListing ?? false,
         showAzurePerformance: input.showAzurePerformance ?? false,
+        assignedTeam: input.assignedTeam ?? null,
         createdById,
         assignees: input.assignees?.length
           ? {
@@ -577,6 +641,7 @@ export async function updateTask(
   if (input.showSeoDashboard !== undefined) data.showSeoDashboard = input.showSeoDashboard;
   if (input.showLocalListing !== undefined) data.showLocalListing = input.showLocalListing;
   if (input.showAzurePerformance !== undefined) data.showAzurePerformance = input.showAzurePerformance;
+  if (input.assignedTeam !== undefined) data.assignedTeam = input.assignedTeam;
   if (input.startDate !== undefined) data.startDate = input.startDate ? new Date(input.startDate) : null;
   if (input.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
   if (input.bucketId !== undefined) data.bucket = { connect: { id: input.bucketId } };
@@ -768,10 +833,11 @@ export async function addComment(
     });
   }
 
-  return prisma.taskComment.findUnique({
+  const saved = await prisma.taskComment.findUnique({
     where: { id: comment.id },
     include: { attachments: { orderBy: { createdAt: 'asc' } } },
   });
+  return saved ? maskComment(task, saved) : saved;
 }
 
 /**
@@ -798,7 +864,7 @@ export async function toggleCommentReaction(
   emoji: string
 ) {
   if (!isSingleEmoji(emoji)) throw ApiError.badRequest('A reaction must be a single emoji');
-  await ensureTask(customerId, taskId);
+  const task = await ensureTask(customerId, taskId);
   const comment = await prisma.taskComment.findFirst({ where: { id: commentId, taskId } });
   if (!comment) throw ApiError.notFound('Comment not found');
 
@@ -814,7 +880,8 @@ export async function toggleCommentReaction(
         if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
       });
   }
-  return prisma.taskCommentReaction.findMany({ where: { commentId }, orderBy: { createdAt: 'asc' } });
+  const reactions = await prisma.taskCommentReaction.findMany({ where: { commentId }, orderBy: { createdAt: 'asc' } });
+  return reactions.map((r) => ({ ...r, userName: chatName(task, { type: r.userType, name: r.userName }) }));
 }
 
 export async function deleteComment(customerId: string, taskId: string, commentId: string) {
@@ -1396,46 +1463,27 @@ export async function listAssignableUsers() {
 const SYSTEM_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || 'admin@egdigital.com.au').toLowerCase();
 
 /**
- * Everyone who can be @mentioned in a task's chat.
- *  - Admins (minus the seeded system account) and team members: always listed.
- *  - Clients of *this task's* customer: listed only when the viewer is an admin
- *    or team member. A client viewer never sees any client (not even their own
- *    company's) in the tag list — clients are addressable by staff, not peers.
- * The system admin is hidden from everyone; scoping clients to the customer also
- * keeps one company's client names out of another's board.
+ * Who can be @mentioned in a task's chat — the same for every viewer (admin,
+ * team member or client): the admins (minus the seeded system account) and the
+ * task's assigned team. Employees and clients are never listed by name; tagging
+ * the team reaches the employees assigned to the task.
  */
-export async function listMentionableUsers(customerId: string, viewerRole: Role) {
-  const staffCanSeeClients = viewerRole === Role.SUPER_ADMIN || viewerRole === Role.EMPLOYEE;
-  const [admins, employees, clients] = await Promise.all([
-    prisma.adminUser.findMany({
-      where: { isActive: true, approvalStatus: 'APPROVED', email: { not: SYSTEM_ADMIN_EMAIL } },
-      select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
-      orderBy: { firstName: 'asc' },
-    }),
-    prisma.employeeUser.findMany({
-      where: { isActive: true, approvalStatus: 'APPROVED' },
-      select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
-      orderBy: { firstName: 'asc' },
-    }),
-    staffCanSeeClients
-      ? prisma.clientUser.findMany({
-          where: { isActive: true, approvalStatus: 'APPROVED', customerId },
-          select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
-          orderBy: { firstName: 'asc' },
-        })
-      : Promise.resolve([] as Array<{ id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null }>),
-  ]);
-  const shape = (u: { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null }, userType: Role) => ({
-    userId: u.id,
-    userType,
-    name: `${u.firstName} ${u.lastName}`.trim(),
-    email: u.email,
-    avatarUrl: u.avatarUrl,
+export async function listMentionableUsers(customerId: string, taskId: string) {
+  const task = await ensureTask(customerId, taskId);
+  const admins = await prisma.adminUser.findMany({
+    where: { isActive: true, approvalStatus: 'APPROVED', email: { not: SYSTEM_ADMIN_EMAIL } },
+    select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+    orderBy: { firstName: 'asc' },
   });
   return [
-    ...admins.map((u) => shape(u, Role.SUPER_ADMIN)),
-    ...employees.map((u) => shape(u, Role.EMPLOYEE)),
-    ...clients.map((u) => shape(u, Role.CLIENT)),
+    ...admins.map((u) => ({
+      userId: u.id,
+      userType: Role.SUPER_ADMIN as string,
+      // "R J ." → "R J": a lone "." last name is a placeholder.
+      name: `${u.firstName} ${u.lastName}`.replace(/\s*\.$/, '').trim(),
+      avatarUrl: u.avatarUrl,
+    })),
+    ...(task.assignedTeam ? [{ userId: task.id, userType: 'TEAM', name: task.assignedTeam, avatarUrl: null }] : []),
   ];
 }
 

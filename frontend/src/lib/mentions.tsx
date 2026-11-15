@@ -10,7 +10,7 @@ import { linkify } from '@/lib/linkify';
  * out for display and previews.
  */
 export const MENTION_RE =
-  /@\[([^\]]+)\]\((SUPER_ADMIN|EMPLOYEE|CLIENT|SUPPLIER):([0-9a-fA-F-]+)\)/g;
+  /@\[([^\]]+)\]\((SUPER_ADMIN|EMPLOYEE|CLIENT|SUPPLIER|TEAM):([0-9a-fA-F-]+)\)/g;
 
 /** Plain text with each mention collapsed to `@Full Name` (previews / export). */
 export function stripMentions(body: string): string {
@@ -18,7 +18,8 @@ export function stripMentions(body: string): string {
 }
 
 /** Render a message body, turning mention tokens into highlighted chips and links into anchors. */
-export function renderMessageBody(body: string, opts?: { meId?: string }): ReactNode {
+/** `inTeam`: the viewer is assigned to the task, so a team tag (`TEAM:taskId`) is for them too. */
+export function renderMessageBody(body: string, opts?: { meId?: string; inTeam?: boolean }): ReactNode {
   const nodes: ReactNode[] = [];
   const re = new RegExp(MENTION_RE.source, 'g');
   let last = 0;
@@ -28,7 +29,7 @@ export function renderMessageBody(body: string, opts?: { meId?: string }): React
     if (match.index > last) nodes.push(...linkify(body.slice(last, match.index), `t-${key++}`, withNotoEmoji));
     const name = match[1];
     const id = match[3];
-    const isMe = !!opts?.meId && id === opts.meId;
+    const isMe = (!!opts?.meId && id === opts.meId) || (match[2] === 'TEAM' && !!opts?.inTeam);
     nodes.push(
       <span
         key={`m-${key++}`}
