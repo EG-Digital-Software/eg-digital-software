@@ -6,6 +6,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { storage } from './storage/index.js';
 import { nextSequence, formatTaskNumber } from '../utils/sequence.js';
 import { notify } from './notification.service.js';
+import { pushToCustomer } from './push.service.js';
 
 /**
  * @mention tokens are embedded inline in a chat message body as
@@ -141,6 +142,35 @@ function notifyReply(
     entityType: 'task',
     entityId: task.id,
   });
+}
+
+/**
+ * Push a new chat message to the customer's phones (the mobile app), whether
+ * the app is open or not. Only messages from EG Eloma (team/admin) — the client's
+ * own messages don't ping them. People already notified through an @mention or a
+ * reply are skipped so one message never pings twice.
+ */
+function pushChatToClient(
+  customerId: string,
+  task: { id: string; title: string; assignedTeam?: string | null },
+  author: { id: string; type: Role; name: string },
+  body: string,
+  fileName: string | undefined,
+  repliedToId: string | undefined
+): void {
+  if (author.type === Role.CLIENT) return;
+  const already = parseMentions(body).map((m) => m.userId);
+  if (repliedToId) already.push(repliedToId);
+  const text = stripMentions(maskEmployeeMentions(body, task)).replace(/\s+/g, ' ').trim();
+  pushToCustomer(
+    customerId,
+    {
+      title: task.title,
+      body: `${chatName(task, author)}: ${text || (fileName ? `📎 ${fileName}` : 'sent a message')}`,
+      data: { type: 'TASK_MESSAGE', entityType: 'task', entityId: task.id },
+    },
+    already
+  );
 }
 
 /**
@@ -824,6 +854,14 @@ export async function addComment(
   // hiccup never blocks the chat.
   notifyMentions(task, author, body);
   if (original) notifyReply(task, author, original, body);
+  pushChatToClient(
+    customerId,
+    task,
+    author,
+    body,
+    file ? ('originalname' in file ? file.originalname : file.fileName) : undefined,
+    original?.authorId
+  );
 
   // A file sent with the message is stored as a task attachment linked back to
   // this comment, so it shows both in the chat bubble and the Attachments tab.
@@ -1224,6 +1262,21 @@ async function insertApproval(
       requestedByName: requester.name,
     },
   });
+
+  // EG Eloma asking the client to approve something: ping the client's phones.
+  if (requester.type !== Role.CLIENT) {
+    void prisma.task
+      .findUnique({ where: { id: taskId }, select: { customerId: true, title: true } })
+      .then((t) => {
+        if (!t) return;
+        pushToCustomer(t.customerId, {
+          title: 'Approval needed',
+          body: `${t.title} — ${input.subject}`,
+          data: { type: 'TASK_APPROVAL', entityType: 'task', entityId: taskId },
+        });
+      })
+      .catch((err) => logger.warn({ err, taskId }, 'Approval push failed'));
+  }
 
   for (const file of files ?? []) {
     const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');

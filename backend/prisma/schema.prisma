@@ -256,6 +256,21 @@ model Notification {
   @@index([createdAt])
 }
 
+/// A phone signed in to the mobile app that can receive push notifications.
+/// Polymorphic over the account tables the same way Notification is.
+model PushDevice {
+  id         String   @id @default(uuid())
+  userId     String
+  userType   Role
+  /// Expo push token ("ExponentPushToken[…]") — one row per installed app.
+  token      String   @unique
+  platform   String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId, userType])
+}
+
 model RefreshToken {
   id        String    @id @default(uuid())
   token     String    @unique

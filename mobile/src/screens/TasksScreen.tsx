@@ -1,248 +1,120 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TextInput, Pressable, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
-import { Card, Chips, EmptyState, ErrorView, LoadingView } from '../components';
-import { TaskCard } from '../components/TaskCard';
-import { useAuth, displayName } from '../context/AuthContext';
-import { customerLabel, useScope } from '../context/ScopeContext';
-import { useBoard, type BoardTask } from '../lib/queries';
-import { PRIORITY_META, PROGRESS_ORDER, PROGRESS_META, dueState, pendingApprovals } from '../lib/tasks';
+import { useAuth } from '../context/AuthContext';
+import { useBoard } from '../lib/queries';
 import { unreadCount, useSeenVersion } from '../lib/seen';
-import { clientProfile } from '../api/tasks';
 import { errorMessage } from '../api/client';
-import { colors, spacing, typography, radius } from '../theme';
-import type { TaskProgress } from '../api/types';
+import { PROGRESS_PILL, fmtDate, isActiveTask, teamName } from '../lib/portal';
+import { Avatar, Card, Chips, EmptyCard, ErrorBox, Loading, Muted, Pill, Screen, SearchField, T } from '../ui';
+import { colors } from '../theme';
+import { initials } from '../lib/format';
 
-type Filter = 'OPEN' | 'ALL' | TaskProgress;
+type Filter = 'all' | 'on' | 'ns' | 'un';
 
 export default function TasksScreen() {
   const nav = useNavigation<any>();
   const { user } = useAuth();
-  const { api, isAdmin, isClient, isEmployee, customer } = useScope();
-  useSeenVersion();
-
-  // A suspended client's Tasks are locked, exactly like the web portal.
-  const profile = useQuery({ queryKey: ['client', 'profile'], queryFn: clientProfile, enabled: isClient });
-  const suspended = isClient && (profile.data?.accountStatusEffective ?? profile.data?.accountStatus) === 'SUSPENDED';
-
   const board = useBoard();
-  const [filter, setFilter] = useState<Filter>('OPEN');
-  const [search, setSearch] = useState('');
+  useSeenVersion();
+  const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { ALL: board.tasks.length, OPEN: 0 };
-    for (const t of board.tasks) {
-      c[t.progress] = (c[t.progress] ?? 0) + 1;
-      if (t.progress !== 'COMPLETED') c.OPEN++;
-    }
-    return c;
-  }, [board.tasks]);
+  const all = useMemo(
+    () => [...board.tasks].sort((a, b) => Number(a.progress === 'COMPLETED') - Number(b.progress === 'COMPLETED') || a.taskNumber.localeCompare(b.taskNumber)),
+    [board.tasks]
+  );
+  const unreadOf = (id: string) => {
+    const t = all.find((x) => x.id === id);
+    return t ? unreadCount(t, user?.id) : 0;
+  };
+  const term = q.trim().toLowerCase();
+  const shown = all.filter((t) => {
+    if (term && !`${t.taskNumber} ${t.title} ${teamName(t)}`.toLowerCase().includes(term)) return false;
+    if (filter === 'on') return isActiveTask(t);
+    if (filter === 'ns') return t.progress === 'NOT_STARTED';
+    if (filter === 'un') return unreadOf(t.id) > 0;
+    return true;
+  });
+  const ongoing = all.filter(isActiveTask).length;
+  const unread = all.filter((t) => unreadOf(t.id) > 0).length;
 
-  const stats = useMemo(() => {
-    const open = board.tasks.filter((t) => t.progress !== 'COMPLETED');
-    return {
-      open: open.length,
-      due: open.filter((t) => ['overdue', 'today', 'soon'].includes(dueState(t))).length,
-      overdue: open.some((t) => dueState(t) === 'overdue'),
-      approvals: board.tasks.reduce((n, t) => n + pendingApprovals(t), 0),
-    };
-  }, [board.tasks]);
-
-  const data = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return board.tasks
-      .filter((t) => (filter === 'ALL' ? true : filter === 'OPEN' ? t.progress !== 'COMPLETED' : t.progress === filter))
-      .filter(
-        (t) =>
-          !q ||
-          t.title.toLowerCase().includes(q) ||
-          t.taskNumber.toLowerCase().includes(q) ||
-          t.groupName.toLowerCase().includes(q)
-      )
-      .sort((a, b) => {
-        // Open work first, then by priority, then nearest due date.
-        const done = Number(a.progress === 'COMPLETED') - Number(b.progress === 'COMPLETED');
-        if (done) return done;
-        const pr = PRIORITY_META[a.priority].rank - PRIORITY_META[b.priority].rank;
-        if (pr) return pr;
-        const ad = a.dueDate ? Date.parse(a.dueDate) : Infinity;
-        const bd = b.dueDate ? Date.parse(b.dueDate) : Infinity;
-        return ad - bd;
-      });
-  }, [board.tasks, filter, search]);
-
-  const filters: { value: Filter; label: string; count?: number }[] = [
-    { value: 'OPEN', label: 'Open', count: counts.OPEN },
-    ...PROGRESS_ORDER.map((p) => ({ value: p as Filter, label: PROGRESS_META[p].label, count: counts[p] ?? 0 })),
-    { value: 'ALL', label: 'All', count: counts.ALL },
-  ];
-
-  const openTask = (t: BoardTask) => nav.navigate('TaskDetail', { taskId: t.id, title: t.taskNumber });
-
-  const header = (
-    <View>
-      <View style={styles.headerPad}>
-        <Text style={typography.caption}>Good day,</Text>
-        <Text style={typography.h1} numberOfLines={1}>
-          {displayName(user)}
-        </Text>
-        <Text style={[typography.caption, { marginBottom: spacing.md }]}>
-          {isEmployee ? 'Tasks assigned to you across all customers' : isClient ? "Work we're tracking for your account" : 'Plan and track work for each customer'}
-        </Text>
-
-        {isAdmin && (
-          <Card onPress={() => nav.navigate('CustomerPicker')} style={styles.picker}>
-            <Ionicons name="business-outline" size={20} color={colors.accent} />
-            <View style={{ flex: 1 }}>
-              <Text style={typography.caption}>Customer</Text>
-              <Text style={typography.h3} numberOfLines={1}>
-                {customer ? customerLabel(customer) : 'Select a customer'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-          </Card>
-        )}
-
-        {api && (
-          <View style={styles.stats}>
-            <Stat icon="list-outline" label="Open tasks" value={stats.open} onPress={() => setFilter('OPEN')} />
-            <Stat
-              icon="alarm-outline"
-              label="Due soon"
-              value={stats.due}
-              tint={stats.overdue ? colors.danger : colors.warning}
-              onPress={() => setFilter('OPEN')}
-            />
-            <Stat icon="shield-checkmark-outline" label="Approvals" value={stats.approvals} tint={colors.success} />
-          </View>
-        )}
-
-        {api && (
-          <View style={styles.search}>
-            <Ionicons name="search" size={18} color={colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search tasks"
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-              returnKeyType="search"
-              clearButtonMode="while-editing"
-            />
-          </View>
+  return (
+    <Screen title="Tasks" refreshing={board.isRefetching} onRefresh={() => void board.refetch()}>
+      <Muted size={14} style={{ marginBottom: 14 }}>
+        Work we're tracking for you
+      </Muted>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Stat label="Total" value={all.length} />
+        <Stat label="Ongoing" value={ongoing} color={colors.onFg} />
+        <Stat label="Unread" value={unread} color="#C8264A" />
+      </View>
+      <SearchField value={q} onChangeText={setQ} placeholder="Search tasks or teams" style={{ marginTop: 16 }} />
+      <Chips<Filter>
+        style={{ marginTop: 12 }}
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { value: 'all', label: 'All' },
+          { value: 'on', label: 'Ongoing' },
+          { value: 'ns', label: 'Not started' },
+          { value: 'un', label: 'Unread' },
+        ]}
+      />
+      <View style={{ gap: 10, marginTop: 12 }}>
+        {board.isLoading ? (
+          <Loading />
+        ) : board.isError ? (
+          <ErrorBox message={errorMessage(board.error)} onRetry={() => void board.refetch()} />
+        ) : shown.length === 0 ? (
+          <EmptyCard
+            icon="search"
+            title={all.length ? 'No tasks match' : 'No tasks yet'}
+            body={all.length ? 'Try a different search or filter.' : 'Work your EG Eloma team does for you will appear here.'}
+          />
+        ) : (
+          shown.map((t) => {
+            const pill = PROGRESS_PILL[t.progress] ?? PROGRESS_PILL.NOT_STARTED!;
+            const team = teamName(t);
+            return (
+              <Card key={t.id} onPress={() => nav.navigate('Task', { taskId: t.id })} style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {unreadOf(t.id) > 0 ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.red }} /> : null}
+                    <T mono size={12} color={colors.muted}>
+                      {t.taskNumber}
+                    </T>
+                  </View>
+                  <Pill kind={pill.kind} label={pill.label} />
+                </View>
+                <T w="s" size={15} style={{ marginTop: 8, marginBottom: 10 }}>
+                  {t.title}
+                </T>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Avatar name={team} label={initials(team)} size={26} style={{ borderWidth: 2, borderColor: '#fff' }} />
+                    <Muted size={12}>{t.assignedTeam ? team : 'Not assigned yet'}</Muted>
+                  </View>
+                  <Muted size={12}>{t.dueDate ? `Ends ${fmtDate(t.dueDate)}` : 'No end date'}</Muted>
+                </View>
+              </Card>
+            );
+          })
         )}
       </View>
-      {api && <Chips options={filters} value={filter} onChange={setFilter} />}
-    </View>
-  );
-
-  let body: React.ReactNode = null;
-  if (suspended) {
-    body = (
-      <EmptyState
-        icon="lock-closed-outline"
-        title="Tasks are locked"
-        message="Your account is currently suspended, so Tasks aren't available. Please contact your account manager to restore access."
-      />
-    );
-  } else if (isAdmin && !customer) {
-    body = <EmptyState icon="business-outline" title="Pick a customer" message="Choose a customer above to see their tasks." />;
-  } else if (board.isLoading || (isClient && profile.isLoading)) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        {header}
-        <LoadingView label="Loading tasks…" />
-      </SafeAreaView>
-    );
-  } else if (board.isError && !board.data) {
-    body = <ErrorView message={errorMessage(board.error)} onRetry={() => board.refetch()} />;
-  }
-
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <FlatList
-        data={body ? [] : data}
-        keyExtractor={(t) => t.id}
-        ListHeaderComponent={header}
-        contentContainerStyle={styles.list}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={board.isRefetching} onRefresh={() => { void board.refetch(); }} tintColor={colors.primary} />}
-        ListEmptyComponent={
-          body ?? (
-            <EmptyState
-              icon="checkmark-done-outline"
-              title={search ? 'No matching tasks' : 'Nothing here'}
-              message={search ? 'Try a different search.' : 'No tasks in this view.'}
-            />
-          )
-        }
-        renderItem={({ item }) => (
-          <View style={{ paddingHorizontal: spacing.md }}>
-            <TaskCard
-              task={item}
-              group={isEmployee ? item.groupName : undefined}
-              unread={unreadCount(item, user?.id)}
-              onPress={() => openTask(item)}
-            />
-          </View>
-        )}
-      />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-function Stat({
-  icon,
-  label,
-  value,
-  tint = colors.accent,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: number;
-  tint?: string;
-  onPress?: () => void;
-}) {
+function Stat({ label, value, color = colors.fg }: { label: string; value: string | number; color?: string }) {
   return (
-    <Pressable style={({ pressed }) => [styles.stat, { opacity: pressed ? 0.85 : 1 }]} onPress={onPress}>
-      <Ionicons name={icon} size={20} color={tint} />
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={typography.caption} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
+    <Card style={{ flex: 1, padding: 13 }}>
+      <Muted size={12}>{label}</Muted>
+      <T w="s" size={22} color={color} style={{ marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </T>
+    </Card>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  headerPad: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  list: { paddingBottom: spacing.xl },
-  picker: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  stats: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  stat: {
-    flex: 1,
-    gap: 6,
-    padding: 12,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statValue: { fontSize: 18, fontWeight: '700', color: colors.text },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-  },
-  searchInput: { flex: 1, paddingVertical: 11, fontSize: 15, color: colors.text },
-});
+export { Stat };

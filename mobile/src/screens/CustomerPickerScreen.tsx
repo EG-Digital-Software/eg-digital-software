@@ -1,20 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TextInput, Pressable } from 'react-native';
+import { View, FlatList, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, EmptyState, ErrorView, LoadingView } from '../components';
-import { listCustomers } from '../api/tasks';
+import { listCustomers } from '../api/portal';
 import { errorMessage } from '../api/client';
-import { customerLabel, useScope } from '../context/ScopeContext';
-import { colors, spacing, typography, radius } from '../theme';
+import { displayName, useAuth } from '../context/AuthContext';
+import { Avatar, Bird, Btn, Card, ErrorBox, KeyboardSafe, Loading, Muted, SearchField, T, Toggle } from '../ui';
+import { colors, GUTTER } from '../theme';
+import type { CustomerSummary } from '../api/types';
 
-/** Admin: choose whose task board to open (like the web Tasks company picker). */
+const label = (c: CustomerSummary) => c.companyName || c.contactPerson || c.clientId;
+
+/** Admin: choose which customer's portal to open (signed in from the logo). */
 export default function CustomerPickerScreen() {
+  const insets = useSafeAreaInsets();
   const nav = useNavigation<any>();
-  const { customer, setCustomer } = useScope();
+  const { user, openCustomer, signOut } = useAuth();
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');
+  const [edit, setEdit] = useState(false);
+  const [opening, setOpening] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 300);
@@ -23,83 +30,72 @@ export default function CustomerPickerScreen() {
 
   const list = useQuery({ queryKey: ['customers', debounced], queryFn: () => listCustomers(debounced || undefined) });
 
+  const open = async (c: CustomerSummary) => {
+    setOpening(c.clientId);
+    try {
+      await openCustomer(c.clientId, label(c), edit);
+    } catch (e) {
+      Alert.alert('Could not open this customer', errorMessage(e));
+    } finally {
+      setOpening(null);
+    }
+  };
+
   return (
-    <View style={styles.safe}>
-      <View style={styles.search}>
-        <Ionicons name="search" size={18} color={colors.textMuted} />
-        <TextInput
-          autoFocus
-          style={styles.searchInput}
-          placeholder="Search customers"
-          placeholderTextColor={colors.textMuted}
-          value={q}
-          onChangeText={setQ}
-          autoCorrect={false}
-        />
+    <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 60, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+        {nav.canGoBack() ? (
+          <Pressable onPress={() => nav.goBack()} hitSlop={8} accessibilityLabel="Back">
+            <Ionicons name="arrow-back" size={22} color={colors.fg} />
+          </Pressable>
+        ) : (
+          <Bird size={28} />
+        )}
+        <T w="s" size={20} style={{ flex: 1 }}>
+          Choose a customer
+        </T>
       </View>
-      {list.isLoading ? (
-        <LoadingView />
-      ) : list.isError ? (
-        <ErrorView message={errorMessage(list.error)} onRetry={() => list.refetch()} />
-      ) : (
-        <FlatList
-          data={list.data ?? []}
-          keyExtractor={(c) => c.clientId}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: spacing.xl }}
-          ListEmptyComponent={<EmptyState icon="business-outline" title="No customers found" />}
-          renderItem={({ item }) => {
-            const active = item.clientId === customer?.clientId;
-            return (
-              <Pressable
-                onPress={() => {
-                  setCustomer(item);
-                  nav.goBack();
-                }}
-                style={({ pressed }) => [styles.row, active && styles.rowActive, pressed && { opacity: 0.8 }]}
-              >
-                <Avatar name={customerLabel(item)} size={40} />
-                <View style={{ flex: 1 }}>
-                  <Text style={typography.h3} numberOfLines={1}>
-                    {customerLabel(item)}
-                  </Text>
-                  <Text style={typography.caption}>{item.clientId}</Text>
-                </View>
-                {active && <Ionicons name="checkmark-circle" size={22} color={colors.accent} />}
-              </Pressable>
-            );
-          }}
-        />
-      )}
+      <KeyboardSafe>
+      <FlatList
+        data={list.data ?? []}
+        keyExtractor={(c) => c.clientId}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: GUTTER, paddingBottom: insets.bottom + 24, gap: 10 }}
+        ListHeaderComponent={
+          <View style={{ gap: 12, marginBottom: 4 }}>
+            <Muted size={14}>Signed in as admin · {displayName(user)}. Open a customer to see the app exactly as they do.</Muted>
+            <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
+              <View style={{ flex: 1 }}>
+                <T w="s" size={14}>
+                  Allow changes
+                </T>
+                <Muted size={12.5}>Off: view only. On: messages, notes and signatures are made as the customer.</Muted>
+              </View>
+              <Toggle value={edit} onChange={setEdit} />
+            </Card>
+            <SearchField value={q} onChangeText={setQ} placeholder="Search customers" />
+            {list.isLoading ? <Loading /> : null}
+            {list.isError ? <ErrorBox message={errorMessage(list.error)} onRetry={() => list.refetch()} /> : null}
+          </View>
+        }
+        ListEmptyComponent={!list.isLoading && !list.isError ? <Muted style={{ textAlign: 'center', marginTop: 20 }}>No customers found</Muted> : undefined}
+        renderItem={({ item }) => (
+          <Card onPress={() => open(item)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
+            <Avatar name={label(item)} size={42} radius={12} fill={colors.navy} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <T w="s" size={15} numberOfLines={1}>
+                {label(item)}
+              </T>
+              <T mono size={12} color={colors.muted}>
+                {item.clientId}
+              </T>
+            </View>
+            {opening === item.clientId ? <ActivityIndicator color={colors.navy} /> : <Ionicons name="chevron-forward" size={18} color={colors.faint} />}
+          </Card>
+        )}
+        ListFooterComponent={<Btn title="Sign out" variant="ghost" onPress={() => void signOut()} style={{ marginTop: 16 }} />}
+      />
+      </KeyboardSafe>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    margin: spacing.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-  },
-  searchInput: { flex: 1, paddingVertical: 11, fontSize: 15, color: colors.text },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    padding: 12,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rowActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-});

@@ -297,6 +297,7 @@ export async function getRecent() {
         id: true,
         amount: true,
         paidAt: true,
+        invoiceId: true,
         invoice: { select: { invoiceNumber: true } },
       },
     }),
@@ -345,6 +346,7 @@ export async function getTaskOverview(clientId?: string) {
       dueDate: t.dueDate,
       progress: t.progress,
       customer: t.customer.companyName || t.customer.contactPerson || t.customer.clientId,
+      clientId: t.customer.clientId,
     })),
   };
 }

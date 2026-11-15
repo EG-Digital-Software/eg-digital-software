@@ -10,12 +10,26 @@ import type { User } from './types';
  * refresh token on every use and two parallel refreshes would revoke each other.
  */
 
+/** An admin looking at one customer's portal through an impersonation token. */
+export interface AdminView {
+  user: User;
+  accessToken: string;
+  refreshToken?: string | null;
+  clientId: string;
+  companyName: string;
+  /** Edit mode: the admin may act for the client (writes allowed). */
+  edit: boolean;
+}
+
 export interface Session {
   user: User;
   accessToken: string;
   /** Present when the API hands the token to native clients; otherwise the
    *  refresh token lives in the native cookie jar (older API builds). */
   refreshToken?: string | null;
+  /** Set while an admin views a customer's portal (the tokens above are then
+   *  the 2-hour impersonation token, re-minted from the admin's own session). */
+  admin?: AdminView | null;
 }
 
 export class ApiError extends Error {
@@ -60,17 +74,50 @@ async function parse<T>(res: Response): Promise<T> {
 
 let refreshing: Promise<boolean> | null = null;
 
+type Refreshed = { user: User; accessToken: string; refreshToken?: string };
+
+/** Trade a refresh token for a new session (the API rotates the refresh token). */
+export async function refreshWith(refreshToken?: string | null): Promise<Refreshed> {
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+  });
+  return parse<Refreshed>(res);
+}
+
+type Impersonation = { accessToken: string; user: User; company: { clientId: string; companyName?: string | null } };
+
+/** Admin: mint a token that opens one customer's client portal. */
+export async function impersonate(adminToken: string, clientId: string, edit: boolean): Promise<Impersonation> {
+  const res = await fetch(`${API_URL}/customers/${encodeURIComponent(clientId)}/impersonate`, {
+    method: 'POST',
+    headers: { ...HEADERS, 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify({ mode: edit ? 'edit' : 'view' }),
+  });
+  return parse<Impersonation>(res);
+}
+
 async function doRefresh(): Promise<boolean> {
   const current = session;
   if (!current) return false;
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify(current.refreshToken ? { refreshToken: current.refreshToken } : {}),
-    });
-    const data = await parse<{ user: User; accessToken: string; refreshToken?: string }>(res);
+    if (current.admin) {
+      // The impersonation token has no refresh of its own: refresh the admin's
+      // session, then mint a fresh view of the same customer.
+      const a = current.admin;
+      const fresh = await refreshWith(a.refreshToken);
+      const imp = await impersonate(fresh.accessToken, a.clientId, a.edit);
+      setSession({
+        user: imp.user,
+        accessToken: imp.accessToken,
+        refreshToken: null,
+        admin: { ...a, user: fresh.user, accessToken: fresh.accessToken, refreshToken: fresh.refreshToken ?? a.refreshToken ?? null },
+      });
+      return true;
+    }
+    const data = await refreshWith(current.refreshToken);
     setSession({
       user: data.user,
       accessToken: data.accessToken,
@@ -96,11 +143,13 @@ export interface RequestOptions {
   body?: unknown;
   /** Skip the 401 → refresh → retry dance (auth calls). */
   noRetry?: boolean;
+  /** Extra request headers (e.g. X-Access-Point-Key). */
+  headers?: Record<string, string>;
 }
 
 export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const send = () => {
-    const headers: Record<string, string> = { ...HEADERS };
+    const headers: Record<string, string> = { ...HEADERS, ...opts.headers };
     if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
     let body: BodyInit | undefined;
     if (opts.body instanceof FormData) {

@@ -1,6 +1,37 @@
 import type { Role } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
+import { pushTo } from './push.service.js';
+
+/** What the app needs to open the right screen when a push is tapped. */
+const pushData = (input: Omit<NotifyInput, 'userId' | 'userType'>) => ({
+  type: input.type,
+  link: input.link ?? null,
+  entityType: input.entityType ?? null,
+  entityId: input.entityId ?? null,
+});
+
+/**
+ * Push with the task's customer (clientId) added, so the admin app can open the
+ * task itself — admin task routes are per customer. Fire-and-forget.
+ */
+function pushWithClient(
+  targets: Array<{ userId: string; userType: Role }>,
+  input: Omit<NotifyInput, 'userId' | 'userType'>
+): void {
+  const data: Record<string, unknown> = pushData(input);
+  const lookup =
+    input.entityType?.toLowerCase() === 'task' && input.entityId
+      ? prisma.task
+          .findUnique({ where: { id: input.entityId }, select: { customer: { select: { clientId: true } } } })
+          .then((t) => t?.customer.clientId ?? null)
+          .catch(() => null)
+      : Promise.resolve(null);
+  void lookup.then((clientId) => {
+    if (clientId) data.clientId = clientId;
+    pushTo(targets, { title: input.title, body: input.body, data });
+  });
+}
 
 interface NotifyInput {
   userId: string;
@@ -36,11 +67,12 @@ function accountDelegate(role: Role): FanoutDelegate {
   }
 }
 
-/** Create a notification (fire-and-forget — never breaks the primary flow). */
+/** Create a notification and push it to the user's phones (fire-and-forget — never breaks the primary flow). */
 export function notify(input: NotifyInput): void {
   prisma.notification
     .create({ data: input })
     .catch((err) => logger.error({ err }, 'Notification create failed'));
+  pushWithClient([{ userId: input.userId, userType: input.userType }], input);
 }
 
 /** Notify every approved, active user of a given role. */
@@ -50,11 +82,15 @@ export function notifyRole(role: Role, input: Omit<NotifyInput, 'userId' | 'user
       where: { isActive: true, approvalStatus: 'APPROVED' },
       select: { id: true },
     })
-    .then((users: Array<{ id: string }>) =>
-      prisma.notification.createMany({
+    .then((users: Array<{ id: string }>) => {
+      pushWithClient(
+        users.map((u) => ({ userId: u.id, userType: role })),
+        input
+      );
+      return prisma.notification.createMany({
         data: users.map((u) => ({ ...input, userId: u.id, userType: role })),
-      })
-    )
+      });
+    })
     .catch((err: unknown) => logger.error({ err }, 'notifyRole failed'));
 }
 

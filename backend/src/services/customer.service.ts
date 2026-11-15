@@ -21,6 +21,7 @@ import { nextSequence, formatClientId, formatLicenceKey } from '../utils/sequenc
 import { computeLicenceStatus } from '../utils/licence.js';
 import { effectiveAccountStatus, dormancyCutoff } from '../utils/accountStatus.js';
 import { signImpersonationToken } from '../utils/tokens.js';
+import { pushToCustomer } from './push.service.js';
 
 /**
  * The customer-list filter. `ACTIVE`/`ARCHIVED` select the archive state; the
@@ -1227,7 +1228,7 @@ export async function addDocument(
   const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');
   const key = `customers/${customer.id}/documents/${Date.now()}-${safeName}`;
   const url = await storage.save(key, file.buffer, file.mimetype);
-  return prisma.customerDocument.create({
+  const doc = await prisma.customerDocument.create({
     data: {
       customerId: customer.id,
       fileName: file.originalname,
@@ -1239,6 +1240,13 @@ export async function addDocument(
       uploadedById,
     },
   });
+  // Let the client know on their phone that there's something to sign.
+  pushToCustomer(customer.id, {
+    title: 'New agreement to sign',
+    body: file.originalname.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' '),
+    data: { type: 'AGREEMENT', entityType: 'document', entityId: doc.id },
+  });
+  return doc;
 }
 
 /** Keep only well-formed editable-region definitions before persisting them. */

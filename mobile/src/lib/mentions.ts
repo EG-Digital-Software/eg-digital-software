@@ -3,7 +3,7 @@
  * `@[Full Name](ROLE:userId)` — the same format the web app writes, so
  * messages round-trip between web and mobile untouched.
  */
-const MENTION_RE = /@\[([^\]]+)\]\((SUPER_ADMIN|EMPLOYEE|CLIENT|SUPPLIER):([0-9a-fA-F-]+)\)/g;
+const MENTION_RE = /@\[([^\]]+)\]\((SUPER_ADMIN|EMPLOYEE|CLIENT|SUPPLIER|TEAM):([0-9a-fA-F-]+)\)/g;
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 
 export type Segment =

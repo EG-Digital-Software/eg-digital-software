@@ -1,80 +1,124 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { useQueryClient } from '@tanstack/react-query';
-import { Avatar, Card, Row, Button, SectionTitle } from '../components';
-import { useAuth, displayName } from '../context/AuthContext';
-import { customerLabel, useScope } from '../context/ScopeContext';
-import { colors, spacing, typography } from '../theme';
+import React, { useEffect, useState } from 'react';
+import { View, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { displayName, useAuth } from '../context/AuthContext';
+import { errorMessage } from '../api/client';
+import { countryLabel, useProfile } from '../lib/portal';
+import { pushEnabled, setPushEnabled } from '../lib/push';
+import { Avatar, Btn, Card, Eyebrow, KV, Muted, Screen, T, Toggle } from '../ui';
+import { colors } from '../theme';
+import { APP_VERSION, roleOf } from './MoreScreen';
 
-const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: 'Admin',
-  EMPLOYEE: 'Team member',
-  CLIENT: 'Client',
-  SUPPLIER: 'Supplier',
-};
+type Prefs = { push: boolean; email: boolean };
+const PREFS_KEY = (id: string) => `eg:prefs:${id}`;
 
 export default function ProfileScreen() {
-  const nav = useNavigation<any>();
-  const qc = useQueryClient();
-  const { user, signOut } = useAuth();
-  const { isAdmin, customer } = useScope();
-  const name = displayName(user);
+  const { user, admin, signOut, bio, setBioEnabled } = useAuth();
+  const p = useProfile().data;
+  const [prefs, setPrefs] = useState<Prefs>({ push: true, email: true });
+  const name = p?.contactPerson || displayName(user);
+  const email = user?.email || p?.contactEmail || '';
+  const role = roleOf(p?.contactPosition);
+  const manager = p?.accountManager;
 
-  const confirmSignOut = () =>
-    Alert.alert('Sign out?', 'You will need to sign in again to see your tasks.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out',
-        style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          qc.clear();
-        },
-      },
-    ]);
+  // Saved on this phone only.
+  useEffect(() => {
+    if (!user) return;
+    AsyncStorage.getItem(PREFS_KEY(user.id))
+      .then((raw) => raw && setPrefs({ ...{ push: true, email: true }, ...(JSON.parse(raw) as Partial<Prefs>) }))
+      .catch(() => undefined);
+  }, [user?.id]);
+
+  const setPref = (k: keyof Prefs, v: boolean) => {
+    const next = { ...prefs, [k]: v };
+    setPrefs(next);
+    if (user) AsyncStorage.setItem(PREFS_KEY(user.id), JSON.stringify(next)).catch(() => undefined);
+  };
+
+  const flipBio = async (on: boolean) => {
+    if (on && !bio.available) {
+      Alert.alert('Fingerprint not set up', 'Add a fingerprint in your phone’s settings first.');
+      return;
+    }
+    try {
+      await setBioEnabled(on);
+    } catch (e) {
+      Alert.alert('Fingerprint sign-in', errorMessage(e));
+    }
+  };
+
+  // Push is per phone: switching it off removes this phone from the API.
+  const [pushOn, setPushOn] = useState(true);
+  useEffect(() => {
+    void pushEnabled().then(setPushOn);
+  }, []);
+  const flipPush = async (on: boolean) => {
+    setPushOn(on);
+    const ok = await setPushEnabled(on);
+    if (on && !ok) {
+      Alert.alert(
+        'Notifications not turned on',
+        'Allow notifications for EG Eloma in your phone’s settings. (They also need the installed EG Eloma app — not Expo Go.)'
+      );
+    }
+  };
+
+  const settings: { t: string; d: string; on: boolean; flip: (v: boolean) => void; disabled?: boolean }[] = [
+    { t: 'Push notifications', d: 'New messages, signatures and invoices', on: pushOn, flip: (v) => void flipPush(v) },
+    { t: 'Email updates', d: `A weekly summary to ${email || 'your email'}`, on: prefs.email, flip: (v) => setPref('email', v) },
+    { t: 'Fingerprint sign-in', d: 'Skip the password on this phone', on: bio.enabled, flip: (v) => void flipBio(v), disabled: !!admin },
+  ];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <Avatar name={name} url={user?.avatarUrl} size={80} tone="solid" />
-          <Text style={[typography.h2, { marginTop: spacing.sm }]}>{name}</Text>
-          <Text style={typography.caption}>{ROLE_LABEL[user?.role ?? ''] ?? ''}</Text>
-        </View>
+    <Screen title="Profile" back>
+      <View style={{ alignItems: 'center', marginTop: 8 }}>
+        <Avatar name={name} size={84} fill={colors.navy} color="#fff" />
+        <T w="b" size={21} style={{ marginTop: 12, textAlign: 'center' }}>
+          {name}
+        </T>
+        <Muted size={13.5} style={{ marginTop: 2, textAlign: 'center' }}>
+          {role}
+          {p?.companyName ? ` · ${p.companyName}` : ''}
+        </Muted>
+      </View>
 
-        <SectionTitle title="Account" />
-        <Card>
-          <Row label="Email" value={user?.email ?? ''} />
-          {user?.phone ? <Row label="Phone" value={user.phone} /> : null}
-          <Row label="Portal" value={ROLE_LABEL[user?.role ?? ''] ?? ''} last={!isAdmin} />
-          {isAdmin && <Row label="Customer" value={customer ? customerLabel(customer) : 'None selected'} last />}
-        </Card>
+      <Eyebrow style={{ marginTop: 24, marginBottom: 10, marginLeft: 2 }}>Account</Eyebrow>
+      <KV
+        rows={[
+          ['Email', email],
+          ['Role', role],
+          ['Account manager', manager ? `${manager.firstName} ${manager.lastName}`.trim() : null],
+          ['Country', countryLabel(p?.registrationCountry)],
+        ]}
+      />
 
-        {isAdmin && (
-          <Button
-            title="Switch customer"
-            icon="business-outline"
-            variant="secondary"
-            onPress={() => nav.navigate('CustomerPicker')}
-            style={{ marginBottom: spacing.sm }}
-          />
-        )}
-        <Text style={styles.note}>
-          Profile details, passwords and task setup (new tasks, columns, labels) are managed on the web portal.
-        </Text>
-        <Button title="Sign out" variant="ghost" icon="log-out-outline" onPress={confirmSignOut} />
-        <Text style={styles.version}>EG Eloma Tasks v1.0.0</Text>
-      </ScrollView>
-    </SafeAreaView>
+      <Eyebrow style={{ marginTop: 20, marginBottom: 10, marginLeft: 2 }}>Settings</Eyebrow>
+      <Card>
+        {settings.map((x, i) => (
+          <View key={x.t} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.line }}>
+            <View style={{ flex: 1 }}>
+              <T w="s" size={14}>
+                {x.t}
+              </T>
+              <Muted size={12.5}>{x.d}</Muted>
+            </View>
+            <Toggle value={x.on} onChange={x.flip} disabled={x.disabled} />
+          </View>
+        ))}
+      </Card>
+
+      <Card style={{ marginTop: 16, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+        <Ionicons name="lock-closed-outline" size={18} color={colors.muted} style={{ marginTop: 2 }} />
+        <Muted size={13.5} style={{ flex: 1, lineHeight: 20 }}>
+          Passwords and company details are managed on the web portal.
+        </Muted>
+      </Card>
+
+      <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} style={{ marginTop: 16 }} />
+      <Muted size={12} style={{ textAlign: 'center', marginTop: 14 }}>
+        EG Eloma app v{APP_VERSION} · Eloma Group
+      </Muted>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md, paddingBottom: spacing.xl },
-  hero: { alignItems: 'center', paddingVertical: spacing.lg },
-  note: { ...typography.caption, textAlign: 'center', marginVertical: spacing.md },
-  version: { ...typography.caption, textAlign: 'center', marginTop: spacing.lg },
-});

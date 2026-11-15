@@ -388,6 +388,7 @@ export async function listAdminRequests(status: AdminRequestView) {
       customerId: r.customerId,
       clientId: customer?.clientId ?? '',
       customerName: customer?.companyName ?? customer?.clientId ?? '',
+      taskId: r.taskId ?? null,
       taskNumber: r.task?.taskNumber ?? '',
       taskTitle: r.task?.title ?? '',
       date: day(r.workDate),
