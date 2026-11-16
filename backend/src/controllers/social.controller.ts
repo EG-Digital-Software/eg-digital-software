@@ -64,7 +64,17 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 /** Meta sends the customer back here after they sign in. Public: the signed `state` identifies them. */
 export const metaCallback = asyncHandler(async (req: Request, res: Response) => {
   const q = req.query as Record<string, string | undefined>;
-  const result = await social.completeMetaConnect(q.code, q.state, q.error);
+  resultPage(res, await social.completeMetaConnect(q.code, q.state, q.error));
+});
+
+/** TikTok sends the customer back here after they sign in. Public: the signed `state` identifies them. */
+export const tiktokCallback = asyncHandler(async (req: Request, res: Response) => {
+  const q = req.query as Record<string, string | undefined>;
+  resultPage(res, await social.completeTikTokConnect(q.code, q.state, q.error, q.error_description));
+});
+
+/** The small "Account connected / Not connected" page shown in the sign-in window. */
+function resultPage(res: Response, result: { ok: boolean; message: string }) {
   const nonce = crypto.randomBytes(16).toString('base64');
   res.setHeader('Content-Security-Policy', `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`);
   res.setHeader('Cache-Control', 'no-store');
@@ -75,4 +85,4 @@ h1{font-size:20px;margin:0 0 8px;color:${result.ok ? '#1f9a72' : '#c2522d'}}p{fo
 button{border:0;border-radius:8px;background:#0b213a;color:#fff;font:600 13px inherit;padding:10px 18px;cursor:pointer}</style></head>
 <body><div class="box"><h1>${result.ok ? 'Account connected' : 'Not connected'}</h1><p>${escapeHtml(result.message)}</p><button id="c">Close window</button></div>
 <script nonce="${nonce}">document.getElementById('c').onclick=function(){window.close()};${result.ok ? 'setTimeout(function(){window.close()},2500);' : ''}</script></body></html>`);
-});
+}

@@ -52,6 +52,7 @@ export interface ContentPost {
   firstComment: string;
   media: { url: string; name: string | null; type: string | null; size: number | null; width: number | null; height: number | null } | null;
   platforms: string[];
+  tiktok: TikTokPostSettings;
   scheduledAt: string | null;
   timeZone: string;
   status: ContentPostStatus;
@@ -68,8 +69,21 @@ export interface ContentPost {
   checks: { ok: boolean; title: string; detail: string }[];
 }
 
+export type TikTokPrivacy = 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
+
+/** TikTok settings of one post — chosen by the team for every post, as TikTok requires. */
+export interface TikTokPostSettings {
+  privacy: TikTokPrivacy | null;
+  allowComment: boolean;
+  allowDuet: boolean;
+  allowStitch: boolean;
+  brandOrganic: boolean;
+  brandContent: boolean;
+  consent: boolean;
+}
+
 export interface ContentPlatform {
-  key: 'fb' | 'ig';
+  key: 'fb' | 'ig' | 'tt';
   name: string;
   connected: boolean;
   canPublish: boolean;
@@ -96,6 +110,30 @@ export interface ContentCalendar {
     assets: { pages: { id: string; name: string; ig: { id: string; username: string } | null }[] };
     selected: { pageId?: string | null; igId?: string | null; adAccountId?: string | null } | null;
   } | null;
+  tiktokConfigured: boolean;
+  tiktok: {
+    id: string;
+    name: string | null;
+    status: string;
+    lastError: string | null;
+    tokenExpiresAt: string | null;
+    connectedByName: string;
+    connectedAt: string;
+    scopes: string | null;
+    profile: { username: string | null; displayName: string | null; avatarUrl: string | null; profileUrl: string | null };
+    /** What the TikTok account allows right now (staff only). */
+    creator: {
+      nickname: string | null;
+      username: string | null;
+      avatarUrl: string | null;
+      privacyOptions: TikTokPrivacy[];
+      commentDisabled: boolean;
+      duetDisabled: boolean;
+      stitchDisabled: boolean;
+      maxVideoSeconds: number | null;
+    } | null;
+    creatorError: string | null;
+  } | null;
   platforms: ContentPlatform[];
   timeZones: string[];
   posts: ContentPost[];
@@ -114,6 +152,7 @@ export interface ContentPostInput {
   platforms?: string[];
   scheduledAt?: string | null;
   timeZone?: string;
+  tiktok?: TikTokPostSettings | null;
 }
 
 const unwrap = <T>(p: Promise<{ data: ApiEnvelope<T> }>) => p.then((r) => r.data.data);

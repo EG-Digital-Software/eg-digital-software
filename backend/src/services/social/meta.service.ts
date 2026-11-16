@@ -160,7 +160,7 @@ export interface AdsDay {
   impressions: number;
 }
 export interface FetchedPost {
-  platform: 'fb' | 'ig';
+  platform: 'fb' | 'ig' | 'tt';
   externalId: string;
   title: string;
   type: string;

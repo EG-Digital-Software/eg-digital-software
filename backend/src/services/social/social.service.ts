@@ -6,6 +6,7 @@ import { logger } from '../../config/logger.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { encryptSecret } from '../../utils/secretBox.js';
 import * as meta from './meta.service.js';
+import * as tiktok from './tiktok.service.js';
 import { fetchPeriods, type Period } from './meta.periods.js';
 import { storage } from '../storage/index.js';
 
@@ -54,6 +55,10 @@ async function ensureConnectTask(customerId: string, taskId: string) {
 function connectedPlatforms(conns: { provider: string; status: string; selected: Prisma.JsonValue }[]) {
   const out = new Set<string>();
   for (const c of conns) {
+    if (c.provider === 'tiktok') {
+      out.add('tt');
+      continue;
+    }
     if (c.provider !== 'meta') continue;
     const s = (c.selected ?? {}) as meta.MetaSelection;
     if (s.pageId) out.add('fb');
@@ -88,11 +93,14 @@ function shapeConnection(c: {
     connectedByName: c.connectedByName,
     connectedAt: c.createdAt,
     // Never send tokens to the browser — names and ids only.
-    assets: {
-      pages: (assets.pages ?? []).map((p) => ({ id: p.id, name: p.name, ig: p.ig })),
-      adAccounts: assets.adAccounts ?? [],
-    },
-    selected: c.selected,
+    assets:
+      c.provider === 'tiktok'
+        ? { pages: [], adAccounts: [], profile: tiktok.publicProfile(c.assets) }
+        : {
+            pages: (assets.pages ?? []).map((p) => ({ id: p.id, name: p.name, ig: p.ig })),
+            adAccounts: assets.adAccounts ?? [],
+          },
+    selected: c.provider === 'tiktok' ? {} : c.selected,
   };
 }
 
@@ -154,7 +162,7 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
     firstDay: FIRST_DAY,
     canEdit: isStaff(viewer),
     viewer: { name: viewer.name, role: viewer.type },
-    providers: { meta: meta.metaConfigured() },
+    providers: { meta: meta.metaConfigured(), tiktok: tiktok.tiktokConfigured() },
     connections: conns.map(shapeConnection),
     connected: [...connectedPlatforms(conns)],
     syncing: isSyncing(conns.map((c) => c.id)),
@@ -269,13 +277,14 @@ interface OAuthState {
 
 export async function startConnect(customerId: string, taskId: string, actor: Actor, provider: string) {
   await ensureConnectTask(customerId, taskId);
-  if (provider !== 'meta') throw ApiError.badRequest('This platform cannot be connected yet');
-  if (!meta.metaConfigured()) throw ApiError.badRequest('Connecting Meta accounts is not set up yet');
+  if (provider !== 'meta' && provider !== 'tiktok') throw ApiError.badRequest('This platform cannot be connected yet');
+  if (provider === 'meta' && !meta.metaConfigured()) throw ApiError.badRequest('Connecting Meta accounts is not set up yet');
+  if (provider === 'tiktok' && !tiktok.tiktokConfigured()) throw ApiError.badRequest('Connecting TikTok accounts is not set up yet');
   const state = jwt.sign({ cid: customerId, tid: taskId, uid: actor.id, role: actor.type, name: actor.name, provider } satisfies OAuthState, env.JWT_SECRET, {
     expiresIn: '20m',
     audience: 'social-oauth',
   });
-  return { url: meta.authUrl(state) };
+  return { url: provider === 'tiktok' ? tiktok.authUrl(state) : meta.authUrl(state) };
 }
 
 /** Handles Meta's redirect after the customer signs in. Returns a short message for the result page. */
@@ -325,10 +334,71 @@ export async function completeMetaConnect(code: string | undefined, state: strin
   }
 }
 
+/** Handles TikTok's redirect after the customer signs in. Returns a short message for the result page. */
+export async function completeTikTokConnect(code: string | undefined, state: string | undefined, error?: string, errorDescription?: string) {
+  if (error) {
+    return {
+      ok: false,
+      message: error === 'access_denied' ? 'The TikTok sign-in was cancelled. Close this window and try again.' : `TikTok did not complete the sign-in: ${errorDescription || error}`,
+    };
+  }
+  if (!code || !state) return { ok: false, message: 'The TikTok sign-in did not complete. Close this window and try again.' };
+  let s: OAuthState;
+  try {
+    s = jwt.verify(state, env.JWT_SECRET, { audience: 'social-oauth' }) as OAuthState;
+  } catch {
+    return { ok: false, message: 'This sign-in link has expired. Close this window and press Connect again.' };
+  }
+  if (s.provider !== 'tiktok') return { ok: false, message: 'This sign-in link is not for TikTok. Close this window and press Connect again.' };
+  try {
+    const tok = await tiktok.exchangeCode(code);
+    const f = tiktok.tokenFields(tok);
+    if (!f.accessTokenEnc || !f.refreshTokenEnc) return { ok: false, message: 'The account could not be stored securely (encryption key missing). Please contact EG Eloma.' };
+    const user = await tiktok.userInfo(tok.access_token, tok.scope).catch((err) => {
+      logger.warn({ err }, 'TikTok: could not read the account');
+      return { open_id: tok.open_id } as tiktok.UserInfo;
+    });
+    const assets: tiktok.TikTokAssets = { ...tiktok.profileFrom(user), refreshTokenEnc: f.refreshTokenEnc, refreshExpiresAt: f.refreshExpiresAt };
+    const common = {
+      externalUserId: tok.open_id,
+      externalName: user.display_name ?? (user.username ? `@${user.username}` : 'TikTok account'),
+      accessTokenEnc: f.accessTokenEnc,
+      tokenExpiresAt: f.tokenExpiresAt,
+      scopes: f.scopes,
+      assets: assets as unknown as Prisma.InputJsonValue,
+      selected: {} as Prisma.InputJsonValue,
+      status: 'ACTIVE',
+      lastError: null,
+      connectedById: s.uid,
+      connectedByType: s.role,
+      connectedByName: s.name,
+    };
+    const conn = await prisma.socialConnection.upsert({
+      where: { customerId_provider: { customerId: s.cid, provider: 'tiktok' } },
+      create: { customerId: s.cid, provider: 'tiktok', ...common },
+      update: common,
+    });
+    void syncConnection(conn.id, FULL_SYNC_DAYS).catch(() => undefined);
+    const granted = new Set(tok.scope.split(',').map((x) => x.trim()));
+    const missing = env.TIKTOK_SCOPES.split(',').map((x) => x.trim()).filter((x) => x && !granted.has(x));
+    if (missing.length) {
+      return {
+        ok: true,
+        message: `TikTok is connected, but some permissions were not allowed (${missing.join(', ')}). Some figures or posting may not work. Press Connect again to allow them.`,
+      };
+    }
+    return { ok: true, message: 'Your TikTok account is connected. The dashboard is loading your figures — you can close this window.' };
+  } catch (err) {
+    logger.warn({ err }, 'TikTok connect failed');
+    return { ok: false, message: `TikTok did not accept the sign-in: ${(err as Error).message}` };
+  }
+}
+
 export async function selectAssets(customerId: string, taskId: string, connectionId: string, sel: meta.MetaSelection) {
   await ensureConnectTask(customerId, taskId);
   const conn = await prisma.socialConnection.findFirst({ where: { id: connectionId, customerId } });
   if (!conn) throw ApiError.notFound('Connection not found');
+  if (conn.provider !== 'meta') throw ApiError.badRequest('There is nothing to choose for this account');
   const assets = conn.assets as unknown as meta.MetaAssets;
   const next: meta.MetaSelection = {
     pageId: sel.pageId === null ? null : assets.pages.some((p) => p.id === sel.pageId) ? sel.pageId : (conn.selected as meta.MetaSelection)?.pageId,
@@ -344,8 +414,10 @@ export async function selectAssets(customerId: string, taskId: string, connectio
 /** Disconnect: the token is removed. Figures already fetched stay so past reports keep their history. */
 export async function disconnect(customerId: string, taskId: string, connectionId: string) {
   await ensureConnectTask(customerId, taskId);
-  const conn = await prisma.socialConnection.findFirst({ where: { id: connectionId, customerId }, select: { id: true } });
+  const conn = await prisma.socialConnection.findFirst({ where: { id: connectionId, customerId }, select: { id: true, provider: true, accessTokenEnc: true } });
   if (!conn) throw ApiError.notFound('Connection not found');
+  // TikTok: end the access on TikTok's side too (best-effort).
+  if (conn.provider === 'tiktok') await tiktok.revoke(conn.accessTokenEnc);
   await prisma.socialConnection.delete({ where: { id: conn.id } });
   return { ok: true };
 }
@@ -377,6 +449,7 @@ export async function syncConnection(connectionId: string, days = 30) {
   running.add(connectionId);
   try {
     const conn = await prisma.socialConnection.findUnique({ where: { id: connectionId } });
+    if (conn?.provider === 'tiktok') return await syncTikTok(conn, days);
     if (!conn || conn.provider !== 'meta') return { skipped: true };
     const until = new Date();
     const since = new Date(Math.max(new Date(`${FIRST_DAY}T00:00:00Z`).getTime(), until.getTime() - days * 86400_000));
@@ -486,6 +559,164 @@ export async function syncConnection(connectionId: string, days = 30) {
   }
 }
 
+// ─── TikTok ─────────────────────────────────────────────────
+
+/**
+ * Read a TikTok account: followers today, its videos (with views, likes,
+ * comments, shares) and the monthly TikTok figures derived from them.
+ *
+ * TikTok's Display API gives lifetime figures per video, not per day, so —
+ * like Instagram engagement — a video's views and interactions are counted on
+ * the day it was published. Figures it does not give (traffic sources, watch
+ * time, profile views…) stay for the team to enter by hand.
+ */
+async function syncTikTok(conn: Prisma.SocialConnectionGetPayload<object>, days: number) {
+  const until = new Date();
+  const since = new Date(Math.max(new Date(`${FIRST_DAY}T00:00:00Z`).getTime(), until.getTime() - days * 86400_000));
+  const warnings: string[] = [];
+  const scopes = conn.scopes ?? '';
+  let user: tiktok.UserInfo;
+  let videos: tiktok.Video[] = [];
+  try {
+    const token = await tiktok.accessToken(conn);
+    user = await tiktok.userInfo(token, scopes);
+    if (scopes.split(',').includes('video.list')) {
+      videos = await tiktok.listVideos(token, since).catch((err) => {
+        if (err instanceof tiktok.TikTokError && err.expired) throw err;
+        warnings.push(`TikTok videos could not be read: ${(err as Error).message}`);
+        return [];
+      });
+    } else warnings.push('Video figures need the video.list permission. Reconnect TikTok and allow it.');
+  } catch (err) {
+    const expired = err instanceof tiktok.TikTokError && err.expired;
+    await prisma.socialConnection.update({
+      where: { id: conn.id },
+      data: { status: expired ? 'EXPIRED' : 'ACTIVE', lastError: (err as Error).message.slice(0, 500) },
+    });
+    return { error: (err as Error).message };
+  }
+  if (user.follower_count == null) warnings.push('Follower figures need the user.info.stats permission. Reconnect TikTok and allow it.');
+
+  const cid = conn.customerId;
+  const today = until.toISOString().slice(0, 10);
+  const views = (v: tiktok.Video) => v.view_count ?? 0;
+  const interactions = (v: tiktok.Video) => (v.like_count ?? 0) + (v.comment_count ?? 0) + (v.share_count ?? 0);
+
+  // Daily rows: [views, interactions] of the videos published that day; followers today.
+  const byDay = new Map<string, { reach: number; engagements: number }>();
+  for (const v of videos) {
+    const d = new Date(v.create_time * 1000).toISOString().slice(0, 10);
+    const cur = byDay.get(d) ?? { reach: 0, engagements: 0 };
+    cur.reach += views(v);
+    cur.engagements += interactions(v);
+    byDay.set(d, cur);
+  }
+  if (!byDay.has(today)) byDay.set(today, { reach: 0, engagements: 0 });
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
+  for (const [day, v] of byDay) {
+    const date = new Date(`${day}T00:00:00.000Z`);
+    const fields = {
+      reach: v.reach,
+      engagements: v.engagements,
+      newFollowers: 0,
+      linkClicks: 0,
+      ...(day === today && user.follower_count != null ? { followers: user.follower_count } : {}),
+    };
+    ops.push(
+      prisma.socialMetricDaily.upsert({
+        where: { customerId_platform_date: { customerId: cid, platform: 'tt', date } },
+        create: { customerId: cid, platform: 'tt', date, source: 'tiktok', ...fields },
+        update: { source: 'tiktok', ...fields },
+      })
+    );
+  }
+
+  // Posts table.
+  const posts: meta.FetchedPost[] = videos.map((v) => ({
+    platform: 'tt',
+    externalId: v.id,
+    title: (v.title || v.video_description || 'TikTok video').split('\n')[0].slice(0, 140),
+    type: 'Video',
+    publishedAt: new Date(v.create_time * 1000),
+    reach: views(v),
+    engagements: interactions(v),
+    shares: v.share_count ?? null,
+    permalink: v.share_url ?? null,
+    pictureUrl: v.cover_image_url ?? null,
+    stats: { views: v.view_count, likes: v.like_count, comments: v.comment_count, shares: v.share_count },
+  }));
+  for (const p of posts) {
+    const fields = { title: p.title, type: p.type, publishedAt: p.publishedAt, reach: p.reach, engagements: p.engagements, shares: p.shares, permalink: p.permalink, stats: p.stats as Prisma.InputJsonValue };
+    ops.push(
+      prisma.socialPost.upsert({
+        where: { customerId_platform_externalId: { customerId: cid, platform: 'tt', externalId: p.externalId } },
+        create: { customerId: cid, platform: 'tt', externalId: p.externalId, ...fields },
+        update: fields,
+      })
+    );
+  }
+
+  // Monthly TikTok figures for the periods this read fully covers.
+  const sinceDay = new Date(`${since.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  for (const p of reportPeriods(until)) {
+    if (p.start < sinceDay) continue;
+    const endMs = p.end.getTime() + 86400_000;
+    const inPeriod = videos.filter((v) => v.create_time * 1000 >= p.start.getTime() && v.create_time * 1000 < endMs);
+    const sum = (f: (v: tiktok.Video) => number) => inPeriod.reduce((a, v) => a + f(v), 0);
+    const totalViews = sum(views);
+    const saves = 0; // TikTok's Display API does not report saves.
+    const values: Record<string, number | null> = {
+      tt_views: totalViews,
+      tt_likes: sum((v) => v.like_count ?? 0),
+      tt_comments: sum((v) => v.comment_count ?? 0),
+      tt_shares: sum((v) => v.share_count ?? 0),
+      tt_posts: inPeriod.length,
+      tt_eng_rate: totalViews ? Math.round(((sum(interactions) + saves) / totalViews) * 1000) / 10 : null,
+    };
+    // Followers are a snapshot of today, so they only belong to the current month.
+    if (p.key === reportPeriods(until)[0].key && user.follower_count != null) values.tt_followers = user.follower_count;
+    for (const [metric, value] of Object.entries(values)) {
+      if (value == null) continue;
+      ops.push(
+        prisma.socialPeriodValue.upsert({
+          where: { customerId_platform_metric_periodKey: { customerId: cid, platform: 'tt', metric, periodKey: p.key } },
+          create: { customerId: cid, platform: 'tt', metric, periodKey: p.key, periodStart: p.start, periodEnd: p.end, value, source: 'tiktok' },
+          update: { periodStart: p.start, periodEnd: p.end, value, source: 'tiktok' },
+        })
+      );
+    }
+  }
+  for (let i = 0; i < ops.length; i += 500) await prisma.$transaction(ops.slice(i, i + 500));
+  await storePostImages(cid, posts).catch((err) => logger.warn({ err }, 'Social: storing TikTok covers failed'));
+
+  const profile = tiktok.profileFrom(user);
+  const assets = (conn.assets ?? {}) as unknown as tiktok.TikTokAssets;
+  await prisma.socialConnection.update({
+    where: { id: conn.id },
+    data: {
+      status: 'ACTIVE',
+      lastSyncAt: new Date(),
+      lastError: warnings.length ? warnings.join('; ').slice(0, 500) : null,
+      externalName: user.display_name ?? conn.externalName,
+      // Keep the stored tokens; refresh the public profile.
+      assets: {
+        ...assets,
+        ...Object.fromEntries(Object.entries(profile).filter(([, v]) => v != null)),
+        // accessToken() may have rotated the refresh token during this read.
+        ...(await latestRefresh(conn.id)),
+      } as unknown as Prisma.InputJsonValue,
+    },
+  });
+  return { ok: true, warnings };
+}
+
+/** The refresh token fields as stored now (a refresh during the sync may have replaced them). */
+async function latestRefresh(id: string) {
+  const row = await prisma.socialConnection.findUnique({ where: { id }, select: { assets: true } });
+  const a = (row?.assets ?? {}) as unknown as Partial<tiktok.TikTokAssets>;
+  return { refreshTokenEnc: a.refreshTokenEnc ?? null, refreshExpiresAt: a.refreshExpiresAt ?? null };
+}
+
 // ─── Monthly figures (Channel insights) ─────────────────────
 
 /** Full months kept, besides the current one. */
@@ -551,7 +782,7 @@ async function syncPeriods(conn: { id: string; customerId: string; accessTokenEn
 // ─── Post pictures ──────────────────────────────────────────
 
 /** Meta's image hosts — anything else is never downloaded. */
-const PICTURE_HOST = /(^|\.)(fbcdn\.net|cdninstagram\.com|fbsbx\.com)$/i;
+const PICTURE_HOST = /(^|\.)(fbcdn\.net|cdninstagram\.com|fbsbx\.com|tiktokcdn\.com|tiktokcdn-us\.com|tiktokcdn-eu\.com)$/i;
 const PICTURE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 const PICTURE_MAX_BYTES = 8 * 1024 * 1024;
 /** Pictures copied per sync — the rest follow on the next sync. */

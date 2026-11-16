@@ -1440,8 +1440,12 @@ model ContentPost {
   mediaSize      Int?
   mediaWidth     Int?
   mediaHeight    Int?
-  /// Platform keys: fb, ig.
+  /// Platform keys: fb, ig, tt.
   platforms      String[]  @default([])
+  /// TikTok post settings chosen by the team for this post: { privacy,
+  /// allowComment, allowDuet, allowStitch, brandOrganic, brandContent, consent }.
+  /// Null until TikTok settings are saved.
+  tiktok         Json?
   /// Planned publish moment (UTC) and the time zone it was chosen in.
   scheduledAt    DateTime?
   timeZone       String    @default("Australia/Sydney")

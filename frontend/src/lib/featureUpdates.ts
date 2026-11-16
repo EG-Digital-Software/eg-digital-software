@@ -30,6 +30,8 @@ export const FEATURE_UPDATES: FeatureUpdate[] = [
   { id: 'assign-team', name: 'Assign Team Name', addedAt: '2026-11-15' },
   // No `tab`: the minimise button lives on the chat panel, not a tab.
   { id: 'minimise-task-chat', name: 'Minimise Task Chat', addedAt: '2026-11-16' },
+  // No `tab`: TikTok lives on the Social Media Dashboard and Content Calendar tabs, shown only where ticked.
+  { id: 'tiktok-connection', name: 'TikTok connection', addedAt: '2026-11-16' },
 ];
 
 const SHOW_DAYS = 30;

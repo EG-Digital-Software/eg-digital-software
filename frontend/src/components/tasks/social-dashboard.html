@@ -575,6 +575,7 @@ function auto(id,c,key,a,b){
   }
   if(c==='fb'&&['views','visits','unfollows','views_3s','watch_time'].includes(id))return sumPVd('fb',id,a,b);
   return null;}
+ if(c==='tt'&&id==='tt_followers')return followersAt('tt',b);
  if(c==='ma'){const d=k=>sumDaily('meta_ads',k,a,b);
   switch(id){
    case 'ma_spend':return d(0);
@@ -865,7 +866,7 @@ $('views').onclick=e=>{const b=e.target.closest('button');if(!b)return;const tea
  document.body.classList.toggle('client',!team);if(!team)st.mode='real';$('viewNote').textContent=team?'Only your team sees this view. Update tools and missing-data checks are shown.':'This is what your client sees.';render();};
 /* ======================= CONNECTED ACCOUNTS ======================= */
 function fmtWhen(s){const d=new Date(s);return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}).toLowerCase();}
-const OTHERS=['TikTok','LinkedIn','YouTube','Google Ads'];
+const OTHERS=['LinkedIn','YouTube','Google Ads'];
 function accRender(){if(!S)return;const c=(S.connections||[]).find(x=>x.provider==='meta'),on=S.providers&&S.providers.meta;let h='';
  h+=`<h4>Facebook, Instagram and Meta Ads</h4><p class="note" style="margin-top:0">Sign in with the Facebook account that manages the business Page. Instagram must be a professional (Business or Creator) account linked to that Page.</p>`;
  if(!c){h+=on?`<button class="btn primary sm mt" data-connect="meta">Connect with Facebook</button>`:`<div class="msg ok">EG Eloma is finishing the Meta setup. Connecting will be available here soon.</div>`;}
@@ -877,27 +878,36 @@ function accRender(){if(!S)return;const c=(S.connections||[]).find(x=>x.provider
   if(!(A.pages||[]).length&&!(A.adAccounts||[]).length)h+=`<div class="msg err">This login cannot read any Page or ad account. Reconnect with the account that is an admin of the business Page.</div>`;
   if(c.lastError)h+=`<div class="msg ${exd?'err':'ok'}">${exd?'Meta stopped the access: ':'Note: '}${esc(c.lastError)}</div>`;
   h+=`<div class="acts mt" style="justify-content:flex-start"><button class="btn ${exd?'primary':'outline'} sm" data-connect="meta">Reconnect</button><button class="btn outline sm" data-sync${S.syncing?' disabled':''}>${S.syncing?'Syncing…':'Sync now'}</button><button class="btn outline sm" data-disc="${esc(c.id)}">Disconnect</button></div>`;}
+ h+=ttRender();
  h+=`<h4>Other platforms</h4>`+OTHERS.map(n=>`<div class="wl"><div><b>${n}</b><small>Automatic connection is coming soon.${S.canEdit?' Enter its figures with Update data for now.':' Your EG Eloma team adds these figures for now.'}</small></div><div><span class="chip neu">Coming soon</span></div></div>`).join('');
  $('accBody').innerHTML=h;}
+/** TikTok: its own sign-in; figures and videos fill the TikTok channel. */
+function ttRender(){const t=(S.connections||[]).find(x=>x.provider==='tiktok'),on=S.providers&&S.providers.tiktok;
+ let h=`<h4>TikTok</h4><p class="note" style="margin-top:0">Sign in with the business's TikTok account. Followers, videos, views, likes, comments and shares are read automatically; watch time and traffic sources are still entered with Update data.</p>`;
+ if(!t)return h+(on?`<button class="btn primary sm mt" data-connect="tiktok">Connect with TikTok</button>`:`<div class="msg ok">EG Eloma is finishing the TikTok setup. Connecting will be available here soon.</div>`);
+ const exd=t.status==='EXPIRED',P=(t.assets&&t.assets.profile)||{};
+ h+=`<div class="wl" style="border-top:0"><div><b>${esc(P.username?'@'+P.username:(t.name||'TikTok account'))}</b><small>Connected by ${esc(t.connectedByName)} on ${new Date(t.connectedAt).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})}${t.lastSyncAt?' · last synced '+fmtWhen(t.lastSyncAt):' · first sync in progress'}</small></div><div>${exd?'<span class="chip bad">Reconnect needed</span>':'<span class="chip good">Connected</span>'}</div></div>`;
+ if(t.lastError)h+=`<div class="msg ${exd?'err':'ok'}">${exd?'TikTok stopped the access: ':'Note: '}${esc(t.lastError)}</div>`;
+ return h+`<div class="acts mt" style="justify-content:flex-start"><button class="btn ${exd?'primary':'outline'} sm" data-connect="tiktok">Reconnect</button><button class="btn outline sm" data-sync${S.syncing?' disabled':''}>${S.syncing?'Syncing…':'Sync now'}</button><button class="btn outline sm" data-disc="${esc(t.id)}" data-prov="tiktok">Disconnect</button></div>`;}
 const openAcc=()=>{accRender();$('drawer').classList.remove('open');$('accDrawer').classList.add('open');$('dbg').classList.add('open');};
 $('accBtn').onclick=openAcc;$('accClose').onclick=closeD;
 let watchT=null;
-function watchConnect(){const startAt=new Date().toISOString();let n=0;clearInterval(watchT);
- watchT=setInterval(async()=>{if(++n>75){clearInterval(watchT);return;}try{const d=await bridge('load');setData(d);const c=(d.connections||[]).find(x=>x.provider==='meta');
-  if(c&&c.lastSyncAt&&c.lastSyncAt>startAt){clearInterval(watchT);toast('Meta account connected. Figures updated');}}catch(_){}},4000);}
+function watchConnect(prov='meta'){const startAt=new Date().toISOString();let n=0;clearInterval(watchT);
+ watchT=setInterval(async()=>{if(++n>75){clearInterval(watchT);return;}try{const d=await bridge('load');setData(d);const c=(d.connections||[]).find(x=>x.provider===prov);
+  if(c&&c.lastSyncAt&&c.lastSyncAt>startAt){clearInterval(watchT);toast((prov==='tiktok'?'TikTok':'Meta')+' account connected. Figures updated');}}catch(_){}},4000);}
 /** A long read carries on on the server after the request returns: reload until it is done (up to 15 minutes). */
 let syncT=null;
 function watchSync(seen=true){let n=0;clearInterval(syncT);
  syncT=setInterval(async()=>{if(++n>180){clearInterval(syncT);return;}try{const d=await bridge('load');setData(d);if(d.syncing)seen=true;
-  else{clearInterval(syncT);toast(seen?'Figures updated from Meta':'The sync did not finish. Please press Sync now again');}}catch(_){}},5000);}
+  else{clearInterval(syncT);toast(seen?'Figures updated':'The sync did not finish. Please press Sync now again');}}catch(_){}},5000);}
 $('accBody').onclick=async e=>{const cn=e.target.closest('[data-connect]'),sy=e.target.closest('[data-sync]'),dc=e.target.closest('[data-disc]');
  if(cn){const w=window.open('about:blank','eg-social-connect','width=620,height=760');
-  try{const r=await bridge('connect',{provider:cn.dataset.connect});if(w&&!w.closed)w.location.href=r.url;else window.open(r.url,'_blank');toast('Sign in with Facebook in the new window');watchConnect();}
+  try{const r=await bridge('connect',{provider:cn.dataset.connect});if(w&&!w.closed)w.location.href=r.url;else window.open(r.url,'_blank');const tk=cn.dataset.connect==='tiktok';toast('Sign in with '+(tk?'TikTok':'Facebook')+' in the new window');watchConnect(cn.dataset.connect);}
   catch(err){if(w)w.close();toast(err.message);}}
- else if(sy){sy.disabled=true;sy.textContent='Syncing…';try{const d=await bridge('sync');setData(d);if(d.syncing){toast('Still reading from Meta. Figures update here when it finishes');watchSync();}else toast('Figures updated from Meta');}catch(err){
+ else if(sy){sy.disabled=true;sy.textContent='Syncing…';try{const d=await bridge('sync');setData(d);if(d.syncing){toast('Still reading your accounts. Figures update here when it finishes');watchSync();}else toast('Figures updated');}catch(err){
   // The read may still be running on the server even when this request failed: keep checking.
-  toast('Still reading from Meta. Figures update here when it finishes');watchSync(false);accRender();}}
- else if(dc){if(!confirm('Disconnect this Meta account? Figures already fetched stay on the dashboard; new figures stop until it is connected again.'))return;
+  toast('Still reading your accounts. Figures update here when it finishes');watchSync(false);accRender();}}
+ else if(dc){if(!confirm('Disconnect this '+(dc.dataset.prov==='tiktok'?'TikTok':'Meta')+' account? Figures already fetched stay on the dashboard; new figures stop until it is connected again.'))return;
   try{await bridge('disconnect',{id:dc.dataset.disc});setData(await bridge('load'));toast('Account disconnected');}catch(err){toast(err.message);}}};
 $('accBody').onchange=async e=>{const s=e.target.closest('[data-sel]');if(!s)return;const c=(S.connections||[]).find(x=>x.provider==='meta');if(!c)return;
  const body={};document.querySelectorAll('#accBody [data-sel]').forEach(x=>body[x.dataset.sel]=x.value||null);

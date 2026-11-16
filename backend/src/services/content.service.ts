@@ -5,6 +5,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { notify } from './notification.service.js';
 import * as meta from './social/meta.service.js';
 import * as publish from './social/meta.publish.js';
+import * as tiktok from './social/tiktok.service.js';
 import type { Actor } from './social/social.service.js';
 
 /**
@@ -23,9 +24,9 @@ import type { Actor } from './social/social.service.js';
  * Changing the design or caption of an approved post sends it back to DRAFT.
  */
 
-export const PLATFORMS = ['fb', 'ig'] as const;
+export const PLATFORMS = ['fb', 'ig', 'tt'] as const;
 type Platform = (typeof PLATFORMS)[number];
-const PLATFORM_NAME: Record<Platform, string> = { fb: 'Facebook', ig: 'Instagram' };
+const PLATFORM_NAME: Record<Platform, string> = { fb: 'Facebook', ig: 'Instagram', tt: 'TikTok' };
 
 export const TIME_ZONES = ['Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane', 'Australia/Adelaide', 'Australia/Perth', 'Australia/Hobart', 'Australia/Darwin'] as const;
 
@@ -46,6 +47,9 @@ interface ActivityItem {
 const MAX = { title: 120, caption: 5000, hashtags: 1000, comment: 1000 };
 const IG = { caption: 2200, hashtags: 30, imageBytes: 8 * 1024 * 1024, videoBytes: 300 * 1024 * 1024, minRatio: 0.8, maxRatio: 1.91 };
 const FB = { caption: 63206, imageBytes: 10 * 1024 * 1024, videoBytes: 1024 * 1024 * 1024 };
+const TT = { videoCaption: 2200, photoCaption: 4000, imageBytes: 20 * 1024 * 1024, videoBytes: 4 * 1024 * 1024 * 1024 };
+/** The TikTok publishing permission (Content Posting API, Direct Post). */
+const TT_PUBLISH_SCOPE = 'video.publish';
 
 // ─── Access ────────────────────────────────────────────────
 
@@ -81,20 +85,45 @@ function withActivity(post: { activity: Prisma.JsonValue }, item: Omit<ActivityI
 
 // ─── Connection + checks ───────────────────────────────────
 
-type MetaConn = Awaited<ReturnType<typeof loadMetaConnection>>;
+type Conn = Awaited<ReturnType<typeof prisma.socialConnection.findUnique>>;
+interface Conns {
+  meta: Conn;
+  tiktok: Conn;
+}
 
-async function loadMetaConnection(customerId: string) {
-  return prisma.socialConnection.findUnique({ where: { customerId_provider: { customerId, provider: 'meta' } } });
+async function loadConnections(customerId: string): Promise<Conns> {
+  const rows = await prisma.socialConnection.findMany({ where: { customerId, provider: { in: ['meta', 'tiktok'] } } });
+  return { meta: rows.find((r) => r.provider === 'meta') ?? null, tiktok: rows.find((r) => r.provider === 'tiktok') ?? null };
 }
 
 /** What each platform can do for this customer right now. */
-function platformState(conn: MetaConn) {
+function platformState(conns: Conns) {
+  const tt = tiktokState(conns.tiktok);
+  return { ...metaState(conns.meta), tt };
+}
+
+function tiktokState(conn: Conn) {
+  const scopes = new Set((conn?.scopes ?? '').split(',').map((s) => s.trim()).filter(Boolean));
+  const expired = conn?.status === 'EXPIRED';
+  const connected = !!conn;
+  const canPublish = connected && !expired && scopes.has(TT_PUBLISH_SCOPE);
+  const profile = conn ? tiktok.publicProfile(conn.assets) : null;
+  const who = profile?.username ? `@${profile.username}` : (conn?.externalName ?? null);
+  let note: string;
+  if (!conn) note = 'Not connected · Connect TikTok in Accounts';
+  else if (expired) note = 'Connection expired · Reconnect TikTok';
+  else if (!scopes.has(TT_PUBLISH_SCOPE)) note = 'Connected, but posting permission not granted · Reconnect TikTok';
+  else note = 'Connected · Video or photo post';
+  return { key: 'tt' as const, name: who ? `TikTok · ${who}` : 'TikTok', connected, canPublish, note };
+}
+
+function metaState(conn: Conn) {
   const scopes = new Set((conn?.scopes ?? '').split(',').map((s) => s.trim()).filter(Boolean));
   // Older connections may not have recorded their permissions — Meta then has the final word.
   const hasScopes = (need: readonly string[]) => scopes.size === 0 || need.every((s) => scopes.has(s));
   const targets = conn ? publish.resolveTargets(conn) : { fb: null, ig: null };
   const expired = conn?.status === 'EXPIRED';
-  const one = (p: Platform, t: { name: string } | null) => {
+  const one = (p: 'fb' | 'ig', t: { name: string } | null) => {
     const connected = !!conn && !!t;
     const canPublish = connected && !expired && hasScopes(publish.PUBLISH_SCOPES[p]);
     let note: string;
@@ -140,9 +169,10 @@ function checksFor(post: PostRow, platforms: ReturnType<typeof platformState>): 
   // Design
   const video = !!post.mediaType?.startsWith('video/');
   if (!post.mediaUrl) {
+    const needs = chosen.filter((p) => p === 'ig' || p === 'tt').map((p) => PLATFORM_NAME[p]);
     out.push(
-      chosen.includes('ig')
-        ? { ok: false, title: 'Design', detail: 'Instagram needs an image or video — pick a design from Attachments' }
+      needs.length
+        ? { ok: false, title: 'Design', detail: `${needs.join(' and ')} need${needs.length === 1 ? 's' : ''} an image or video — pick a design from Attachments` }
         : { ok: true, title: 'Design', detail: 'No design — Facebook will publish a text post' }
     );
   } else {
@@ -167,16 +197,25 @@ function checksFor(post: PostRow, platforms: ReturnType<typeof platformState>): 
       if (!video && size > FB.imageBytes) problems.push('Facebook images must be under 10 MB');
       if (video && size > FB.videoBytes) problems.push('Facebook videos must be under 1 GB');
     }
+    if (chosen.includes('tt')) {
+      if (video) {
+        if (!['video/mp4', 'video/quicktime', 'video/webm'].includes(type)) problems.push('TikTok takes MP4, MOV or WebM videos');
+        if (size > TT.videoBytes) problems.push('TikTok videos must be under 4 GB');
+      } else {
+        if (!['image/jpeg', 'image/jpg', 'image/webp'].includes(type)) problems.push('TikTok takes JPEG or WebP photos (not PNG) — save the design as JPEG');
+        if (size > TT.imageBytes) problems.push('TikTok photos must be under 20 MB');
+      }
+    }
     const dims = post.mediaWidth && post.mediaHeight ? ` · ${post.mediaWidth} × ${post.mediaHeight}` : '';
     out.push(
       problems.length
         ? { ok: false, title: 'Design fits the platforms', detail: problems.join('; ') }
         : { ok: true, title: 'Design fits the platforms', detail: `${post.mediaName ?? 'Design'}${dims}` }
     );
-    // Meta downloads the file from our storage, so it must be on a public https address.
+    // Meta and TikTok download the file from our storage, so it must be on a public https address.
     out.push(
       /^https:\/\//i.test(post.mediaUrl)
-        ? { ok: true, title: 'Design is online', detail: 'Meta can download the file' }
+        ? { ok: true, title: 'Design is online', detail: 'The platforms can download the file' }
         : { ok: false, title: 'Design is online', detail: 'The file is stored on this computer only — upload it on the live portal' }
     );
   }
@@ -187,6 +226,10 @@ function checksFor(post: PostRow, platforms: ReturnType<typeof platformState>): 
   if (chosen.includes('ig') && message.length > IG.caption) capProblems.push(`Instagram allows ${IG.caption.toLocaleString()} characters (this is ${message.length.toLocaleString()})`);
   if (chosen.includes('ig') && hashtagCount(message) > IG.hashtags) capProblems.push(`Instagram allows ${IG.hashtags} hashtags (this has ${hashtagCount(message)})`);
   if (chosen.includes('fb') && message.length > FB.caption) capProblems.push('Too long for Facebook');
+  if (chosen.includes('tt')) {
+    const max = video ? TT.videoCaption : TT.photoCaption;
+    if (message.length > max) capProblems.push(`TikTok allows ${max.toLocaleString()} characters for a ${video ? 'video' : 'photo'} post (this is ${message.length.toLocaleString()})`);
+  }
   if (!message && !post.mediaUrl) capProblems.push('Write a caption or add a design');
   out.push(capProblems.length ? { ok: false, title: 'Caption length', detail: capProblems.join('; ') } : { ok: true, title: 'Caption length', detail: 'Within limits for the selected platforms' });
 
@@ -199,7 +242,71 @@ function checksFor(post: PostRow, platforms: ReturnType<typeof platformState>): 
         ? { ok: false, title: 'Accounts connected', detail: notReady.map((p) => `${PLATFORM_NAME[p]}: ${platforms[p].note}`).join('; ') }
         : { ok: true, title: 'Accounts connected', detail: `${chosen.map((p) => PLATFORM_NAME[p]).join(' and ')} ready to publish` }
   );
+
+  // TikTok asks the person posting to choose these themselves for every post.
+  if (chosen.includes('tt')) {
+    const s = tiktokSettings(post.tiktok);
+    const missing: string[] = [];
+    if (!s.privacy) missing.push('choose who can see it');
+    if (s.brandContent && s.privacy === 'SELF_ONLY') missing.push('branded content cannot be private (Only me)');
+    if (!s.consent) missing.push('tick the consent');
+    out.push(
+      missing.length
+        ? { ok: false, title: 'TikTok settings', detail: `In TikTok settings: ${missing.join('; ')}` }
+        : { ok: true, title: 'TikTok settings', detail: `${PRIVACY_LABEL[s.privacy!]} · comments ${s.allowComment ? 'on' : 'off'}${video ? ` · Duet ${s.allowDuet ? 'on' : 'off'} · Stitch ${s.allowStitch ? 'on' : 'off'}` : ''}` }
+    );
+  }
   return out;
+}
+
+const PRIVACY_LABEL: Record<tiktok.Privacy, string> = {
+  PUBLIC_TO_EVERYONE: 'Everyone',
+  MUTUAL_FOLLOW_FRIENDS: 'Friends',
+  FOLLOWER_OF_CREATOR: 'Followers',
+  SELF_ONLY: 'Only me',
+};
+
+/** A post's saved TikTok settings, with safe defaults (nothing chosen, everything off). */
+function tiktokSettings(v: Prisma.JsonValue | null | undefined): tiktok.PostSettings {
+  const o = (v && typeof v === 'object' && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
+  const privacy = tiktok.PRIVACY_LEVELS.includes(o.privacy as tiktok.Privacy) ? (o.privacy as tiktok.Privacy) : null;
+  return {
+    privacy,
+    allowComment: o.allowComment === true,
+    allowDuet: o.allowDuet === true,
+    allowStitch: o.allowStitch === true,
+    brandOrganic: o.brandOrganic === true,
+    brandContent: o.brandContent === true,
+    consent: o.consent === true,
+  };
+}
+
+// ─── TikTok account details for the post form ─────────────
+
+const creatorCache = new Map<string, { at: number; info: tiktok.CreatorInfo | null; error: string | null }>();
+const CREATOR_TTL_MS = 5 * 60_000;
+
+/**
+ * Who will post and what the TikTok account allows (privacy options, whether
+ * comments/Duet/Stitch are switched off). Shown in the TikTok settings of the
+ * post form; cached a few minutes because the calendar refreshes often.
+ */
+async function tiktokCreator(conn: Conn) {
+  if (!conn || conn.status === 'EXPIRED' || !tiktok.tiktokConfigured()) return null;
+  const hit = creatorCache.get(conn.id);
+  if (hit && Date.now() - hit.at < CREATOR_TTL_MS) return { info: hit.info, error: hit.error };
+  let info: tiktok.CreatorInfo | null = null;
+  let error: string | null = null;
+  try {
+    info = await tiktok.creatorInfo(await tiktok.accessToken(conn));
+  } catch (err) {
+    error = (err as Error).message;
+    if (err instanceof tiktok.TikTokError && err.expired) {
+      await prisma.socialConnection.update({ where: { id: conn.id }, data: { status: 'EXPIRED', lastError: error.slice(0, 500) } }).catch(() => undefined);
+    }
+  }
+  creatorCache.set(conn.id, { at: Date.now(), info, error });
+  return { info, error };
 }
 
 // ─── Reading ───────────────────────────────────────────────
@@ -215,6 +322,7 @@ function shapePost(p: PostRow & { logs?: { platform: string; result: string; per
     firstComment: p.firstComment,
     media: p.mediaUrl ? { url: p.mediaUrl, name: p.mediaName, type: p.mediaType, size: p.mediaSize, width: p.mediaWidth, height: p.mediaHeight } : null,
     platforms: p.platforms,
+    tiktok: tiktokSettings(p.tiktok),
     scheduledAt: p.scheduledAt,
     timeZone: p.timeZone,
     status: p.status,
@@ -233,13 +341,13 @@ function shapePost(p: PostRow & { logs?: { platform: string; result: string; per
 
 export async function getCalendar(customerId: string, taskId: string, viewer: Actor) {
   const task = await ensureCalendarTask(customerId, taskId);
-  const [posts, conn, logs, attachments, customer] = await Promise.all([
+  const [posts, conns, logs, attachments, customer] = await Promise.all([
     prisma.contentPost.findMany({
       where: { taskId },
       orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
       include: { logs: { select: { platform: true, result: true, permalink: true, createdAt: true }, orderBy: { createdAt: 'asc' } } },
     }),
-    loadMetaConnection(customerId),
+    loadConnections(customerId),
     prisma.contentPublishLog.findMany({ where: { taskId }, orderBy: { createdAt: 'desc' }, take: 50, include: { post: { select: { title: true } } } }),
     // Designs come from the task's Attachments tab (images and videos only).
     prisma.taskAttachment.findMany({
@@ -249,7 +357,11 @@ export async function getCalendar(customerId: string, taskId: string, viewer: Ac
     }),
     prisma.customer.findUnique({ where: { id: customerId }, select: { companyName: true, tradingAs: true } }),
   ]);
-  const platforms = platformState(conn);
+  const conn = conns.meta;
+  const platforms = platformState(conns);
+  const tt = conns.tiktok;
+  // The account details TikTok wants shown in the post form — only the team posts.
+  const creator = isStaff(viewer) ? await tiktokCreator(tt) : null;
   return {
     customerName: customer?.tradingAs || customer?.companyName || '',
     taskTitle: task.title,
@@ -274,7 +386,34 @@ export async function getCalendar(customerId: string, taskId: string, viewer: Ac
           selected: conn.selected,
         }
       : null,
-    platforms: [platforms.fb, platforms.ig],
+    tiktokConfigured: tiktok.tiktokConfigured(),
+    tiktok: tt
+      ? {
+          id: tt.id,
+          name: tt.externalName,
+          status: tt.status,
+          lastError: tt.lastError,
+          tokenExpiresAt: tt.tokenExpiresAt,
+          connectedByName: tt.connectedByName,
+          connectedAt: tt.createdAt,
+          scopes: tt.scopes,
+          profile: tiktok.publicProfile(tt.assets),
+          creator: creator?.info
+            ? {
+                nickname: creator.info.creator_nickname ?? null,
+                username: creator.info.creator_username ?? null,
+                avatarUrl: creator.info.creator_avatar_url ?? null,
+                privacyOptions: creator.info.privacy_level_options ?? [],
+                commentDisabled: !!creator.info.comment_disabled,
+                duetDisabled: !!creator.info.duet_disabled,
+                stitchDisabled: !!creator.info.stitch_disabled,
+                maxVideoSeconds: creator.info.max_video_post_duration_sec ?? null,
+              }
+            : null,
+          creatorError: creator?.error ?? null,
+        }
+      : null,
+    platforms: [platforms.fb, platforms.ig, platforms.tt],
     timeZones: TIME_ZONES,
     posts: posts.map((p) => shapePost(p, platforms)),
     log: logs.map((l) => ({
@@ -306,6 +445,16 @@ export interface PostInput {
   platforms?: string[];
   scheduledAt?: string | null;
   timeZone?: string;
+  /** TikTok settings for this post (privacy, comments, Duet, Stitch, disclosure, consent). */
+  tiktok?: Partial<tiktok.PostSettings> | null;
+}
+
+/** Validate TikTok settings from the form. Unknown privacy values are dropped (nothing chosen). */
+function cleanTikTok(v: PostInput['tiktok']): tiktok.PostSettings | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v !== 'object' || Array.isArray(v)) throw ApiError.badRequest('TikTok settings are not valid');
+  return tiktokSettings(v as Prisma.JsonValue);
 }
 
 function clean(input: PostInput) {
@@ -343,8 +492,11 @@ function clean(input: PostInput) {
     platforms,
     scheduledAt,
     timeZone: input.timeZone,
+    tiktok: cleanTikTok(input.tiktok),
   };
 }
+
+const tiktokJson = (v: tiktok.PostSettings | null) => (v === null ? Prisma.DbNull : (v as unknown as Prisma.InputJsonValue));
 
 async function mediaFromAttachment(taskId: string, attachmentId: string) {
   const a = await prisma.taskAttachment.findFirst({ where: { id: attachmentId, taskId, kind: 'TASK' } });
@@ -371,6 +523,7 @@ export async function createPost(customerId: string, taskId: string, actor: Acto
       mediaWidth: input.attachmentId ? c.mediaWidth ?? null : null,
       mediaHeight: input.attachmentId ? c.mediaHeight ?? null : null,
       platforms: c.platforms ?? [],
+      ...(c.tiktok ? { tiktok: tiktokJson(c.tiktok) } : {}),
       scheduledAt: c.scheduledAt ?? null,
       timeZone: c.timeZone ?? 'Australia/Sydney',
       createdById: actor.id,
@@ -398,6 +551,8 @@ export async function updatePost(customerId: string, taskId: string, postId: str
     else Object.assign(data, await mediaFromAttachment(taskId, input.attachmentId), { mediaWidth: c.mediaWidth ?? null, mediaHeight: c.mediaHeight ?? null });
   }
   if (c.platforms !== undefined) data.platforms = c.platforms;
+  // TikTok settings are how it is posted, not what the client approved — no re-approval needed.
+  if (c.tiktok !== undefined) data.tiktok = tiktokJson(c.tiktok);
   if (c.scheduledAt !== undefined) data.scheduledAt = c.scheduledAt;
   if (c.timeZone !== undefined) data.timeZone = c.timeZone;
 
@@ -532,7 +687,7 @@ export async function schedule(customerId: string, taskId: string, postId: strin
   if (!['APPROVED', 'FAILED'].includes(post.status)) throw ApiError.badRequest(post.status === 'SCHEDULED' ? 'This post is already scheduled' : 'Only an approved post can be scheduled');
   if (!post.scheduledAt) throw ApiError.badRequest('Choose a date and time first');
   if (post.scheduledAt.getTime() < Date.now()) throw ApiError.badRequest('Pick a time in the future (or use Publish now)');
-  const bad = failedChecks(post, platformState(await loadMetaConnection(customerId)));
+  const bad = failedChecks(post, platformState(await loadConnections(customerId)));
   if (bad.length) throw ApiError.badRequest(`Not ready to schedule: ${bad.map((c) => `${c.title} — ${c.detail}`).join('; ')}`);
   await prisma.contentPost.update({
     where: { id: post.id },
@@ -563,7 +718,7 @@ export async function publishNow(customerId: string, taskId: string, postId: str
   await ensureCalendarTask(customerId, taskId);
   const post = await findPost(customerId, taskId, postId);
   if (!['APPROVED', 'SCHEDULED', 'FAILED'].includes(post.status)) throw ApiError.badRequest('Only an approved post can be published');
-  const bad = failedChecks(post, platformState(await loadMetaConnection(customerId)));
+  const bad = failedChecks(post, platformState(await loadConnections(customerId)));
   if (bad.length) throw ApiError.badRequest(`Not ready to publish: ${bad.map((c) => `${c.title} — ${c.detail}`).join('; ')}`);
   const claimed = await claim(post.id, post.status);
   if (!claimed) throw ApiError.conflict('This post is already being published');
@@ -581,8 +736,10 @@ async function claim(postId: string, from: string) {
 async function runPublish(postId: string, trigger: string) {
   const post = await prisma.contentPost.findUnique({ where: { id: postId }, include: { logs: true } });
   if (!post || post.status !== 'PUBLISHING') return;
-  const conn = await loadMetaConnection(post.customerId);
+  const conns = await loadConnections(post.customerId);
+  const conn = conns.meta;
   const targets = conn ? publish.resolveTargets(conn) : { fb: null, ig: null };
+  let ttExpired = false;
   const done = new Set(post.logs.filter((l) => l.result === 'PUBLISHED').map((l) => l.platform));
   const content: publish.PublishContent = {
     message: composeMessage(post),
@@ -604,6 +761,19 @@ async function runPublish(postId: string, trigger: string) {
       } else if (p === 'ig') {
         if (!targets.ig?.token) throw new Error('No Instagram account connected');
         res = await publish.publishInstagram(targets.ig.igId, targets.ig.token, content);
+      } else if (p === 'tt') {
+        if (!conns.tiktok) throw new Error('No TikTok account connected');
+        if (!post.mediaUrl || !post.mediaType) throw new Error('TikTok needs an image or video');
+        res = await tiktok.publish(await tiktok.accessToken(conns.tiktok), {
+          caption: content.message,
+          title: post.title,
+          mediaUrl: post.mediaUrl,
+          mediaType: post.mediaType,
+          mediaSize: post.mediaSize,
+          settings: tiktokSettings(post.tiktok),
+        });
+        // TikTok has no "first comment" through its API.
+        if (post.firstComment.trim()) res = { ...res, warning: [res.warning, 'TikTok does not allow apps to add a first comment'].filter(Boolean).join(' ') };
       } else throw new Error('This platform cannot be published to');
       await prisma.contentPublishLog.create({
         data: { postId, taskId: post.taskId, customerId: post.customerId, platform: p, result: 'PUBLISHED', externalId: res.externalId, permalink: res.permalink, error: res.warning ?? null, trigger },
@@ -612,9 +782,13 @@ async function runPublish(postId: string, trigger: string) {
     } catch (err) {
       const msg = (err as Error).message.slice(0, 500);
       if (err instanceof meta.MetaError && err.expired) expired = true;
+      if (err instanceof tiktok.TikTokError && err.expired) ttExpired = true;
       errors.push(`${name}: ${msg}`);
       await prisma.contentPublishLog.create({ data: { postId, taskId: post.taskId, customerId: post.customerId, platform: p, result: 'FAILED', error: msg, trigger } });
     }
+  }
+  if (ttExpired && conns.tiktok) {
+    await prisma.socialConnection.update({ where: { id: conns.tiktok.id }, data: { status: 'EXPIRED', lastError: 'Connection expired while publishing' } }).catch(() => undefined);
   }
   if (expired && conn) {
     await prisma.socialConnection.update({ where: { id: conn.id }, data: { status: 'EXPIRED', lastError: 'Connection expired while publishing' } }).catch(() => undefined);

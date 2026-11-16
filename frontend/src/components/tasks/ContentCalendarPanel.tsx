@@ -16,7 +16,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import type { ContentCalendar, ContentPost, ContentPostInput, ContentPostStatus, TaskApi } from '@/api/tasks';
+import type { ContentCalendar, ContentPost, ContentPostInput, ContentPostStatus, TaskApi, TikTokPostSettings, TikTokPrivacy } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
 import { cn, mediaUrl } from '@/lib/utils';
 
@@ -54,7 +54,6 @@ const PLATFORM: Record<string, { short: string; name: string; color: string }> =
 /** Platforms shown in the calendar but not connectable yet (their connection is set up later). */
 const UPCOMING: { key: string; title: string; detail: string }[] = [
   { key: 'li', title: 'LinkedIn Company Page', detail: 'Connect to publish posts to the LinkedIn company page.' },
-  { key: 'tt', title: 'TikTok Business', detail: 'Connect to publish videos and Reels-style content to TikTok.' },
   { key: 'gbp', title: 'Google Business Profile', detail: 'Connect to publish updates and offers to the Google listing.' },
 ];
 const NAVY = '#0F1F33';
@@ -398,6 +397,7 @@ function CalendarView({
   const counts = SUMMARY_ORDER.map((s) => ({ s, n: monthPosts.filter((p) => p.status === s || (s === 'SCHEDULED' && p.status === 'PUBLISHING') || (s === 'DRAFT' && p.status === 'CHANGES_REQUESTED')).length }));
   const failed = data.posts.filter((p) => p.status === 'FAILED');
   const connIssue = data.connection?.status === 'EXPIRED';
+  const ttIssue = data.tiktok?.status === 'EXPIRED';
   const now = useNow();
   const overdue = !data.autoPublish ? data.posts.filter((p) => p.status === 'SCHEDULED' && p.scheduledAt && Date.parse(p.scheduledAt) < now) : [];
   const waiting = data.posts.filter((p) => p.status === 'AWAITING_APPROVAL');
@@ -418,6 +418,14 @@ function CalendarView({
           </span>
           <button type="button" className="font-semibold underline" onClick={() => onOpen(failed[0].id)}>Open post</button>
           {connIssue && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect Meta</button>}
+          {ttIssue && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect TikTok</button>}
+        </div>
+      )}
+      {failed.length === 0 && ttIssue && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-[#F5C2BD] bg-[#FDE7E5] px-4 py-3.5 text-sm text-[#7A1A12]">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <span className="flex-1">The TikTok connection has expired — scheduled TikTok posts cannot publish until it is reconnected.</span>
+          <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect TikTok</button>
         </div>
       )}
       {failed.length === 0 && connIssue && (
@@ -566,7 +574,11 @@ interface Form {
   date: string;
   time: string;
   timeZone: string;
+  tiktok: TikTokPostSettings;
 }
+
+/** Nothing chosen and everything off: TikTok wants the person posting to choose each time. */
+const TIKTOK_BLANK: TikTokPostSettings = { privacy: null, allowComment: false, allowDuet: false, allowStitch: false, brandOrganic: false, brandContent: false, consent: false };
 
 function formFrom(p: ContentPost | undefined, initialDate?: string): Form {
   const tz = p?.timeZone || DEFAULT_TZ;
@@ -580,6 +592,7 @@ function formFrom(p: ContentPost | undefined, initialDate?: string): Form {
     date: at?.date ?? initialDate ?? '',
     time: at?.time ?? (initialDate ? '18:00' : ''),
     timeZone: tz,
+    tiktok: { ...TIKTOK_BLANK, ...(p?.tiktok ?? {}) },
   };
 }
 
@@ -650,6 +663,7 @@ function PostView({
     platforms: form.platforms,
     scheduledAt: scheduledIso,
     timeZone: form.timeZone,
+    ...(form.platforms.includes('tt') || post?.tiktok?.privacy ? { tiktok: form.tiktok } : {}),
   });
 
   async function run(label: string, fn: () => Promise<unknown>, success?: string) {
@@ -765,6 +779,7 @@ function PostView({
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-[#F5C2BD] bg-[#FDE7E5] px-4 py-3 text-sm text-[#7A1A12]">
           <AlertTriangle className="h-5 w-5 shrink-0" /><span className="flex-1">{post.lastError}</span>
           {data.connection?.status === 'EXPIRED' && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect Meta</button>}
+          {data.tiktok?.status === 'EXPIRED' && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect TikTok</button>}
         </div>
       )}
       {post?.status === 'PUBLISHED' && (
@@ -899,6 +914,17 @@ function PostView({
             </div>
           </Card>
 
+          {form.platforms.includes('tt') && (
+            <TikTokSettings
+              data={data}
+              value={form.tiktok}
+              onChange={(tiktok) => set({ tiktok })}
+              locked={locked}
+              isVideo={!!post?.media?.type?.startsWith('video/')}
+              onAccounts={onAccounts}
+            />
+          )}
+
           <Card className="flex flex-col gap-3.5">
             <h3 className="text-base font-semibold">Schedule</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -941,7 +967,7 @@ function PostView({
             <button
               type="button"
               onClick={() => {
-                if (!window.confirm(status === 'PUBLISHED' ? 'Remove this post from the calendar? It stays on Facebook/Instagram.' : 'Delete this post from the calendar?')) return;
+                if (!window.confirm(status === 'PUBLISHED' ? 'Remove this post from the calendar? It stays on the social accounts it was posted to.' : 'Delete this post from the calendar?')) return;
                 run('delete', () => api.deleteContentPost(taskId, post.id), 'Post removed').then(onDeleted).catch(() => undefined);
               }}
               className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium text-[#A8261B] hover:underline"
@@ -964,6 +990,141 @@ function PostView({
         />
       )}
     </div>
+  );
+}
+
+// ─── TikTok settings (TikTok asks the person posting to choose these each time) ──
+
+const PRIVACY_NAME: Record<TikTokPrivacy, string> = {
+  PUBLIC_TO_EVERYONE: 'Everyone',
+  MUTUAL_FOLLOW_FRIENDS: 'Friends (followers you follow back)',
+  FOLLOWER_OF_CREATOR: 'Followers',
+  SELF_ONLY: 'Only me',
+};
+
+function TikTokSettings({
+  data,
+  value,
+  onChange,
+  locked,
+  isVideo,
+  onAccounts,
+}: {
+  data: ContentCalendar;
+  value: TikTokPostSettings;
+  onChange: (v: TikTokPostSettings) => void;
+  locked: boolean;
+  isVideo: boolean;
+  onAccounts: () => void;
+}) {
+  const creator = data.tiktok?.creator ?? null;
+  const [disclose, setDisclose] = useState(value.brandOrganic || value.brandContent);
+  const set = (patch: Partial<TikTokPostSettings>) => onChange({ ...value, ...patch });
+  const options = creator?.privacyOptions.length ? creator.privacyOptions : (Object.keys(PRIVACY_NAME) as TikTokPrivacy[]);
+  const who = creator?.nickname ?? data.tiktok?.profile.displayName ?? null;
+  const handle = creator?.username ?? data.tiktok?.profile.username ?? null;
+
+  const toggle = (label: string, key: 'allowComment' | 'allowDuet' | 'allowStitch', off: boolean) => (
+    <label className={cn('flex items-center gap-2.5 text-sm', off && 'text-[#98A2B3]')} title={off ? 'Switched off in this TikTok account’s settings' : undefined}>
+      <input type="checkbox" checked={!off && value[key]} disabled={locked || off} onChange={(e) => set({ [key]: e.target.checked })} className="h-4 w-4 accent-[#0F1F33]" />
+      {label}{off ? ' (off for this account)' : ''}
+    </label>
+  );
+
+  return (
+    <Card className="flex flex-col gap-3.5">
+      <h3 className="text-base font-semibold">TikTok settings</h3>
+      {!data.tiktok ? (
+        <p className="text-[13px] text-[#8A4B00]">TikTok is not connected. <button type="button" onClick={onAccounts} className="font-semibold underline">Connect TikTok</button></p>
+      ) : (
+        <div className="flex items-center gap-2.5 rounded-[10px] bg-[#F6F7F9] px-3 py-2.5">
+          {creator?.avatarUrl || data.tiktok.profile.avatarUrl ? (
+            <img src={creator?.avatarUrl ?? data.tiktok.profile.avatarUrl ?? ''} alt="" className="h-8 w-8 rounded-full object-cover" />
+          ) : (
+            <PlatformBadge k="tt" size="lg" />
+          )}
+          <span className="min-w-0 text-sm">
+            Posting to <strong className="font-semibold">{who ?? 'the connected TikTok account'}</strong>
+            {handle && <span className="text-[#5A6372]"> @{handle}</span>}
+          </span>
+        </div>
+      )}
+      {data.tiktok?.creatorError && <p className="text-xs text-[#A8261B]">{data.tiktok.creatorError}</p>}
+
+      <label className="flex flex-col gap-1.5">
+        <span className="text-[13px] font-semibold">Who can see this post</span>
+        <select
+          value={value.privacy ?? ''}
+          disabled={locked}
+          onChange={(e) => set({ privacy: (e.target.value || null) as TikTokPrivacy | null })}
+          className={cn(inputCls, 'h-11 px-2.5')}
+        >
+          <option value="" disabled>Choose…</option>
+          {options.map((o) => (
+            <option key={o} value={o} disabled={o === 'SELF_ONLY' && value.brandContent}>
+              {PRIVACY_NAME[o]}{o === 'SELF_ONLY' && value.brandContent ? ' (not for branded content)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 text-[13px] font-semibold">Allow viewers to</legend>
+        {toggle('Comment', 'allowComment', !!creator?.commentDisabled)}
+        {isVideo && toggle('Duet', 'allowDuet', !!creator?.duetDisabled)}
+        {isVideo && toggle('Stitch', 'allowStitch', !!creator?.stitchDisabled)}
+      </fieldset>
+
+      <div className="flex flex-col gap-2 border-t border-[#EEF0F3] pt-3">
+        <label className="flex items-center justify-between gap-3 text-sm font-semibold">
+          Disclose commercial content
+          <input
+            type="checkbox"
+            checked={disclose}
+            disabled={locked}
+            onChange={(e) => {
+              setDisclose(e.target.checked);
+              if (!e.target.checked) set({ brandOrganic: false, brandContent: false });
+            }}
+            className="h-4 w-4 accent-[#0F1F33]"
+          />
+        </label>
+        <p className="text-xs text-[#5A6372]">Turn on if this post promotes a brand, product or service.</p>
+        {disclose && (
+          <div className="flex flex-col gap-2 pl-1">
+            <label className="flex items-start gap-2.5 text-sm">
+              <input type="checkbox" checked={value.brandOrganic} disabled={locked} onChange={(e) => set({ brandOrganic: e.target.checked })} className="mt-0.5 h-4 w-4 accent-[#0F1F33]" />
+              <span>Your brand<span className="block text-xs text-[#5A6372]">Promoting the client’s own business. Labelled “Promotional content”.</span></span>
+            </label>
+            <label className="flex items-start gap-2.5 text-sm">
+              <input
+                type="checkbox"
+                checked={value.brandContent}
+                disabled={locked}
+                onChange={(e) => set({ brandContent: e.target.checked, ...(e.target.checked && value.privacy === 'SELF_ONLY' ? { privacy: null } : {}) })}
+                className="mt-0.5 h-4 w-4 accent-[#0F1F33]"
+              />
+              <span>Branded content<span className="block text-xs text-[#5A6372]">A paid partnership with another brand. Labelled “Paid partnership”; cannot be private.</span></span>
+            </label>
+            {!value.brandOrganic && !value.brandContent && <p className="text-xs font-semibold text-[#A8261B]">Choose at least one, or turn disclosure off.</p>}
+          </div>
+        )}
+      </div>
+
+      <label className="flex items-start gap-2.5 border-t border-[#EEF0F3] pt-3 text-[13px] leading-relaxed">
+        <input type="checkbox" checked={value.consent} disabled={locked} onChange={(e) => set({ consent: e.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-[#0F1F33]" />
+        <span>
+          By posting, I agree to TikTok’s{' '}
+          {value.brandContent && (
+            <>
+              <a href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noreferrer" className="text-[#1E40AF] underline">Branded Content Policy</a> and{' '}
+            </>
+          )}
+          <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noreferrer" className="text-[#1E40AF] underline">Music Usage Confirmation</a>.
+        </span>
+      </label>
+      <p className="text-xs text-[#5A6372]">After publishing, it can take a few minutes for the post to appear on the TikTok profile.</p>
+    </Card>
   );
 }
 
@@ -1032,7 +1193,7 @@ function DesignPicker({
           )}
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-[#E4E7EC] px-5 py-4">
-          <span className="text-xs text-[#5A6372]">Instagram: JPEG, 4:5 to 1.91:1, under 8 MB · Videos: MP4/MOV</span>
+          <span className="text-xs text-[#5A6372]">Instagram: JPEG, 4:5 to 1.91:1, under 8 MB · TikTok photos: JPEG or WebP · Videos: MP4/MOV</span>
           <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(f); }} />
           <Btn primary onClick={() => fileRef.current?.click()} busy={uploading !== null}>
             {uploading !== null ? `Uploading ${uploading}%` : <><Upload className="h-4 w-4" />Upload new</>}
@@ -1047,7 +1208,11 @@ function DesignPicker({
 
 function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; api: TaskApi; taskId: string; refresh: () => void }) {
   const conn = data.connection;
-  const [waiting, setWaiting] = useState(false);
+  const tt = data.tiktok;
+  // Which sign-in window is open (meta or tiktok), while we wait for it to finish.
+  const [waitingFor, setWaitingFor] = useState<'meta' | 'tiktok' | null>(null);
+  const waiting = waitingFor !== null;
+  const setWaiting = (on: boolean) => { if (!on) setWaitingFor(null); };
   const qc = useQueryClient();
 
   // After the Facebook window opens, look for the new connection for a few minutes.
@@ -1060,23 +1225,28 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
     }, 4000);
     return () => window.clearInterval(id);
   }, [waiting, qc, taskId]);
-  const connectedAt = conn?.connectedAt;
+  const connectedAt = waitingFor === 'tiktok' ? tt?.connectedAt : conn?.connectedAt;
   const firstConnectedAt = useRef(connectedAt);
   useEffect(() => {
-    if (waiting && connectedAt && connectedAt !== firstConnectedAt.current) {
-      setWaiting(false);
-      toast.success('Meta account connected');
+    if (waitingFor && connectedAt && connectedAt !== firstConnectedAt.current) {
+      setWaitingFor(null);
+      toast.success(waitingFor === 'tiktok' ? 'TikTok account connected' : 'Meta account connected');
     }
-  }, [connectedAt, waiting]);
+  }, [connectedAt, waitingFor]);
 
   const connect = useMutation({
-    mutationFn: () => api.connectSocial(taskId, 'meta'),
-    onSuccess: ({ url }) => {
-      firstConnectedAt.current = conn?.connectedAt;
-      const w = window.open(url, 'meta-connect', 'width=640,height=760');
+    mutationFn: (provider: 'meta' | 'tiktok') => api.connectSocial(taskId, provider).then((r) => ({ ...r, provider })),
+    onSuccess: ({ url, provider }) => {
+      firstConnectedAt.current = provider === 'tiktok' ? tt?.connectedAt : conn?.connectedAt;
+      const w = window.open(url, `${provider}-connect`, 'width=640,height=760');
       if (!w) window.location.assign(url);
-      setWaiting(true);
+      setWaitingFor(provider);
     },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const disconnectTikTok = useMutation({
+    mutationFn: () => api.disconnectSocial(taskId, tt!.id),
+    onSuccess: () => { toast.success('TikTok disconnected'); refresh(); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const select = useMutation({
@@ -1116,7 +1286,7 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
           </p>
         </div>
         {data.metaConfigured ? (
-          <Btn primary onClick={() => connect.mutate()} busy={connect.isPending}>
+          <Btn primary onClick={() => connect.mutate('meta')} busy={connect.isPending && connect.variables === 'meta'}>
             <Link2 className="h-4 w-4" />{conn ? 'Reconnect Meta' : 'Connect Meta (Facebook & Instagram)'}
           </Btn>
         ) : (
@@ -1125,7 +1295,7 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
       </div>
       {waiting && (
         <div className="flex items-center gap-2 rounded-xl border border-[#C9D6F5] bg-[#E6EDFD] px-4 py-3 text-sm text-[#1E40AF]">
-          <Loader2 className="h-4 w-4 animate-spin" />Finish signing in with Facebook in the window that opened — this page updates on its own.
+          <Loader2 className="h-4 w-4 animate-spin" />Finish signing in with {waitingFor === 'tiktok' ? 'TikTok' : 'Facebook'} in the window that opened — this page updates on its own.
         </div>
       )}
       {missingPublish && (
@@ -1173,6 +1343,17 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
             {conn && k === 'ig' && igs.length === 0 && <p className="text-xs text-[#8A4B00]">No Instagram professional account is linked to the Pages this login can manage.</p>}
           </article>
         ))}
+        <TikTokCard
+          data={data}
+          tt={tt}
+          busy={connect.isPending && connect.variables === 'tiktok'}
+          disconnecting={disconnectTikTok.isPending}
+          onConnect={() => connect.mutate('tiktok')}
+          onDisconnect={() => {
+            if (window.confirm('Disconnect TikTok? Scheduled TikTok posts will not publish, and the dashboard stops reading new TikTok figures. Figures already read stay.')) disconnectTikTok.mutate();
+          }}
+          statusPill={statusPill}
+        />
         {UPCOMING.map((u) => (
           <article key={u.key} className="flex flex-col gap-3.5 rounded-2xl border border-[#E4E7EC] bg-white p-5">
             <div className="flex items-center gap-3">
@@ -1235,5 +1416,68 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
         )}
       </section>
     </div>
+  );
+}
+
+function TikTokCard({
+  data,
+  tt,
+  busy,
+  disconnecting,
+  onConnect,
+  onDisconnect,
+  statusPill,
+}: {
+  data: ContentCalendar;
+  tt: ContentCalendar['tiktok'];
+  busy: boolean;
+  disconnecting: boolean;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  statusPill: (ok: boolean, label: string, tone: 'ok' | 'bad' | 'warn' | 'none') => React.ReactNode;
+}) {
+  const p = data.platforms.find((x) => x.key === 'tt');
+  const expired = tt?.status === 'EXPIRED';
+  const tone: 'ok' | 'bad' | 'warn' | 'none' = !tt ? 'none' : expired ? 'bad' : !p?.canPublish ? 'warn' : 'ok';
+  const label = !tt ? 'Not connected' : expired ? 'Expired' : !p?.canPublish ? 'No publish permission' : 'Connected';
+  const handle = tt?.profile.username ? `@${tt.profile.username}` : (tt?.name ?? 'Not connected');
+  return (
+    <article className="flex flex-col gap-3.5 rounded-2xl border bg-white p-5" style={{ borderColor: tone === 'bad' ? '#F5C2BD' : '#E4E7EC' }}>
+      <div className="flex items-center gap-3">
+        {tt?.profile.avatarUrl ? (
+          <img src={tt.profile.avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-[10px] object-cover" />
+        ) : (
+          <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] text-sm font-bold text-white" style={{ background: PLATFORM.tt.color }}>{PLATFORM.tt.short}</span>
+        )}
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[15px] font-semibold">TikTok</h3>
+          <p className="truncate text-[13px] text-[#5A6372]">
+            {tt?.profile.profileUrl ? <a href={tt.profile.profileUrl} target="_blank" rel="noreferrer" className="hover:underline">{handle}</a> : handle}
+          </p>
+        </div>
+        {statusPill(tone === 'ok', label, tone)}
+      </div>
+      <p className="text-[13px] leading-relaxed" style={{ color: tone === 'bad' ? '#7A1A12' : '#5A6372' }}>
+        {!tt
+          ? 'Connect to publish videos and photo posts to TikTok. The same connection feeds the TikTok figures on the Social Media Dashboard.'
+          : expired
+            ? 'The connection expired. Scheduled TikTok posts cannot publish until it is reconnected.'
+            : `${p?.note ?? 'Connected'}. Connected by ${tt.connectedByName} on ${fmtStamp(tt.connectedAt)}.`}
+      </p>
+      {tt?.lastError && !expired && <p className="text-xs text-[#8A4B00]">Note: {tt.lastError}</p>}
+      {/* The client usually connects their own TikTok, like Meta — open to everyone on the task. */}
+      {(
+        <div className="mt-auto flex flex-wrap items-center gap-2">
+          {data.tiktokConfigured ? (
+            <Btn primary={!tt || expired} onClick={onConnect} busy={busy} className="h-10">
+              <Link2 className="h-4 w-4" />{tt ? 'Reconnect TikTok' : 'Connect TikTok'}
+            </Btn>
+          ) : (
+            <span className="text-xs text-[#8A4B00]">Connecting TikTok accounts is not set up on the server yet.</span>
+          )}
+          {tt && <Btn onClick={onDisconnect} busy={disconnecting} className="h-10">Disconnect</Btn>}
+        </div>
+      )}
+    </article>
   );
 }

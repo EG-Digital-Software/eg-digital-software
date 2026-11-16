@@ -132,6 +132,17 @@ const schema = z.object({
         'pages_manage_posts,pages_manage_engagement,instagram_content_publish,instagram_manage_comments'
     ),
 
+  // ── TikTok (Social Media Dashboard figures + Content Calendar publishing) ──
+  // From the TikTok for Developers app (developers.tiktok.com → the app →
+  // Credentials). Until both keys and the redirect are set, TikTok shows
+  // "Connect" as unavailable. TIKTOK_REDIRECT_URI must be added to the app's
+  // Login Kit redirect URIs: <API base>/api/social/oauth/tiktok/callback.
+  // Tokens are stored encrypted with CREDENTIAL_ENC_KEY.
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
+  TIKTOK_REDIRECT_URI: z.string().optional(),
+  TIKTOK_SCOPES: z.string().default('user.info.basic,user.info.profile,user.info.stats,video.list,video.publish'),
+
   DEFAULT_CURRENCY: z.string().default('AUD'),
   DEFAULT_LOCALE: z.string().default('en-AU'),
 })

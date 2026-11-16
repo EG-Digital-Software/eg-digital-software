@@ -2,12 +2,13 @@ import { Link } from 'react-router-dom';
 import { brand } from '@/config/brand';
 
 /**
- * Public legal pages — Privacy Policy and Data deletion instructions. Linked from
- * the Meta developer app (required for Facebook / Instagram / Meta Ads login),
- * so they must stay public (no login) at /privacy and /data-deletion.
+ * Public legal pages — Privacy Policy, Terms of Service and Data deletion
+ * instructions. Linked from the Meta and TikTok developer apps (required for
+ * their logins), so they must stay public (no login) at /privacy, /terms and
+ * /data-deletion.
  */
 
-const UPDATED = '12 November 2026';
+const UPDATED = '16 November 2026';
 /** Privacy and data-deletion requests go to this mailbox. */
 const CONTACT = 'connect@egeloma.com.au';
 const APP_NAME = 'EG Eloma Dashboard';
@@ -22,6 +23,7 @@ function LegalShell({ title, children }: { title: string; children: React.ReactN
           </Link>
           <nav className="flex gap-4 text-sm font-medium text-slate-500">
             <Link to="/privacy" className="hover:text-slate-900">Privacy</Link>
+            <Link to="/terms" className="hover:text-slate-900">Terms</Link>
             <Link to="/data-deletion" className="hover:text-slate-900">Data deletion</Link>
           </nav>
         </div>
@@ -60,7 +62,7 @@ export function PrivacyPage() {
         <p>
           {brand.seller.legalName} (ABN {brand.seller.abn}) provides IT, digital and marketing services and runs this client portal, where our clients
           and team manage tasks, invoices, approvals and reports. This policy explains how we handle personal and business information in the portal,
-          including the {APP_NAME} that connects to Facebook, Instagram and Meta Ads. We handle personal information in line with the Australian Privacy
+          including the {APP_NAME} that connects to Facebook, Instagram, Meta Ads and TikTok. We handle personal information in line with the Australian Privacy
           Principles in the Privacy Act 1988 (Cth).
         </p>
       </section>
@@ -89,8 +91,22 @@ export function PrivacyPage() {
           <li>An access token from Meta that lets the dashboard read these figures. It is stored encrypted.</li>
         </ul>
         <p>
-          We only receive totals and figures about the business accounts. We do not collect personal information about your followers or the people who
-          see your ads.
+          A client can also connect their TikTok account. You sign in on TikTok&apos;s own page and choose what to allow. We never see or store your
+          TikTok password. With the access you allow we receive and store:
+        </p>
+        <ul>
+          <li>The TikTok account&apos;s display name, username, profile picture and profile link.</li>
+          <li>Account totals: followers, following, likes and number of videos.</li>
+          <li>Your public videos&apos; title, description, date, cover image and link, with their views, likes, comments and shares.</li>
+          <li>An access token and a refresh token from TikTok that let the dashboard read these figures and publish posts you approve. They are stored encrypted.</li>
+        </ul>
+        <p>
+          When a post in the Content Calendar is approved and set to publish to TikTok, we send that post&apos;s video or photo, caption and the settings
+          chosen for it (who can see it, comments, Duet, Stitch and commercial content disclosure) to TikTok, which publishes it on your account.
+        </p>
+        <p>
+          We only receive totals and figures about the business accounts. We do not collect personal information about your followers, the people who
+          watch your videos or the people who see your ads.
         </p>
       </section>
 
@@ -103,7 +119,7 @@ export function PrivacyPage() {
           <li>To meet our legal obligations.</li>
         </ul>
         <p>
-          We do not sell information, use it to advertise to you or anyone else, or share data from Facebook, Instagram or Meta Ads with other clients
+          We do not sell information, use it to advertise to you or anyone else, or share data from Facebook, Instagram, Meta Ads or TikTok with other clients
           or third parties, except as described below.
         </p>
       </section>
@@ -136,7 +152,11 @@ export function PrivacyPage() {
       <section>
         <h2>8. Your choices and rights</h2>
         <ul>
-          <li>You can disconnect a social media or ad account at any time in the Social Media Dashboard (Connected accounts, Disconnect), or remove {APP_NAME} in your Facebook settings under Business integrations.</li>
+          <li>
+            You can disconnect a social media or ad account at any time in the Social Media Dashboard or the Content Calendar (Connected accounts,
+            Disconnect), remove {APP_NAME} in your Facebook settings under Business integrations, or remove it in the TikTok app under Settings and
+            privacy, Security and permissions, Apps and services permissions.
+          </li>
           <li>You can ask us for a copy of your information, ask us to correct it, or ask us to delete it.</li>
           <li>
             If you have a privacy complaint, contact us first. If you are not satisfied with our response you can contact the Office of the Australian
@@ -158,40 +178,160 @@ export function PrivacyPage() {
   );
 }
 
+export function TermsPage() {
+  return (
+    <LegalShell title="Terms of Service">
+      <section>
+        <h2>1. About these terms</h2>
+        <p>
+          These terms apply to the client portal and the {APP_NAME} run by {brand.seller.legalName} (ABN {brand.seller.abn}) (&quot;EG Eloma&quot;,
+          &quot;we&quot;, &quot;us&quot;), including the Social Media Dashboard and the Content Calendar. By signing in or connecting an account you agree
+          to them. If you use the portal for a business, you agree for that business and confirm you are allowed to. Your service agreement with EG Eloma
+          also applies; if it conflicts with these terms, the service agreement wins.
+        </p>
+      </section>
+
+      <section>
+        <h2>2. Your account</h2>
+        <ul>
+          <li>Keep your login details private and tell us straight away if you think someone else has used them.</li>
+          <li>You are responsible for what is done with your login.</li>
+          <li>Only give portal access to people who are allowed to act for your business.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>3. Connecting social media accounts</h2>
+        <p>
+          You can connect Facebook, Instagram, Meta Ads and TikTok accounts. You sign in on each platform&apos;s own page; we never see your password. By
+          connecting an account you confirm that you own it or are authorised to manage it, and you allow us to read its figures and, where you allow
+          it, publish posts to it. You can disconnect at any time. Your use of each platform is also governed by that platform&apos;s own terms,
+          including the{' '}
+          <a href="https://www.facebook.com/terms" target="_blank" rel="noreferrer">Meta Terms of Service</a> and the{' '}
+          <a href="https://www.tiktok.com/legal/page/global/terms-of-service/en" target="_blank" rel="noreferrer">TikTok Terms of Service</a>.
+        </p>
+      </section>
+
+      <section>
+        <h2>4. Publishing posts</h2>
+        <ul>
+          <li>Posts in the Content Calendar are published only after you approve them. Approving a post means you are happy for it to be published on the chosen accounts at the time shown.</li>
+          <li>
+            For each TikTok post, the person posting chooses who can see it, whether comments, Duet and Stitch are allowed, and whether it is commercial
+            content, and agrees to TikTok&apos;s Music Usage Confirmation (and Branded Content Policy for branded content).
+          </li>
+          <li>You confirm that you have the rights to the images, videos, music and text you supply or approve, and that they do not break the law or the platform&apos;s rules.</li>
+          <li>Platforms can refuse, delay, limit or remove posts. We tell you when a post fails and try again where we can, but we cannot control the platforms.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>5. Acceptable use</h2>
+        <p>Do not use the portal to:</p>
+        <ul>
+          <li>break any law or anyone else&apos;s rights, including copyright and privacy;</li>
+          <li>publish misleading, hateful, harassing or unlawful content, or spam;</li>
+          <li>try to get into accounts or data that are not yours, or interfere with the portal&apos;s security or operation.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>6. Figures and reports</h2>
+        <p>
+          Dashboard figures come from the platforms you connect and from what our team enters. Platforms sometimes change, delay or correct their
+          figures, so reports are a guide and may differ from what the platform shows later.
+        </p>
+      </section>
+
+      <section>
+        <h2>7. Your content and data</h2>
+        <p>
+          You keep ownership of your content. You give us permission to store, process and publish it as needed to provide our services. How we handle
+          personal information is explained in our <Link to="/privacy">Privacy Policy</Link>, and how to remove access or have data deleted is explained
+          in our <Link to="/data-deletion">data deletion instructions</Link>.
+        </p>
+      </section>
+
+      <section>
+        <h2>8. Availability and changes</h2>
+        <p>
+          We work to keep the portal available and secure, but it may sometimes be unavailable for maintenance or for reasons outside our control. We may
+          change or improve features, including when a platform changes what it allows.
+        </p>
+      </section>
+
+      <section>
+        <h2>9. Liability</h2>
+        <p>
+          Nothing in these terms excludes rights you have under the Australian Consumer Law. To the extent the law allows, we are not liable for indirect
+          or consequential loss, or for loss caused by a platform (such as Meta or TikTok) refusing, removing or changing posts, accounts or figures.
+        </p>
+      </section>
+
+      <section>
+        <h2>10. Ending access</h2>
+        <p>
+          You can stop using the portal and disconnect your accounts at any time. We may suspend or end access if these terms are broken or when our
+          services to you end.
+        </p>
+      </section>
+
+      <section>
+        <h2>11. Changes to these terms</h2>
+        <p>We may update these terms. The date at the top shows when they last changed. Continuing to use the portal means you accept the updated terms.</p>
+      </section>
+
+      <section>
+        <h2>12. Governing law</h2>
+        <p>These terms are governed by the laws of Victoria, Australia.</p>
+      </section>
+
+      <section>
+        <h2>13. Contact us</h2>
+        <Contact />
+      </section>
+    </LegalShell>
+  );
+}
+
 export function DataDeletionPage() {
   return (
     <LegalShell title="Data deletion instructions">
       <section>
         <p>
-          You can remove the access you gave {APP_NAME} and ask us to delete the data we collected from Facebook, Instagram and Meta Ads at any time.
-          There are three ways, depending on what you want.
+          You can remove the access you gave {APP_NAME} and ask us to delete the data we collected from Facebook, Instagram, Meta Ads and TikTok at
+          any time. There are three ways, depending on what you want.
         </p>
       </section>
 
       <section>
         <h2>1. Disconnect in the portal</h2>
         <ol>
-          <li>Sign in to the client portal and open the task with the Social Media Dashboard.</li>
-          <li>Open Connected accounts and choose Disconnect.</li>
+          <li>Sign in to the client portal and open the task with the Social Media Dashboard or the Content Calendar.</li>
+          <li>Open Connected accounts and choose Disconnect next to the account.</li>
         </ol>
-        <p>The access token is deleted straight away and no new figures are collected.</p>
+        <p>The access token is deleted straight away (for TikTok we also ask TikTok to end the access) and no new figures are collected.</p>
       </section>
 
       <section>
-        <h2>2. Remove the app in Facebook</h2>
+        <h2>2. Remove the app in Facebook or TikTok</h2>
         <ol>
           <li>In Facebook, open Settings and privacy, then Settings.</li>
           <li>Open Business integrations (under Permissions).</li>
           <li>Select {APP_NAME} and choose Remove.</li>
         </ol>
         <p>Facebook stops the access, and the dashboard can no longer read your accounts.</p>
+        <p>
+          For TikTok: in the TikTok app open Profile, then Settings and privacy, Security and permissions, Apps and services permissions, select{' '}
+          {APP_NAME} and choose Remove access.
+        </p>
       </section>
 
       <section>
         <h2>3. Ask us to delete your data</h2>
         <p>
           To have the figures, posts and campaign data we collected deleted, email <a href={`mailto:${CONTACT}?subject=Data%20deletion%20request`}>{CONTACT}</a>{' '}
-          with the subject "Data deletion request". Include your business name and the Facebook Page or Instagram account it relates to.
+          with the subject "Data deletion request". Include your business name and the Facebook Page, Instagram account or TikTok account it relates to.
         </p>
         <ul>
           <li>We confirm your request within 5 business days.</li>
