@@ -45,6 +45,7 @@ import {
   Lock,
   Reply,
   Sparkles,
+  PanelRightClose,
 } from 'lucide-react';
 import type {
   AssignableUser,
@@ -103,6 +104,8 @@ interface Props {
   /** Set when the task had activity this user hadn't seen: lists what's new. */
   newSince?: NewSince | null;
 }
+
+const CHAT_MIN_KEY = 'eg-task-chat-minimized';
 
 type WhatsNewTarget = 'chat' | 'details' | 'attachments' | 'approval' | 'access' | 'archive' | 'social' | 'content' | null;
 interface WhatsNewItem {
@@ -339,7 +342,22 @@ export function TaskDialog({
   const [emojiOpen, setEmojiOpen] = useState(false);
   // Attachment being previewed in the viewer overlay (before downloading).
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
-  const [showChat, setShowChat] = useState(true);
+  // Task chat panel open/minimised. Minimising lets the details fill the full
+  // width; the choice is remembered on this browser.
+  const [showChat, setShowChat] = useState(() => {
+    try {
+      return localStorage.getItem(CHAT_MIN_KEY) !== '1';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_MIN_KEY, showChat ? '0' : '1');
+    } catch {
+      /* storage blocked — the choice just won't be remembered */
+    }
+  }, [showChat]);
   const [showNotes, setShowNotes] = useState(false);
   const [chatFile, setChatFile] = useState<File | null>(null);
   // Message the composer is replying to (quoted above the input), and the one
@@ -1568,6 +1586,23 @@ export function TaskDialog({
             )}
           </div>
 
+          {/* ── Right: minimised chat — a slim rail that reopens it ─────── */}
+          {!chatVisible && (
+            <button
+              type="button"
+              onClick={() => { markChatSeen(); setShowChat(true); }}
+              title="Open task chat"
+              aria-label="Open task chat"
+              className="relative flex shrink-0 items-center justify-center gap-2 border-t border-border bg-secondary/20 px-4 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-secondary hover:text-primary md:w-11 md:flex-col md:justify-start md:border-l md:border-t-0 md:px-0 md:py-4"
+            >
+              <MessageSquareText className="h-4 w-4 shrink-0" />
+              <span className="md:[writing-mode:vertical-rl]">Task Chat</span>
+              {tabHasDot('chat') && (
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-rose-500" aria-label="New chat activity" />
+              )}
+            </button>
+          )}
+
           {/* ── Right: task chat ──────────────────────── */}
           {chatVisible && (
             <div
@@ -1620,6 +1655,16 @@ export function TaskDialog({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                {/* Minimise the chat — the task details then fill the full width. */}
+                <button
+                  type="button"
+                  onClick={() => setShowChat(false)}
+                  title="Minimise chat"
+                  aria-label="Minimise chat"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary"
+                >
+                  <PanelRightClose className="h-4 w-4" />
+                </button>
                 </div>
               </div>
               <div

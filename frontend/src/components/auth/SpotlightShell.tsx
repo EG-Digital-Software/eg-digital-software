@@ -47,7 +47,8 @@ const THEMES: Record<Theme, Record<string, string>> = {
   },
 };
 
-const THEME_KEY = 'eg-auth-theme';
+// v2: renamed so everyone's earlier saved choice resets once to the light default.
+const THEME_KEY = 'eg-auth-theme-v2';
 
 function readTheme(): Theme {
   try {

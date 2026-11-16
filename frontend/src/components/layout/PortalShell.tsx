@@ -26,7 +26,8 @@ import '@/components/layout/eloma.css';
 import '@/components/client/portal.css';
 
 type Theme = 'light' | 'dark';
-const THEME_KEY = 'eg-portal-theme';
+// v2: renamed so everyone's earlier saved choice resets once to the light default.
+const THEME_KEY = 'eg-portal-theme-v2';
 
 function readTheme(): Theme {
   try {

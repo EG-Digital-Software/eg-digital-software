@@ -28,6 +28,8 @@ export const FEATURE_UPDATES: FeatureUpdate[] = [
   { id: 'local-listing', name: 'Local Listing', addedAt: '2026-11-13' },
   { id: 'azure-performance', name: 'Azure Performance', addedAt: '2026-11-13' },
   { id: 'assign-team', name: 'Assign Team Name', addedAt: '2026-11-15' },
+  // No `tab`: the minimise button lives on the chat panel, not a tab.
+  { id: 'minimise-task-chat', name: 'Minimise Task Chat', addedAt: '2026-11-16' },
 ];
 
 const SHOW_DAYS = 30;

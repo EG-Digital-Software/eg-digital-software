@@ -20,16 +20,17 @@ import { cn, initials, mediaUrl } from '@/lib/utils';
 import '@/components/layout/eloma.css';
 
 type Theme = 'light' | 'dark';
-const THEME_KEY = 'eg-portal-theme';
+// v2: renamed so everyone's earlier saved choice resets once to the light default.
+const THEME_KEY = 'eg-portal-theme-v2';
 
 function readTheme(): Theme {
   try {
     const saved = localStorage.getItem(THEME_KEY);
     if (saved === 'light' || saved === 'dark') return saved;
   } catch {
-    /* storage blocked — fall through to the system preference */
+    /* storage blocked — fall back to the light default */
   }
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'light';
 }
 
 export interface ElomaNavItem {
