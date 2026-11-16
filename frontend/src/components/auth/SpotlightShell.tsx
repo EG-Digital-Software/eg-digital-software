@@ -51,9 +51,9 @@ const THEME_KEY = 'eg-auth-theme';
 
 function readTheme(): Theme {
   try {
-    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
   } catch {
-    return 'dark';
+    return 'light';
   }
 }
 
@@ -108,7 +108,7 @@ export function SpotlightDivider() {
 /** "Wing Beat + Spotlight" sign-in layout: black dot grid with a drifting green
  *  spotlight, a hovering hummingbird, headline, then `children` (the pill form
  *  and its links). Used by the portal start page and the per-portal login.
- *  Dark by default; the top-right toggle switches to light and is remembered. */
+ *  Light by default; the top-right toggle switches to dark and is remembered. */
 export function SpotlightShell({
   title = 'Sign in',
   subtitle = 'Always on. Always ready.',
