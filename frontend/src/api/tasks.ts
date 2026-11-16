@@ -53,6 +53,7 @@ export interface ContentPost {
   media: { url: string; name: string | null; type: string | null; size: number | null; width: number | null; height: number | null } | null;
   platforms: string[];
   tiktok: TikTokPostSettings;
+  youtube: YouTubePostSettings;
   scheduledAt: string | null;
   timeZone: string;
   status: ContentPostStatus;
@@ -82,8 +83,32 @@ export interface TikTokPostSettings {
   consent: boolean;
 }
 
+export type YouTubePrivacy = 'public' | 'unlisted' | 'private';
+
+/** YouTube settings of one post. */
+export interface YouTubePostSettings {
+  privacy: YouTubePrivacy | null;
+  madeForKids: boolean | null;
+  title: string;
+}
+
+/** A LinkedIn or YouTube connection as the Accounts view shows it. */
+export interface ExtraAccount {
+  id: string;
+  name: string | null;
+  status: string;
+  lastError: string | null;
+  tokenExpiresAt: string | null;
+  connectedByName: string;
+  connectedAt: string;
+  profile: { username: string | null; displayName: string | null; avatarUrl: string | null; profileUrl: string | null } | null;
+  /** LinkedIn: the company Pages this login manages. */
+  choices: { id: string; name: string; url: string | null }[];
+  selectedId: string | null;
+}
+
 export interface ContentPlatform {
-  key: 'fb' | 'ig' | 'tt';
+  key: 'fb' | 'ig' | 'tt' | 'li' | 'yt';
   name: string;
   connected: boolean;
   canPublish: boolean;
@@ -134,6 +159,10 @@ export interface ContentCalendar {
     } | null;
     creatorError: string | null;
   } | null;
+  linkedinConfigured: boolean;
+  youtubeConfigured: boolean;
+  linkedin: ExtraAccount | null;
+  youtube: ExtraAccount | null;
   platforms: ContentPlatform[];
   timeZones: string[];
   posts: ContentPost[];
@@ -153,6 +182,7 @@ export interface ContentPostInput {
   scheduledAt?: string | null;
   timeZone?: string;
   tiktok?: TikTokPostSettings | null;
+  youtube?: YouTubePostSettings | null;
 }
 
 const unwrap = <T>(p: Promise<{ data: ApiEnvelope<T> }>) => p.then((r) => r.data.data);

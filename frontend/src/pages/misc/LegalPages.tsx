@@ -3,8 +3,8 @@ import { brand } from '@/config/brand';
 
 /**
  * Public legal pages — Privacy Policy, Terms of Service and Data deletion
- * instructions. Linked from the Meta and TikTok developer apps (required for
- * their logins), so they must stay public (no login) at /privacy, /terms and
+ * instructions. Linked from the Meta, TikTok, LinkedIn and Google developer apps
+ * (required for their logins and Google's app verification), so they must stay public (no login) at /privacy, /terms and
  * /data-deletion.
  */
 
@@ -62,7 +62,7 @@ export function PrivacyPage() {
         <p>
           {brand.seller.legalName} (ABN {brand.seller.abn}) provides IT, digital and marketing services and runs this client portal, where our clients
           and team manage tasks, invoices, approvals and reports. This policy explains how we handle personal and business information in the portal,
-          including the {APP_NAME} that connects to Facebook, Instagram, Meta Ads and TikTok. We handle personal information in line with the Australian Privacy
+          including the {APP_NAME} that connects to Facebook, Instagram, Meta Ads, TikTok, LinkedIn, YouTube and Google Ads. We handle personal information in line with the Australian Privacy
           Principles in the Privacy Act 1988 (Cth).
         </p>
       </section>
@@ -105,6 +105,30 @@ export function PrivacyPage() {
           chosen for it (who can see it, comments, Duet, Stitch and commercial content disclosure) to TikTok, which publishes it on your account.
         </p>
         <p>
+          A client can also connect their LinkedIn company Page. You sign in on LinkedIn&apos;s own page; we never see your LinkedIn password. We
+          receive and store the name of the person who connected, the names and IDs of the company Pages they manage, the chosen Page&apos;s totals
+          (impressions, clicks, reactions, comments, reposts, followers and Page views), its posts&apos; text, date and link with their figures, and an
+          access token (and refresh token where LinkedIn gives one), stored encrypted. Approved Content Calendar posts set to publish to LinkedIn are sent
+          with their text and image or video to LinkedIn, which publishes them on the company Page.
+        </p>
+        <p>
+          A client can also connect their YouTube channel and Google Ads account, each by signing in with Google. We never see your Google password.
+          For YouTube we receive and store the channel&apos;s name, handle, picture and ID, channel figures from YouTube Analytics (views, watch time,
+          subscribers, likes, comments, shares, traffic sources and viewer types), the channel&apos;s videos (title, date, thumbnail, link, views, likes and
+          comments), and a Google access token and refresh token, stored encrypted. Approved Content Calendar posts set to publish to YouTube are uploaded
+          as videos with the title, description, tags and settings chosen for them (who can see it and whether it is made for kids). For Google Ads we
+          receive and store the names and IDs of the ad accounts the login can read and, for the chosen account, spend, impressions, clicks, conversions,
+          conversion value, campaign names and status, search impression share and device breakdowns.
+        </p>
+        <p>
+          {APP_NAME} uses YouTube API Services. By connecting YouTube you also agree to the{' '}
+          <a href="https://www.youtube.com/t/terms" target="_blank" rel="noreferrer">YouTube Terms of Service</a>, and Google&apos;s handling of your
+          information is described in the <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Google Privacy Policy</a>.{' '}
+          {APP_NAME}&apos;s use and transfer of information received from Google APIs adheres to the{' '}
+          <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noreferrer">Google API Services User Data Policy</a>,
+          including the Limited Use requirements.
+        </p>
+        <p>
           We only receive totals and figures about the business accounts. We do not collect personal information about your followers, the people who
           watch your videos or the people who see your ads.
         </p>
@@ -119,8 +143,8 @@ export function PrivacyPage() {
           <li>To meet our legal obligations.</li>
         </ul>
         <p>
-          We do not sell information, use it to advertise to you or anyone else, or share data from Facebook, Instagram, Meta Ads or TikTok with other clients
-          or third parties, except as described below.
+          We do not sell information, use it to advertise to you or anyone else, use it to train AI models, or share data from Facebook, Instagram, Meta
+          Ads, TikTok, LinkedIn, YouTube or Google Ads with other clients or third parties, except as described below.
         </p>
       </section>
 
@@ -154,8 +178,11 @@ export function PrivacyPage() {
         <ul>
           <li>
             You can disconnect a social media or ad account at any time in the Social Media Dashboard or the Content Calendar (Connected accounts,
-            Disconnect), remove {APP_NAME} in your Facebook settings under Business integrations, or remove it in the TikTok app under Settings and
-            privacy, Security and permissions, Apps and services permissions.
+            Disconnect), remove {APP_NAME} in your Facebook settings under Business integrations, remove it in the TikTok app under Settings and
+            privacy, Security and permissions, Apps and services permissions, remove it in LinkedIn under Settings, Data privacy, Permitted services,
+            or remove it from your Google account at{' '}
+            <a href="https://myaccount.google.com/connections" target="_blank" rel="noreferrer">myaccount.google.com/connections</a> (third-party apps
+            with account access).
           </li>
           <li>You can ask us for a copy of your information, ask us to correct it, or ask us to delete it.</li>
           <li>
@@ -203,12 +230,16 @@ export function TermsPage() {
       <section>
         <h2>3. Connecting social media accounts</h2>
         <p>
-          You can connect Facebook, Instagram, Meta Ads and TikTok accounts. You sign in on each platform&apos;s own page; we never see your password. By
+          You can connect Facebook, Instagram, Meta Ads, TikTok, LinkedIn, YouTube and Google Ads accounts. You sign in on each platform&apos;s own page; we never see your password. By
           connecting an account you confirm that you own it or are authorised to manage it, and you allow us to read its figures and, where you allow
           it, publish posts to it. You can disconnect at any time. Your use of each platform is also governed by that platform&apos;s own terms,
           including the{' '}
-          <a href="https://www.facebook.com/terms" target="_blank" rel="noreferrer">Meta Terms of Service</a> and the{' '}
-          <a href="https://www.tiktok.com/legal/page/global/terms-of-service/en" target="_blank" rel="noreferrer">TikTok Terms of Service</a>.
+          <a href="https://www.facebook.com/terms" target="_blank" rel="noreferrer">Meta Terms of Service</a>, the{' '}
+          <a href="https://www.tiktok.com/legal/page/global/terms-of-service/en" target="_blank" rel="noreferrer">TikTok Terms of Service</a>, the{' '}
+          <a href="https://www.linkedin.com/legal/user-agreement" target="_blank" rel="noreferrer">LinkedIn User Agreement</a>, the{' '}
+          <a href="https://www.youtube.com/t/terms" target="_blank" rel="noreferrer">YouTube Terms of Service</a> (by connecting YouTube you agree to be
+          bound by them) and the <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">Google Terms of Service</a>. Google Ads
+          access is read only.
         </p>
       </section>
 
@@ -220,6 +251,7 @@ export function TermsPage() {
             For each TikTok post, the person posting chooses who can see it, whether comments, Duet and Stitch are allowed, and whether it is commercial
             content, and agrees to TikTok&apos;s Music Usage Confirmation (and Branded Content Policy for branded content).
           </li>
+          <li>For each YouTube video, the person posting chooses who can see it (public, unlisted or private) and says whether it is made for kids, as YouTube requires.</li>
           <li>You confirm that you have the rights to the images, videos, music and text you supply or approve, and that they do not break the law or the platform&apos;s rules.</li>
           <li>Platforms can refuse, delay, limit or remove posts. We tell you when a post fails and try again where we can, but we cannot control the platforms.</li>
         </ul>
@@ -264,7 +296,7 @@ export function TermsPage() {
         <h2>9. Liability</h2>
         <p>
           Nothing in these terms excludes rights you have under the Australian Consumer Law. To the extent the law allows, we are not liable for indirect
-          or consequential loss, or for loss caused by a platform (such as Meta or TikTok) refusing, removing or changing posts, accounts or figures.
+          or consequential loss, or for loss caused by a platform (such as Meta, TikTok, LinkedIn or Google) refusing, removing or changing posts, accounts or figures.
         </p>
       </section>
 
@@ -299,8 +331,8 @@ export function DataDeletionPage() {
     <LegalShell title="Data deletion instructions">
       <section>
         <p>
-          You can remove the access you gave {APP_NAME} and ask us to delete the data we collected from Facebook, Instagram, Meta Ads and TikTok at
-          any time. There are three ways, depending on what you want.
+          You can remove the access you gave {APP_NAME} and ask us to delete the data we collected from Facebook, Instagram, Meta Ads, TikTok,
+          LinkedIn, YouTube and Google Ads at any time. There are three ways, depending on what you want.
         </p>
       </section>
 
@@ -310,11 +342,11 @@ export function DataDeletionPage() {
           <li>Sign in to the client portal and open the task with the Social Media Dashboard or the Content Calendar.</li>
           <li>Open Connected accounts and choose Disconnect next to the account.</li>
         </ol>
-        <p>The access token is deleted straight away (for TikTok we also ask TikTok to end the access) and no new figures are collected.</p>
+        <p>The access token is deleted straight away (for TikTok, LinkedIn and Google we also ask the platform to end the access) and no new figures are collected.</p>
       </section>
 
       <section>
-        <h2>2. Remove the app in Facebook or TikTok</h2>
+        <h2>2. Remove the app in Facebook, TikTok, LinkedIn or Google</h2>
         <ol>
           <li>In Facebook, open Settings and privacy, then Settings.</li>
           <li>Open Business integrations (under Permissions).</li>
@@ -325,13 +357,19 @@ export function DataDeletionPage() {
           For TikTok: in the TikTok app open Profile, then Settings and privacy, Security and permissions, Apps and services permissions, select{' '}
           {APP_NAME} and choose Remove access.
         </p>
+        <p>For LinkedIn: open Settings and privacy, then Data privacy, Permitted services, and remove {APP_NAME}.</p>
+        <p>
+          For YouTube and Google Ads: open{' '}
+          <a href="https://myaccount.google.com/connections" target="_blank" rel="noreferrer">myaccount.google.com/connections</a>, select {APP_NAME} and
+          choose Delete all connections (or Remove access).
+        </p>
       </section>
 
       <section>
         <h2>3. Ask us to delete your data</h2>
         <p>
           To have the figures, posts and campaign data we collected deleted, email <a href={`mailto:${CONTACT}?subject=Data%20deletion%20request`}>{CONTACT}</a>{' '}
-          with the subject "Data deletion request". Include your business name and the Facebook Page, Instagram account or TikTok account it relates to.
+          with the subject "Data deletion request". Include your business name and the Facebook Page, Instagram, TikTok, LinkedIn, YouTube or Google Ads account it relates to.
         </p>
         <ul>
           <li>We confirm your request within 5 business days.</li>

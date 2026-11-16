@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import * as taskService from '../services/task.service.js';
 import * as clientService from '../services/client.service.js';
 import * as social from '../services/social/social.service.js';
+import * as extra from '../services/social/platforms.sync.js';
 import { findById } from '../services/accounts.js';
 import { asyncHandler, ok } from '../utils/http.js';
 
@@ -71,6 +72,18 @@ export const metaCallback = asyncHandler(async (req: Request, res: Response) => 
 export const tiktokCallback = asyncHandler(async (req: Request, res: Response) => {
   const q = req.query as Record<string, string | undefined>;
   resultPage(res, await social.completeTikTokConnect(q.code, q.state, q.error, q.error_description));
+});
+
+/** LinkedIn sends the customer back here after they sign in. */
+export const linkedinCallback = asyncHandler(async (req: Request, res: Response) => {
+  const q = req.query as Record<string, string | undefined>;
+  resultPage(res, await extra.completeConnect('linkedin', q.code, q.state, q.error));
+});
+
+/** Google (YouTube and Google Ads) sends the customer back here after they sign in. */
+export const googleCallback = asyncHandler(async (req: Request, res: Response) => {
+  const q = req.query as Record<string, string | undefined>;
+  resultPage(res, await extra.completeGoogleConnect(q.code, q.state, q.error));
 });
 
 /** The small "Account connected / Not connected" page shown in the sign-in window. */

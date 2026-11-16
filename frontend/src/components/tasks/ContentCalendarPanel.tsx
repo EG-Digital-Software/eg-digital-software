@@ -16,7 +16,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import type { ContentCalendar, ContentPost, ContentPostInput, ContentPostStatus, TaskApi, TikTokPostSettings, TikTokPrivacy } from '@/api/tasks';
+import type { ContentCalendar, ContentPost, ContentPostInput, ContentPostStatus, ExtraAccount, TaskApi, TikTokPostSettings, TikTokPrivacy, YouTubePostSettings, YouTubePrivacy } from '@/api/tasks';
 import { apiErrorMessage } from '@/api/client';
 import { cn, mediaUrl } from '@/lib/utils';
 
@@ -48,12 +48,12 @@ const PLATFORM: Record<string, { short: string; name: string; color: string }> =
   ig: { short: 'IG', name: 'Instagram', color: '#8A2C5A' },
   li: { short: 'in', name: 'LinkedIn', color: '#0B5394' },
   tt: { short: 'TT', name: 'TikTok', color: '#161B26' },
+  yt: { short: 'YT', name: 'YouTube', color: '#B3261E' },
   gbp: { short: 'G', name: 'Google Business Profile', color: '#3D6B4F' },
 };
 
 /** Platforms shown in the calendar but not connectable yet (their connection is set up later). */
 const UPCOMING: { key: string; title: string; detail: string }[] = [
-  { key: 'li', title: 'LinkedIn Company Page', detail: 'Connect to publish posts to the LinkedIn company page.' },
   { key: 'gbp', title: 'Google Business Profile', detail: 'Connect to publish updates and offers to the Google listing.' },
 ];
 const NAVY = '#0F1F33';
@@ -398,6 +398,7 @@ function CalendarView({
   const failed = data.posts.filter((p) => p.status === 'FAILED');
   const connIssue = data.connection?.status === 'EXPIRED';
   const ttIssue = data.tiktok?.status === 'EXPIRED';
+  const extraIssues = [data.linkedin?.status === 'EXPIRED' ? 'LinkedIn' : null, data.youtube?.status === 'EXPIRED' ? 'YouTube' : null].filter((x): x is string => !!x);
   const now = useNow();
   const overdue = !data.autoPublish ? data.posts.filter((p) => p.status === 'SCHEDULED' && p.scheduledAt && Date.parse(p.scheduledAt) < now) : [];
   const waiting = data.posts.filter((p) => p.status === 'AWAITING_APPROVAL');
@@ -421,6 +422,13 @@ function CalendarView({
           {ttIssue && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect TikTok</button>}
         </div>
       )}
+      {failed.length === 0 && extraIssues.map((n) => (
+        <div key={n} role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-[#F5C2BD] bg-[#FDE7E5] px-4 py-3.5 text-sm text-[#7A1A12]">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <span className="flex-1">The {n} connection has expired — scheduled {n} posts cannot publish until it is reconnected.</span>
+          <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect {n}</button>
+        </div>
+      ))}
       {failed.length === 0 && ttIssue && (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-[#F5C2BD] bg-[#FDE7E5] px-4 py-3.5 text-sm text-[#7A1A12]">
           <AlertTriangle className="h-5 w-5 shrink-0" />
@@ -575,6 +583,7 @@ interface Form {
   time: string;
   timeZone: string;
   tiktok: TikTokPostSettings;
+  youtube: YouTubePostSettings;
 }
 
 /** Nothing chosen and everything off: TikTok wants the person posting to choose each time. */
@@ -593,6 +602,7 @@ function formFrom(p: ContentPost | undefined, initialDate?: string): Form {
     time: at?.time ?? (initialDate ? '18:00' : ''),
     timeZone: tz,
     tiktok: { ...TIKTOK_BLANK, ...(p?.tiktok ?? {}) },
+    youtube: { privacy: p?.youtube?.privacy ?? null, madeForKids: p?.youtube?.madeForKids ?? null, title: p?.youtube?.title ?? p?.title ?? '' },
   };
 }
 
@@ -664,6 +674,7 @@ function PostView({
     scheduledAt: scheduledIso,
     timeZone: form.timeZone,
     ...(form.platforms.includes('tt') || post?.tiktok?.privacy ? { tiktok: form.tiktok } : {}),
+    ...(form.platforms.includes('yt') || post?.youtube?.privacy ? { youtube: form.youtube } : {}),
   });
 
   async function run(label: string, fn: () => Promise<unknown>, success?: string) {
@@ -780,6 +791,8 @@ function PostView({
           <AlertTriangle className="h-5 w-5 shrink-0" /><span className="flex-1">{post.lastError}</span>
           {data.connection?.status === 'EXPIRED' && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect Meta</button>}
           {data.tiktok?.status === 'EXPIRED' && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect TikTok</button>}
+          {data.linkedin?.status === 'EXPIRED' && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect LinkedIn</button>}
+          {data.youtube?.status === 'EXPIRED' && <button type="button" className="font-semibold underline" onClick={onAccounts}>Reconnect YouTube</button>}
         </div>
       )}
       {post?.status === 'PUBLISHED' && (
@@ -925,6 +938,10 @@ function PostView({
             />
           )}
 
+          {form.platforms.includes('yt') && (
+            <YouTubeSettings data={data} value={form.youtube} onChange={(youtube) => set({ youtube })} locked={locked} postTitle={form.title} onAccounts={onAccounts} />
+          )}
+
           <Card className="flex flex-col gap-3.5">
             <h3 className="text-base font-semibold">Schedule</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -990,6 +1007,58 @@ function PostView({
         />
       )}
     </div>
+  );
+}
+
+// ─── YouTube settings ──────────────────────────────────────
+
+const YT_PRIVACY_NAME: Record<YouTubePrivacy, string> = { public: 'Public', unlisted: 'Unlisted (only people with the link)', private: 'Private' };
+
+function YouTubeSettings({
+  data,
+  value,
+  onChange,
+  locked,
+  postTitle,
+  onAccounts,
+}: {
+  data: ContentCalendar;
+  value: YouTubePostSettings;
+  onChange: (v: YouTubePostSettings) => void;
+  locked: boolean;
+  postTitle: string;
+  onAccounts: () => void;
+}) {
+  const set = (patch: Partial<YouTubePostSettings>) => onChange({ ...value, ...patch });
+  const yt = data.youtube;
+  return (
+    <Card className="flex flex-col gap-3.5">
+      <h3 className="text-base font-semibold">YouTube settings</h3>
+      {!yt ? (
+        <p className="text-[13px] text-[#8A4B00]">YouTube is not connected. <button type="button" onClick={onAccounts} className="font-semibold underline">Connect YouTube</button></p>
+      ) : (
+        <p className="text-[13px] text-[#5A6372]">Uploading to <strong className="font-semibold">{yt.profile?.displayName ?? yt.name ?? 'the connected channel'}</strong></p>
+      )}
+      <label className="flex flex-col gap-1.5"><span className="text-[13px] font-semibold">Video title</span>
+        <input value={value.title} maxLength={100} placeholder={postTitle} onChange={(e) => set({ title: e.target.value })} disabled={locked} className={cn(inputCls, 'h-11 px-2.5')} />
+        <span className="text-xs text-[#5A6372]">{value.title.length}/100 · The caption and hashtags become the description; hashtags are also added as tags.</span>
+      </label>
+      <label className="flex flex-col gap-1.5"><span className="text-[13px] font-semibold">Who can see it</span>
+        <select value={value.privacy ?? ''} onChange={(e) => set({ privacy: (e.target.value || null) as YouTubePrivacy | null })} disabled={locked} className={cn(inputCls, 'h-11 px-2.5')}>
+          <option value="">Choose…</option>
+          {(Object.keys(YT_PRIVACY_NAME) as YouTubePrivacy[]).map((k) => <option key={k} value={k}>{YT_PRIVACY_NAME[k]}</option>)}
+        </select>
+      </label>
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="mb-1.5 text-[13px] font-semibold">Is this video made for kids?</legend>
+        <label className="flex items-center gap-2.5 text-sm"><input type="radio" name="yt-kids" checked={value.madeForKids === false} onChange={() => set({ madeForKids: false })} disabled={locked} />No, it is not made for kids</label>
+        <label className="flex items-center gap-2.5 text-sm"><input type="radio" name="yt-kids" checked={value.madeForKids === true} onChange={() => set({ madeForKids: true })} disabled={locked} />Yes, it is made for kids</label>
+        <span className="text-xs text-[#5A6372]">YouTube requires this for every video (COPPA). <a href="https://support.google.com/youtube/answer/9528076" target="_blank" rel="noreferrer" className="text-[#1E40AF] underline">What counts as made for kids</a></span>
+      </fieldset>
+      <p className="text-xs text-[#5A6372]">
+        By publishing, the video is uploaded under the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noreferrer" className="text-[#1E40AF] underline">YouTube Terms of Service</a>. YouTube processes the video for a few minutes after the upload.
+      </p>
+    </Card>
   );
 }
 
@@ -1193,7 +1262,7 @@ function DesignPicker({
           )}
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-[#E4E7EC] px-5 py-4">
-          <span className="text-xs text-[#5A6372]">Instagram: JPEG, 4:5 to 1.91:1, under 8 MB · TikTok photos: JPEG or WebP · Videos: MP4/MOV</span>
+          <span className="text-xs text-[#5A6372]">Instagram: JPEG, 4:5 to 1.91:1, under 8 MB · TikTok photos: JPEG or WebP · LinkedIn: JPEG, PNG or GIF · Videos: MP4/MOV (YouTube: video only)</span>
           <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(f); }} />
           <Btn primary onClick={() => fileRef.current?.click()} busy={uploading !== null}>
             {uploading !== null ? `Uploading ${uploading}%` : <><Upload className="h-4 w-4" />Upload new</>}
@@ -1210,7 +1279,7 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
   const conn = data.connection;
   const tt = data.tiktok;
   // Which sign-in window is open (meta or tiktok), while we wait for it to finish.
-  const [waitingFor, setWaitingFor] = useState<'meta' | 'tiktok' | null>(null);
+  const [waitingFor, setWaitingFor] = useState<Provider | null>(null);
   const waiting = waitingFor !== null;
   const setWaiting = (on: boolean) => { if (!on) setWaitingFor(null); };
   const qc = useQueryClient();
@@ -1225,19 +1294,20 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
     }, 4000);
     return () => window.clearInterval(id);
   }, [waiting, qc, taskId]);
-  const connectedAt = waitingFor === 'tiktok' ? tt?.connectedAt : conn?.connectedAt;
+  const connectedAtOf = (p: Provider | null) => (p === 'tiktok' ? tt?.connectedAt : p === 'linkedin' ? data.linkedin?.connectedAt : p === 'youtube' ? data.youtube?.connectedAt : conn?.connectedAt);
+  const connectedAt = connectedAtOf(waitingFor);
   const firstConnectedAt = useRef(connectedAt);
   useEffect(() => {
     if (waitingFor && connectedAt && connectedAt !== firstConnectedAt.current) {
       setWaitingFor(null);
-      toast.success(waitingFor === 'tiktok' ? 'TikTok account connected' : 'Meta account connected');
+      toast.success(`${PROVIDER_NAME[waitingFor]} account connected`);
     }
   }, [connectedAt, waitingFor]);
 
   const connect = useMutation({
-    mutationFn: (provider: 'meta' | 'tiktok') => api.connectSocial(taskId, provider).then((r) => ({ ...r, provider })),
+    mutationFn: (provider: Provider) => api.connectSocial(taskId, provider).then((r) => ({ ...r, provider })),
     onSuccess: ({ url, provider }) => {
-      firstConnectedAt.current = provider === 'tiktok' ? tt?.connectedAt : conn?.connectedAt;
+      firstConnectedAt.current = connectedAtOf(provider);
       const w = window.open(url, `${provider}-connect`, 'width=640,height=760');
       if (!w) window.location.assign(url);
       setWaitingFor(provider);
@@ -1247,6 +1317,16 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
   const disconnectTikTok = useMutation({
     mutationFn: () => api.disconnectSocial(taskId, tt!.id),
     onSuccess: () => { toast.success('TikTok disconnected'); refresh(); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const disconnectExtra = useMutation({
+    mutationFn: (a: { id: string; name: string }) => api.disconnectSocial(taskId, a.id).then(() => a.name),
+    onSuccess: (name) => { toast.success(`${name} disconnected`); refresh(); },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  });
+  const chooseExtra = useMutation({
+    mutationFn: (a: { id: string; assetId: string | null }) => api.selectSocialAccounts(taskId, a.id, { assetId: a.assetId }),
+    onSuccess: () => { toast.success('Company Page updated'); refresh(); },
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const select = useMutation({
@@ -1295,7 +1375,7 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
       </div>
       {waiting && (
         <div className="flex items-center gap-2 rounded-xl border border-[#C9D6F5] bg-[#E6EDFD] px-4 py-3 text-sm text-[#1E40AF]">
-          <Loader2 className="h-4 w-4 animate-spin" />Finish signing in with {waitingFor === 'tiktok' ? 'TikTok' : 'Facebook'} in the window that opened — this page updates on its own.
+          <Loader2 className="h-4 w-4 animate-spin" />Finish signing in with {waitingFor === 'meta' ? 'Facebook' : waitingFor === 'youtube' ? 'Google' : PROVIDER_NAME[waitingFor!]} in the window that opened — this page updates on its own.
         </div>
       )}
       {missingPublish && (
@@ -1354,6 +1434,28 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
           }}
           statusPill={statusPill}
         />
+        {(['linkedin', 'youtube'] as const).map((prov) => {
+          const acc = prov === 'linkedin' ? data.linkedin : data.youtube;
+          const name = PROVIDER_NAME[prov];
+          return (
+            <ExtraCard
+              key={prov}
+              provider={prov}
+              data={data}
+              acc={acc}
+              configured={prov === 'linkedin' ? data.linkedinConfigured : data.youtubeConfigured}
+              busy={connect.isPending && connect.variables === prov}
+              disconnecting={disconnectExtra.isPending && disconnectExtra.variables?.id === acc?.id}
+              choosing={chooseExtra.isPending}
+              onConnect={() => connect.mutate(prov)}
+              onChoose={(assetId) => acc && chooseExtra.mutate({ id: acc.id, assetId })}
+              onDisconnect={() => {
+                if (acc && window.confirm(`Disconnect ${name}? Scheduled ${name} posts will not publish, and the dashboard stops reading new ${name} figures. Figures already read stay.`)) disconnectExtra.mutate({ id: acc.id, name });
+              }}
+              statusPill={statusPill}
+            />
+          );
+        })}
         {UPCOMING.map((u) => (
           <article key={u.key} className="flex flex-col gap-3.5 rounded-2xl border border-[#E4E7EC] bg-white p-5">
             <div className="flex items-center gap-3">
@@ -1416,6 +1518,91 @@ function AccountsView({ data, api, taskId, refresh }: { data: ContentCalendar; a
         )}
       </section>
     </div>
+  );
+}
+
+type Provider = 'meta' | 'tiktok' | 'linkedin' | 'youtube';
+const PROVIDER_NAME: Record<Provider, string> = { meta: 'Meta', tiktok: 'TikTok', linkedin: 'LinkedIn', youtube: 'YouTube' };
+
+/** LinkedIn company Page or YouTube channel: its own sign-in, like TikTok. */
+function ExtraCard({
+  provider,
+  data,
+  acc,
+  configured,
+  busy,
+  disconnecting,
+  choosing,
+  onConnect,
+  onChoose,
+  onDisconnect,
+  statusPill,
+}: {
+  provider: 'linkedin' | 'youtube';
+  data: ContentCalendar;
+  acc: ExtraAccount | null;
+  configured: boolean;
+  busy: boolean;
+  disconnecting: boolean;
+  choosing: boolean;
+  onConnect: () => void;
+  onChoose: (assetId: string | null) => void;
+  onDisconnect: () => void;
+  statusPill: (ok: boolean, label: string, tone: 'ok' | 'bad' | 'warn' | 'none') => React.ReactNode;
+}) {
+  const key = provider === 'linkedin' ? 'li' : 'yt';
+  const name = PROVIDER_NAME[provider];
+  const p = data.platforms.find((x) => x.key === key);
+  const expired = acc?.status === 'EXPIRED';
+  const tone: 'ok' | 'bad' | 'warn' | 'none' = !acc ? 'none' : expired ? 'bad' : !p?.canPublish ? 'warn' : 'ok';
+  const label = !acc ? 'Not connected' : expired ? 'Expired' : !p?.connected ? 'Choose a Page' : !p?.canPublish ? 'No publish permission' : 'Connected';
+  const shown = provider === 'youtube' ? (acc?.profile?.displayName ?? acc?.name) : (acc?.choices.find((c) => c.id === acc.selectedId)?.name ?? acc?.name);
+  const link = provider === 'youtube' ? acc?.profile?.profileUrl : acc?.choices.find((c) => c.id === acc?.selectedId)?.url;
+  return (
+    <article className="flex flex-col gap-3.5 rounded-2xl border bg-white p-5" style={{ borderColor: tone === 'bad' ? '#F5C2BD' : '#E4E7EC' }}>
+      <div className="flex items-center gap-3">
+        {acc?.profile?.avatarUrl ? (
+          <img src={acc.profile.avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-[10px] object-cover" />
+        ) : (
+          <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] text-sm font-bold text-white" style={{ background: PLATFORM[key].color }}>{PLATFORM[key].short}</span>
+        )}
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[15px] font-semibold">{provider === 'linkedin' ? 'LinkedIn Company Page' : 'YouTube channel'}</h3>
+          <p className="truncate text-[13px] text-[#5A6372]">{acc ? (link ? <a href={link} target="_blank" rel="noreferrer" className="hover:underline">{shown ?? name}</a> : (shown ?? name)) : 'Not connected'}</p>
+        </div>
+        {statusPill(tone === 'ok', label, tone)}
+      </div>
+      <p className="text-[13px] leading-relaxed" style={{ color: tone === 'bad' ? '#7A1A12' : '#5A6372' }}>
+        {!acc
+          ? provider === 'linkedin'
+            ? 'Connect with a LinkedIn login that is an admin of the company Page to publish posts to it. The same connection feeds the LinkedIn figures on the Social Media Dashboard.'
+            : 'Connect with the Google account that owns the YouTube channel to upload videos. The same connection feeds the YouTube figures on the Social Media Dashboard.'
+          : expired
+            ? `The connection expired. Scheduled ${name} posts cannot publish until it is reconnected.`
+            : `${p?.note ?? 'Connected'}. Connected by ${acc.connectedByName} on ${fmtStamp(acc.connectedAt)}${acc.tokenExpiresAt && provider === 'linkedin' ? ` · access lasts until ${new Date(acc.tokenExpiresAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}.`}
+      </p>
+      {acc && provider === 'linkedin' && acc.choices.length > 0 && (
+        <label className="flex flex-col gap-1 text-[13px]">
+          <span className="font-semibold">Company Page</span>
+          <select value={acc.selectedId ?? ''} disabled={choosing} onChange={(e) => onChoose(e.target.value || null)} className={cn(inputCls, 'h-10')}>
+            <option value="">None</option>
+            {acc.choices.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+      )}
+      {acc && provider === 'linkedin' && acc.choices.length === 0 && <p className="text-xs text-[#8A4B00]">This LinkedIn login is not an admin of any company Page.</p>}
+      {acc?.lastError && !expired && <p className="text-xs text-[#8A4B00]">Note: {acc.lastError}</p>}
+      <div className="mt-auto flex flex-wrap items-center gap-2">
+        {configured ? (
+          <Btn primary={!acc || expired} onClick={onConnect} busy={busy} className="h-10">
+            <Link2 className="h-4 w-4" />{acc ? `Reconnect ${name}` : `Connect ${name}`}
+          </Btn>
+        ) : (
+          <span className="text-xs text-[#8A4B00]">Connecting {name} accounts is not set up on the server yet.</span>
+        )}
+        {acc && <Btn onClick={onDisconnect} busy={disconnecting} className="h-10">Disconnect</Btn>}
+      </div>
+    </article>
   );
 }
 

@@ -21,6 +21,8 @@ router.get('/health', (_req, res) => res.json({ success: true, message: 'ok', da
 router.get('/social/oauth/meta/callback', socialCtrl.metaCallback);
 // TikTok sends the customer back here after they sign in (public; the signed state identifies them).
 router.get('/social/oauth/tiktok/callback', socialCtrl.tiktokCallback);
+router.get('/social/oauth/linkedin/callback', socialCtrl.linkedinCallback);
+router.get('/social/oauth/google/callback', socialCtrl.googleCallback);
 
 router.use('/auth', authRoutes);
 router.use('/customers', customerRoutes);

@@ -6,6 +6,11 @@ import { notify } from './notification.service.js';
 import * as meta from './social/meta.service.js';
 import * as publish from './social/meta.publish.js';
 import * as tiktok from './social/tiktok.service.js';
+import * as linkedin from './social/linkedin.service.js';
+import * as youtube from './social/youtube.service.js';
+import * as google from './social/google.service.js';
+import * as extra from './social/platforms.sync.js';
+import { ConnectionError } from './social/oauth2.js';
 import type { Actor } from './social/social.service.js';
 
 /**
@@ -24,9 +29,9 @@ import type { Actor } from './social/social.service.js';
  * Changing the design or caption of an approved post sends it back to DRAFT.
  */
 
-export const PLATFORMS = ['fb', 'ig', 'tt'] as const;
+export const PLATFORMS = ['fb', 'ig', 'tt', 'li', 'yt'] as const;
 type Platform = (typeof PLATFORMS)[number];
-const PLATFORM_NAME: Record<Platform, string> = { fb: 'Facebook', ig: 'Instagram', tt: 'TikTok' };
+const PLATFORM_NAME: Record<Platform, string> = { fb: 'Facebook', ig: 'Instagram', tt: 'TikTok', li: 'LinkedIn', yt: 'YouTube' };
 
 export const TIME_ZONES = ['Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane', 'Australia/Adelaide', 'Australia/Perth', 'Australia/Hobart', 'Australia/Darwin'] as const;
 
@@ -50,6 +55,9 @@ const FB = { caption: 63206, imageBytes: 10 * 1024 * 1024, videoBytes: 1024 * 10
 const TT = { videoCaption: 2200, photoCaption: 4000, imageBytes: 20 * 1024 * 1024, videoBytes: 4 * 1024 * 1024 * 1024 };
 /** The TikTok publishing permission (Content Posting API, Direct Post). */
 const TT_PUBLISH_SCOPE = 'video.publish';
+const LI_PUBLISH_SCOPE = 'w_organization_social';
+const LI = linkedin.LI;
+const YT = youtube.YT;
 
 // ─── Access ────────────────────────────────────────────────
 
@@ -89,17 +97,49 @@ type Conn = Awaited<ReturnType<typeof prisma.socialConnection.findUnique>>;
 interface Conns {
   meta: Conn;
   tiktok: Conn;
+  linkedin: Conn;
+  youtube: Conn;
 }
 
 async function loadConnections(customerId: string): Promise<Conns> {
-  const rows = await prisma.socialConnection.findMany({ where: { customerId, provider: { in: ['meta', 'tiktok'] } } });
-  return { meta: rows.find((r) => r.provider === 'meta') ?? null, tiktok: rows.find((r) => r.provider === 'tiktok') ?? null };
+  const rows = await prisma.socialConnection.findMany({ where: { customerId, provider: { in: ['meta', 'tiktok', 'linkedin', 'youtube'] } } });
+  const one = (p: string) => rows.find((r) => r.provider === p) ?? null;
+  return { meta: one('meta'), tiktok: one('tiktok'), linkedin: one('linkedin'), youtube: one('youtube') };
 }
 
 /** What each platform can do for this customer right now. */
 function platformState(conns: Conns) {
   const tt = tiktokState(conns.tiktok);
-  return { ...metaState(conns.meta), tt };
+  return { ...metaState(conns.meta), tt, li: linkedinState(conns.linkedin), yt: youtubeState(conns.youtube) };
+}
+
+function linkedinState(conn: Conn) {
+  const scopes = new Set((conn?.scopes ?? '').split(/[\s,]+/).filter(Boolean));
+  const expired = conn?.status === 'EXPIRED';
+  const orgId = conn ? extra.selectedId(conn) : null;
+  const org = conn ? linkedin.publicAssets(conn.assets).choices.find((o) => o.id === orgId) : null;
+  const connected = !!conn && !!orgId;
+  const canPublish = connected && !expired && (scopes.size === 0 || scopes.has(LI_PUBLISH_SCOPE));
+  let note: string;
+  if (!conn) note = 'Not connected · Connect LinkedIn in Accounts';
+  else if (!orgId) note = 'No company Page chosen on the LinkedIn connection';
+  else if (expired) note = 'Connection expired · Reconnect LinkedIn';
+  else if (!canPublish) note = 'Connected, but posting permission not granted · Reconnect LinkedIn';
+  else note = 'Connected · Company Page post';
+  return { key: 'li' as const, name: org ? `LinkedIn · ${org.name}` : 'LinkedIn', connected, canPublish, note };
+}
+
+function youtubeState(conn: Conn) {
+  const expired = conn?.status === 'EXPIRED';
+  const connected = !!conn;
+  const canPublish = connected && !expired && google.hasScope(conn?.scopes, youtube.UPLOAD_SCOPE);
+  const profile = conn ? youtube.publicProfile(conn.assets) : null;
+  let note: string;
+  if (!conn) note = 'Not connected · Connect YouTube in Accounts';
+  else if (expired) note = 'Connection expired · Reconnect YouTube';
+  else if (!canPublish) note = 'Connected, but uploading was not allowed · Reconnect YouTube';
+  else note = 'Connected · Video upload';
+  return { key: 'yt' as const, name: profile?.displayName ? `YouTube · ${profile.displayName}` : 'YouTube', connected, canPublish, note };
 }
 
 function tiktokState(conn: Conn) {
@@ -169,11 +209,11 @@ function checksFor(post: PostRow, platforms: ReturnType<typeof platformState>): 
   // Design
   const video = !!post.mediaType?.startsWith('video/');
   if (!post.mediaUrl) {
-    const needs = chosen.filter((p) => p === 'ig' || p === 'tt').map((p) => PLATFORM_NAME[p]);
+    const needs = chosen.filter((p) => p === 'ig' || p === 'tt' || p === 'yt').map((p) => PLATFORM_NAME[p]);
     out.push(
       needs.length
         ? { ok: false, title: 'Design', detail: `${needs.join(' and ')} need${needs.length === 1 ? 's' : ''} an image or video — pick a design from Attachments` }
-        : { ok: true, title: 'Design', detail: 'No design — Facebook will publish a text post' }
+        : { ok: true, title: 'Design', detail: 'No design — a text post will be published' }
     );
   } else {
     const problems: string[] = [];
@@ -206,6 +246,19 @@ function checksFor(post: PostRow, platforms: ReturnType<typeof platformState>): 
         if (size > TT.imageBytes) problems.push('TikTok photos must be under 20 MB');
       }
     }
+    if (chosen.includes('li')) {
+      if (video) {
+        if (!['video/mp4'].includes(type)) problems.push('LinkedIn takes MP4 videos');
+        if (size > LI.videoBytes) problems.push('LinkedIn videos must be under 500 MB');
+      } else {
+        if (!['image/jpeg', 'image/jpg', 'image/png', 'image/gif'].includes(type)) problems.push('LinkedIn takes JPEG, PNG or GIF images');
+        if (size > LI.imageBytes) problems.push('LinkedIn images must be under 36 MB');
+      }
+    }
+    if (chosen.includes('yt')) {
+      if (!video) problems.push('YouTube needs a video, not an image');
+      else if (size > YT.videoBytes) problems.push('YouTube videos must be under 256 GB');
+    }
     const dims = post.mediaWidth && post.mediaHeight ? ` · ${post.mediaWidth} × ${post.mediaHeight}` : '';
     out.push(
       problems.length
@@ -230,6 +283,9 @@ function checksFor(post: PostRow, platforms: ReturnType<typeof platformState>): 
     const max = video ? TT.videoCaption : TT.photoCaption;
     if (message.length > max) capProblems.push(`TikTok allows ${max.toLocaleString()} characters for a ${video ? 'video' : 'photo'} post (this is ${message.length.toLocaleString()})`);
   }
+  if (chosen.includes('li') && message.length > LI.text) capProblems.push(`LinkedIn allows ${LI.text.toLocaleString()} characters (this is ${message.length.toLocaleString()})`);
+  if (chosen.includes('yt') && Buffer.byteLength(message, 'utf8') > YT.description) capProblems.push(`YouTube descriptions allow ${YT.description.toLocaleString()} characters`);
+  if (chosen.includes('yt') && /[<>]/.test(message)) capProblems.push('YouTube descriptions cannot contain < or >');
   if (!message && !post.mediaUrl) capProblems.push('Write a caption or add a design');
   out.push(capProblems.length ? { ok: false, title: 'Caption length', detail: capProblems.join('; ') } : { ok: true, title: 'Caption length', detail: 'Within limits for the selected platforms' });
 
@@ -256,7 +312,33 @@ function checksFor(post: PostRow, platforms: ReturnType<typeof platformState>): 
         : { ok: true, title: 'TikTok settings', detail: `${PRIVACY_LABEL[s.privacy!]} · comments ${s.allowComment ? 'on' : 'off'}${video ? ` · Duet ${s.allowDuet ? 'on' : 'off'} · Stitch ${s.allowStitch ? 'on' : 'off'}` : ''}` }
     );
   }
+  if (chosen.includes('yt')) {
+    const y = youtubeSettings(post.youtube, post.title);
+    const missing: string[] = [];
+    if (!y.privacy) missing.push('choose who can see it');
+    if (y.madeForKids == null) missing.push('say whether it is made for kids');
+    if (!y.title.trim()) missing.push('give the video a title');
+    else if (y.title.length > YT.title) missing.push(`shorten the title to ${YT.title} characters`);
+    else if (/[<>]/.test(y.title)) missing.push('remove < and > from the title');
+    out.push(
+      missing.length
+        ? { ok: false, title: 'YouTube settings', detail: `In YouTube settings: ${missing.join('; ')}` }
+        : { ok: true, title: 'YouTube settings', detail: `${YT_PRIVACY_LABEL[y.privacy!]} · ${y.madeForKids ? 'made for kids' : 'not made for kids'} · “${y.title}”` }
+    );
+  }
   return out;
+}
+
+const YT_PRIVACY_LABEL: Record<youtube.Privacy, string> = { public: 'Public', unlisted: 'Unlisted', private: 'Private' };
+
+/** A post's saved YouTube settings; the video title falls back to the post title. */
+function youtubeSettings(v: Prisma.JsonValue | null | undefined, postTitle: string): youtube.PostSettings {
+  const o = (v && typeof v === 'object' && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
+  return {
+    privacy: youtube.PRIVACY.includes(o.privacy as youtube.Privacy) ? (o.privacy as youtube.Privacy) : null,
+    madeForKids: typeof o.madeForKids === 'boolean' ? o.madeForKids : null,
+    title: typeof o.title === 'string' && o.title.trim() ? o.title.slice(0, 200) : postTitle,
+  };
 }
 
 const PRIVACY_LABEL: Record<tiktok.Privacy, string> = {
@@ -323,6 +405,7 @@ function shapePost(p: PostRow & { logs?: { platform: string; result: string; per
     media: p.mediaUrl ? { url: p.mediaUrl, name: p.mediaName, type: p.mediaType, size: p.mediaSize, width: p.mediaWidth, height: p.mediaHeight } : null,
     platforms: p.platforms,
     tiktok: tiktokSettings(p.tiktok),
+    youtube: youtubeSettings(p.youtube, p.title),
     scheduledAt: p.scheduledAt,
     timeZone: p.timeZone,
     status: p.status,
@@ -413,7 +496,11 @@ export async function getCalendar(customerId: string, taskId: string, viewer: Ac
           creatorError: creator?.error ?? null,
         }
       : null,
-    platforms: [platforms.fb, platforms.ig, platforms.tt],
+    linkedinConfigured: extra.configured('linkedin'),
+    youtubeConfigured: extra.configured('youtube'),
+    linkedin: conns.linkedin ? extraAccount(conns.linkedin) : null,
+    youtube: conns.youtube ? extraAccount(conns.youtube) : null,
+    platforms: [platforms.fb, platforms.ig, platforms.tt, platforms.li, platforms.yt],
     timeZones: TIME_ZONES,
     posts: posts.map((p) => shapePost(p, platforms)),
     log: logs.map((l) => ({
@@ -428,6 +515,23 @@ export async function getCalendar(customerId: string, taskId: string, viewer: Ac
       at: l.createdAt,
     })),
     attachments,
+  };
+}
+
+/** A LinkedIn or YouTube connection as the Accounts view shows it (never tokens). */
+function extraAccount(c: NonNullable<Conn>) {
+  const shaped = extra.shape(c);
+  return {
+    id: c.id,
+    name: c.externalName,
+    status: c.status,
+    lastError: c.lastError,
+    tokenExpiresAt: c.tokenExpiresAt,
+    connectedByName: c.connectedByName,
+    connectedAt: c.createdAt,
+    profile: shaped.profile,
+    choices: shaped.choices,
+    selectedId: extra.selectedId(c),
   };
 }
 
@@ -447,7 +551,21 @@ export interface PostInput {
   timeZone?: string;
   /** TikTok settings for this post (privacy, comments, Duet, Stitch, disclosure, consent). */
   tiktok?: Partial<tiktok.PostSettings> | null;
+  /** YouTube settings for this post (privacy, made for kids, video title). */
+  youtube?: Partial<youtube.PostSettings> | null;
 }
+
+function cleanYouTube(v: PostInput['youtube']): Record<string, unknown> | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v !== 'object' || Array.isArray(v)) throw ApiError.badRequest('YouTube settings are not valid');
+  return {
+    privacy: youtube.PRIVACY.includes(v.privacy as youtube.Privacy) ? v.privacy : null,
+    madeForKids: typeof v.madeForKids === 'boolean' ? v.madeForKids : null,
+    title: typeof v.title === 'string' ? v.title.slice(0, 200) : '',
+  };
+}
+const jsonOrNull = (v: Record<string, unknown> | null) => (v === null ? Prisma.DbNull : (v as Prisma.InputJsonValue));
 
 /** Validate TikTok settings from the form. Unknown privacy values are dropped (nothing chosen). */
 function cleanTikTok(v: PostInput['tiktok']): tiktok.PostSettings | null | undefined {
@@ -493,6 +611,7 @@ function clean(input: PostInput) {
     scheduledAt,
     timeZone: input.timeZone,
     tiktok: cleanTikTok(input.tiktok),
+    youtube: cleanYouTube(input.youtube),
   };
 }
 
@@ -524,6 +643,7 @@ export async function createPost(customerId: string, taskId: string, actor: Acto
       mediaHeight: input.attachmentId ? c.mediaHeight ?? null : null,
       platforms: c.platforms ?? [],
       ...(c.tiktok ? { tiktok: tiktokJson(c.tiktok) } : {}),
+      ...(c.youtube ? { youtube: jsonOrNull(c.youtube) } : {}),
       scheduledAt: c.scheduledAt ?? null,
       timeZone: c.timeZone ?? 'Australia/Sydney',
       createdById: actor.id,
@@ -553,6 +673,7 @@ export async function updatePost(customerId: string, taskId: string, postId: str
   if (c.platforms !== undefined) data.platforms = c.platforms;
   // TikTok settings are how it is posted, not what the client approved — no re-approval needed.
   if (c.tiktok !== undefined) data.tiktok = tiktokJson(c.tiktok);
+  if (c.youtube !== undefined) data.youtube = jsonOrNull(c.youtube);
   if (c.scheduledAt !== undefined) data.scheduledAt = c.scheduledAt;
   if (c.timeZone !== undefined) data.timeZone = c.timeZone;
 
@@ -740,6 +861,7 @@ async function runPublish(postId: string, trigger: string) {
   const conn = conns.meta;
   const targets = conn ? publish.resolveTargets(conn) : { fb: null, ig: null };
   let ttExpired = false;
+  const expiredExtra = new Set<string>();
   const done = new Set(post.logs.filter((l) => l.result === 'PUBLISHED').map((l) => l.platform));
   const content: publish.PublishContent = {
     message: composeMessage(post),
@@ -774,6 +896,35 @@ async function runPublish(postId: string, trigger: string) {
         });
         // TikTok has no "first comment" through its API.
         if (post.firstComment.trim()) res = { ...res, warning: [res.warning, 'TikTok does not allow apps to add a first comment'].filter(Boolean).join(' ') };
+      } else if (p === 'li') {
+        const lc = conns.linkedin;
+        const orgId = lc ? extra.selectedId(lc) : null;
+        if (!lc || !orgId) throw new Error('No LinkedIn company Page connected');
+        res = await linkedin.publish(await linkedin.accessToken(lc), {
+          orgId,
+          text: content.message,
+          title: post.title,
+          mediaUrl: post.mediaUrl,
+          mediaType: post.mediaType,
+          mediaSize: post.mediaSize,
+        });
+        if (post.firstComment.trim()) res = { ...res, warning: 'The first comment was not added on LinkedIn (not available to apps)' };
+      } else if (p === 'yt') {
+        const yc = conns.youtube;
+        if (!yc) throw new Error('No YouTube channel connected');
+        if (!post.mediaUrl || !post.mediaType?.startsWith('video/')) throw new Error('YouTube needs a video');
+        const y = youtubeSettings(post.youtube, post.title);
+        const tags = (post.hashtags.match(/#[\p{L}\p{N}_]+/gu) ?? []).map((t) => t.slice(1));
+        res = await youtube.upload(await google.accessToken(yc), {
+          title: y.title.slice(0, YT.title),
+          description: content.message,
+          tags,
+          mediaUrl: post.mediaUrl,
+          mediaType: post.mediaType,
+          mediaSize: post.mediaSize,
+          settings: y,
+        });
+        if (post.firstComment.trim()) res = { ...res, warning: [res.warning, 'The first comment was not added on YouTube'].filter(Boolean).join(' ') };
       } else throw new Error('This platform cannot be published to');
       await prisma.contentPublishLog.create({
         data: { postId, taskId: post.taskId, customerId: post.customerId, platform: p, result: 'PUBLISHED', externalId: res.externalId, permalink: res.permalink, error: res.warning ?? null, trigger },
@@ -783,12 +934,17 @@ async function runPublish(postId: string, trigger: string) {
       const msg = (err as Error).message.slice(0, 500);
       if (err instanceof meta.MetaError && err.expired) expired = true;
       if (err instanceof tiktok.TikTokError && err.expired) ttExpired = true;
+      if (err instanceof ConnectionError && err.expired) expiredExtra.add(p === 'li' ? 'linkedin' : 'youtube');
       errors.push(`${name}: ${msg}`);
       await prisma.contentPublishLog.create({ data: { postId, taskId: post.taskId, customerId: post.customerId, platform: p, result: 'FAILED', error: msg, trigger } });
     }
   }
   if (ttExpired && conns.tiktok) {
     await prisma.socialConnection.update({ where: { id: conns.tiktok.id }, data: { status: 'EXPIRED', lastError: 'Connection expired while publishing' } }).catch(() => undefined);
+  }
+  for (const prov of expiredExtra) {
+    const c = prov === 'linkedin' ? conns.linkedin : conns.youtube;
+    if (c) await prisma.socialConnection.update({ where: { id: c.id }, data: { status: 'EXPIRED', lastError: 'Connection expired while publishing' } }).catch(() => undefined);
   }
   if (expired && conn) {
     await prisma.socialConnection.update({ where: { id: conn.id }, data: { status: 'EXPIRED', lastError: 'Connection expired while publishing' } }).catch(() => undefined);

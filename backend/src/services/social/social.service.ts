@@ -9,6 +9,7 @@ import * as meta from './meta.service.js';
 import * as tiktok from './tiktok.service.js';
 import { fetchPeriods, type Period } from './meta.periods.js';
 import { storage } from '../storage/index.js';
+import * as extra from './platforms.sync.js';
 
 /**
  * Social Media Dashboard data. Figures belong to the customer (their accounts),
@@ -59,6 +60,10 @@ function connectedPlatforms(conns: { provider: string; status: string; selected:
       out.add('tt');
       continue;
     }
+    if (extra.isExtra(c.provider)) {
+      for (const p of extra.platformsOf(c)) out.add(p);
+      continue;
+    }
     if (c.provider !== 'meta') continue;
     const s = (c.selected ?? {}) as meta.MetaSelection;
     if (s.pageId) out.add('fb');
@@ -96,11 +101,13 @@ function shapeConnection(c: {
     assets:
       c.provider === 'tiktok'
         ? { pages: [], adAccounts: [], profile: tiktok.publicProfile(c.assets) }
-        : {
+        : extra.isExtra(c.provider)
+          ? extra.shape(c)
+          : {
             pages: (assets.pages ?? []).map((p) => ({ id: p.id, name: p.name, ig: p.ig })),
             adAccounts: assets.adAccounts ?? [],
           },
-    selected: c.provider === 'tiktok' ? {} : c.selected,
+    selected: c.provider === 'tiktok' || c.provider === 'youtube' ? {} : c.selected,
   };
 }
 
@@ -162,7 +169,13 @@ export async function getDashboard(customerId: string, taskId: string, viewer: A
     firstDay: FIRST_DAY,
     canEdit: isStaff(viewer),
     viewer: { name: viewer.name, role: viewer.type },
-    providers: { meta: meta.metaConfigured(), tiktok: tiktok.tiktokConfigured() },
+    providers: {
+      meta: meta.metaConfigured(),
+      tiktok: tiktok.tiktokConfigured(),
+      linkedin: extra.configured('linkedin'),
+      youtube: extra.configured('youtube'),
+      google_ads: extra.configured('google_ads'),
+    },
     connections: conns.map(shapeConnection),
     connected: [...connectedPlatforms(conns)],
     syncing: isSyncing(conns.map((c) => c.id)),
@@ -266,7 +279,7 @@ export async function saveMetrics(customerId: string, taskId: string, actor: Act
 
 // ─── Connecting accounts ────────────────────────────────────
 
-interface OAuthState {
+export interface OAuthState {
   cid: string;
   tid: string;
   uid: string;
@@ -277,14 +290,15 @@ interface OAuthState {
 
 export async function startConnect(customerId: string, taskId: string, actor: Actor, provider: string) {
   await ensureConnectTask(customerId, taskId);
-  if (provider !== 'meta' && provider !== 'tiktok') throw ApiError.badRequest('This platform cannot be connected yet');
+  if (provider !== 'meta' && provider !== 'tiktok' && !extra.isExtra(provider)) throw ApiError.badRequest('This platform cannot be connected yet');
+  if (extra.isExtra(provider) && !extra.configured(provider)) throw ApiError.badRequest('Connecting this platform is not set up yet');
   if (provider === 'meta' && !meta.metaConfigured()) throw ApiError.badRequest('Connecting Meta accounts is not set up yet');
   if (provider === 'tiktok' && !tiktok.tiktokConfigured()) throw ApiError.badRequest('Connecting TikTok accounts is not set up yet');
   const state = jwt.sign({ cid: customerId, tid: taskId, uid: actor.id, role: actor.type, name: actor.name, provider } satisfies OAuthState, env.JWT_SECRET, {
     expiresIn: '20m',
     audience: 'social-oauth',
   });
-  return { url: provider === 'tiktok' ? tiktok.authUrl(state) : meta.authUrl(state) };
+  return { url: provider === 'tiktok' ? tiktok.authUrl(state) : extra.isExtra(provider) ? extra.authUrl(provider, state) : meta.authUrl(state) };
 }
 
 /** Handles Meta's redirect after the customer signs in. Returns a short message for the result page. */
@@ -394,10 +408,21 @@ export async function completeTikTokConnect(code: string | undefined, state: str
   }
 }
 
-export async function selectAssets(customerId: string, taskId: string, connectionId: string, sel: meta.MetaSelection) {
+export async function selectAssets(customerId: string, taskId: string, connectionId: string, sel: meta.MetaSelection & { assetId?: string | null }) {
   await ensureConnectTask(customerId, taskId);
   const conn = await prisma.socialConnection.findFirst({ where: { id: connectionId, customerId } });
   if (!conn) throw ApiError.notFound('Connection not found');
+  if (extra.isExtra(conn.provider)) {
+    let next: Record<string, unknown>;
+    try {
+      next = extra.selection(conn, typeof sel.assetId === 'string' && sel.assetId ? sel.assetId : null);
+    } catch (err) {
+      throw ApiError.badRequest((err as Error).message);
+    }
+    await prisma.socialConnection.update({ where: { id: conn.id }, data: { selected: next as Prisma.InputJsonValue } });
+    await syncInBackground([conn.id]);
+    return { ok: true };
+  }
   if (conn.provider !== 'meta') throw ApiError.badRequest('There is nothing to choose for this account');
   const assets = conn.assets as unknown as meta.MetaAssets;
   const next: meta.MetaSelection = {
@@ -414,10 +439,11 @@ export async function selectAssets(customerId: string, taskId: string, connectio
 /** Disconnect: the token is removed. Figures already fetched stay so past reports keep their history. */
 export async function disconnect(customerId: string, taskId: string, connectionId: string) {
   await ensureConnectTask(customerId, taskId);
-  const conn = await prisma.socialConnection.findFirst({ where: { id: connectionId, customerId }, select: { id: true, provider: true, accessTokenEnc: true } });
+  const conn = await prisma.socialConnection.findFirst({ where: { id: connectionId, customerId }, select: { id: true, provider: true, accessTokenEnc: true, assets: true } });
   if (!conn) throw ApiError.notFound('Connection not found');
   // TikTok: end the access on TikTok's side too (best-effort).
   if (conn.provider === 'tiktok') await tiktok.revoke(conn.accessTokenEnc);
+  if (extra.isExtra(conn.provider)) await extra.revoke(conn);
   await prisma.socialConnection.delete({ where: { id: conn.id } });
   return { ok: true };
 }
@@ -450,6 +476,7 @@ export async function syncConnection(connectionId: string, days = 30) {
   try {
     const conn = await prisma.socialConnection.findUnique({ where: { id: connectionId } });
     if (conn?.provider === 'tiktok') return await syncTikTok(conn, days);
+    if (conn && extra.isExtra(conn.provider)) return await extra.syncExtra(conn, days);
     if (!conn || conn.provider !== 'meta') return { skipped: true };
     const until = new Date();
     const since = new Date(Math.max(new Date(`${FIRST_DAY}T00:00:00Z`).getTime(), until.getTime() - days * 86400_000));
@@ -782,7 +809,7 @@ async function syncPeriods(conn: { id: string; customerId: string; accessTokenEn
 // ─── Post pictures ──────────────────────────────────────────
 
 /** Meta's image hosts — anything else is never downloaded. */
-const PICTURE_HOST = /(^|\.)(fbcdn\.net|cdninstagram\.com|fbsbx\.com|tiktokcdn\.com|tiktokcdn-us\.com|tiktokcdn-eu\.com)$/i;
+const PICTURE_HOST = /(^|\.)(fbcdn\.net|cdninstagram\.com|fbsbx\.com|tiktokcdn\.com|tiktokcdn-us\.com|tiktokcdn-eu\.com|ytimg\.com|licdn\.com)$/i;
 const PICTURE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 const PICTURE_MAX_BYTES = 8 * 1024 * 1024;
 /** Pictures copied per sync — the rest follow on the next sync. */
@@ -792,7 +819,7 @@ const PICTURES_PER_SYNC = 60;
  * Copy each post's picture into our storage once. Meta's image links expire
  * after a while, so the dashboard shows our copy instead.
  */
-async function storePostImages(customerId: string, posts: meta.FetchedPost[]) {
+export async function storePostImages(customerId: string, posts: meta.FetchedPost[]) {
   const withPic = posts.filter((p) => p.pictureUrl);
   if (!withPic.length) return;
   const missing = await prisma.socialPost.findMany({

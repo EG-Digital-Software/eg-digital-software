@@ -32,6 +32,9 @@ export const FEATURE_UPDATES: FeatureUpdate[] = [
   { id: 'minimise-task-chat', name: 'Minimise Task Chat', addedAt: '2026-11-16' },
   // No `tab`: TikTok lives on the Social Media Dashboard and Content Calendar tabs, shown only where ticked.
   { id: 'tiktok-connection', name: 'TikTok connection', addedAt: '2026-11-16' },
+  // No `tab`: these live on the Social Media Dashboard and Content Calendar tabs.
+  { id: 'linkedin-youtube-connection', name: 'LinkedIn and YouTube connection', addedAt: '2026-11-16' },
+  { id: 'google-ads-connection', name: 'Google Ads connection', addedAt: '2026-11-16' },
 ];
 
 const SHOW_DAYS = 30;

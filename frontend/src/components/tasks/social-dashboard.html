@@ -607,7 +607,11 @@ function buildSeries(){SERIES={tt:{},li:{},yt:{},ga:{},ma:{}};const D=days(PER.s
   SERIES[c]=o;}}
 /** Posts of the selected month for the content table: [date, type, title, views, reach, likes, comments, shares, saves, link clicks, watch, picture]. */
 function contentRows(c){return postsIn(c,PER.start,PER.end).map(p=>{const s=p.st||{};return [ftxt(pd(p.d)),isReel(p)?'Reel':'Post',p.t,s.views??null,p.reach??null,s.likes??null,s.comments??null,s.shares??p.shares??null,s.saves??null,null,null,safeImg(p.img)];});}
-const connectedCh=c=>(S.connected||[]).includes(c==='ma'?'meta_ads':c);
+/** Posts of the selected month as a table (TikTok videos, LinkedIn posts, YouTube videos). */
+function postTable(c){const ps=postsIn(c,PER.start,PER.end);if(!ps.length)return null;const li=c==='li';
+ return {post:true,cols:[li?'Impressions':'Views','Likes','Comments',li?'Reposts':'Shares'],f:['int','int','int','int'],
+  rows:ps.map(p=>{const s=p.st||{};return [ftxt(pd(p.d)),p.type||'Post',p.t,[s.views??p.reach??null,s.likes??null,s.comments??null,s.shares??p.shares??null]];})};}
+const connectedCh=c=>(S.connected||[]).includes(c==='ma'?'meta_ads':c==='ga'?'google_ads':c);
 
 /* ======================= FORMATTING ======================= */
 const secs=s=>{s=Math.round(s);if(s<60)return s+'s';const m=Math.floor(s/60),r=s%60;if(m<60)return m+'m'+(r?' '+r+'s':'');return Math.floor(m/60)+'h '+(m%60)+'m';};
@@ -767,10 +771,10 @@ function block(b,si){const c=st.ch;
   if(g.v!=null&&g.d!=null&&g.d!==-100){const prev=g.v/(1+g.d/100),mx=Math.max(Math.abs(g.v),Math.abs(prev),1);body=`<div class="cmpb"><div><div class="t">This period <b>${fv(m,g.v)}${exTag(g)}</b></div><div class="bar"><b style="width:${Math.max(g.v,0)/mx*100}%;background:var(--accent)"></b></div></div><div><div class="t">Previous period <b>about ${fv(m,Math.round(prev))}</b></div><div class="bar"><b style="width:${Math.abs(prev)/mx*100}%;background:#c8d0d8"></b></div></div></div>`;}
   else body=empty(`No comparison for ${lab(m,c).toLowerCase()}`,g.v==null?'This metric hasn\'t been added yet.':'Add the % change to compare with the previous period.',g.v==null);
   return `<div class="panel mt"><div class="ph"><h3>This period vs previous</h3><div class="chips" data-cmp="${si}">${b.ids.map(o=>`<button class="${o===m?'on':''}" data-gm="${o}">${lab(o,c)}</button>`).join('')}</div></div>${body}</div>`;}
- if(b.t==='table'){const T=c==='ma'?((PV().ma||{})[b.key==='ads'?'table_ads':'table_campaigns']||{})[PER.key]:null;
-   if(!T||!T.rows||!T.rows.length)return `<div class="mt">${empty(b.key==='kw'?'Keywords are not available yet':b.key==='ads'?'No ads in this period':c==='ma'?'No campaigns in this period':'Row-by-row results are not available yet',c==='ma'?(connectedCh('ma')?'Nothing ran on the connected ad account in this period.':'Connect the Meta ad account under Connected accounts.'):'They arrive with an automatic connection. Add the totals with Update data for now.',false)}</div>`;
+ if(b.t==='table'){const ads=c==='ma'||c==='ga',T=ads?((PV()[c]||{})[b.key==='ads'?'table_ads':'table_campaigns']||{})[PER.key]:['tt','li','yt'].includes(c)&&b.key!=='kw'?postTable(c):null;
+   if(!T||!T.rows||!T.rows.length)return `<div class="mt">${empty(b.key==='kw'?'Keywords are not available yet':b.key==='ads'?'No ads in this period':ads?'No campaigns in this period':'Row-by-row results are not available yet',ads?(connectedCh(c)?'Nothing ran on the connected ad account in this period.':'Connect the '+(c==='ma'?'Meta':'Google Ads')+' ad account under Connected accounts.'):connectedCh(c)?'No posts were published in this period.':'They arrive with an automatic connection. Add the totals with Update data for now.',false)}</div>`;
    const ff=(v,f)=>v==null?'–':f==='sec'?secs(v):f==='pct'?(v?v+'%':'–'):f==='money'?'$'+(+v).toLocaleString('en-AU',{minimumFractionDigits:v%1?2:0,maximumFractionDigits:2}):f==='x'?(+v).toFixed(1)+'×':f==='dec'?(+v).toString():(+v).toLocaleString('en-AU');
-   return `<div class="tablewrap"><table><thead><tr><th>${b.key==='ads'?'Ad':'Campaign'}</th>${T.cols.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${T.rows.map(r=>`<tr><td><div class="pt"><i></i><div>${esc(r[2])}<small><span class="ty">${esc(r[1])}</span> ${esc(r[0])}</small></div></div></td>${r[3].map((v,i)=>`<td>${ff(v,T.f[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
+   return `<div class="tablewrap"><table><thead><tr><th>${b.key==='ads'?'Ad':T.post?'Post':'Campaign'}</th>${T.cols.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${T.rows.map(r=>`<tr><td><div class="pt"><i></i><div>${esc(r[2])}<small><span class="ty">${esc(r[1])}</span> ${esc(r[0])}</small></div></div></td>${r[3].map((v,i)=>`<td>${ff(v,T.f[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
  if(b.t==='demo'){const D=c==='ma'?((PV().ma||{}).demo||{})[PER.key]:null,keys=D?Object.keys(D):[];
    if(!keys.length)return `<div class="mt">${empty('Audience is not available',c==='ma'?(connectedCh('ma')?'No ads ran in this period.':'Connect the Meta ad account under Connected accounts.'):'Audience breakdowns arrive with an automatic connection.',false)}</div>`;
    const k=st.demoK[c]&&D[st.demoK[c]]?st.demoK[c]:keys[0],v=D[k];
@@ -866,7 +870,21 @@ $('views').onclick=e=>{const b=e.target.closest('button');if(!b)return;const tea
  document.body.classList.toggle('client',!team);if(!team)st.mode='real';$('viewNote').textContent=team?'Only your team sees this view. Update tools and missing-data checks are shown.':'This is what your client sees.';render();};
 /* ======================= CONNECTED ACCOUNTS ======================= */
 function fmtWhen(s){const d=new Date(s);return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}).toLowerCase();}
-const OTHERS=['LinkedIn','YouTube','Google Ads'];
+const PROV={meta:'Meta',tiktok:'TikTok',linkedin:'LinkedIn',youtube:'YouTube',google_ads:'Google Ads'};
+const SIGNIN={meta:'Facebook',tiktok:'TikTok',linkedin:'LinkedIn',youtube:'Google',google_ads:'Google'};
+const XTRA={
+ linkedin:{h:'LinkedIn Company Page',p:'Sign in with a LinkedIn account that is an admin of the company Page. Impressions, clicks, reactions, comments, reposts, followers and Page views are read automatically.',pick:'Company Page',none:'This LinkedIn login is not an admin of any company Page.'},
+ youtube:{h:'YouTube',p:'Sign in with the Google account (or brand account) that owns the channel. Views, watch time, subscribers, traffic sources and videos are read automatically.'},
+ google_ads:{h:'Google Ads',p:'Sign in with a Google account that has access to the Google Ads account (directly or through a manager account). Spend, clicks, conversions, campaigns and search visibility are read automatically.',pick:'Google Ads account',none:'This Google login cannot read any Google Ads account.'}};
+/** LinkedIn, YouTube and Google Ads: their own sign-in, like TikTok. */
+function xRender(prov){const t=(S.connections||[]).find(x=>x.provider===prov),on=S.providers&&S.providers[prov],X=XTRA[prov],N=PROV[prov];
+ let h=`<h4>${X.h}</h4><p class="note" style="margin-top:0">${X.p}</p>`;
+ if(!t)return h+(on?`<button class="btn primary sm mt" data-connect="${prov}">Connect with ${SIGNIN[prov]}</button>`:`<div class="msg ok">EG Eloma is finishing the ${N} setup. Connecting will be available here soon.</div>`);
+ const exd=t.status==='EXPIRED',A=t.assets||{},P=A.profile||{},ch=A.choices||[],sel=(t.selected||{}),cur=sel.orgId||sel.customerId||'';
+ h+=`<div class="wl" style="border-top:0"><div><b>${esc(P.displayName||t.name||N)}</b><small>Connected by ${esc(t.connectedByName)} on ${new Date(t.connectedAt).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})}${t.lastSyncAt?' · last synced '+fmtWhen(t.lastSyncAt):' · first sync in progress'}</small></div><div>${exd?'<span class="chip bad">Reconnect needed</span>':'<span class="chip good">Connected</span>'}</div></div>`;
+ if(X.pick){h+=ch.length?`<div class="accsel"><label class="full">${X.pick}<select data-xsel="${esc(t.id)}"><option value="">None</option>${ch.map(o=>`<option value="${esc(o.id)}"${o.id===cur?' selected':''}>${esc(o.name)}</option>`).join('')}</select></label></div>`:`<div class="msg err">${X.none}</div>`;}
+ if(t.lastError)h+=`<div class="msg ${exd?'err':'ok'}">${exd?N+' stopped the access: ':'Note: '}${esc(t.lastError)}</div>`;
+ return h+`<div class="acts mt" style="justify-content:flex-start"><button class="btn ${exd?'primary':'outline'} sm" data-connect="${prov}">Reconnect</button><button class="btn outline sm" data-sync${S.syncing?' disabled':''}>${S.syncing?'Syncing…':'Sync now'}</button><button class="btn outline sm" data-disc="${esc(t.id)}" data-prov="${prov}">Disconnect</button></div>`;}
 function accRender(){if(!S)return;const c=(S.connections||[]).find(x=>x.provider==='meta'),on=S.providers&&S.providers.meta;let h='';
  h+=`<h4>Facebook, Instagram and Meta Ads</h4><p class="note" style="margin-top:0">Sign in with the Facebook account that manages the business Page. Instagram must be a professional (Business or Creator) account linked to that Page.</p>`;
  if(!c){h+=on?`<button class="btn primary sm mt" data-connect="meta">Connect with Facebook</button>`:`<div class="msg ok">EG Eloma is finishing the Meta setup. Connecting will be available here soon.</div>`;}
@@ -879,7 +897,7 @@ function accRender(){if(!S)return;const c=(S.connections||[]).find(x=>x.provider
   if(c.lastError)h+=`<div class="msg ${exd?'err':'ok'}">${exd?'Meta stopped the access: ':'Note: '}${esc(c.lastError)}</div>`;
   h+=`<div class="acts mt" style="justify-content:flex-start"><button class="btn ${exd?'primary':'outline'} sm" data-connect="meta">Reconnect</button><button class="btn outline sm" data-sync${S.syncing?' disabled':''}>${S.syncing?'Syncing…':'Sync now'}</button><button class="btn outline sm" data-disc="${esc(c.id)}">Disconnect</button></div>`;}
  h+=ttRender();
- h+=`<h4>Other platforms</h4>`+OTHERS.map(n=>`<div class="wl"><div><b>${n}</b><small>Automatic connection is coming soon.${S.canEdit?' Enter its figures with Update data for now.':' Your EG Eloma team adds these figures for now.'}</small></div><div><span class="chip neu">Coming soon</span></div></div>`).join('');
+ h+=xRender('linkedin')+xRender('youtube')+xRender('google_ads');
  $('accBody').innerHTML=h;}
 /** TikTok: its own sign-in; figures and videos fill the TikTok channel. */
 function ttRender(){const t=(S.connections||[]).find(x=>x.provider==='tiktok'),on=S.providers&&S.providers.tiktok;
@@ -894,7 +912,7 @@ $('accBtn').onclick=openAcc;$('accClose').onclick=closeD;
 let watchT=null;
 function watchConnect(prov='meta'){const startAt=new Date().toISOString();let n=0;clearInterval(watchT);
  watchT=setInterval(async()=>{if(++n>75){clearInterval(watchT);return;}try{const d=await bridge('load');setData(d);const c=(d.connections||[]).find(x=>x.provider===prov);
-  if(c&&c.lastSyncAt&&c.lastSyncAt>startAt){clearInterval(watchT);toast((prov==='tiktok'?'TikTok':'Meta')+' account connected. Figures updated');}}catch(_){}},4000);}
+  if(c&&c.lastSyncAt&&c.lastSyncAt>startAt){clearInterval(watchT);toast((PROV[prov]||'The')+' account connected. Figures updated');}}catch(_){}},4000);}
 /** A long read carries on on the server after the request returns: reload until it is done (up to 15 minutes). */
 let syncT=null;
 function watchSync(seen=true){let n=0;clearInterval(syncT);
@@ -902,14 +920,16 @@ function watchSync(seen=true){let n=0;clearInterval(syncT);
   else{clearInterval(syncT);toast(seen?'Figures updated':'The sync did not finish. Please press Sync now again');}}catch(_){}},5000);}
 $('accBody').onclick=async e=>{const cn=e.target.closest('[data-connect]'),sy=e.target.closest('[data-sync]'),dc=e.target.closest('[data-disc]');
  if(cn){const w=window.open('about:blank','eg-social-connect','width=620,height=760');
-  try{const r=await bridge('connect',{provider:cn.dataset.connect});if(w&&!w.closed)w.location.href=r.url;else window.open(r.url,'_blank');const tk=cn.dataset.connect==='tiktok';toast('Sign in with '+(tk?'TikTok':'Facebook')+' in the new window');watchConnect(cn.dataset.connect);}
+  try{const r=await bridge('connect',{provider:cn.dataset.connect});if(w&&!w.closed)w.location.href=r.url;else window.open(r.url,'_blank');toast('Sign in with '+(SIGNIN[cn.dataset.connect]||'the platform')+' in the new window');watchConnect(cn.dataset.connect);}
   catch(err){if(w)w.close();toast(err.message);}}
  else if(sy){sy.disabled=true;sy.textContent='Syncing…';try{const d=await bridge('sync');setData(d);if(d.syncing){toast('Still reading your accounts. Figures update here when it finishes');watchSync();}else toast('Figures updated');}catch(err){
   // The read may still be running on the server even when this request failed: keep checking.
   toast('Still reading your accounts. Figures update here when it finishes');watchSync(false);accRender();}}
- else if(dc){if(!confirm('Disconnect this '+(dc.dataset.prov==='tiktok'?'TikTok':'Meta')+' account? Figures already fetched stay on the dashboard; new figures stop until it is connected again.'))return;
+ else if(dc){if(!confirm('Disconnect this '+(PROV[dc.dataset.prov]||'Meta')+' account? Figures already fetched stay on the dashboard; new figures stop until it is connected again.'))return;
   try{await bridge('disconnect',{id:dc.dataset.disc});setData(await bridge('load'));toast('Account disconnected');}catch(err){toast(err.message);}}};
-$('accBody').onchange=async e=>{const s=e.target.closest('[data-sel]');if(!s)return;const c=(S.connections||[]).find(x=>x.provider==='meta');if(!c)return;
+$('accBody').onchange=async e=>{const xs=e.target.closest('[data-xsel]');
+ if(xs){try{toast('Updating accounts…');await bridge('select',{id:xs.dataset.xsel,assetId:xs.value||null});const d=await bridge('load');setData(d);toast(d.syncing?'Account updated. Reading figures…':'Account updated');if(d.syncing)watchSync();}catch(err){toast(err.message);}return;}
+ const s=e.target.closest('[data-sel]');if(!s)return;const c=(S.connections||[]).find(x=>x.provider==='meta');if(!c)return;
  const body={};document.querySelectorAll('#accBody [data-sel]').forEach(x=>body[x.dataset.sel]=x.value||null);
  try{toast('Updating accounts…');await bridge('select',{id:c.id,...body});const d=await bridge('load');setData(d);toast(d.syncing?'Accounts updated. Reading figures from Meta…':'Accounts updated');if(d.syncing)watchSync();}catch(err){toast(err.message);}};
 

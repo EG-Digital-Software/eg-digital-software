@@ -143,6 +143,39 @@ const schema = z.object({
   TIKTOK_REDIRECT_URI: z.string().optional(),
   TIKTOK_SCOPES: z.string().default('user.info.basic,user.info.profile,user.info.stats,video.list,video.publish'),
 
+  // ── LinkedIn (Company Page figures + Content Calendar publishing) ──
+  // From the LinkedIn developer app (linkedin.com/developers → the app → Auth).
+  // Needs the "Community Management API" product. LINKEDIN_REDIRECT_URI must be
+  // added to the app's Authorized redirect URLs:
+  // <API base>/api/social/oauth/linkedin/callback.
+  LINKEDIN_CLIENT_ID: z.string().optional(),
+  LINKEDIN_CLIENT_SECRET: z.string().optional(),
+  LINKEDIN_REDIRECT_URI: z.string().optional(),
+  LINKEDIN_SCOPES: z.string().default('r_basicprofile r_organization_social w_organization_social rw_organization_admin'),
+  // LinkedIn's versioned REST API (YYYYMM). Each version is supported for about a year.
+  LINKEDIN_API_VERSION: z.string().default('202606'),
+
+  // ── Google (YouTube + Google Ads) ──
+  // One OAuth client from Google Cloud Console (APIs & Services → Credentials →
+  // OAuth client ID, type Web application). GOOGLE_REDIRECT_URI must be added to
+  // its Authorized redirect URIs: <API base>/api/social/oauth/google/callback.
+  // YouTube needs the YouTube Data API v3 and YouTube Analytics API enabled.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().optional(),
+  YOUTUBE_SCOPES: z
+    .string()
+    .default(
+      'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/youtube.upload'
+    ),
+  // Google Ads also needs the Google Ads API enabled and a developer token from
+  // the manager (MCC) account's API Center. GOOGLE_ADS_LOGIN_CUSTOMER_ID is the
+  // manager account id (digits only) when client accounts are reached through it.
+  GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID: z.string().optional(),
+  // Google Ads API versions are retired about a year after release — update when Google announces a sunset.
+  GOOGLE_ADS_API_VERSION: z.string().default('v24'),
+
   DEFAULT_CURRENCY: z.string().default('AUD'),
   DEFAULT_LOCALE: z.string().default('en-AU'),
 })

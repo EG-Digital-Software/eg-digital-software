@@ -1446,6 +1446,8 @@ model ContentPost {
   /// allowComment, allowDuet, allowStitch, brandOrganic, brandContent, consent }.
   /// Null until TikTok settings are saved.
   tiktok         Json?
+  /// YouTube settings for this post (privacy, made for kids, video title), chosen by the team.
+  youtube        Json?
   /// Planned publish moment (UTC) and the time zone it was chosen in.
   scheduledAt    DateTime?
   timeZone       String    @default("Australia/Sydney")
