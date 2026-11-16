@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Linking, Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { errorMessage } from '../../../api/client';
 import { fileUrl, type PickedFile } from '../../../api/tasks';
 import { customerFormApi, type FormDocument } from '../../../api/admin/customerForm';
 import { formatSize } from '../../../lib/format';
+import { useFileViewer } from '../../../lib/fileViewer';
 import { Section } from './fields';
 
 /**
@@ -32,6 +33,12 @@ export function DocumentsSection({
   onToggle: () => void;
 }) {
   const qc = useQueryClient();
+  const view = useFileViewer();
+  const openDoc = (d: FormDocument) =>
+    view(
+      existing.map((x) => ({ url: fileUrl(x.url), name: x.fileName, contentType: x.contentType })),
+      existing.indexOf(d)
+    );
   const isEdit = !!clientId;
 
   const del = useMutation({
@@ -68,13 +75,13 @@ export function DocumentsSection({
       {existing.map((d) => (
         <View key={d.id} style={[row, { borderColor: colors.line }]}>
           <Ionicons name="document-outline" size={18} color={colors.green} />
-          <Pressable style={{ flex: 1 }} onPress={() => Linking.openURL(fileUrl(d.url))}>
+          <Pressable style={{ flex: 1 }} onPress={() => openDoc(d)}>
             <T w="s" size={13.5} numberOfLines={1}>
               {d.fileName}
             </T>
             <Muted size={11.5}>{formatSize(d.size)}</Muted>
           </Pressable>
-          <Pressable hitSlop={8} onPress={() => Linking.openURL(fileUrl(d.url))} accessibilityLabel="Open">
+          <Pressable hitSlop={8} onPress={() => openDoc(d)} accessibilityLabel="Open">
             <Ionicons name="download-outline" size={19} color={colors.muted} />
           </Pressable>
           <Pressable hitSlop={8} onPress={() => confirmDelete(d)} disabled={del.isPending} accessibilityLabel="Delete">

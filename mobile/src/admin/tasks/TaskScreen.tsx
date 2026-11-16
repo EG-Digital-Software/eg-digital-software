@@ -33,7 +33,7 @@ import {
 } from './common';
 import { AccessPanel, ApprovalsPanel, ArchivePanel, FilesPanel, HoursPanel } from './panels';
 import { ContentPanel, ReportPanel, SocialPanel } from './specialty';
-import { activityMeta, useBoardSeen, whatsNewItems, type NewSince } from './activity';
+import { activityMeta, useBoardSeen, type NewSince } from './activity';
 
 type TabKey = 'details' | 'files' | 'approvals' | 'access' | 'hours' | 'archive' | 'social' | 'content' | ReportKind;
 
@@ -83,12 +83,10 @@ function Body({ clientId, task }: { clientId: string; task: AdminTask }) {
   const refresh = useRefreshBoard();
   const [tab, setTab] = useState<TabKey>('details');
 
-  // "What's new": activity by others since this admin last opened the task,
-  // measured once on open; then the task counts as seen (and stays seen while open).
-  const { user } = useAuth();
+  // Opening the task marks its activity as seen (and keeps it seen while open).
+  // The "What's new" card is web-only; on the phone those updates arrive as push notifications.
   const seen = useBoardSeen(clientId);
   const [since, setSince] = useState<NewSince | null | undefined>(undefined);
-  const [whatsNewHidden, setWhatsNewHidden] = useState(false);
   useEffect(() => {
     if (seen.ready && since === undefined) setSince(seen.newSince(task));
   }, [seen.ready, since, task, seen]);
@@ -98,17 +96,37 @@ function Body({ clientId, task }: { clientId: string; task: AdminTask }) {
     // Re-mark whenever the task's activity changes while it is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seen.ready, since, sig]);
-  const whatsNew = since ? whatsNewItems(task, since, user?.id) : [];
 
+  // Quick taps (assign A then B, tick two steps) each send the whole list: show the
+  // change straight away so the next tap builds on it, and only take the server's
+  // copy once the last save is back (an earlier reply mustn't undo a later tap).
+  const pendingSaves = useRef(0);
+  const optimistic = (t: typeof task, body: TaskInput): typeof task => {
+    const next = { ...t } as typeof task;
+    if (body.assignees) next.assignees = body.assignees.map((a) => ({ ...a, email: a.email ?? null, avatarUrl: a.avatarUrl ?? null }));
+    if (body.labelIds) {
+      const all = (board.data as AdminBoard | undefined)?.labels ?? [];
+      next.labels = body.labelIds.map((id) => all.find((l) => l.id === id) ?? t.labels.find((l) => l.id === id)).filter((l): l is (typeof t.labels)[number] => !!l);
+    }
+    if (body.checklist) next.checklist = body.checklist.map((c, i) => ({ id: t.checklist[i]?.id ?? `tmp-${i}`, text: c.text, done: !!c.done, order: i }));
+    return next;
+  };
   const patch = useMutation({
     mutationFn: (body: TaskInput) => api.updateTask(task.id, body),
+    onMutate: (body) => {
+      pendingSaves.current += 1;
+      setTask(optimistic(task, body));
+    },
     onSuccess: (t) => {
-      setTask(t);
+      if (pendingSaves.current === 1) setTask(t);
       refresh();
     },
     onError: (e) => {
       Alert.alert('Not saved', errorMessage(e));
       refresh(task.id);
+    },
+    onSettled: () => {
+      pendingSaves.current = Math.max(0, pendingSaves.current - 1);
     },
   });
   const remove = useMutation({
@@ -191,41 +209,6 @@ function Body({ clientId, task }: { clientId: string; task: AdminTask }) {
       <Muted size={12} style={{ marginTop: 4, marginLeft: 38 }}>
         Created {formatStamp(task.createdAt)} · Last changed {formatStamp(task.updatedAt)}
       </Muted>
-
-      {whatsNew.length > 0 && !whatsNewHidden ? (
-        <View style={{ marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: '#000' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <Ionicons name="sparkles" size={16} color="#F43F5E" />
-            <T w="s" size={14} color="#fff" style={{ flex: 1 }}>
-              What's new
-            </T>
-            <Pressable onPress={() => setWhatsNewHidden(true)} hitSlop={10} accessibilityLabel="Dismiss">
-              <Ionicons name="close" size={18} color="rgba(255,255,255,0.6)" />
-            </Pressable>
-          </View>
-          {whatsNew.map((item) => (
-            <View key={item.key} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 3 }}>
-              <Ionicons name={item.icon} size={14} color="#F43F5E" style={{ marginTop: 2 }} />
-              <T size={13.5} color="#fff" style={{ flex: 1 }}>
-                <T w="s" size={13.5} color="#fff">
-                  {item.title}
-                </T>
-                {item.by ? <T size={13.5} color="rgba(255,255,255,0.7)">{` — by ${item.by}`}</T> : null}
-              </T>
-              {item.target ? (
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => (item.target === 'chat' ? nav.navigate('AdminThread', { clientId, taskId: task.id }) : setTab(item.target as TabKey))}
-                >
-                  <T w="s" size={12.5} color="#7DD3FC">
-                    View
-                  </T>
-                </Pressable>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      ) : null}
 
       <Pressable
         onPress={() => nav.navigate('AdminThread', { clientId, taskId: task.id })}

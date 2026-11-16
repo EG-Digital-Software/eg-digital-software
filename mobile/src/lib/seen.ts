@@ -27,10 +27,13 @@ export async function loadSeen(userId: string | null) {
   emit();
 }
 
+/** Marker = "<message id>@<its time>", so it still works if that message is deleted later. */
+const markerOf = (c: { id: string; createdAt: string }) => `${c.id}@${c.createdAt}`;
+
 export function markSeen(task: Task) {
   const last = task.comments[task.comments.length - 1];
-  if (!last || seen[task.id] === last.id) return;
-  seen = { ...seen, [task.id]: last.id };
+  if (!last || seen[task.id] === markerOf(last)) return;
+  seen = { ...seen, [task.id]: markerOf(last) };
   emit();
   if (storageKey) AsyncStorage.setItem(storageKey, JSON.stringify(seen)).catch(() => undefined);
 }
@@ -44,8 +47,18 @@ export function unreadCount(task: Task, meId?: string): number {
     // doesn't light up every old conversation.
     from = Math.max(0, task.comments.length - 3);
   } else {
-    const idx = task.comments.findIndex((c) => c.id === marker);
-    from = idx >= 0 ? idx + 1 : 0;
+    const at = marker.indexOf('@');
+    const id = at >= 0 ? marker.slice(0, at) : marker;
+    const idx = task.comments.findIndex((c) => c.id === id);
+    if (idx >= 0) from = idx + 1;
+    else if (at >= 0) {
+      // The last-read message was deleted: count what came after its time.
+      const time = marker.slice(at + 1);
+      return task.comments.filter((c) => c.createdAt > time && c.authorId !== meId).length;
+    } else {
+      // Old marker (id only) whose message is gone: flag just the latest few.
+      from = Math.max(0, task.comments.length - 3);
+    }
   }
   return task.comments.slice(from).filter((c) => c.authorId !== meId).length;
 }

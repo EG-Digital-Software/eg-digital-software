@@ -3,6 +3,7 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { registerPush, targetOf, type PushTarget } from './lib/push';
+import { getSession, setSession } from './api/client';
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { TabBar } from './tabBar';
 import { adminRootScreens } from './admin/AdminApp';
@@ -120,7 +121,21 @@ function usePushNotifications(signedIn: boolean, accountKey: string | null) {
   const qc = useQueryClient();
   const pending = useRef<PushTarget | null>(null);
 
-  const open = (target: PushTarget) => {
+  const open = (target: PushTarget | null) => {
+    if (!target) return;
+    const s = getSession();
+    if (s?.admin) {
+      // An admin looking at a customer's portal: the push is the admin's own.
+      if (target.name === 'Thread' && target.params.clientId === s.admin.clientId) {
+        pending.current = null;
+        navRef.navigate('Thread', { taskId: target.params.taskId });
+        return;
+      }
+      // Anything else: back to the admin app, then open it there.
+      pending.current = target;
+      setSession({ user: s.admin.user, accessToken: s.admin.accessToken, refreshToken: s.admin.refreshToken ?? null });
+      return;
+    }
     const names = navRef.isReady() ? navRef.getRootState()?.routeNames ?? [] : [];
     if (names.includes('AdminThread')) {
       // Admin app: a task push carries its customer, so open that task's chat;

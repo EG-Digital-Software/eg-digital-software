@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Pressable, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, View } from 'react-native';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiError, errorMessage } from '../../api/client';
@@ -8,6 +8,7 @@ import type { AccessPointData, AdminTask } from '../../api/admin/tasks';
 import type { TaskApproval, TaskAttachment } from '../../api/types';
 import { useAuth } from '../../context/AuthContext';
 import { useScope } from '../../context/ScopeContext';
+import { useFileViewer } from '../../lib/fileViewer';
 import { formatSize, formatStamp, isImage } from '../../lib/format';
 import { Btn, Card, EmptyCard, Loading, Muted, Pill, T, type PillKind } from '../../ui';
 import { colors } from '../../theme';
@@ -15,12 +16,21 @@ import { DateRow, Input, Label, SelectRow, SmallBtn, confirmDestroy, fmtDay, pic
 import { PromptSheet } from './BoardScreen';
 
 const onErr = (title: string) => (e: unknown) => Alert.alert(title, errorMessage(e));
-const openFile = (url: string) => void Linking.openURL(fileUrl(url)).catch(() => Alert.alert('Could not open this file'));
+/** Open one of a list of attachments in the in-app viewer (swipe for the rest). */
+function useOpenFiles() {
+  const view = useFileViewer();
+  return (files: TaskAttachment[], f: TaskAttachment) =>
+    view(
+      files.map((x) => ({ url: fileUrl(x.url), name: x.fileName, contentType: x.contentType })),
+      files.indexOf(f)
+    );
+}
 
-function FileRow({ f, first, sub, onDelete, onRename }: { f: TaskAttachment; first?: boolean; sub?: string; onDelete?: () => void; onRename?: () => void }) {
+function FileRow({ f, all, first, sub, onDelete, onRename }: { f: TaskAttachment; all?: TaskAttachment[]; first?: boolean; sub?: string; onDelete?: () => void; onRename?: () => void }) {
+  const openFiles = useOpenFiles();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: first ? 0 : 1, borderTopColor: colors.line }}>
-      <Pressable onPress={() => openFile(f.url)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+      <Pressable onPress={() => openFiles(all ?? [f], f)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
         {isImage(f.contentType, f.fileName) ? (
           <Image source={{ uri: fileUrl(f.url) }} style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: colors.soft }} />
         ) : (
@@ -100,6 +110,7 @@ export function FilesPanel({ clientId, task }: { clientId: string; task: AdminTa
             <FileRow
               key={f.id}
               f={f}
+              all={files}
               first={i === 0}
               onDelete={() => confirmDestroy('Delete attachment?', `Delete "${f.fileName}" from this task?`, () => remove.mutate(f.id))}
             />
@@ -152,6 +163,7 @@ export function ArchivePanel({ clientId, task }: { clientId: string; task: Admin
             <FileRow
               key={f.id}
               f={f}
+              all={files}
               first={i === 0}
               onRename={() => setPrompt({ title: 'Rename file', value: f.fileName, action: 'Save', onSave: (name) => name !== f.fileName && rename.mutate({ id: f.id, name }) })}
               onDelete={() => confirmDestroy('Delete archived file?', `Delete "${f.fileName}" permanently?`, () => remove.mutate(f.id))}
@@ -280,6 +292,7 @@ export function ApprovalsPanel({ clientId, task }: { clientId: string; task: Adm
   const rootNo = new Map([...roots].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((a, i) => [a.id, i + 1]));
   const kids = (id: string) => approvals.filter((a) => a.parentId === id).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
+  const openFiles = useOpenFiles();
   const entry = (a: Approval, label: string, latest: boolean, root: Approval) => {
     const pill = APPROVAL_PILL[a.status] ?? APPROVAL_PILL.PENDING!;
     const deadline = latest && a.status === 'REJECTED' ? resubmitDeadline(a) : null;
@@ -309,11 +322,11 @@ export function ApprovalsPanel({ clientId, task }: { clientId: string; task: Adm
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
             {(a.attachments ?? []).map((f) =>
               isImage(f.contentType, f.fileName) ? (
-                <Pressable key={f.id} onPress={() => openFile(f.url)}>
+                <Pressable key={f.id} onPress={() => openFiles(a.attachments ?? [], f)}>
                   <Image source={{ uri: fileUrl(f.url) }} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: colors.soft }} />
                 </Pressable>
               ) : (
-                <Pressable key={f.id} onPress={() => openFile(f.url)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, height: 34, borderRadius: 8, borderWidth: 1, borderColor: colors.line, maxWidth: '100%' }}>
+                <Pressable key={f.id} onPress={() => openFiles(a.attachments ?? [], f)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, height: 34, borderRadius: 8, borderWidth: 1, borderColor: colors.line, maxWidth: '100%' }}>
                   <Ionicons name="document-outline" size={15} color={colors.green} />
                   <T size={12.5} numberOfLines={1} style={{ flexShrink: 1 }}>
                     {f.fileName}

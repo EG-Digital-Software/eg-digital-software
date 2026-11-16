@@ -187,19 +187,23 @@ function InvoiceFormBody({ invoice, presetClient }: { invoice?: AdminInvoice; pr
     let subtotal = 0;
     let tax = 0;
     for (const it of lines) {
-      const gross = effectiveUnitPrice(it) * (Number(it.quantity) || 0);
+      // Rounded per line exactly as the API does (backend computeLine), so the preview matches what's saved.
       const rate = (Number(it.taxRate) || 0) / 100;
       if (it.gstType === 'INCLUSIVE') {
-        const net = gross / (1 + rate);
+        const gross = round2(effectiveUnitPrice(it) * (Number(it.quantity) || 0));
+        const net = round2(gross / (1 + rate));
         subtotal += net;
-        tax += gross - net;
+        tax += round2(gross - net);
       } else {
-        subtotal += gross;
-        tax += gross * rate;
+        const net = round2(effectiveUnitPrice(it) * (Number(it.quantity) || 0));
+        subtotal += net;
+        tax += round2(net * rate);
       }
     }
+    subtotal = round2(subtotal);
+    tax = round2(tax);
     const disc = Number(discount) || 0;
-    return { subtotal, tax, total: Math.max(0, subtotal + tax - disc) };
+    return { subtotal, tax, total: round2(subtotal + tax - disc) };
     // effectiveUnitPrice reads proration + groups.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, discount, proration, groups]);
@@ -253,6 +257,7 @@ function InvoiceFormBody({ invoice, presetClient }: { invoice?: AdminInvoice; pr
     if (!invoiceDate) errs.invoiceDate = 'Pick the invoice date';
     const disc = Number(discount);
     if (!Number.isFinite(disc) || disc < 0) errs.discount = 'Must be 0 or more';
+    else if (disc > round2(totals.subtotal + totals.tax)) errs.discount = 'Can’t be more than the invoice total';
     lines.forEach((l, i) => {
       if (!l.description.trim()) errs[`d${i}`] = 'Required';
       const qty = Number(l.quantity);

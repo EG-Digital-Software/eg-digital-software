@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Alert, Linking } from 'react-native';
+import { View, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
@@ -9,6 +9,7 @@ import { adminCustomersApi, type AdminCustomer, type AdminDocument } from '../..
 import { Btn, Card, EmptyCard, Muted, Pill, Sheet, SheetOption, T } from '../../ui';
 import { colors } from '../../theme';
 import { downloadAndShare } from './download';
+import { useFileViewer } from '../../lib/fileViewer';
 import { DOC_STATUS, Field, IconBtn, SheetTitle, customerKey, docSize, fileUrl, fmtDateTime, isPdfDoc, remainingFields } from './common';
 
 type DocStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED';
@@ -21,6 +22,7 @@ type DocStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 export function AgreementsSection({ c }: { c: AdminCustomer }) {
   const nav = useNavigation<any>();
   const qc = useQueryClient();
+  const viewFiles = useFileViewer();
   const clientId = c.clientId;
   const docs = c.documents ?? [];
   const [menuFor, setMenuFor] = useState<AdminDocument | null>(null);
@@ -218,7 +220,8 @@ export function AgreementsSection({ c }: { c: AdminCustomer }) {
               onPress={() => {
                 const d = menuFor;
                 setMenuFor(null);
-                void Linking.openURL(fileUrl(d.signedUrl || d.url)).catch(() => Alert.alert('Could not open the file'));
+                // Let the action sheet finish closing first (iOS won't present two modals at once).
+                setTimeout(() => viewFiles([{ url: fileUrl(d.signedUrl || d.url), name: d.fileName, contentType: d.contentType }]), 400);
               }}
             />
             <SheetOption

@@ -108,26 +108,45 @@ async function doRefresh(): Promise<boolean> {
       // session, then mint a fresh view of the same customer.
       const a = current.admin;
       const fresh = await refreshWith(a.refreshToken);
+      const adminOwn = {
+        user: fresh.user,
+        accessToken: fresh.accessToken,
+        refreshToken: fresh.refreshToken ?? a.refreshToken ?? null,
+      };
+      // The admin left the customer while this ran: keep their own (rotated) session.
+      if (session && !session.admin && session.refreshToken === a.refreshToken) {
+        setSession(adminOwn);
+        return true;
+      }
+      if (session?.admin?.refreshToken !== a.refreshToken) return !!session;
       const imp = await impersonate(fresh.accessToken, a.clientId, a.edit);
-      setSession({
-        user: imp.user,
-        accessToken: imp.accessToken,
-        refreshToken: null,
-        admin: { ...a, user: fresh.user, accessToken: fresh.accessToken, refreshToken: fresh.refreshToken ?? a.refreshToken ?? null },
-      });
+      if (session?.admin?.refreshToken !== a.refreshToken) {
+        if (session && !session.admin && session.refreshToken === a.refreshToken) setSession(adminOwn);
+        return !!session;
+      }
+      setSession({ user: imp.user, accessToken: imp.accessToken, refreshToken: null, admin: { ...a, ...adminOwn } });
       return true;
     }
     const data = await refreshWith(current.refreshToken);
+    // Signed out (or another account signed in) while this ran: don't bring the old one back.
+    if (!session || session.admin || session.refreshToken !== current.refreshToken) return !!session;
     setSession({
+      ...session,
       user: data.user,
       accessToken: data.accessToken,
       refreshToken: data.refreshToken ?? current.refreshToken ?? null,
     });
     return true;
   } catch {
-    setSession(null);
+    // Only sign out the session that failed, not one that replaced it meanwhile.
+    if (session === current) setSession(null);
     return false;
   }
+}
+
+/** Resolves once any refresh in flight has finished (sign-out waits for it). */
+export function refreshSettled(): Promise<unknown> {
+  return refreshing ? refreshing.catch(() => false) : Promise.resolve(true);
 }
 
 /** Refresh the session, reusing any refresh already in flight. */

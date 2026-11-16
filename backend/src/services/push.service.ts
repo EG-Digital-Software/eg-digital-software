@@ -74,6 +74,14 @@ export function pushTo(targets: PushTarget[], message: PushMessage): void {
   })().catch((err) => logger.warn({ err }, 'Push notification failed'));
 }
 
+/** Push one message to every registered phone (all accounts). */
+export function pushToAllDevices(message: PushMessage): void {
+  void prisma.pushDevice
+    .findMany({ distinct: ['userId', 'userType'], select: { userId: true, userType: true } })
+    .then((users) => pushTo(users, message))
+    .catch((err) => logger.warn({ err }, 'Push to all devices failed'));
+}
+
 /** Push to every active portal login of a customer (optionally skipping some users). */
 export function pushToCustomer(customerId: string, message: PushMessage, skipUserIds: string[] = []): void {
   void prisma.clientUser

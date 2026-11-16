@@ -16,7 +16,18 @@ export type InvoiceFilter = 'all' | 'outstanding' | 'paid' | 'overdue';
 export const portalApi = {
   profile: () => api.get<ClientProfile>('/client/profile'),
   dashboard: () => api.get<ClientDashboard>('/client/dashboard'),
-  invoices: (filter: InvoiceFilter) => api.get<Invoice[]>(`/client/invoices?page=1&pageSize=50&filter=${filter}`),
+  /** Every invoice for the filter (the API pages at most 100 at a time). */
+  invoices: async (filter: InvoiceFilter) => {
+    const all: Invoice[] = [];
+    for (let page = 1; page <= 20; page++) {
+      const batch = await api.get<Invoice[]>(`/client/invoices?page=${page}&pageSize=100&filter=${filter}`);
+      all.push(...batch);
+      if (batch.length < 100) break;
+    }
+    return all;
+  },
+  /** One invoice; the API also creates its pay link if it doesn't have one yet. */
+  invoice: (id: string) => api.get<Invoice>(`/client/invoices/${encodeURIComponent(id)}`),
   products: () => api.get<ClientProduct[]>('/client/products'),
   availableProducts: () => api.get<AvailableProduct[]>('/client/available-products'),
   addProduct: (productId: string) => api.post<{ id: string }>('/client/products', { productId }),

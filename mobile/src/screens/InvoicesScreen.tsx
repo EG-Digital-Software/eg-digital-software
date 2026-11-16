@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Pressable, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { errorMessage } from '../api/client';
-import type { InvoiceFilter } from '../api/portal';
+import { useQuery } from '@tanstack/react-query';
+import { portalApi, type InvoiceFilter } from '../api/portal';
 import type { Invoice } from '../api/types';
 import { addressLine, fmtDate, money, prettyEnum, useDashboard, useInvoices, useProfile } from '../lib/portal';
 import { Btn, Card, Chips, EmptyCard, ErrorBox, KV, Loading, Muted, Pill, Screen, SectionHead, Sheet, Steps, T, type PillKind } from '../ui';
@@ -124,7 +125,14 @@ export default function InvoicesScreen() {
   );
 }
 
-function InvoiceSheet({ inv }: { inv: Invoice }) {
+function InvoiceSheet({ inv: listed }: { inv: Invoice }) {
+  // Older invoices may not have a pay link yet; opening one creates it.
+  const detail = useQuery({
+    queryKey: ['client-invoice', listed.id],
+    queryFn: () => portalApi.invoice(listed.id),
+    enabled: !listed.paymentUrl,
+  });
+  const inv = detail.data ?? listed;
   const st = STATUS[inv.status] ?? STATUS.SENT!;
   const total = Number(inv.total);
   const paid = Number(inv.amountPaid) || 0;
@@ -153,10 +161,10 @@ function InvoiceSheet({ inv }: { inv: Invoice }) {
           ['Balance', money(balance, inv.currency)],
         ]}
       />
-      {!isPaid && inv.paymentUrl ? (
+      {!isPaid && inv.status !== 'CANCELLED' && inv.paymentUrl ? (
         <Btn title="Pay now" icon="card-outline" onPress={() => Linking.openURL(inv.paymentUrl!)} style={{ marginTop: 14 }} />
       ) : null}
-      {isPaid ? (
+      {isPaid && inv.status !== 'CANCELLED' ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 14 }}>
           <Ionicons name="checkmark-circle" size={18} color={colors.green} />
           <T w="s" size={14} color={colors.green}>

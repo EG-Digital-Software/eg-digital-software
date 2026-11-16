@@ -7,6 +7,8 @@ import {
   api,
   getSession,
   impersonate,
+  refreshSession,
+  refreshSettled,
   refreshWith,
   request,
   setSession,
@@ -15,6 +17,7 @@ import {
   type Session,
 } from '../api/client';
 import type { Role, User } from '../api/types';
+import { API_URL } from '../config';
 import { loadSeen } from '../lib/seen';
 import { unregisterPush } from '../lib/push';
 
@@ -49,10 +52,10 @@ interface AuthState {
   openCustomer: (clientId: string, companyName: string, edit: boolean) => Promise<void>;
   /** Admin: leave the customer's portal and pick another. */
   exitCustomer: () => void;
-  /** Fingerprint sign-in (this phone only). */
-  bio: { available: boolean; enabled: boolean; saved: boolean };
-  setBioEnabled: (on: boolean) => Promise<void>;
-  signInWithBio: () => Promise<void>;
+  /** Fingerprint sign-in (this phone only), kept separately for the client and admin sign-ins. */
+  bio: { available: boolean; enabled: boolean; saved: boolean; adminEnabled: boolean; adminSaved: boolean };
+  setBioEnabled: (on: boolean, portal?: Portal) => Promise<void>;
+  signInWithBio: (portal?: Portal) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -65,8 +68,35 @@ const ADMIN_KEY = 'eg.admin.view';
 /** Fingerprint sign-in: the switch, and the refresh token kept at sign-out. */
 const BIO_ON_KEY = 'eg.bio.on';
 const BIO_TOKEN_KEY = 'eg.bio.token';
+const BIO_ADMIN_ON_KEY = 'eg.bio.admin.on';
+const BIO_ADMIN_TOKEN_KEY = 'eg.bio.admin.token';
+const bioKeys = (portal: Portal) =>
+  portal === 'SUPER_ADMIN' ? { on: BIO_ADMIN_ON_KEY, token: BIO_ADMIN_TOKEN_KEY } : { on: BIO_ON_KEY, token: BIO_TOKEN_KEY };
+const NO_BIO = { available: false, enabled: false, saved: false, adminEnabled: false, adminSaved: false };
 
 type AdminMeta = Omit<AdminView, 'accessToken' | 'refreshToken'>;
+
+/**
+ * Revoke a refresh token on the API. /auth/logout needs a live access token; when
+ * the one we have has expired, trade the refresh token for a fresh pair and
+ * revoke that instead (the trade already revoked the original). Best effort.
+ */
+async function revokeToken(refreshToken: string | null | undefined, accessToken?: string | null) {
+  const logout = (access: string | null | undefined, rt: string | null | undefined) =>
+    fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      headers: { 'X-Client': 'mobile', 'Content-Type': 'application/json', ...(access ? { Authorization: `Bearer ${access}` } : {}) },
+      body: JSON.stringify(rt ? { refreshToken: rt } : {}),
+    });
+  try {
+    const res = await logout(accessToken, refreshToken);
+    if (res.ok || !refreshToken || (res.status !== 401 && res.status !== 403)) return;
+    const fresh = await refreshWith(refreshToken);
+    await logout(fresh.accessToken, fresh.refreshToken ?? null);
+  } catch {
+    // Already expired / offline — the local sign-out still happens.
+  }
+}
 
 async function persist(s: Session | null) {
   try {
@@ -110,19 +140,27 @@ async function restore(): Promise<Session | null> {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [current, setCurrent] = useState<Session | null>(null);
-  const [bio, setBio] = useState({ available: false, enabled: false, saved: false });
+  const [bio, setBio] = useState(NO_BIO);
 
   const loadBio = async () => {
     try {
-      const [hw, enrolled, on, token] = await Promise.all([
+      const [hw, enrolled, on, token, adminOn, adminToken] = await Promise.all([
         LocalAuthentication.hasHardwareAsync(),
         LocalAuthentication.isEnrolledAsync(),
         SecureStore.getItemAsync(BIO_ON_KEY),
         SecureStore.getItemAsync(BIO_TOKEN_KEY),
+        SecureStore.getItemAsync(BIO_ADMIN_ON_KEY),
+        SecureStore.getItemAsync(BIO_ADMIN_TOKEN_KEY),
       ]);
-      setBio({ available: hw && enrolled, enabled: on === '1', saved: !!token });
+      setBio({
+        available: hw && enrolled,
+        enabled: on === '1',
+        saved: !!token,
+        adminEnabled: adminOn === '1',
+        adminSaved: !!adminToken,
+      });
     } catch {
-      setBio({ available: false, enabled: false, saved: false });
+      setBio(NO_BIO);
     }
   };
 
@@ -199,29 +237,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resendOtp = (challengeId: string) =>
     request<LoginChallenge>('/auth/login/resend', { method: 'POST', body: { challengeId }, noRetry: true });
 
-  const revoke = async (refreshToken: string | null | undefined) => {
-    try {
-      await request('/auth/logout', { method: 'POST', body: refreshToken ? { refreshToken } : {}, noRetry: true });
-    } catch {
-      // Already expired / offline — the local sign-out still happens.
-    }
-  };
+  const revoke = (refreshToken: string | null | undefined, accessToken?: string | null) =>
+    revokeToken(refreshToken, accessToken === undefined ? getSession()?.accessToken : accessToken);
 
   const signOut = async () => {
     // Stop phone notifications for this account first (needs the session).
     await unregisterPush();
+    // A refresh still running would rotate the token we're about to keep or revoke.
+    await refreshSettled();
     const s = getSession();
-    if (s?.admin) {
-      await revoke(s.admin.refreshToken);
-    } else if (s?.user.role === 'CLIENT' && bio.enabled && s.refreshToken) {
+    // While an admin views a customer, the admin's own session is the one to keep or revoke.
+    const adminSide = s?.admin ? { role: s.admin.user.role, refreshToken: s.admin.refreshToken } : null;
+    const role = adminSide?.role ?? s?.user.role;
+    const refreshToken = adminSide ? adminSide.refreshToken : s?.refreshToken;
+    const accessToken = s?.admin ? s.admin.accessToken : s?.accessToken;
+    const keepFor: Portal | null =
+      role === 'CLIENT' && bio.enabled ? 'CLIENT' : role === 'SUPER_ADMIN' && bio.adminEnabled ? 'SUPER_ADMIN' : null;
+    if (keepFor && refreshToken) {
       // Fingerprint sign-in is on: keep this phone's session to unlock next time.
       try {
-        await SecureStore.setItemAsync(BIO_TOKEN_KEY, s.refreshToken);
+        const older = await SecureStore.getItemAsync(bioKeys(keepFor).token);
+        await SecureStore.setItemAsync(bioKeys(keepFor).token, refreshToken);
+        // The one kept at an earlier sign-out is replaced: don't leave it valid on the server.
+        if (older && older !== refreshToken) void revoke(older, null);
       } catch {
-        await revoke(s.refreshToken);
+        await revoke(refreshToken, accessToken);
       }
     } else {
-      await revoke(s?.refreshToken);
+      await revoke(refreshToken, accessToken);
     }
     setSession(null);
     void loadBio();
@@ -236,10 +279,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       imp = await impersonate(token, clientId, edit);
     } catch (e) {
       if (!(e instanceof ApiError) || e.status !== 401) throw e;
-      // Admin access token expired: refresh once and retry.
-      const fresh = await refreshWith(s.refreshToken);
-      setSession({ user: fresh.user, accessToken: fresh.accessToken, refreshToken: fresh.refreshToken ?? s.refreshToken });
-      token = fresh.accessToken;
+      // Admin access token expired: refresh once (shared with any refresh in flight) and retry.
+      if (!(await refreshSession())) throw new Error('Your session has expired. Please sign in again.');
+      token = getSession()?.accessToken ?? token;
       imp = await impersonate(token, clientId, edit);
     }
     const adminNow = getSession()!;
@@ -264,37 +306,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession({ user: a.user, accessToken: a.accessToken, refreshToken: a.refreshToken ?? null });
   };
 
-  const setBioEnabled = async (on: boolean) => {
+  const setBioEnabled = async (on: boolean, portal: Portal = 'CLIENT') => {
+    const keys = bioKeys(portal);
     if (on) {
       const r = await LocalAuthentication.authenticateAsync({ promptMessage: 'Turn on fingerprint sign-in' });
       if (!r.success) throw new Error('Fingerprint was not confirmed.');
-      await SecureStore.setItemAsync(BIO_ON_KEY, '1');
+      await SecureStore.setItemAsync(keys.on, '1');
     } else {
-      await SecureStore.deleteItemAsync(BIO_ON_KEY);
-      const kept = await SecureStore.getItemAsync(BIO_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(BIO_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(keys.on);
+      const kept = await SecureStore.getItemAsync(keys.token);
+      await SecureStore.deleteItemAsync(keys.token);
       if (kept) void revoke(kept);
     }
     await loadBio();
   };
 
-  const signInWithBio = async () => {
-    const kept = await SecureStore.getItemAsync(BIO_TOKEN_KEY);
+  const signInWithBio = async (portal: Portal = 'CLIENT') => {
+    const keys = bioKeys(portal);
+    const kept = await SecureStore.getItemAsync(keys.token);
     if (!kept) {
       throw new Error('Sign in with your password once, then turn on Fingerprint sign-in in your Profile.');
     }
-    const r = await LocalAuthentication.authenticateAsync({ promptMessage: 'Sign in to EG Eloma' });
+    const r = await LocalAuthentication.authenticateAsync({
+      promptMessage: portal === 'SUPER_ADMIN' ? 'Admin sign-in to EG Eloma' : 'Sign in to EG Eloma',
+    });
     if (!r.success) return;
+    let data;
     try {
-      const data = await refreshWith(kept);
-      await SecureStore.deleteItemAsync(BIO_TOKEN_KEY);
-      startSession({ user: data.user, accessToken: data.accessToken, refreshToken: data.refreshToken ?? kept });
+      data = await refreshWith(kept);
     } catch {
-      await SecureStore.deleteItemAsync(BIO_TOKEN_KEY);
-      throw new Error('Fingerprint sign-in has expired on this phone. Please sign in with your password.');
-    } finally {
+      await SecureStore.deleteItemAsync(keys.token);
       void loadBio();
+      throw new Error('Fingerprint sign-in has expired on this phone. Please sign in with your password.');
     }
+    await SecureStore.deleteItemAsync(keys.token);
+    void loadBio();
+    const wantAdmin = portal === 'SUPER_ADMIN';
+    if ((data.user.role === 'SUPER_ADMIN') !== wantAdmin) {
+      await revoke(data.refreshToken, data.accessToken);
+      throw new Error(wantAdmin ? 'This is not an admin account.' : 'Admins sign in from the admin sign-in.');
+    }
+    startSession({ user: data.user, accessToken: data.accessToken, refreshToken: data.refreshToken ?? kept });
   };
 
   const user = current?.user ?? null;

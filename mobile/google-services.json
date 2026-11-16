@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "517472691640",
+    "project_id": "eg-eloma",
+    "storage_bucket": "eg-eloma.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:517472691640:android:03840fdb912d880551db4d",
+        "android_client_info": {
+          "package_name": "org.elomagroup.egdigital"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCEQkxBcq2AvLr6EHX997t8TjL8WxIVljg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

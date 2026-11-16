@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Pressable, TextInput, Alert, Linking, ActivityIndicator } from 'react-native';
+import { View, Pressable, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import { unreadCount, useSeenVersion } from '../lib/seen';
 import { formatSize, formatStamp, initials } from '../lib/format';
 import { PROGRESS_PILL, fmtDate, teamName } from '../lib/portal';
 import { fileUrl, type PickedFile } from '../api/tasks';
+import { useFileViewer } from '../lib/fileViewer';
 import { errorMessage } from '../api/client';
 import { Avatar, Bird, Btn, Card, ErrorBox, Eyebrow, KV, Loading, Muted, Pill, Screen, T, useRevealFocused } from '../ui';
 import { colors, fonts } from '../theme';
@@ -221,6 +222,7 @@ function Details({ task }: { task: Task }) {
 
 function Files({ task }: { task: Task }) {
   const { user, admin } = useAuth();
+  const view = useFileViewer();
   const { api } = useScope();
   const setTask = useSetTask();
   const refetch = useRefetchTask(task.id);
@@ -283,7 +285,7 @@ function Files({ task }: { task: Task }) {
           files.map((f, i) => (
             <Pressable
               key={f.id}
-              onPress={() => Linking.openURL(fileUrl(f.url))}
+              onPress={() => view(files.map((x) => ({ url: fileUrl(x.url), name: x.fileName, contentType: x.contentType })), i)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.line }}
             >
               <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' }}>

@@ -82,6 +82,8 @@ export default function InvoiceDetailScreen() {
   const cur = inv.currency;
   const balance = Number(inv.total) - Number(inv.amountPaid);
   const isPaid = inv.status === 'PAID' || balance <= 0;
+  // Cancelled / draft invoices aren't payable (recording a payment would turn them PAID).
+  const payable = !isPaid && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT';
   const overdue = daysOverdue(inv);
   const st = INVOICE_STATUS[inv.status] ?? INVOICE_STATUS.DRAFT;
   const email = inv.customer?.billingEmail || inv.customer?.contactEmail;
@@ -174,7 +176,7 @@ export default function InvoiceDetailScreen() {
 
       {/* Actions */}
       <View style={{ gap: 10, marginTop: 14 }}>
-        {!isPaid ? <Btn title="Mark as paid" icon="checkmark-circle-outline" onPress={confirmPaid} loading={markPaid.isPending} /> : null}
+        {payable ? <Btn title="Mark as paid" icon="checkmark-circle-outline" onPress={confirmPaid} loading={markPaid.isPending} /> : null}
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Btn title="Send" icon="send-outline" variant="ghost" onPress={confirmSend} loading={send.isPending} style={{ flex: 1 }} />
           <Btn title="Edit" icon="create-outline" variant="ghost" onPress={() => nav.navigate('InvoiceForm', { id })} style={{ flex: 1 }} />

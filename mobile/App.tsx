@@ -8,12 +8,16 @@ import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
 import { AuthProvider } from './src/context/AuthContext';
 import { ScopeProvider } from './src/context/ScopeContext';
 import Navigation from './src/navigation';
+import { FileViewerProvider } from './src/lib/fileViewer';
+import { useAppUpdates } from './src/lib/appUpdates';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5_000 } },
 });
 
 export default function App() {
+  // Pick up over-the-air updates (EAS Update) in installed builds.
+  useAppUpdates();
   const [fontsLoaded, fontError] = useFonts({
     Manrope_400Regular,
     Manrope_500Medium,
@@ -29,8 +33,10 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ScopeProvider>
+            <FileViewerProvider>
               <StatusBar style="dark" />
               <Navigation />
+            </FileViewerProvider>
           </ScopeProvider>
         </AuthProvider>
       </QueryClientProvider>

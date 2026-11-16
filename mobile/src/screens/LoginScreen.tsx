@@ -104,7 +104,7 @@ export default function LoginScreen() {
     setError(null);
     setBioLoading(true);
     try {
-      await signInWithBio();
+      await signInWithBio(portal);
     } catch (e) {
       setError(errorMessage(e, 'Fingerprint sign-in failed'));
     } finally {
@@ -237,11 +237,10 @@ export default function LoginScreen() {
               </View>
               {error ? <T size={14} color={colors.red} style={{ marginTop: 10 }}>{error}</T> : null}
               <Btn title="Sign in" onPress={onSubmit} loading={loading} style={{ marginTop: 20 }} />
-              {!isAdmin ? (
-                <Btn title="Sign in with fingerprint" variant="ghost" onPress={onBio} loading={bioLoading} style={{ marginTop: 10 }} />
-              ) : (
+              <Btn title="Sign in with fingerprint" variant="ghost" onPress={onBio} loading={bioLoading} style={{ marginTop: 10 }} />
+              {isAdmin ? (
                 <Btn title="Back to client sign-in" variant="ghost" onPress={toggleAdmin} style={{ marginTop: 10 }} />
-              )}
+              ) : null}
               <View style={styles.forgot}>
                 <Muted size={13}>Forgot your password? </Muted>
                 <Pressable onPress={onReset} hitSlop={8}>

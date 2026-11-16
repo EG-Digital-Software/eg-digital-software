@@ -62,7 +62,7 @@ export default function BillingHome() {
       }
       const g = map.get(key)!;
       g.invoices.push(inv);
-      g.outstanding += Math.max(Number(inv.total) - Number(inv.amountPaid), 0);
+      if (inv.status !== 'CANCELLED' && inv.status !== 'DRAFT') g.outstanding += Math.max(Number(inv.total) - Number(inv.amountPaid), 0);
     }
     return [...map.values()];
   }, [items]);
@@ -229,7 +229,8 @@ export default function BillingHome() {
 }
 
 function InvoiceRow({ inv, onPress, onLongPress }: { inv: AdminInvoice; onPress: () => void; onLongPress: () => void }) {
-  const balance = Number(inv.total) - Number(inv.amountPaid);
+  // Cancelled / draft invoices owe nothing (matches the Outstanding tab).
+  const balance = inv.status === 'CANCELLED' || inv.status === 'DRAFT' ? 0 : Number(inv.total) - Number(inv.amountPaid);
   const overdue = daysOverdue(inv);
   const st = INVOICE_STATUS[inv.status] ?? INVOICE_STATUS.DRAFT;
   return (

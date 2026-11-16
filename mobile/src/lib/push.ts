@@ -4,7 +4,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
-import { getSession, request } from '../api/client';
+import { getSession, refreshSession, request } from '../api/client';
 
 /**
  * Phone notifications. After sign-in the app asks for permission, gets this
@@ -63,11 +63,15 @@ async function post(path: string, body: unknown) {
   const s = getSession();
   if (s?.admin) {
     // The session token is the "view as client" one; register as the admin.
-    const res = await fetch(`${API_URL}${path}`, {
-      method: 'POST',
-      headers: { 'X-Client': 'mobile', 'Content-Type': 'application/json', Authorization: `Bearer ${ownToken()}` },
-      body: JSON.stringify(body),
-    });
+    const send = () =>
+      fetch(`${API_URL}${path}`, {
+        method: 'POST',
+        headers: { 'X-Client': 'mobile', 'Content-Type': 'application/json', Authorization: `Bearer ${ownToken()}` },
+        body: JSON.stringify(body),
+      });
+    let res = await send();
+    // The admin's own access token expires while they look at a customer: refresh it once.
+    if (res.status === 401 && (await refreshSession()) && getSession()?.admin) res = await send();
     if (!res.ok) throw new Error(`Push registration failed (${res.status})`);
     return;
   }
@@ -130,8 +134,10 @@ export type PushTarget =
   | { name: 'Main'; params: { screen: string; params?: object } }
   | { name: 'Notifications' };
 
-export function targetOf(data: Record<string, unknown> | undefined): PushTarget {
+export function targetOf(data: Record<string, unknown> | undefined): PushTarget | null {
   const type = String(data?.type ?? '');
+  // "New feature" announcements have no screen of their own: just open the app.
+  if (type === 'FEATURE_UPDATE') return null;
   const entityType = String(data?.entityType ?? '').toLowerCase();
   const id = typeof data?.entityId === 'string' ? data.entityId : '';
   const clientId = typeof data?.clientId === 'string' ? data.clientId : undefined;

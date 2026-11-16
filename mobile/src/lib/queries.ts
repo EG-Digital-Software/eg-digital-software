@@ -49,16 +49,27 @@ export function useTask(taskId: string, { poll = true }: { poll?: boolean } = {}
     initialDataUpdatedAt: () => qc.getQueryState(['board', scopeKey])?.dataUpdatedAt,
   });
 
-  // Keep the board list in step with the freshest copy of this task.
+  // Keep the board and this task in step, whichever copy is newer. (A cached task
+  // can be older than the board — e.g. it was moved from the board menu since —
+  // and must not put the board back to how it was.)
   useEffect(() => {
     const fresh = q.data;
     if (!fresh) return;
+    const boardAt = qc.getQueryState(['board', scopeKey])?.dataUpdatedAt ?? 0;
+    if (boardAt > q.dataUpdatedAt) {
+      const fromBoard = qc
+        .getQueryData<TaskBoard>(['board', scopeKey])
+        ?.buckets.flatMap((b) => b.tasks)
+        .find((t) => t.id === taskId);
+      if (fromBoard && fromBoard !== fresh) qc.setQueryData(['task', scopeKey, taskId], fromBoard);
+      return;
+    }
     qc.setQueryData<TaskBoard>(['board', scopeKey], (board) =>
       board
         ? { ...board, buckets: board.buckets.map((b) => ({ ...b, tasks: b.tasks.map((t) => (t.id === fresh.id ? fresh : t)) })) }
         : board
     );
-  }, [q.data, qc, scopeKey]);
+  }, [q.data, q.dataUpdatedAt, qc, scopeKey, taskId]);
 
   return q;
 }

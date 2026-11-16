@@ -33,6 +33,7 @@ import { markSeen } from '../lib/seen';
 import { mentionToken, parseMessage, stripMentions } from '../lib/mentions';
 import { formatDay, formatSize, formatTime, isImage, sameDay } from '../lib/format';
 import { fileUrl, type PickedFile } from '../api/tasks';
+import { useFileViewer } from '../lib/fileViewer';
 import { errorMessage } from '../api/client';
 import { colors, fonts } from '../theme';
 import { initials } from '../lib/format';
@@ -333,7 +334,7 @@ export default function TaskChatScreen() {
                 showAuthor={!grouped}
                 replyTo={c.replyToId ? byId.get(c.replyToId) : undefined}
                 onLongPress={() => setMenuFor(c)}
-                onReact={(emoji) => react.mutate({ commentId: c.id, emoji })}
+                onReact={readOnly ? undefined : (emoji) => react.mutate({ commentId: c.id, emoji })}
               />
             </SwipeToReply>
           );
@@ -471,11 +472,16 @@ export default function TaskChatScreen() {
       <MessageMenu
         comment={menuFor}
         onClose={() => setMenuFor(null)}
-        onReact={(emoji) => menuFor && react.mutate({ commentId: menuFor.id, emoji })}
-        onReply={() => {
-          setReplyTo(menuFor);
-          inputRef.current?.focus();
-        }}
+        // Read-only customer view: the API refuses reactions and there's no composer to reply in.
+        onReact={readOnly ? undefined : (emoji) => menuFor && react.mutate({ commentId: menuFor.id, emoji })}
+        onReply={
+          readOnly
+            ? undefined
+            : () => {
+                setReplyTo(menuFor);
+                inputRef.current?.focus();
+              }
+        }
       />
     </KeyboardAvoidingView>
   );
@@ -498,9 +504,12 @@ function MessageBubble({
   showAuthor: boolean;
   replyTo?: TaskComment;
   onLongPress: () => void;
-  onReact: (emoji: string) => void;
+  onReact?: (emoji: string) => void;
 }) {
   const fg = mine ? '#fff' : colors.fg;
+  const view = useFileViewer();
+  const openAttachment = (i: number) =>
+    view((c.attachments ?? []).map((x) => ({ url: fileUrl(x.url), name: x.fileName, contentType: x.contentType })), i);
   const segments = parseMessage(c.body);
   const reactions = groupReactions(c.reactions ?? [], meId);
 
@@ -533,14 +542,14 @@ function MessageBubble({
             </View>
           )}
 
-          {(c.attachments ?? []).map((f) => {
+          {(c.attachments ?? []).map((f, fi) => {
             const url = fileUrl(f.url);
             return isImage(f.contentType, f.fileName) ? (
-              <Pressable key={f.id} onPress={() => Linking.openURL(url)} onLongPress={onLongPress}>
+              <Pressable key={f.id} onPress={() => openAttachment(fi)} onLongPress={onLongPress}>
                 <Image source={{ uri: url }} style={styles.image} resizeMode="cover" />
               </Pressable>
             ) : (
-              <Pressable key={f.id} onPress={() => Linking.openURL(url)} onLongPress={onLongPress} style={[styles.fileChip, mine && styles.fileChipMine]}>
+              <Pressable key={f.id} onPress={() => openAttachment(fi)} onLongPress={onLongPress} style={[styles.fileChip, mine && styles.fileChipMine]}>
                 <Ionicons name="document-outline" size={20} color={mine ? '#fff' : colors.green} />
                 <View style={{ flexShrink: 1 }}>
                   <Text style={{ color: fg, fontWeight: '600' }} numberOfLines={1}>
@@ -576,7 +585,7 @@ function MessageBubble({
       {reactions.length > 0 && (
         <View style={[styles.reactions, mine && { justifyContent: 'flex-end' }]}>
           {reactions.map((r) => (
-            <Pressable key={r.emoji} onPress={() => onReact(r.emoji)} style={[styles.reaction, r.mine && styles.reactionMine]}>
+            <Pressable key={r.emoji} onPress={onReact ? () => onReact(r.emoji) : undefined} disabled={!onReact} style={[styles.reaction, r.mine && styles.reactionMine]}>
               <Text style={{ fontSize: 14 }}>{r.emoji}</Text>
               {r.count > 1 && <Text style={styles.reactionCount}>{r.count}</Text>}
             </Pressable>
@@ -609,8 +618,8 @@ function MessageMenu({
 }: {
   comment: TaskComment | null;
   onClose: () => void;
-  onReact: (emoji: string) => void;
-  onReply: () => void;
+  onReact?: (emoji: string) => void;
+  onReply?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const act = (fn: () => void) => () => {
@@ -622,14 +631,16 @@ function MessageMenu({
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]}>
           <View style={styles.sheetHandle} />
-          <View style={styles.emojiRow}>
-            {QUICK_REACTIONS.map((e) => (
-              <Pressable key={e} onPress={act(() => onReact(e))} style={styles.emojiBtn}>
-                <Text style={{ fontSize: 26 }}>{e}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <SheetAction icon="arrow-undo-outline" label="Reply" onPress={act(onReply)} />
+          {onReact ? (
+            <View style={styles.emojiRow}>
+              {QUICK_REACTIONS.map((e) => (
+                <Pressable key={e} onPress={act(() => onReact(e))} style={styles.emojiBtn}>
+                  <Text style={{ fontSize: 26 }}>{e}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          {onReply ? <SheetAction icon="arrow-undo-outline" label="Reply" onPress={act(onReply)} /> : null}
           {comment?.body ? (
             <SheetAction
               icon="copy-outline"

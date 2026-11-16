@@ -2,10 +2,23 @@
   "expo": {
     "name": "EG Eloma",
     "slug": "eg-eloma-tasks",
+    "platforms": [
+      "android",
+      "ios"
+    ],
+    "owner": "eg-eloma",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/aa322b70-2e21-4406-acca-63c6fcad8449"
+    },
     "orientation": "portrait",
     "scheme": "egeloma",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon-white.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -18,8 +31,8 @@
     "android": {
       "package": "org.elomagroup.egdigital",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/eg-eloma-mark-light.png",
-        "backgroundColor": "#0B1F3A"
+        "foregroundImage": "./assets/adaptive-icon-white.png",
+        "backgroundColor": "#FFFFFF"
       },
       "googleServicesFile": "./google-services.json",
       "permissions": [
@@ -70,7 +83,10 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://eg-digital-api-fcgbfcajbqehgpd5.australiaeast-01.azurewebsites.net/api"
+      "apiUrl": "https://eg-digital-api-fcgbfcajbqehgpd5.australiaeast-01.azurewebsites.net/api",
+      "eas": {
+        "projectId": "aa322b70-2e21-4406-acca-63c6fcad8449"
+      }
     }
   }
 }

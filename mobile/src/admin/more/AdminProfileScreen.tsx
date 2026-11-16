@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Alert } from 'react-native';
 import { displayName, useAuth } from '../../context/AuthContext';
+import { errorMessage } from '../../api/client';
 import { pushEnabled, setPushEnabled } from '../../lib/push';
 import { Avatar, Btn, Card, Eyebrow, KV, Muted, Screen, T, Toggle } from '../../ui';
 import { colors } from '../../theme';
 
 export default function AdminProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, bio, setBioEnabled } = useAuth();
   const [pushOn, setPushOn] = useState(true);
   useEffect(() => {
     void pushEnabled().then(setPushOn);
@@ -19,6 +20,17 @@ export default function AdminProfileScreen() {
         'Notifications not turned on',
         'Allow notifications for EG Eloma in your phone’s settings. (They also need the installed EG Eloma app — not Expo Go.)'
       );
+    }
+  };
+  const flipBio = async (on: boolean) => {
+    if (on && !bio.available) {
+      Alert.alert('Fingerprint not set up', 'Add a fingerprint in your phone’s settings first.');
+      return;
+    }
+    try {
+      await setBioEnabled(on, 'SUPER_ADMIN');
+    } catch (e) {
+      Alert.alert('Fingerprint sign-in', errorMessage(e));
     }
   };
   const name = displayName(user);
@@ -42,6 +54,15 @@ export default function AdminProfileScreen() {
           <Muted size={12.5}>Messages, approvals and updates on this phone</Muted>
         </View>
         <Toggle value={pushOn} onChange={(v) => void flipPush(v)} />
+      </Card>
+      <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13 }}>
+        <View style={{ flex: 1 }}>
+          <T w="s" size={14}>
+            Fingerprint sign-in
+          </T>
+          <Muted size={12.5}>Skip the password for admin sign-in on this phone</Muted>
+        </View>
+        <Toggle value={bio.adminEnabled} onChange={(v) => void flipBio(v)} />
       </Card>
       <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} style={{ marginTop: 20 }} />
     </Screen>

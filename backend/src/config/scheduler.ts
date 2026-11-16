@@ -7,6 +7,7 @@ import { runTokenCleanup } from '../services/housekeeping.service.js';
 import { runAdvanceBilling } from '../services/recurringBilling.service.js';
 import { runInvoiceRollover } from '../services/invoice.service.js';
 import { runDueContentPosts } from '../services/content.service.js';
+import { runFeatureAnnouncements } from '../services/featureAnnouncement.service.js';
 
 /**
  * Registers scheduled jobs. Runs in the app process (fine for a single App
@@ -18,6 +19,9 @@ export function startScheduler() {
     logger.warn('Scheduler disabled (SCHEDULER_ENABLED=false) — no cron jobs registered');
     return;
   }
+
+  // New feature announcements: push any not yet sent to every phone (once, after a deploy).
+  runFeatureAnnouncements().catch((err) => logger.error({ err }, 'Feature announcements failed'));
 
   // Daily licence-expiry reminders at 08:00 (server timezone).
   cron.schedule('0 8 * * *', () => {

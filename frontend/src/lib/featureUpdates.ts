@@ -3,6 +3,8 @@
 // user sees it once in the task's "What's new" box — "New feature "Access Point
 // PIN lock" added — by admin" — and then it is remembered as seen for them
 // (localStorage, per user). Entries older than SHOW_DAYS are no longer announced.
+// Also add it to backend/src/config/featureAnnouncements.ts — that pushes the
+// announcement to every phone with the mobile app (once, after the deploy).
 
 export type FeatureTab = 'details' | 'attachments' | 'approval' | 'access' | 'social' | 'archive';
 

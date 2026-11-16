@@ -203,7 +203,9 @@ export function invoiceHtml(
   const amountDue = Math.max(total - paid, 0);
   const customerName = c?.companyName || c?.contactPerson || c?.clientId || '—';
   const customerEmail = c?.billingEmail || c?.contactEmail;
-  const gstRate = invoice.items?.[0]?.taxRate ? Number(invoice.items[0].taxRate) : 10;
+  // One rate across all lines → "GST 10%"; mixed rates → plain "GST".
+  const rates = [...new Set((invoice.items ?? []).map((it) => Number(it.taxRate)))];
+  const gstRate: number | null = rates.length === 1 && Number.isFinite(rates[0]) ? rates[0]! : rates.length ? null : 10;
   const payUrl = invoice.paymentUrl ?? '';
   const period = computeProration(invoice.invoiceDate?.slice(0, 10), invoice.nextBillingDate?.slice(0, 10) ?? undefined);
   const groups = buildLicenceGroups(c?.customerProducts);
@@ -358,7 +360,7 @@ export function invoiceHtml(
     <div style="flex:2">
       <div class="panel">
         ${sumRow('Subtotal', fmtMoney(invoice.subtotal))}
-        ${Number(invoice.tax) > 0 ? sumRow(`GST ${gstRate}%`, fmtMoney(invoice.tax), true) : ''}
+        ${Number(invoice.tax) > 0 ? sumRow(gstRate === null ? 'GST' : `GST ${gstRate}%`, fmtMoney(invoice.tax), true) : ''}
         ${Number(invoice.discount) > 0 ? sumRow('Discount', `- ${fmtMoney(invoice.discount)}`, true) : ''}
         <div class="kv tot"><span>Total</span><span>${fmtMoney(invoice.total)}</span></div>
         ${paid > 0 ? sumRow('Amount paid', `- ${fmtMoney(paid)}`, true) : ''}
