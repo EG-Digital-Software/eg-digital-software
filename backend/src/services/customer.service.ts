@@ -1304,12 +1304,31 @@ export async function updateDocument(
   if (changes.fields !== undefined) {
     const fields = sanitizeFields(changes.fields) as StoredField[] | undefined;
     if (fields !== undefined) {
-      // Re-saving the regions keeps who already filled each one in.
-      const filled = new Map(storedFields(doc.fields).map((f) => [f.id, f.filledBy]));
-      data.fields = fields.map((f) => {
-        const by = f.filledBy ?? filled.get(f.id);
-        return by ? { ...f, filledBy: by } : f;
-      }) as Prisma.InputJsonValue;
+      if (doc.signedUrl) {
+        // A submitted / approved copy: every field already filled in (by the client
+        // or the admin) is burnt into the signed PDF, so it stays exactly as stored —
+        // it can't be moved, relabelled or removed. The admin may only add new
+        // fields (or change ones still empty). The status is left untouched, so an
+        // approved agreement stays approved and nothing goes back to the client.
+        // Copies submitted before partial filling existed carry no marks and were
+        // filled completely — every stored field on those is locked as the client's.
+        const stored = storedFields(doc.fields);
+        const locked = stored.some((f) => f.filledBy)
+          ? stored.filter((f) => f.filledBy)
+          : stored.map((f) => ({ ...f, filledBy: 'client' as const }));
+        const lockedIds = new Set(locked.map((f) => f.id));
+        const open = fields
+          .filter((f) => !lockedIds.has(f.id))
+          .map(({ filledBy: _ignored, ...f }) => f);
+        data.fields = [...locked, ...open] as Prisma.InputJsonValue;
+      } else {
+        // Re-saving the regions keeps who already filled each one in.
+        const filled = new Map(storedFields(doc.fields).map((f) => [f.id, f.filledBy]));
+        data.fields = fields.map((f) => {
+          const by = f.filledBy ?? filled.get(f.id);
+          return by ? { ...f, filledBy: by } : f;
+        }) as Prisma.InputJsonValue;
+      }
     }
   }
   if (changes.status === 'APPROVED') {
@@ -1399,7 +1418,9 @@ export async function adminFillDocument(
     where: { id: documentId, customerId: customer.id },
   });
   if (!doc) throw ApiError.notFound('Document not found');
-  if (doc.status !== 'SUBMITTED' || !doc.signedUrl) {
+  // Submitted or already approved — an approved agreement can still take fields
+  // the admin added afterwards. The status is never changed here.
+  if ((doc.status !== 'SUBMITTED' && doc.status !== 'APPROVED') || !doc.signedUrl) {
     throw ApiError.badRequest('Only a document the client has submitted can be filled by the admin');
   }
   const ids = new Set(filledFieldIds);

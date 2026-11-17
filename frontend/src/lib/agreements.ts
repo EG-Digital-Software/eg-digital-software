@@ -6,7 +6,9 @@ import type { AgreementField, CustomerDocument } from '@/types';
  */
 export function remainingFields(d: CustomerDocument): AgreementField[] {
   const fields = d.fields ?? [];
-  if (d.status !== 'SUBMITTED' || !d.signedUrl || !fields.some((f) => f.filledBy)) return [];
+  // Approved copies count too: the admin can add new fields after approval and
+  // fill them in without sending the agreement back to the client.
+  if ((d.status !== 'SUBMITTED' && d.status !== 'APPROVED') || !d.signedUrl || !fields.some((f) => f.filledBy)) return [];
   return fields.filter((f) => !f.filledBy);
 }
 

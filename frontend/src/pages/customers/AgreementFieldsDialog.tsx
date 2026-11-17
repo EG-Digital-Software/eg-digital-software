@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Trash2, Type } from 'lucide-react';
+import { Loader2, Lock, Trash2, Type } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -44,8 +44,19 @@ export default function AgreementFieldsDialog({
   onSave,
   saving,
 }: AgreementFieldsDialogProps) {
+  // Once the client has submitted (or the agreement is approved), the admin works
+  // on the signed copy: fields already filled in are locked — they can't be moved
+  // or removed — and only new fields can be added. Saving never changes the status.
+  const signedCopy = !!doc.signedUrl;
+  const lockedIds = new Set(
+    signedCopy
+      ? (doc.fields ?? []).some((f) => f.filledBy)
+        ? (doc.fields ?? []).filter((f) => f.filledBy).map((f) => f.id)
+        : (doc.fields ?? []).map((f) => f.id) // older copies were filled completely
+      : []
+  );
   const { loading, error, pages, mountCanvas } = usePdfDocument(
-    `/customers/${clientId}/documents/${doc.id}/file`,
+    `/customers/${clientId}/documents/${doc.id}/file${signedCopy ? '?signed=1' : ''}`,
     open
   );
   const [fields, setFields] = useState<AgreementField[]>([]);
@@ -105,7 +116,10 @@ export default function AgreementFieldsDialog({
     ]);
   };
 
-  const removeField = (id: string) => setFields((prev) => prev.filter((f) => f.id !== id));
+  const removeField = (id: string) => {
+    if (lockedIds.has(id)) return;
+    setFields((prev) => prev.filter((f) => f.id !== id));
+  };
 
   const previewRect =
     drag && {
@@ -121,7 +135,9 @@ export default function AgreementFieldsDialog({
         <DialogHeader>
           <DialogTitle>Mark fields — {doc.fileName}</DialogTitle>
           <DialogDescription>
-            Set a label, then drag a box on the document where the client should fill in text.
+            {signedCopy
+              ? 'Fields already filled in are locked. Set a label and drag a box to add a new field — you or your team fill it in with “Fill remaining”. The status stays as it is and nothing goes back to the client.'
+              : 'Set a label, then drag a box on the document where the client should fill in text.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -163,9 +179,12 @@ export default function AgreementFieldsDialog({
                     <div
                       key={f.id}
                       data-field
+                      title={lockedIds.has(f.id) ? 'Already filled in — locked' : undefined}
                       className={cn(
                         'absolute flex items-start justify-between gap-1 rounded-sm border-2 text-[10px] font-medium',
-                        f.kind === 'signature'
+                        lockedIds.has(f.id)
+                          ? 'border-dashed border-slate-400 bg-slate-400/5 text-slate-500'
+                          : f.kind === 'signature'
                           ? 'border-dashed border-primary bg-primary/10 text-primary'
                           : 'border-blue-500 bg-blue-500/10 text-blue-700'
                       )}
@@ -177,14 +196,20 @@ export default function AgreementFieldsDialog({
                       }}
                     >
                       <span className="truncate px-1 leading-tight">{f.label}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeField(f.id)}
-                        className="shrink-0 rounded-sm bg-white/80 p-0.5 text-destructive hover:bg-white"
-                        title="Remove field"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      {lockedIds.has(f.id) ? (
+                        <span className="shrink-0 rounded-sm bg-white/80 p-0.5" aria-label="Locked">
+                          <Lock className="h-3 w-3" />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => removeField(f.id)}
+                          className="shrink-0 rounded-sm bg-white/80 p-0.5 text-destructive hover:bg-white"
+                          title="Remove field"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 {previewRect && drag?.page === layout.index && (

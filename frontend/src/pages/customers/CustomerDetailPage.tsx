@@ -1223,8 +1223,8 @@ function AgreementTab({ customer, readOnly = false }: { customer: Customer; read
                       <a href={downloadUrl} download={d.fileName} target="_blank" rel="noreferrer" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title={d.signedUrl ? 'Download signed copy' : 'Download original'}>
                         <Download className="h-[18px] w-[18px]" />
                       </a>
-                      {!readOnly && isPdf(d) && !approved && (
-                        <button type="button" onClick={() => setFieldsDoc(d)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title="Mark fields to fill">
+                      {!readOnly && isPdf(d) && (
+                        <button type="button" onClick={() => setFieldsDoc(d)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-primary" title={d.signedUrl ? 'Add fields (filled fields stay locked)' : 'Mark fields to fill'}>
                           <SquarePen className="h-[18px] w-[18px]" />
                         </button>
                       )}
@@ -1287,7 +1287,7 @@ function AgreementTab({ customer, readOnly = false }: { customer: Customer; read
         fields={remainingFields(fillDoc)}
         signer={{ path: '/customers/signer', footerLine: 1 }}
         title={`Fill remaining — ${fillDoc.fileName}`}
-        description="The client’s submitted copy. Fill the fields they left empty — type in any field, or upload an image (e.g. a signature) with the image button."
+        description="The signed copy. Fill the fields still empty — type in any field, or upload an image (e.g. a signature) with the image button."
         open={!!fillDoc}
         onOpenChange={(o) => { if (!o) setFillDoc(null); }}
         submitting={fill.isPending}
