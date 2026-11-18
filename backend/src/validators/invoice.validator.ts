@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+// The invoice's own payment link (e.g. a Stripe / PayPal / bank pay page). When
+// set, "View and pay online", the QR code and "Pay now" all go straight to it.
+// An empty string on update removes it (back to the built-in pay page).
+const paymentLinkSchema = z
+  .string()
+  .trim()
+  .max(2000, 'Payment link is too long')
+  .refine((v) => v === '' || /^https?:\/\/[^\s]+\.[^\s]+/i.test(v), 'Enter a full link starting with https://')
+  .optional();
+
 const lineItemSchema = z.object({
   productId: z.string().uuid().optional(),
   sku: z.string().optional(),
@@ -24,6 +34,7 @@ export const createInvoiceSchema = z.object({
   discount: z.coerce.number().min(0).default(0),
   notes: z.string().optional(),
   status: z.enum(['DRAFT', 'SENT', 'PENDING']).optional(),
+  paymentLink: paymentLinkSchema,
   items: z.array(lineItemSchema).min(1, 'At least one line item is required'),
 });
 
@@ -40,6 +51,7 @@ export const updateInvoiceSchema = z.object({
   reference: z.string().optional(),
   discount: z.coerce.number().min(0).default(0),
   notes: z.string().optional(),
+  paymentLink: paymentLinkSchema,
   items: z.array(lineItemSchema).min(1, 'At least one line item is required'),
 });
 

@@ -1,14 +1,17 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Printer, CreditCard } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
 import { InvoicePreview } from '@/components/invoice/InvoicePreview';
+import { PayNowDialog } from '@/components/invoice/PayNowDialog';
 import { LoadingBlock, ErrorState } from '@/components/shared/states';
 import { LIVE_INVOICE_QUERY } from '@/lib/queryClient';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 export default function ClientInvoiceDetail() {
   const { id } = useParams();
+  const [payOpen, setPayOpen] = useState(false);
   const { data: invoice, isLoading, isError, refetch } = useQuery({
     // Unpaid invoices re-price live when products change — always show the latest.
     ...LIVE_INVOICE_QUERY,
@@ -46,14 +49,15 @@ export default function ClientInvoiceDetail() {
             <Printer /> Print / PDF
           </button>
           {!isPaid && invoice.paymentUrl && (
-            <a href={invoice.paymentUrl} target="_blank" rel="noreferrer" className="btn bp">
+            <button type="button" className="btn bp" onClick={() => setPayOpen(true)}>
               <CreditCard /> Pay now
-            </a>
+            </button>
           )}
         </div>
       </div>
 
       <InvoicePreview invoice={invoice} />
+      {invoice.paymentUrl && <PayNowDialog invoice={invoice} open={payOpen} onOpenChange={setPayOpen} />}
     </div>
   );
 }

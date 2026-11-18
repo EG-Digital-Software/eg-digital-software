@@ -133,6 +133,17 @@ export async function getInvoice(id: string) {
 }
 
 /**
+ * The invoice's own payment link set by the admin, or null when it uses the
+ * built-in pay page (`…/pay/<invoice id>`). Stored in `paymentUrl` itself, so
+ * no extra column is needed.
+ */
+export function customPaymentLink(inv: { id: string; paymentUrl: string | null }): string | null {
+  const url = inv.paymentUrl?.trim();
+  if (!url) return null;
+  return url.replace(/\/+$/, '').endsWith(`/pay/${inv.id}`) ? null : url;
+}
+
+/**
  * Guarantee an invoice has a payment link + QR code. Older invoices (and any
  * created before payment wiring) are backfilled lazily on first read, so every
  * invoice a client opens shows a scannable QR and a working pay link.
@@ -243,6 +254,8 @@ type CreateInput = {
   discount: number;
   notes?: string;
   status?: 'DRAFT' | 'SENT' | 'PENDING';
+  /** The invoice's own payment link; pay links and the QR go straight to it. */
+  paymentLink?: string;
   /** Raised by a scheduled job (rollover / advance billing), not by an admin. */
   auto?: boolean;
   items: Array<{
@@ -502,15 +515,19 @@ export async function createInvoice(input: CreateInput) {
     return created;
   });
 
-  // Generate a provider-agnostic payment URL + QR for the invoice.
-  const payment = await paymentProvider.createPayment({
-    invoiceId: invoice.id,
-    invoiceNumber: invoice.invoiceNumber,
-    amount: totals.total.toString(),
-    currency: invoice.currency,
-    customerEmail: customer.billingEmail ?? customer.contactEmail ?? undefined,
-    description: `Payment for ${invoice.invoiceNumber}`,
-  });
+  // The admin's own payment link when given; otherwise a provider-agnostic
+  // payment URL. The QR code always points at whichever link the invoice uses.
+  const ownLink = input.paymentLink?.trim() || null;
+  const payment = ownLink
+    ? { paymentUrl: ownLink }
+    : await paymentProvider.createPayment({
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        amount: totals.total.toString(),
+        currency: invoice.currency,
+        customerEmail: customer.billingEmail ?? customer.contactEmail ?? undefined,
+        description: `Payment for ${invoice.invoiceNumber}`,
+      });
   const qr = await generateQrDataUrl(payment.paymentUrl);
 
   // Only an invoice that has been issued reaches the client's portal; a draft
@@ -581,8 +598,11 @@ export async function sendInvoiceEmail(id: string): Promise<{ recipients: string
 
   // Make sure there is a working pay link + QR, then link the client to the
   // public invoice/pay page.
-  await ensurePayable(id);
-  const payUrl = `${env.APP_URL.replace(/\/$/, '')}/pay/${invoice.id}`;
+  const payable = await ensurePayable(id);
+  // The invoice's own payment link when it has one; otherwise the pay page.
+  const payUrl =
+    customPaymentLink({ id: invoice.id, paymentUrl: payable.paymentUrl }) ??
+    `${env.APP_URL.replace(/\/$/, '')}/pay/${invoice.id}`;
 
   const message = buildInvoiceEmail({
     to: primary,
@@ -629,6 +649,8 @@ type UpdateInput = {
   reference?: string;
   discount: number;
   notes?: string;
+  /** Undefined keeps the current link; '' removes the invoice's own link. */
+  paymentLink?: string;
   items: CreateInput['items'];
 };
 
@@ -699,16 +721,20 @@ export async function updateInvoice(id: string, input: UpdateInput) {
     });
   });
 
-  // Refresh the pay link + QR for the (possibly changed) total.
+  // The invoice's own payment link stays unless the admin changed or removed it;
+  // otherwise refresh the built-in pay link + QR for the (possibly changed) total.
   const c = existing.customer;
-  const payment = await paymentProvider.createPayment({
-    invoiceId: id,
-    invoiceNumber: existing.invoiceNumber,
-    amount: totals.total.toString(),
-    currency: existing.currency,
-    customerEmail: c.billingEmail ?? c.contactEmail ?? undefined,
-    description: `Payment for ${existing.invoiceNumber}`,
-  });
+  const ownLink = input.paymentLink === undefined ? customPaymentLink(existing) : input.paymentLink.trim() || null;
+  const payment = ownLink
+    ? { paymentUrl: ownLink }
+    : await paymentProvider.createPayment({
+        invoiceId: id,
+        invoiceNumber: existing.invoiceNumber,
+        amount: totals.total.toString(),
+        currency: existing.currency,
+        customerEmail: c.billingEmail ?? c.contactEmail ?? undefined,
+        description: `Payment for ${existing.invoiceNumber}`,
+      });
   const qr = await generateQrDataUrl(payment.paymentUrl);
 
   return prisma.invoice.update({

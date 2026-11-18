@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { InvoiceBadge } from '@/components/shared/status';
 import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
 import { formatCurrency, formatDate, daysOverdue } from '@/lib/utils';
+import { customPaymentLink } from '@/lib/paymentLink';
 
 const CARD_METHODS: Array<{ method: string; label: string; node: ReactNode }> = [
   {
@@ -119,6 +120,8 @@ export default function PayPage() {
   if (isError || !invoice) return <div className="p-10"><ErrorState onRetry={refetch} /></div>;
 
   const balance = Number(invoice.total) - Number(invoice.amountPaid);
+  // The invoice's own payment link (set by the admin) — the QR points at it too.
+  const ownLink = customPaymentLink(invoice);
   const paid = balance <= 0;
   const overdue = daysOverdue(invoice);
   const isWorldline = pay?.provider === 'worldline';
@@ -184,12 +187,40 @@ export default function PayPage() {
               <>
                 {invoice.paymentQrUrl && (
                   <div className="flex flex-col items-center gap-2">
-                    <img
-                      src={invoice.paymentQrUrl}
-                      alt="Payment QR"
-                      className="h-40 w-40 rounded-lg border border-border"
-                    />
+                    {ownLink ? (
+                      <a href={ownLink} target="_blank" rel="noreferrer" title="Open the payment page">
+                        <img
+                          src={invoice.paymentQrUrl}
+                          alt="Payment QR"
+                          className="h-40 w-40 rounded-lg border border-border transition-shadow hover:shadow-md"
+                        />
+                      </a>
+                    ) : (
+                      <img
+                        src={invoice.paymentQrUrl}
+                        alt="Payment QR"
+                        className="h-40 w-40 rounded-lg border border-border"
+                      />
+                    )}
                     <p className="text-xs text-muted-foreground">Scan the QR to pay</p>
+                  </div>
+                )}
+
+                {ownLink && (
+                  <div className="space-y-2">
+                    <Button asChild className="w-full" size="lg">
+                      <a href={ownLink} target="_blank" rel="noreferrer">
+                        <CreditCard className="h-4 w-4" /> Pay {formatCurrency(balance)} online
+                      </a>
+                    </Button>
+                    <a
+                      href={ownLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block break-all text-center text-xs text-[#2563eb] hover:underline"
+                    >
+                      {ownLink}
+                    </a>
                   </div>
                 )}
 

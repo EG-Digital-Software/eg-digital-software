@@ -4,7 +4,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Trash2, Receipt, Package, FileText, CheckCircle, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Receipt, Package, FileText, CheckCircle, Link2, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { customerApi, invoiceApi } from '@/api/resources';
 import { apiErrorMessage } from '@/api/client';
@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { LoadingBlock, ErrorState, Spinner } from '@/components/shared/states';
 import { formatCurrency, cn } from '@/lib/utils';
 import { numericField } from '@/lib/input';
+import { customPaymentLink, paymentLinkField } from '@/lib/paymentLink';
 import { INVOICE_TERMS, invoiceTermLabel, normalizeInvoiceTerm } from '@/lib/customer';
 import {
   computeProration,
@@ -42,6 +43,8 @@ const schema = z.object({
   reference: z.string().optional(),
   discount: z.coerce.number().min(0).default(0),
   notes: z.string().optional(),
+  // This invoice's own payment link; blank = the built-in pay page.
+  paymentLink: paymentLinkField,
   items: z
     .array(
       z.object({
@@ -140,6 +143,7 @@ export default function EditInvoicePage() {
       reference: invoice.reference ?? '',
       discount: Number(invoice.discount) || 0,
       notes: invoice.notes ?? '',
+      paymentLink: customPaymentLink(invoice) ?? '',
       items: (invoice.items ?? []).map((it) => ({
         productId: it.productId ?? null,
         sku: it.sku ?? null,
@@ -349,6 +353,18 @@ export default function EditInvoicePage() {
           <Field label="Reference">
             <Input className={FILLED} {...register('reference')} />
           </Field>
+          <div className="sm:col-span-2 lg:col-span-4">
+            <Field label="Payment link (optional)" error={errors.paymentLink?.message}>
+              <div className="relative">
+                <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input className={cn(FILLED, 'pl-9')} type="url" inputMode="url" placeholder="https://…" {...register('paymentLink')} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The invoice's Pay online link, QR code and Pay now button all open this link. Clear it to use the built-in
+                payment page.
+              </p>
+            </Field>
+          </div>
         </div>
       </section>
 
