@@ -55,7 +55,7 @@ export function TaskCard({
 
       <div className="flex items-start gap-2 pl-2">
         <StatusIcon className={cn('mt-0.5 h-4 w-4 shrink-0', PROGRESS_META[task.progress].text)} />
-        <p className={cn('text-sm font-medium leading-snug', done && 'line-through text-muted-foreground')}>
+        <p className={cn('text-sm font-medium leading-snug', done && 'text-muted-foreground')}>
           {task.title}
         </p>
       </div>

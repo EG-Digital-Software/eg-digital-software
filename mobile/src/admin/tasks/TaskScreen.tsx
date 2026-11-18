@@ -201,7 +201,7 @@ function Body({ clientId, task }: { clientId: string; task: AdminTask }) {
             fontSize: 21,
             lineHeight: 27,
             color: done ? colors.muted : colors.fg,
-            textDecorationLine: done ? 'line-through' : 'none',
+            textDecorationLine: 'none',
             paddingVertical: 2,
           }}
         />

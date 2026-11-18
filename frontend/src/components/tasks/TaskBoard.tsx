@@ -38,7 +38,7 @@ import {
   LABEL_COLOR_TOKENS,
   TASK_TEAMS,
 } from '@/lib/tasks';
-import { isTaskUnseen, newSinceFromSig, taskActivityMeta, taskRowSeenKey, writeSeen, type NewSince } from '@/lib/taskSeen';
+import { isTaskUnseen, taskActivityMeta, taskRowSeenKey, writeSeen } from '@/lib/taskSeen';
 import { GridView } from './GridView';
 import { ScheduleView } from './ScheduleView';
 import { TaskDialog } from './TaskDialog';
@@ -72,7 +72,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
   // company tabs. Holds the selected company's id; empty until one is picked, at
   // which point it defaults to the first company.
   const [activeGroup, setActiveGroup] = useState<string>('');
-  const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string; newSince?: NewSince | null } | null>(null);
+  const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; taskId?: string; bucketId?: string } | null>(null);
 
   const meId = useAuth((s) => s.user?.id);
   // The client filters by the assigned team; employee names stay hidden from them.
@@ -158,10 +158,7 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
     if (!m) return false;
     return isTaskUnseen(taskId, m, seenTasks, meId);
   };
-  // Opening a task remembers where its unseen activity starts (from the signature
-  // last seen, before opening overwrites it), so the dialog can list what's new.
-  const openTask = (t: { id: string }) =>
-    setDialog({ mode: 'edit', taskId: t.id, newSince: isTaskUpdated(t.id) ? newSinceFromSig(seenTasks[t.id]) : null });
+  const openTask = (t: { id: string }) => setDialog({ mode: 'edit', taskId: t.id });
   // Employee portal customer selector: a customer's box stays red while any of
   // its tasks has activity the user hasn't opened — same rule as the rows.
   const bucketBoxRed = (bucketId: string) =>
@@ -383,7 +380,6 @@ export function TaskBoard({ api, scopeKey, customerName, readOnly = false, group
           customerName={customerName}
           nextTaskNumber={board.nextTaskNumber}
           readOnly={readOnly}
-          newSince={dialog.newSince}
         />
       )}
     </div>

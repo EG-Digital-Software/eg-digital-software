@@ -53,6 +53,8 @@ export function ScheduleView({
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(t);
     }
+    // Completed tasks sit last in each day.
+    for (const list of map.values()) list.sort((a, b) => Number(a.progress === 'COMPLETED') - Number(b.progress === 'COMPLETED'));
     return map;
   }, [tasks]);
 
@@ -158,7 +160,7 @@ export function ScheduleView({
                           className="flex w-full items-center gap-1 rounded bg-card px-1.5 py-1 text-left text-[11px] shadow-sm hover:ring-1 hover:ring-primary/40"
                         >
                           <span className={cn('h-2 w-2 shrink-0 rounded-full', PRIORITY_META[t.priority].bar)} />
-                          <span className={cn('truncate', t.progress === 'COMPLETED' && 'text-muted-foreground line-through')}>{t.title}</span>
+                          <span className={cn('truncate', t.progress === 'COMPLETED' && 'text-muted-foreground')}>{t.title}</span>
                         </button>
                       ))}
                       {dayTasks.length + dayAppts.length > 4 && (

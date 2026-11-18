@@ -41,9 +41,9 @@ export const assignableUsers = asyncHandler(async (_req: Request, res: Response)
   return ok(res, await taskService.listAssignableUsers());
 });
 
-/** People mentionable in a task's chat — the admin and the task's assigned team. */
+/** People mentionable in a task's chat — depends on the viewer's role (see listMentionableUsers). */
 export const mentionableUsers = asyncHandler(async (req: Request, res: Response) => {
-  return ok(res, await taskService.listMentionableUsers(await resolve(req), req.params.taskId));
+  return ok(res, await taskService.listMentionableUsers(await resolve(req), req.params.taskId, req.user!.role));
 });
 
 // ─── Buckets ──────────────────────────────────────────────

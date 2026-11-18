@@ -29,6 +29,9 @@ export function GridView({
   const sorted = useMemo(() => {
     const copy = [...rows];
     copy.sort((a, b) => {
+      // Completed tasks always sit at the bottom, whatever column is sorted.
+      const doneCmp = Number(a.progress === 'COMPLETED') - Number(b.progress === 'COMPLETED');
+      if (doneCmp) return doneCmp;
       let cmp = 0;
       switch (sort.key) {
         case 'taskNumber':
@@ -112,7 +115,7 @@ export function GridView({
                 </TableCell>
                 <TableCell className="font-medium tabular-nums">{t.taskNumber}</TableCell>
                 <TableCell className="font-medium">
-                  <span className={cn(done && 'text-muted-foreground line-through')}>{t.title}</span>
+                  <span className={cn(done && 'text-muted-foreground')}>{t.title}</span>
                 </TableCell>
                 <TableCell className="text-sm">
                   {/* Everyone (admin, team, client) sees the assigned team here, not the employees. */}

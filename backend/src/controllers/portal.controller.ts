@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { Role } from '@prisma/client';
 import * as supplierService from '../services/supplier.service.js';
 import * as employeeService from '../services/employee.service.js';
 import * as taskService from '../services/task.service.js';
@@ -54,7 +55,7 @@ export const employeeAssignableUsers = asyncHandler(async (_req: Request, res: R
 /** Mentionable people for one of the employee's tasks — scoped to that task's customer. */
 export const employeeMentionableUsers = asyncHandler(async (req: Request, res: Response) => {
   const customerId = await taskService.resolveEmployeeTaskCustomer(req.user!.sub, req.params.taskId);
-  return ok(res, await taskService.listMentionableUsers(customerId, req.params.taskId));
+  return ok(res, await taskService.listMentionableUsers(customerId, req.params.taskId, Role.EMPLOYEE));
 });
 
 /** Display name + role for the signed-in employee, for comment attribution. */

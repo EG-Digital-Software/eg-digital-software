@@ -1516,18 +1516,35 @@ export async function listAssignableUsers() {
 const SYSTEM_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || 'admin@egdigital.com.au').toLowerCase();
 
 /**
- * Who can be @mentioned in a task's chat — the same for every viewer (admin,
- * team member or client): the admins (minus the seeded system account) and the
- * task's assigned team. Employees and clients are never listed by name; tagging
- * the team reaches the employees assigned to the task.
+ * Who can be @mentioned in a task's chat depends on who is typing — everyone
+ * sees the *other* two parties:
+ *   - client (incl. admin impersonation) → the admins + the task's assigned team
+ *   - admin                              → the task customer's clients + the assigned team
+ *   - employee (team)                    → the admins + the task customer's clients
+ * The seeded system admin is never listed, and employees are never listed by
+ * name — tagging the team reaches the employees assigned to the task.
  */
-export async function listMentionableUsers(customerId: string, taskId: string) {
+export async function listMentionableUsers(customerId: string, taskId: string, viewerRole: Role) {
   const task = await ensureTask(customerId, taskId);
-  const admins = await prisma.adminUser.findMany({
-    where: { isActive: true, approvalStatus: 'APPROVED', email: { not: SYSTEM_ADMIN_EMAIL } },
-    select: { id: true, firstName: true, lastName: true, avatarUrl: true },
-    orderBy: { firstName: 'asc' },
-  });
+  const showAdmins = viewerRole !== Role.SUPER_ADMIN;
+  const showClients = viewerRole === Role.SUPER_ADMIN || viewerRole === Role.EMPLOYEE;
+  const showTeam = viewerRole !== Role.EMPLOYEE && !!task.assignedTeam;
+  const [admins, clients] = await Promise.all([
+    showAdmins
+      ? prisma.adminUser.findMany({
+          where: { isActive: true, approvalStatus: 'APPROVED', email: { not: SYSTEM_ADMIN_EMAIL } },
+          select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+          orderBy: { firstName: 'asc' },
+        })
+      : [],
+    showClients
+      ? prisma.clientUser.findMany({
+          where: { isActive: true, approvalStatus: 'APPROVED', customerId },
+          select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+          orderBy: { firstName: 'asc' },
+        })
+      : [],
+  ]);
   return [
     ...admins.map((u) => ({
       userId: u.id,
@@ -1536,7 +1553,13 @@ export async function listMentionableUsers(customerId: string, taskId: string) {
       name: `${u.firstName} ${u.lastName}`.replace(/\s*\.$/, '').trim(),
       avatarUrl: u.avatarUrl,
     })),
-    ...(task.assignedTeam ? [{ userId: task.id, userType: 'TEAM', name: task.assignedTeam, avatarUrl: null }] : []),
+    ...(showTeam ? [{ userId: task.id, userType: 'TEAM', name: task.assignedTeam!, avatarUrl: null }] : []),
+    ...clients.map((u) => ({
+      userId: u.id,
+      userType: Role.CLIENT as string,
+      name: `${u.firstName} ${u.lastName}`.replace(/\s*\.$/, '').trim(),
+      avatarUrl: u.avatarUrl,
+    })),
   ];
 }
 

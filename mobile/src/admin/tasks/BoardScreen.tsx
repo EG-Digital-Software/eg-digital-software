@@ -38,6 +38,10 @@ interface Filters {
 }
 const NO_FILTERS: Filters = { assignee: '', priority: '', labelId: '' };
 
+/** Same tasks with completed ones moved to the bottom (stable otherwise). */
+const completedLast = <T extends { progress: TaskProgress }>(list: T[]): T[] =>
+  [...list].sort((x, y) => Number(x.progress === 'COMPLETED') - Number(y.progress === 'COMPLETED'));
+
 /** Route AdminTaskBoard { clientId, companyName? }. */
 export default function AdminTaskBoardScreen() {
   const route = useRoute<any>();
@@ -111,14 +115,17 @@ export function BoardBody({
     [ids[i], ids[j]] = [ids[j]!, ids[i]!];
     doIt(() => api.reorderBuckets(ids));
   };
+  // Up/down follow the order shown (completed tasks last); the server index is
+  // the neighbour's position in the stored order.
   const moveWithin = (t: AdminTask, by: number) => {
     const b = buckets.find((x) => x.id === t.bucketId);
     if (!b) return;
-    const list = [...b.tasks].sort((x, y) => x.order - y.order);
+    const stored = [...b.tasks].sort((x, y) => x.order - y.order);
+    const list = completedLast(stored);
     const i = list.findIndex((x) => x.id === t.id);
     const j = i + by;
     if (j < 0 || j >= list.length) return;
-    doIt(() => api.moveTask(t.id, b.id, j));
+    doIt(() => api.moveTask(t.id, b.id, stored.findIndex((x) => x.id === list[j].id)));
   };
 
   return (
@@ -190,7 +197,7 @@ export function BoardBody({
             <EmptyCard icon="albums-outline" title="No columns yet" body="Add a column to start planning tasks for this customer." style={{ marginTop: 16 }} />
           ) : (
             buckets.map((b) => {
-              const tasks = [...(b.tasks as AdminTask[])].sort((x, y) => x.order - y.order).filter(match);
+              const tasks = completedLast([...(b.tasks as AdminTask[])].sort((x, y) => x.order - y.order)).filter(match);
               if (filtering && tasks.length === 0) return null;
               const shut = collapsed[b.id];
               return (
@@ -458,7 +465,7 @@ function TaskCard({ task: t, updated, onPress, onLongPress }: { task: AdminTask;
         <T
           w="s"
           size={15}
-          style={[{ marginTop: 6 }, t.progress === 'COMPLETED' && { textDecorationLine: 'line-through', color: colors.muted }]}
+          style={[{ marginTop: 6 }, t.progress === 'COMPLETED' && { color: colors.muted }]}
           numberOfLines={3}
         >
           {t.title}
