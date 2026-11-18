@@ -432,7 +432,7 @@ model CustomerDocument {
   /// resubmits). Legacy rows may still read PENDING; the UI treats that as AWAITING_CLIENT.
   status       String    @default("AWAITING_CLIENT")
   /// Editable regions the admin marks on the (usually flat) PDF for the client to
-  /// fill: an array of { id, kind: 'text'|'signature', label, page, xPct, yPct,
+  /// fill: an array of { id, kind: 'text'|'signature'|'checkbox', label, page, xPct, yPct,
   /// wPct, hPct } with coordinates as page fractions (top-left origin).
   fields       Json?
   /// The client's filled + signed + flattened PDF. `url` stays the blank template;

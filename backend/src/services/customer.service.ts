@@ -1256,7 +1256,7 @@ function sanitizeFields(input: unknown): Prisma.InputJsonValue | undefined {
     .filter((f): f is Record<string, unknown> => !!f && typeof f === 'object')
     .map((f) => ({
       id: String(f.id ?? ''),
-      kind: f.kind === 'signature' ? 'signature' : 'text',
+      kind: f.kind === 'signature' || f.kind === 'checkbox' ? f.kind : 'text',
       label: typeof f.label === 'string' ? f.label.slice(0, 120) : '',
       page: Number.isFinite(f.page) ? Number(f.page) : 0,
       xPct: Number(f.xPct) || 0,

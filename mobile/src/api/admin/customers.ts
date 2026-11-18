@@ -44,7 +44,7 @@ export interface AdminItContact {
 /** An editable region on an agreement PDF (page fractions, top-left origin). */
 export interface AdminAgreementField {
   id: string;
-  kind: 'text' | 'signature';
+  kind: 'text' | 'signature' | 'checkbox';
   label: string;
   page: number;
   xPct: number;

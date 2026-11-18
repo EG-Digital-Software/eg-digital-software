@@ -180,7 +180,7 @@ export interface Director {
 /** An editable region on an agreement PDF; coordinates are page fractions (top-left origin). */
 export interface AgreementField {
   id: string;
-  kind: 'text' | 'signature';
+  kind: 'text' | 'signature' | 'checkbox';
   label: string;
   page: number;
   xPct: number;

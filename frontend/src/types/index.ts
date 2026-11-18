@@ -219,7 +219,8 @@ export interface Customer {
  */
 export interface AgreementField {
   id: string;
-  kind: 'text' | 'signature';
+  /** 'checkbox' — a box the signer ticks (auto-detected on upload or placed by the admin). */
+  kind: 'text' | 'signature' | 'checkbox';
   label: string;
   /** 0-based page index. */
   page: number;

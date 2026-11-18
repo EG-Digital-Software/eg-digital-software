@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { Loader2, ImagePlus, X } from 'lucide-react';
+import { LineCapStyle, PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { Check, Loader2, ImagePlus, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,8 +14,11 @@ import { usePdfDocument } from '@/hooks/usePdfDocument';
 import { api } from '@/api/client';
 import type { AgreementField } from '@/types';
 
-/** Every field takes either typed text or an uploaded image (e.g. a signature). */
-type Entry = { mode: 'image'; dataUrl: string; isPng: boolean } | { mode: 'text'; text: string };
+/** A field takes typed text or an uploaded image (e.g. a signature); a checkbox is ticked or not. */
+type Entry =
+  | { mode: 'image'; dataUrl: string; isPng: boolean }
+  | { mode: 'text'; text: string }
+  | { mode: 'check'; checked: boolean };
 
 export interface AgreementFillDialogProps {
   /** API path of the PDF to fill on top of. */
@@ -45,7 +48,8 @@ export interface AgreementFillDialogProps {
 /** Standard PDF fonts only encode Latin-1; swap anything else so drawing never throws. */
 const latin1 = (v: string) => v.replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');
 
-const isFilled = (e?: Entry) => !!e && (e.mode === 'image' || !!e.text.trim());
+const isFilled = (e?: Entry) =>
+  !!e && (e.mode === 'image' || (e.mode === 'check' ? e.checked : !!e.text.trim()));
 
 /**
  * Fill-and-sign viewer shared by the client and admin portals. Renders the PDF
@@ -98,6 +102,12 @@ export function AgreementFillDialog({
   const setText = (fieldId: string, text: string) =>
     setEntries((s) => ({ ...s, [fieldId]: { mode: 'text', text } }));
 
+  const toggleCheck = (fieldId: string) =>
+    setEntries((s) => {
+      const cur = s[fieldId];
+      return { ...s, [fieldId]: { mode: 'check', checked: !(cur?.mode === 'check' && cur.checked) } };
+    });
+
   const clearEntry = (fieldId: string) =>
     setEntries((s) => {
       const next = { ...s };
@@ -108,6 +118,13 @@ export function AgreementFillDialog({
   const filledIds = fields
     .filter((f) => isFilled(entries[f.id]))
     .map((f) => f.id);
+  // Reported as answered on save: every filled field, plus every checkbox — left
+  // unticked is an answer too, so nobody else ticks it afterwards.
+  const answeredIds = fields
+    .filter((f) => f.kind === 'checkbox' || isFilled(entries[f.id]))
+    .map((f) => f.id);
+  const checkboxCount = fields.filter((f) => f.kind === 'checkbox').length;
+  const tickedCount = fields.filter((f) => f.kind === 'checkbox' && isFilled(entries[f.id])).length;
 
   async function handleSave() {
     setError(null);
@@ -147,6 +164,30 @@ export function AgreementFillDialog({
 
         const entry = entries[f.id];
         if (!entry) continue;
+        if (entry.mode === 'check') {
+          if (!entry.checked) continue;
+          // A tick mark drawn as two strokes, centred in the box.
+          const side = Math.min(boxW, boxH);
+          const cx = x + (boxW - side) / 2;
+          const cy = yBottom + (boxH - side) / 2;
+          const thickness = Math.max(1, side * 0.13);
+          const black = rgb(0, 0, 0);
+          page.drawLine({
+            start: { x: cx + side * 0.18, y: cy + side * 0.52 },
+            end: { x: cx + side * 0.42, y: cy + side * 0.24 },
+            thickness,
+            color: black,
+            lineCap: LineCapStyle.Round,
+          });
+          page.drawLine({
+            start: { x: cx + side * 0.42, y: cy + side * 0.24 },
+            end: { x: cx + side * 0.84, y: cy + side * 0.8 },
+            thickness,
+            color: black,
+            lineCap: LineCapStyle.Round,
+          });
+          continue;
+        }
         if (entry.mode === 'text') {
           const v = entry.text.trim();
           // A typed signature reads as one; anything else as normal document text.
@@ -179,7 +220,7 @@ export function AgreementFillDialog({
       });
 
       const filled = await out.save();
-      await onSubmit(filled, filledIds);
+      await onSubmit(filled, answeredIds);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the document');
     }
@@ -238,6 +279,26 @@ export function AgreementFillDialog({
                       };
                       const entry = entries[f.id];
                       const isSig = f.kind === 'signature';
+                      if (f.kind === 'checkbox') {
+                        const ticked = entry?.mode === 'check' && entry.checked;
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={ticked}
+                            aria-label={f.label || 'Checkbox'}
+                            title={ticked ? 'Ticked — click to untick' : 'Click to tick'}
+                            onClick={() => toggleCheck(f.id)}
+                            className={`absolute flex items-center justify-center rounded-sm border-2 shadow-sm transition ${
+                              ticked ? 'border-emerald-600 bg-white' : 'border-primary/70 bg-white/80 hover:bg-primary/10'
+                            }`}
+                            style={style}
+                          >
+                            {ticked && <Check className="h-[85%] w-[85%] text-black" strokeWidth={3.5} />}
+                          </button>
+                        );
+                      }
                       return (
                         <div
                           key={f.id}
@@ -251,7 +312,7 @@ export function AgreementFillDialog({
                             <img src={entry.dataUrl} alt={f.label} className="h-full min-w-0 flex-1 object-contain" />
                           ) : (
                             <input
-                              value={entry?.text ?? ''}
+                              value={entry?.mode === 'text' ? entry.text : ''}
                               onChange={(e) => setText(f.id, e.target.value)}
                               placeholder={f.label || (isSig ? 'Signature' : '')}
                               className={`h-full min-w-0 flex-1 bg-transparent px-1 text-black outline-none placeholder:text-xs placeholder:not-italic placeholder:font-sans placeholder:text-gray-500 ${
@@ -290,7 +351,13 @@ export function AgreementFillDialog({
         <DialogFooter className="items-center">
           {!loading && !loadError && !noFields && (
             <span className="mr-auto text-sm text-muted-foreground">
-              {filledIds.length} of {fields.length} filled{empty > 0 ? ' — empty fields can be filled later' : ''}
+              {[
+                fields.length > checkboxCount ? `${filledIds.length - tickedCount} of ${fields.length - checkboxCount} filled` : '',
+                checkboxCount > 0 ? `${tickedCount} of ${checkboxCount} ticked` : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              {empty - (checkboxCount - tickedCount) > 0 ? ' — empty fields can be filled later' : ''}
             </span>
           )}
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>

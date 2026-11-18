@@ -104,5 +104,5 @@ export function usePdfDocument(filePath: string | undefined, open: boolean, widt
     []
   );
 
-  return { loading, error, bytes: bytesRef, pages, mountCanvas };
+  return { loading, error, bytes: bytesRef, pdf: pdfRef, pages, mountCanvas };
 }

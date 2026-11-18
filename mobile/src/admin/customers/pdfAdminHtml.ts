@@ -25,6 +25,8 @@ export const PDF_ADMIN_HTML = `<!doctype html>
   .f{position:absolute;box-sizing:border-box;border:1.5px solid rgba(23,138,99,.8);background:rgba(255,255,255,.88);border-radius:3px;display:flex;align-items:center;overflow:hidden}
   .f.sig{border-style:dashed;border-color:#178A63;background:rgba(232,247,240,.92)}
   .f.done{border-color:#2DB98A;background:rgba(255,255,255,.95)}
+  .f.chk{justify-content:center;border-width:2px}
+  .f.chk svg{width:85%;height:85%}
   .f input{flex:1;min-width:0;height:100%;border:0;background:transparent;padding:0 3px;font-size:13px;color:#000;outline:none}
   .f .tap{flex:1;text-align:center;font-size:11px;font-weight:600;color:#178A63;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
   .f img{flex:1;min-width:0;height:100%;object-fit:contain}
@@ -33,6 +35,7 @@ export const PDF_ADMIN_HTML = `<!doctype html>
   /* Field placement */
   .page.drawing{touch-action:none;outline:2px solid #2DB98A}
   .pf{position:absolute;box-sizing:border-box;border:2px solid #3B82F6;background:rgba(59,130,246,.12);border-radius:3px;color:#1D4ED8;font-size:10px;font-weight:600;overflow:visible}
+  .pf.chk{border-color:#059669;background:rgba(16,185,129,.15);color:transparent}
   .pf.sig{border-style:dashed;border-color:#178A63;background:rgba(23,138,99,.12);color:#0B5E40}
   .pf span{display:block;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pf b{position:absolute;top:-11px;right:-11px;width:22px;height:22px;border-radius:11px;background:#E5484D;color:#fff;font-size:14px;line-height:22px;text-align:center;font-weight:700}
@@ -74,12 +77,19 @@ export const PDF_ADMIN_HTML = `<!doctype html>
   var state={ bytes:null, fields:[], mode:'preview', signer:null, entries:{} };
 
   function b64ToBytes(b64){ var bin=atob(b64), out=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i); return out; }
-  function filledIds(){ return state.fields.filter(function(f){ var e=state.entries[f.id]; return e && (e.mode==='image' || (e.text||'').trim()); }).map(function(f){ return f.id; }); }
+  function filledIds(){ return state.fields.filter(function(f){ var e=state.entries[f.id]; return e && (e.mode==='check' ? e.checked : (e.mode==='image' || (e.text||'').trim())); }).map(function(f){ return f.id; }); }
   function count(){ post({type:'count', filled:filledIds().length, total:state.fields.length}); }
   function latin1(v){ return v.replace(/[^\\x20-\\x7E\\xA0-\\xFF]/g,'?'); }
 
   function renderField(box,f){
     box.innerHTML='';
+    if(f.kind==='checkbox'){
+      var on=!!(state.entries[f.id]&&state.entries[f.id].checked);
+      box.className='f chk'+(on?' done':'');
+      if(on) box.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+      box.onclick=function(){ state.entries[f.id]={mode:'check',checked:!on}; renderField(box,f); count(); };
+      return;
+    }
     var e=state.entries[f.id];
     var sig=f.kind==='signature';
     box.className='f'+(sig?' sig':'')+(e&&(e.mode==='image'||(e.text||'').trim())?' done':'');
@@ -143,7 +153,7 @@ export const PDF_ADMIN_HTML = `<!doctype html>
     place.pages.forEach(function(p){
       Array.prototype.slice.call(p.wrap.querySelectorAll('.pf')).forEach(function(n){ n.remove(); });
       state.fields.filter(function(f){ return f.page===p.index; }).forEach(function(f){
-        var box=document.createElement('div'); box.className='pf'+(f.kind==='signature'?' sig':'');
+        var box=document.createElement('div'); box.className='pf'+(f.kind==='signature'?' sig':f.kind==='checkbox'?' chk':'');
         box.style.left=(f.xPct*p.W)+'px'; box.style.top=(f.yPct*p.H)+'px';
         box.style.width=(f.wPct*p.W)+'px'; box.style.height=(f.hPct*p.H)+'px';
         var t=document.createElement('span'); t.textContent=f.label||''; box.appendChild(t);
@@ -234,6 +244,14 @@ export const PDF_ADMIN_HTML = `<!doctype html>
         var f=state.fields[k], e=state.entries[f.id]; if(!e) continue;
         var page=pages[f.page]||pages[0], sz=page.getSize(), pw=sz.width, ph=sz.height;
         var boxW=f.wPct*pw, boxH=f.hPct*ph, x=f.xPct*pw, yBottom=ph-f.yPct*ph-boxH;
+        if(e.mode==='check'){
+          if(!e.checked) continue;
+          // A tick drawn as two strokes, centred in the box (same as the web portal).
+          var sd=Math.min(boxW,boxH), cx=x+(boxW-sd)/2, cy=yBottom+(boxH-sd)/2, th=Math.max(1,sd*0.13), blk=L.rgb(0,0,0);
+          page.drawLine({start:{x:cx+sd*0.18,y:cy+sd*0.52},end:{x:cx+sd*0.42,y:cy+sd*0.24},thickness:th,color:blk,lineCap:L.LineCapStyle.Round});
+          page.drawLine({start:{x:cx+sd*0.42,y:cy+sd*0.24},end:{x:cx+sd*0.84,y:cy+sd*0.8},thickness:th,color:blk,lineCap:L.LineCapStyle.Round});
+          continue;
+        }
         if(e.mode==='text'){
           var v=latin1((e.text||'').trim()); if(!v) continue;
           var useFont=f.kind==='signature'?sigFont:font, max=f.kind==='signature'?20:13;
@@ -251,7 +269,9 @@ export const PDF_ADMIN_HTML = `<!doctype html>
         lastPage.drawText(latin1('Signed By '+state.signer.name+' IP - '+state.signer.ip),{x:36,y:(state.signer.y||22),size:8,font:font,color:L.rgb(0.25,0.25,0.25)});
       }
       var b64=await out.saveAsBase64();
-      post({type:'done', pdf:b64, filled:ids});
+      // Every checkbox counts as answered (left unticked is an answer too).
+      var answered=ids.concat(state.fields.filter(function(f){ return f.kind==='checkbox' && ids.indexOf(f.id)<0; }).map(function(f){ return f.id; }));
+      post({type:'done', pdf:b64, filled:answered});
     }catch(err){ post({type:'error',message:(err&&err.message)||'Could not save the document'}); }
   }
 
