@@ -144,7 +144,7 @@ export default function ClientLicencesPage() {
       ? Math.max(0, Math.min(100, Math.round(((end - now) / (end - start)) * 100)))
       : null;
   const company = profile?.companyName?.trim();
-  const enquireTo = profile?.accountManager?.email || 'connect@egeloma.com.au';
+  const enquireTo = profile?.accountManager?.email || 'connect@egeloma.com';
 
   // "Licence 1 of 2" per product name.
   const indexOf = new Map<string, string>();

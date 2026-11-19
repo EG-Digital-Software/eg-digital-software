@@ -21,7 +21,7 @@ Ye folder har platform ka developer-app setup step-by-step batata hai. Code port
 | Data Deletion URL / instructions | `https://teamegdigital.com/data-deletion` |
 | Website / App domain | `https://teamegdigital.com` |
 | App icon | EG Eloma logo, 1024×1024 (PNG) |
-| Contact email | `connect@egeloma.com.au` |
+| Contact email | `connect@egeloma.com` |
 
 ## Redirect / Callback URIs (har app mein bilkul exact copy karna)
 

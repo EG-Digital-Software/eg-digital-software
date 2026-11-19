@@ -10,7 +10,7 @@ import { brand } from '@/config/brand';
 
 const UPDATED = '16 November 2026';
 /** Privacy and data-deletion requests go to this mailbox. */
-const CONTACT = 'connect@egeloma.com.au';
+const CONTACT = 'connect@egeloma.com';
 const APP_NAME = 'EG Eloma Dashboard';
 
 function LegalShell({ title, children }: { title: string; children: React.ReactNode }) {

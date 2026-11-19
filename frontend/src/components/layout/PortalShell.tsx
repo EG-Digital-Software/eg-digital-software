@@ -119,7 +119,7 @@ function useAssistantAnswers() {
     };
     const fallback = mgr
       ? `I can answer questions about your plan, tasks, agreements and invoices. For anything else, ${mgr.firstName} (${mgr.email}) can help.`
-      : 'I can answer questions about your plan, tasks, agreements and invoices. For anything else, contact connect@egeloma.com.au.';
+      : 'I can answer questions about your plan, tasks, agreements and invoices. For anything else, contact connect@egeloma.com.';
 
     const keywords: [RegExp, string][] = [
       [/attention|today|sign|urgent|need/i, 'What needs my attention today?'],

@@ -23,7 +23,7 @@ Code pehle se live hai (ek hi Meta connection teeno ke liye). Ye steps Meta deve
 
 ## Step 2 — Basic settings
 **App settings → Basic**:
-- App icon, category (Business and pages), contact email `connect@egeloma.com.au`.
+- App icon, category (Business and pages), contact email `connect@egeloma.com`.
 - Upar table ke Privacy / Terms / Data deletion URLs, App domains.
 - **+ Add platform → Website** → `https://teamegdigital.com`.
 - **App ID** aur **App secret** yahin milte hain.

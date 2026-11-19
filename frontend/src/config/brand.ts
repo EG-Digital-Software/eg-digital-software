@@ -31,7 +31,7 @@ export const brand = {
     abn: '76 593 175 012',
     billingEmail: 'connect@egdigital.com.au',
     /** Printed in the invoice's dispute note (Settings → Organisation overrides it). */
-    disputeEmail: 'connect@egeloma.com.au',
+    disputeEmail: 'connect@egeloma.com',
     disputeWindowDays: 10,
   },
 } as const;

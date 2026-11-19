@@ -31,7 +31,7 @@
 ## Step 3 — OAuth consent screen (Google Auth Platform)
 **APIs & Services → OAuth consent screen** (naye UI mein **Google Auth Platform → Branding / Audience / Data access**):
 1. **User type:** **External**.
-2. **Branding:** App name `EG Eloma Dashboard`, support email `connect@egeloma.com.au`, logo, home page / privacy / terms links (upar table), **Authorized domains:** `teamegdigital.com`.
+2. **Branding:** App name `EG Eloma Dashboard`, support email `connect@egeloma.com`, logo, home page / privacy / terms links (upar table), **Authorized domains:** `teamegdigital.com`.
 3. **Data access → Add or remove scopes:**
 
 | Scope | Kis kaam ka | Google category |

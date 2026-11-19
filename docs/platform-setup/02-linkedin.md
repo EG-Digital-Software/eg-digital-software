@@ -47,7 +47,7 @@
    - legal naam: EG Eloma ka registered naam
    - ABN
    - registered address
-   - business email (`connect@egeloma.com.au`)
+   - business email (`connect@egeloma.com`)
 
 ---
 
@@ -92,7 +92,7 @@ Isi API se Page ke figures padhe jaate hain aur Page pe post hota hai.
 |---|---|
 | Legal business name | EG Eloma ka registered naam |
 | Business website | `https://teamegdigital.com` |
-| Business email | `connect@egeloma.com.au` |
+| Business email | `connect@egeloma.com` |
 | Registered address | Company ka registered address |
 | Privacy policy | `https://teamegdigital.com/privacy` |
 

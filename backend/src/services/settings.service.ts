@@ -221,7 +221,7 @@ const ORG_DEFAULTS: OrganisationSettings = {
   state: 'VIC',
   postcode: '3066',
   country: 'Australia',
-  billingEmail: 'connect@egeloma.com.au',
+  billingEmail: 'connect@egeloma.com',
   supportEmail: '',
   phone: '',
   phoneCountry: 'AU',
