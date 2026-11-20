@@ -837,6 +837,11 @@ export async function addComment(
   replyToId?: string
 ) {
   const task = await ensureTask(customerId, taskId);
+  // A completed task's chat is closed: earlier messages stay readable, but no
+  // new ones can be sent until the task is reopened.
+  if (task.progress === 'COMPLETED') {
+    throw ApiError.badRequest('This task is completed — its chat is closed for new messages');
+  }
   // Check a direct upload before creating the message, so a failed one leaves no empty bubble.
   const stored = file ? await storeTaskFile(taskId, file) : null;
 

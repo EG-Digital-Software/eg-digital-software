@@ -68,6 +68,8 @@ export default function TaskChatScreen() {
   // With the keyboard up the home-indicator inset is hidden behind it.
   const bottomPad = keyboardUp ? spacing.sm : Math.max(insets.bottom, spacing.sm);
   const task = q.data;
+  // A completed task's chat is closed for new messages (history stays readable).
+  const chatClosed = task?.progress === 'COMPLETED';
   const meId = user?.id;
 
   const [draft, setDraft] = useState('');
@@ -326,7 +328,7 @@ export default function TaskChatScreen() {
           const above = items[index + 1];
           const grouped = above?.type === 'msg' && above.comment.authorId === c.authorId;
           return (
-            <SwipeToReply onReply={() => startReply(c)} enabled={!readOnly}>
+            <SwipeToReply onReply={() => startReply(c)} enabled={!readOnly && !chatClosed}>
               <MessageBubble
                 comment={c}
                 mine={c.authorId === meId}
@@ -402,6 +404,11 @@ export default function TaskChatScreen() {
         <View style={[styles.composer, { paddingBottom: bottomPad + 6, justifyContent: 'center' }]}>
           <Muted size={13}>View only — turn on Allow changes to reply as the customer.</Muted>
         </View>
+      ) : chatClosed ? (
+        // Completed task: earlier messages stay visible, new ones are blocked.
+        <View style={[styles.composer, { paddingBottom: bottomPad + 6, justifyContent: 'center' }]}>
+          <Muted size={13}>This task is completed — chat is closed for new messages.</Muted>
+        </View>
       ) : (
       <>
       {trayMounted ? (
@@ -475,7 +482,7 @@ export default function TaskChatScreen() {
         // Read-only customer view: the API refuses reactions and there's no composer to reply in.
         onReact={readOnly ? undefined : (emoji) => menuFor && react.mutate({ commentId: menuFor.id, emoji })}
         onReply={
-          readOnly
+          readOnly || chatClosed
             ? undefined
             : () => {
                 setReplyTo(menuFor);

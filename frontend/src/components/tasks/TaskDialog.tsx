@@ -1654,6 +1654,15 @@ export function TaskDialog({
                   </div>
                 </>
               )}
+              {done ? (
+                // Completed task: earlier messages stay visible, new ones are blocked.
+                <div className="border-t border-border p-3">
+                  <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-secondary/40 px-3.5 py-2.5 text-xs text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                    This task is completed — chat is closed for new messages.
+                  </div>
+                </div>
+              ) : (
               <div className="relative border-t border-border p-3">
                 {mention && mentionMatches.length > 0 && (
                   <div className="absolute bottom-full left-3 right-3 z-20 mb-1 max-h-56 overflow-auto rounded-xl border border-border bg-card p-1 shadow-lg">
@@ -1771,6 +1780,7 @@ export function TaskDialog({
                   </button>
                 </div>
               </div>
+              )}
             </div>
           )}
         </div>
