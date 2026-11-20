@@ -43,6 +43,7 @@ function SuperAdminLayout() {
   return (
     <PortalShell
       portalName="Admin Portal"
+      privacy
       home="/admin/dashboard"
       crumbRoot="Admin"
       accountLine={

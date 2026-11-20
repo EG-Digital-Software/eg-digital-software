@@ -131,8 +131,8 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-5">
           <Panel className="sm:col-span-3" border={edgeSoft}>
             <PanelLabel>Bill to</PanelLabel>
-            <p className="text-[15px] font-semibold text-foreground">{customerName}</p>
-            <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[15px] font-semibold text-foreground" data-private>{customerName}</p>
+            <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground" data-private>
               {c?.abn && <p>ABN {formatAbn(c.abn)}</p>}
               {customerEmail && <p>{customerEmail}</p>}
               {c?.contactMobile && <p>{formatPhone(c.contactMobile, c.contactMobileCountry)}</p>}

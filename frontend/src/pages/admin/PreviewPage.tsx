@@ -157,7 +157,7 @@ function ArchiveCard({ file: f }: { file: ArchiveFile }) {
         <div className="truncate text-xs text-muted-foreground" title={`${f.taskNumber} · ${f.taskTitle}`}>
           <span className="mono">{f.taskNumber}</span> · {f.taskTitle}
         </div>
-        <div className="truncate text-xs text-muted-foreground" title={customerName(f)}>
+        <div className="truncate text-xs text-muted-foreground" title={customerName(f)} data-private>
           {customerName(f)}
         </div>
         <div className="text-[11px] text-muted-foreground">

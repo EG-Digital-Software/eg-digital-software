@@ -11,7 +11,8 @@ import {
 } from 'recharts';
 import { dashboardApi } from '@/api/resources';
 import { Skeleton } from '@/components/ui/misc';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrencyUnmasked as formatCurrency } from '@/lib/utils';
+import { usePeek } from '@/lib/privacy';
 
 const METRICS = [
   { key: 'revenue', label: 'Revenue' },
@@ -34,6 +35,7 @@ const AXIS = '#6B7A90';
 export function SalesChart() {
   const [metric, setMetric] = useState('revenue');
   const [range, setRange] = useState('30d');
+  const peek = usePeek();
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', 'series', metric, range],
@@ -79,7 +81,37 @@ export function SalesChart() {
           </div>
         </div>
       </div>
-      <div style={{ padding: '18px 22px 20px' }}>
+      <div style={{ padding: '18px 22px 20px', position: 'relative' }}>
+        {peek.isPrivate &&
+          (peek.hidden ? (
+            // Privacy mode: the chart is blurred under an overlay with a Peek button.
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 2,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+              }}
+            >
+              <span style={{ fontSize: 14, color: 'var(--fg)' }}>Chart hidden in privacy mode</span>
+              <button type="button" className="btn bp" onClick={peek.toggle}>
+                Peek at chart
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="btn bg sm" onClick={peek.toggle} style={{ position: 'absolute', top: 10, right: 22, zIndex: 2 }}>
+              Hide chart
+            </button>
+          ))}
+        <div
+          data-peek={peek.peeking || undefined}
+          aria-hidden={peek.hidden || undefined}
+          style={peek.hidden ? { filter: 'blur(10px)', pointerEvents: 'none', userSelect: 'none' } : undefined}
+        >
         {isLoading ? (
           <Skeleton className="h-72 w-full" />
         ) : (
@@ -130,6 +162,7 @@ export function SalesChart() {
             </AreaChart>
           </ResponsiveContainer>
         )}
+        </div>
       </div>
     </section>
   );

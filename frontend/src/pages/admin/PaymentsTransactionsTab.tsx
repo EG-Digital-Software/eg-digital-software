@@ -208,7 +208,7 @@ export function PaymentsTransactionsTab() {
                         </span>
                       </td>
                       <td>
-                        <div className="truncate" style={{ fontWeight: 500 }}>
+                        <div className="truncate" style={{ fontWeight: 500 }} data-private>
                           {customerName(p)}
                         </div>
                         <div className="mono muted truncate" style={{ fontSize: 11 }}>

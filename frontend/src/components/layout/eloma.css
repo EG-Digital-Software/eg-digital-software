@@ -1643,3 +1643,25 @@ dl.el-kv > :nth-child(2) {
     animation: none;
   }
 }
+
+/* Admin privacy mode: customer names, contact details and charts are blurred.
+   Amounts are masked in formatCurrency. Screen only. */
+@media screen {
+  html.eg-private [data-private],
+  html.eg-private .recharts-wrapper {
+    filter: blur(6px);
+    user-select: none;
+  }
+  html.eg-private [data-peek] .recharts-wrapper {
+    filter: none;
+    user-select: auto;
+  }
+  /* Every admin page except the dashboard: each whole box/card (outermost only,
+     so nested cards aren't blurred twice) is blurred and can't be clicked. */
+  html.eg-private .ec-view[data-privacy-boxes]
+    :is(.glass, [data-ui='card'], iframe):not(:is(.glass, [data-ui='card']) *) {
+    filter: blur(9px);
+    user-select: none;
+    pointer-events: none;
+  }
+}

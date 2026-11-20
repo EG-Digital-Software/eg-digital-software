@@ -316,7 +316,7 @@ export default function BillingPage() {
                                 <Building2 className="h-4 w-4" />
                               </span>
                               <div style={{ minWidth: 0 }}>
-                                <div className="truncate" style={{ fontWeight: 600, fontSize: 14 }}>
+                                <div className="truncate" style={{ fontWeight: 600, fontSize: 14 }} data-private>
                                   {group.name}
                                 </div>
                                 {group.clientId && (

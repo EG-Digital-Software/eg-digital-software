@@ -104,7 +104,7 @@ function Detail({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="min-w-0">
       <p className="muted" style={{ fontSize: 12.5 }}>{label}</p>
-      <div className="mt-1 break-words text-[13.5px] font-medium">
+      <div className="mt-1 break-words text-[13.5px] font-medium" data-private>
         {value ? linkifyValue(value) : <span className="text-muted-foreground">—</span>}
       </div>
     </div>
@@ -529,12 +529,12 @@ export default function CustomerDetailPage() {
           <Link to="/admin/customers" className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
             <ArrowLeft className="h-3.5 w-3.5" /> Customers
           </Link>
-          <h1 className="disp ec-h1" style={{ overflowWrap: 'anywhere' }}>
+          <h1 className="disp ec-h1" style={{ overflowWrap: 'anywhere' }} data-private>
             {customerName(c)}
           </h1>
           <p className="muted" style={{ margin: 0 }}>
             <span className="mono">{c.clientId}</span>
-            {c.tradingAs && c.tradingAs !== c.companyName ? ` · Trading as ${c.tradingAs}` : ''}
+            {c.tradingAs && c.tradingAs !== c.companyName ? <span data-private> · Trading as {c.tradingAs}</span> : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -585,7 +585,7 @@ export default function CustomerDetailPage() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="disp" style={{ fontSize: 22, fontWeight: 700 }}>
+              <div className="disp" style={{ fontSize: 22, fontWeight: 700 }} data-private>
                 {customerName(c)}
               </div>
               {c.businessType && <span className="chip c-ns">{businessTypesLabel(c.businessType)}</span>}
@@ -605,7 +605,7 @@ export default function CustomerDetailPage() {
                 </span>
               )}
             </div>
-            <div className="muted mt-2 flex flex-wrap gap-x-4 gap-y-1" style={{ fontSize: 13 }}>
+            <div className="muted mt-2 flex flex-wrap gap-x-4 gap-y-1" style={{ fontSize: 13 }} data-private>
               {c.contactEmail && (
                 <span className="flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5" /> {c.contactEmail}

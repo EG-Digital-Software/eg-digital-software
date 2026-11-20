@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Clock, Lock, LogOut, Moon, Search, Send, Sun, X } from 'lucide-react';
+import { PRIVACY_SHORTCUT, PrivacyToggle } from '@/lib/privacy';
+import { usePrivacyStore } from '@/lib/privacyStore';
 import { clientApi } from '@/api/client-portal';
 import { CLIENT_TASK_SUMMARY_KEY } from '@/lib/taskSeen';
 import { needsSignature } from '@/lib/agreements';
@@ -331,6 +333,7 @@ export function PortalShell({
   assistant = false,
   asidePath,
   searchLabel = 'Search sections',
+  privacy = false,
 }: {
   /** e.g. "Client Portal" — shown in the footer. */
   portalName: string;
@@ -346,6 +349,8 @@ export function PortalShell({
   /** Route whose page fills the right-hand column (customer Overview). */
   asidePath?: string;
   searchLabel?: string;
+  /** Admin portal only: shows the Private button that hides amounts, names and charts. */
+  privacy?: boolean;
 }) {
   const user = useAuth((s) => s.user);
   const impersonating = useAuth((s) => !!s.impersonation);
@@ -353,6 +358,22 @@ export function PortalShell({
   const navigate = useNavigate();
   const location = useLocation();
   const [theme, setTheme] = useState<Theme>(readTheme);
+  const privacyOn = usePrivacyStore((s) => s.on && s.available);
+  const togglePrivacy = usePrivacyStore((s) => s.toggle);
+  const setPrivacyAvailable = usePrivacyStore((s) => s.setAvailable);
+  // Only the Admin portal offers privacy mode. Layout effect so the first paint is already masked.
+  useLayoutEffect(() => {
+    setPrivacyAvailable(privacy);
+    return () => setPrivacyAvailable(false);
+  }, [privacy, setPrivacyAvailable]);
+  useEffect(() => {
+    document.documentElement.classList.toggle('eg-private', privacyOn);
+    return () => document.documentElement.classList.remove('eg-private');
+  }, [privacyOn]);
+  // Amounts are formatted at render time, so the page remounts when privacy flips.
+  // Forms (new / edit) are left alone so unsaved input isn't lost.
+  const isForm = /\/(new|edit)$/.test(location.pathname);
+  const viewKey = isForm ? location.pathname : `${location.pathname}|${privacyOn ? 'p' : 'o'}`;
   const [aiOpen, setAiOpen] = useState(false);
   const askRef = useRef<((q: string) => void) | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -465,6 +486,7 @@ export function PortalShell({
               <kbd>⌘ K</kbd>
             </button>
             <div className="ec-tools">
+              {privacy && <PrivacyToggle />}
               <button
                 type="button"
                 className="btn bg ec-theme"
@@ -506,6 +528,35 @@ export function PortalShell({
 
         <div className="ec-body">
           <main className="ec-main">
+            {privacyOn && (
+              <div
+                role="status"
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 16px',
+                  marginBottom: 14,
+                  borderRadius: 12,
+                  fontSize: 13,
+                  color: 'var(--okT)',
+                  background: 'rgba(45,185,138,.10)',
+                  border: '1px solid rgba(45,185,138,.30)',
+                }}
+              >
+                <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  {location.pathname.startsWith(home)
+                    ? 'Privacy mode is on. Amounts, customer names and charts are hidden. Click Peek on any card to see it,'
+                    : 'Privacy mode is on. Every box on this page is hidden.'}{' '}
+                  Press {PRIVACY_SHORTCUT} to show everything.
+                </span>
+                <button type="button" className="linkbtn" style={{ minHeight: 0, color: 'inherit', fontWeight: 600 }} onClick={togglePrivacy}>
+                  Show everything
+                </button>
+              </div>
+            )}
             <div className="crumbs">
               <div>
                 {crumbRoot && (
@@ -518,7 +569,13 @@ export function PortalShell({
               <TimeStrip />
               {accountLine && <div>{accountLine}</div>}
             </div>
-            <div key={location.pathname} className="ec-view">
+            <div
+              key={viewKey}
+              className="ec-view"
+              // Privacy mode on every admin page except the dashboard (which has its own
+              // Peek design): each box/card is blurred whole.
+              data-privacy-boxes={privacyOn && !location.pathname.startsWith(home) ? '' : undefined}
+            >
               <Outlet />
             </div>
           </main>

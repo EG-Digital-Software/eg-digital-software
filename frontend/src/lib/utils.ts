@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { format } from 'date-fns';
+import { isPrivacyActive } from './privacyStore';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -12,7 +13,14 @@ const currencyFmt = new Intl.NumberFormat('en-AU', {
   minimumFractionDigits: 2,
 });
 
+/** Admin privacy mode shows every amount as password-style dots. */
 export function formatCurrency(value: number | string | null | undefined): string {
+  if (isPrivacyActive()) return '$ ••••';
+  return formatCurrencyUnmasked(value);
+}
+
+/** Always the real figure — for views that handle privacy themselves (dashboard Peek). */
+export function formatCurrencyUnmasked(value: number | string | null | undefined): string {
   const n = typeof value === 'string' ? Number(value) : (value ?? 0);
   return currencyFmt.format(Number.isFinite(n) ? n : 0);
 }

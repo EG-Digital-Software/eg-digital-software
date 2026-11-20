@@ -134,7 +134,7 @@ function CustomerPicker({
         style={{ justifyContent: 'flex-start' }}
       >
         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="flex-1 truncate text-left font-medium">{current ? customerName(current) : 'Select customer'}</span>
+        <span className="flex-1 truncate text-left font-medium" data-private={current ? '' : undefined}>{current ? customerName(current) : 'Select customer'}</span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
         {customers.some((c) => isUpdated(c.clientId)) && (
           <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" aria-label="Companies with new activity" />
@@ -173,7 +173,7 @@ function CustomerPicker({
                     <AvatarFallback className="text-[10px]">{initials(customerName(c))}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{customerName(c)}</div>
+                    <div className="truncate font-medium" data-private>{customerName(c)}</div>
                     <div className="truncate text-xs text-muted-foreground">{c.clientId}</div>
                   </div>
                   {isUpdated(c.clientId) && !active && (

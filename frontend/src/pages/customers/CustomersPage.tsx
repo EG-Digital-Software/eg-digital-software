@@ -320,11 +320,11 @@ export default function CustomersPage() {
                               {initialsOf(c.companyName || customerName(c))}
                             </span>
                             <div style={{ minWidth: 0 }}>
-                              <div className="truncate" style={{ fontWeight: 600 }}>
+                              <div className="truncate" style={{ fontWeight: 600 }} data-private>
                                 {c.companyName || '—'}
                               </div>
                               {c.tradingAs && c.tradingAs !== c.companyName && (
-                                <div className="muted truncate" style={{ fontSize: 12 }}>
+                                <div className="muted truncate" style={{ fontSize: 12 }} data-private>
                                   T/A {c.tradingAs}
                                 </div>
                               )}

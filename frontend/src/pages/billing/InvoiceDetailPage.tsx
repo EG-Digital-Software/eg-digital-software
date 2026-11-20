@@ -137,7 +137,12 @@ export default function InvoiceDetailPage() {
           <div className="eyebrow">Billing · Invoice</div>
           <h1 className="disp ec-h1">{invoice.invoiceNumber}</h1>
           <p className="muted" style={{ margin: 0 }}>
-            {customerLabel ? `${customerLabel} · ` : ''}Issued {formatDate(invoice.invoiceDate)} · Due{' '}
+            {customerLabel ? (
+              <>
+                <span data-private>{customerLabel}</span> ·{' '}
+              </>
+            ) : null}
+            Issued {formatDate(invoice.invoiceDate)} · Due{' '}
             {formatDate(invoice.dueDate)} · {isPaid ? 'Settled' : `${formatCurrency(balance)} outstanding`}
           </p>
         </div>
@@ -211,7 +216,7 @@ export default function InvoiceDetailPage() {
               style={{ textDecoration: 'none' }}
             >
               <Building2 className="h-3 w-3" />
-              {customerLabel}
+              <span data-private>{customerLabel}</span>
               <span className="mono" style={{ fontSize: 11 }}>
                 {invoice.customer.clientId}
               </span>

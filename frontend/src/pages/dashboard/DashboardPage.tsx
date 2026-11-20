@@ -15,7 +15,8 @@ import { EmptyState } from '@/components/shared/states';
 import { healthLabel } from '@/components/shared/HeroHealth';
 import { customerName } from '@/lib/customer';
 import { ProductGlyph } from '@/lib/product-icon';
-import { formatCurrency, formatNumber, formatDate, cn, initials } from '@/lib/utils';
+import { formatCurrencyUnmasked as formatCurrency, formatNumber, formatDate, cn, initials } from '@/lib/utils';
+import { Blur, Dots, PeekButton, maskRef, usePeek, usePrivate } from '@/lib/privacy';
 
 /** Circumference of the health ring (r = 22). */
 const RING_C = 2 * Math.PI * 22;
@@ -27,10 +28,13 @@ function StatCard({
   to,
   hint,
   tone,
+  money = false,
 }: {
   title: string;
   value: string;
   footer: ReactNode;
+  /** Privacy mode shows "$ ••••" for money and "••" for counts. */
+  money?: boolean;
   /** Where the tile drills through to. */
   to?: string;
   /** Tooltip clarifying what the number counts. */
@@ -38,14 +42,18 @@ function StatCard({
   /** Optional colour for the value (design token). */
   tone?: string;
 }) {
+  const peek = usePeek();
   const card = (
     <div className="glass card" style={{ padding: 20, height: '100%' }}>
-      <div className="eyebrow">{title}</div>
-      <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10, color: tone }}>
-        {value}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div className="eyebrow">{title}</div>
+        {peek.isPrivate && <PeekButton peeking={peek.peeking} onToggle={peek.toggle} />}
+      </div>
+      <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10, color: peek.hidden ? 'var(--mu)' : tone }}>
+        {peek.hidden ? <Dots money={money} n={money ? 4 : 2} /> : value}
       </div>
       <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-        {footer}
+        {peek.hidden ? 'Hidden' : footer}
       </div>
     </div>
   );
@@ -144,6 +152,8 @@ export default function DashboardPage() {
   const licTotal = s ? licLive + s.licences.expired + s.licences.suspended : 0;
   const healthPct = licTotal > 0 ? Math.round((licLive / licTotal) * 100) : 100;
   const pendingN = pending ?? 0;
+  const summaryPeek = usePeek();
+  const heroPeek = usePeek();
 
   return (
     <div className="ec-page">
@@ -179,7 +189,9 @@ export default function DashboardPage() {
           <div style={{ flex: '1 1 420px', minWidth: 0 }}>
             <span className="eyebrow">Business summary</span>
             <p style={{ margin: '8px 0 0', fontSize: 17, lineHeight: 1.55, color: 'var(--fg)' }}>
-              {!s ? (
+              {summaryPeek.hidden ? (
+                'Summary hidden while privacy mode is on.'
+              ) : !s ? (
                 'Loading your business overview…'
               ) : (
                 <>
@@ -207,7 +219,8 @@ export default function DashboardPage() {
               )}
             </p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+            {summaryPeek.isPrivate && <PeekButton peeking={summaryPeek.peeking} onToggle={summaryPeek.toggle} />}
             <Link to="/admin/billing" className="btn bg">
               Open billing
             </Link>
@@ -246,18 +259,24 @@ export default function DashboardPage() {
           </div>
         </div>
         <Link to="/admin/customers" className="glass card up" style={{ padding: 20, color: 'inherit', textDecoration: 'none' }}>
-          <div className="eyebrow">Customers</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <div className="eyebrow">Customers</div>
+            {heroPeek.isPrivate && <PeekButton peeking={heroPeek.peeking} onToggle={heroPeek.toggle} />}
+          </div>
           <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10 }}>
-            {s ? formatNumber(s.customers.total) : '—'}
+            {heroPeek.hidden ? <Dots n={2} /> : s ? formatNumber(s.customers.total) : '—'}
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
             Active accounts
           </div>
         </Link>
         <Link to="/admin/billing" className="glass card up" style={{ padding: 20, color: 'inherit', textDecoration: 'none' }}>
-          <div className="eyebrow">Sales (month)</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <div className="eyebrow">Sales (month)</div>
+            {heroPeek.isPrivate && <PeekButton peeking={heroPeek.peeking} onToggle={heroPeek.toggle} />}
+          </div>
           <div className="disp stat" style={{ fontSize: 30, fontWeight: 600, marginTop: 10 }}>
-            {s ? formatCurrency(s.totalSales.current) : '—'}
+            {heroPeek.hidden ? <Dots money /> : s ? formatCurrency(s.totalSales.current) : '—'}
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
             Invoiced this month
@@ -271,6 +290,7 @@ export default function DashboardPage() {
         ) : (
           <>
             <StatCard
+              money
               title="Sales (month)"
               to="/admin/billing"
               hint="Value invoiced this month, paid or not (drafts and cancellations excluded)"
@@ -300,6 +320,7 @@ export default function DashboardPage() {
               footer={<span>In the catalogue</span>}
             />
             <StatCard
+              money
               title="Outstanding"
               to="/admin/billing"
               hint="Total still owed across every unpaid invoice"
@@ -312,6 +333,7 @@ export default function DashboardPage() {
               }
             />
             <StatCard
+              money
               title="Overdue"
               to="/admin/billing"
               hint="Owed and already past the due date"
@@ -338,6 +360,7 @@ export default function DashboardPage() {
               }
             />
             <StatCard
+              money
               title="Revenue (month)"
               to="/admin/billing"
               hint="Cash actually collected this month — payments received, not invoiced value"
@@ -427,6 +450,7 @@ const TASK_PILL: Record<string, { label: string; cls: string }> = {
 };
 
 function TasksOverviewCard() {
+  const isPrivate = usePrivate();
   // '' = all customers; otherwise a specific customer's clientId.
   const [clientId, setClientId] = useState('');
   const custQ = useQuery({
@@ -520,7 +544,7 @@ function TasksOverviewCard() {
                             {t.title}
                           </div>
                           <div className="muted truncate" style={{ fontSize: 12 }}>
-                            {t.customer}
+                            <Blur hidden={isPrivate}>{t.customer}</Blur>
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
@@ -563,6 +587,7 @@ function TaskCustomerPicker({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const isPrivate = usePrivate();
 
   useEffect(() => {
     if (!open) return;
@@ -592,7 +617,9 @@ function TaskCustomerPicker({
         style={{ minHeight: 36, minWidth: 190, padding: '0 10px', fontSize: 13, cursor: 'pointer' }}
       >
         <Building2 className="h-4 w-4 shrink-0" style={{ color: 'var(--mu)' }} />
-        <span className="flex-1 truncate text-left font-medium">{label}</span>
+        <span className="flex-1 truncate text-left font-medium">
+          <Blur hidden={isPrivate && !!current}>{label}</Blur>
+        </span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 transition', open && 'rotate-180')} style={{ color: 'var(--mu)' }} />
       </button>
 
@@ -650,7 +677,9 @@ function TaskCustomerPicker({
                     <AvatarFallback className="text-[10px]">{initials(customerName(c))}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{customerName(c)}</div>
+                    <div className="truncate font-medium">
+                      <Blur hidden={isPrivate}>{customerName(c)}</Blur>
+                    </div>
                     <div className="truncate text-xs text-muted-foreground">{c.clientId}</div>
                   </div>
                   {active && <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--brand)' }} />}
@@ -789,7 +818,15 @@ function TimelineList({
   );
 }
 
+/** "Customer A", "Customer B"… — stand-in names while privacy mode is on. */
+const letterName = (i: number) => `Customer ${String.fromCharCode(65 + (i % 26))}`;
+
 function RecentActivity() {
+  const cust = usePeek();
+  const inv = usePeek();
+  const pay = usePeek();
+  const peekAction = (p: ReturnType<typeof usePeek>) =>
+    p.isPrivate ? <PeekButton peeking={p.peeking} onToggle={p.toggle} /> : undefined;
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', 'recent'],
     queryFn: dashboardApi.recent,
@@ -814,16 +851,16 @@ function RecentActivity() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
       <section className="glass up" style={{ overflow: 'hidden' }}>
-        <SectionHead title="Recent customers" />
+        <SectionHead title="Recent customers" action={peekAction(cust)} />
         {isLoading ? (
           loadingRows
         ) : (
           <TimelineList
             color="#2DB98A"
-            items={(recent?.customers ?? []).map((c) => ({
+            items={(recent?.customers ?? []).map((c, i) => ({
               key: c.clientId,
-              title: c.companyName || c.contactPerson || c.clientId,
-              sub: c.clientId,
+              title: cust.hidden ? letterName(i) : c.companyName || c.contactPerson || c.clientId,
+              sub: cust.hidden ? maskRef(c.clientId) : c.clientId,
               right: formatDate(c.createdAt),
             }))}
           />
@@ -831,24 +868,24 @@ function RecentActivity() {
       </section>
 
       <section className="glass up" style={{ overflow: 'hidden' }}>
-        <SectionHead title="Recent invoices" />
+        <SectionHead title="Recent invoices" action={peekAction(inv)} />
         {isLoading ? (
           loadingRows
         ) : (
           <TimelineList
             color="#5B7FC7"
-            items={(recent?.invoices ?? []).map((i) => ({
+            items={(recent?.invoices ?? []).map((i, n) => ({
               key: i.id,
-              title: i.invoiceNumber,
-              sub: i.customer?.companyName ?? '—',
-              right: formatCurrency(i.total),
+              title: inv.hidden ? maskRef(i.invoiceNumber) : i.invoiceNumber,
+              sub: inv.hidden ? letterName(n) : i.customer?.companyName ?? '—',
+              right: inv.hidden ? '$ •••' : formatCurrency(i.total),
             }))}
           />
         )}
       </section>
 
       <section className="glass up" style={{ overflow: 'hidden' }}>
-        <SectionHead title="Recent payments" />
+        <SectionHead title="Recent payments" action={peekAction(pay)} />
         {isLoading ? (
           loadingRows
         ) : (
@@ -857,9 +894,9 @@ function RecentActivity() {
             rightColor="var(--okT)"
             items={(recent?.payments ?? []).map((p) => ({
               key: p.id,
-              title: p.invoice?.invoiceNumber ?? 'Payment',
+              title: p.invoice?.invoiceNumber ? (pay.hidden ? maskRef(p.invoice.invoiceNumber) : p.invoice.invoiceNumber) : 'Payment',
               sub: formatDate(p.paidAt),
-              right: formatCurrency(p.amount),
+              right: pay.hidden ? '$ •••' : formatCurrency(p.amount),
             }))}
           />
         )}
