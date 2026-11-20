@@ -281,9 +281,13 @@ export async function buildArchiveSite(
     entries = [['index.html', data]];
   } else {
     const unzipped = await unzipAsync(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
-    entries = Object.entries(unzipped)
-      .map(([name, bytes]) => [cleanPath(name), Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)] as const)
-      .filter((e): e is readonly [string, Buffer] => !!e[0]);
+    // Typed explicitly: @types/node versions differ on Buffer's generic, so an
+    // inferred tuple type breaks the CI build.
+    const named: (readonly [string | null, Buffer])[] = Object.entries(unzipped).map(([name, bytes]) => [
+      cleanPath(name),
+      Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength) as Buffer,
+    ]);
+    entries = named.filter((e): e is readonly [string, Buffer] => !!e[0]);
     // Drop a single wrapping folder ("mysite/index.html" → "index.html").
     const roots = new Set(entries.map(([p]) => (p.includes('/') ? p.split('/')[0] : '')));
     if (roots.size === 1 && !roots.has('')) {
