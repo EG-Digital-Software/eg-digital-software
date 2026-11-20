@@ -3,6 +3,7 @@ import { describeUploadError, uploadToBlob } from '@/lib/directUpload';
 import type { TimeSheetData, TimeSheetEntryInput, TimeSheetPool, TimeSheetPoolInput } from '@/lib/timesheet';
 import type {
   AccessPointData,
+  TaskSiteLinks,
   ApiEnvelope,
   Appointment,
   AssignableUser,
@@ -417,6 +418,10 @@ export function taskApi(base: string) {
     },
     renameArchive: (taskId: string, attachmentId: string, fileName: string) =>
       unwrap<TaskAttachment>(api.patch(`${base}/tasks/${taskId}/archive/${attachmentId}`, { fileName })),
+    setSiteLinks: (taskId: string, body: { oldSiteUrl: string | null; newSiteUrl: string | null }) =>
+      unwrap<TaskSiteLinks | null>(api.put(`${base}/tasks/${taskId}/site-links`, body)),
+    rebuildArchiveSite: (taskId: string, attachmentId: string) =>
+      unwrap<{ id: string; building: boolean }>(api.post(`${base}/tasks/${taskId}/archive/${attachmentId}/site`)),
     deleteArchive: (taskId: string, attachmentId: string) =>
       unwrap<{ id: string }>(api.delete(`${base}/tasks/${taskId}/archive/${attachmentId}`)),
 

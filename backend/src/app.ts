@@ -51,6 +51,9 @@ export function createApp() {
     '/uploads',
     (_req, res, next) => {
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      // Archived website snapshots open inside the portal in a sandboxed iframe.
+      res.removeHeader('X-Frame-Options');
+      res.removeHeader('Content-Security-Policy');
       next();
     },
     express.static(path.resolve(process.cwd(), 'uploads'))

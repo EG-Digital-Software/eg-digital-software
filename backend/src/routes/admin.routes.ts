@@ -18,7 +18,11 @@ import {
   updateTeamRoleSchema,
   employeeRolesSchema,
   accountManagerSettingSchema,
+  createShowcaseSchema,
+  updateShowcaseSchema,
 } from '../validators/settings.validator.js';
+import * as showcases from '../services/showcase.service.js';
+import { checkFrameable } from '../services/frameCheck.service.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
 import { runInvoiceOverdueSweep } from '../services/invoiceOverdue.service.js';
@@ -64,6 +68,41 @@ router.get(
   authenticate,
   authorizeTab(['preview']),
   asyncHandler(async (_req, res) => ok(res, await listPreviewCustomers()))
+);
+// Website showcases (old vs new website). Viewing needs the Preview tab;
+// creating, editing and deleting need edit access to it.
+router.get(
+  '/preview/showcases',
+  authenticate,
+  authorizeTab(['preview']),
+  asyncHandler(async (_req, res) => ok(res, await showcases.listShowcases()))
+);
+// Can this website be shown inside the portal (no X-Frame-Options / CSP block)?
+// Any signed-in user: task Archive tabs (client and team too) show website links.
+router.get(
+  '/preview/frame-check',
+  authenticate,
+  asyncHandler(async (req, res) => ok(res, await checkFrameable(String(req.query.url ?? ''))))
+);
+router.post(
+  '/preview/showcases',
+  authenticate,
+  authorizeTab(['preview']),
+  validate({ body: createShowcaseSchema }),
+  asyncHandler(async (req, res) => ok(res, await showcases.createShowcase(req.body, req.user?.sub), 'Showcase created', 201))
+);
+router.patch(
+  '/preview/showcases/:id',
+  authenticate,
+  authorizeTab(['preview']),
+  validate({ body: updateShowcaseSchema }),
+  asyncHandler(async (req, res) => ok(res, await showcases.updateShowcase(req.params.id, req.body), 'Showcase saved'))
+);
+router.delete(
+  '/preview/showcases/:id',
+  authenticate,
+  authorizeTab(['preview']),
+  asyncHandler(async (req, res) => ok(res, await showcases.deleteShowcase(req.params.id), 'Showcase deleted'))
 );
 
 // Time Sheet entries a team member logged over the month's maximum — the

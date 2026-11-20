@@ -365,6 +365,18 @@ export const adminApi = {
         '/admin/preview/customers'
       )
     ).data.data,
+  /** Website showcases (old vs new website) — Preview tab. */
+  showcases: async () => (await api.get<ApiEnvelope<Showcase[]>>('/admin/preview/showcases')).data.data,
+  createShowcase: async (body: ShowcaseInput) =>
+    (await api.post<ApiEnvelope<Showcase>>('/admin/preview/showcases', body)).data.data,
+  updateShowcase: async (id: string, body: Partial<ShowcaseInput>) =>
+    (await api.patch<ApiEnvelope<Showcase>>(`/admin/preview/showcases/${id}`, body)).data.data,
+  /** Whether a website lets the portal show it in a frame. */
+  frameCheck: async (url: string) =>
+    (await api.get<ApiEnvelope<{ frameable: boolean; reachable: boolean }>>('/admin/preview/frame-check', { params: { url } })).data
+      .data,
+  deleteShowcase: async (id: string) =>
+    (await api.delete<ApiEnvelope<{ id: string }>>(`/admin/preview/showcases/${id}`)).data.data,
   /** Mint a session to open this team member's portal as them (impersonation). */
   impersonateEmployee: async (id: string) =>
     (
@@ -373,6 +385,55 @@ export const adminApi = {
       >(`/admin/employees/${id}/impersonate`)
     ).data.data,
 };
+
+/** An archived file a showcase points at. */
+export interface ShowcaseArchive {
+  id: string;
+  fileName: string;
+  url: string;
+  size: number;
+  contentType?: string | null;
+  createdAt: string;
+  taskNumber: string;
+  taskTitle: string;
+}
+
+/** Preview › Website showcases: a client's old site (archived) paired with the new one. */
+export interface Showcase {
+  id: string;
+  customerId: string;
+  clientId: string;
+  companyName?: string | null;
+  contactPerson?: string | null;
+  title: string;
+  oldArchiveId?: string | null;
+  /** The old site as a link (still live, or its web.archive.org copy). */
+  oldSiteUrl?: string | null;
+  newSiteUrl?: string | null;
+  newArchiveId?: string | null;
+  status: 'DRAFT' | 'PUBLISHED';
+  newLaunchedAt?: string | null;
+  /** The task whose Archive tab holds the links. */
+  taskId?: string | null;
+  taskNumber?: string | null;
+  taskTitle?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Null when the archived file has since been deleted. */
+  oldArchive?: ShowcaseArchive | null;
+  newArchive?: ShowcaseArchive | null;
+}
+
+export interface ShowcaseInput {
+  clientId: string;
+  title: string;
+  oldArchiveId: string | null;
+  oldSiteUrl: string | null;
+  newSiteUrl: string | null;
+  newArchiveId: string | null;
+  status: 'DRAFT' | 'PUBLISHED';
+  newLaunchedAt: string | null;
+}
 
 /** A task Archive file as the Preview tab lists it, with its task and customer. */
 export interface ArchiveFile {

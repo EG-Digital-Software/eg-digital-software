@@ -407,6 +407,7 @@ model Customer {
   socialPosts        SocialPost[]
   socialCampaigns    SocialCampaignDaily[]
   socialPeriodValues SocialPeriodValue[]
+  websiteShowcases   WebsiteShowcase[]
 
   @@index([status])
   @@index([businessType])
@@ -910,6 +911,7 @@ model Task {
   socialDashboard    SocialDashboard?
   contentPosts       ContentPost[]
   reportDashboards   ReportDashboard[]
+  websiteShowcases   WebsiteShowcase[]
 
   @@index([customerId])
   @@index([bucketId])
@@ -1509,4 +1511,35 @@ model ReportDashboard {
   createdAt     DateTime @default(now())
 
   @@unique([taskId, kind])
+}
+
+/// A client's old website paired with the new one, for before-and-after
+/// marketing. Set per task in its Archive tab (old/new website links) and shown
+/// side by side on the Preview page. Older rows may point at Archive-tab files
+/// by id instead (plain strings, no FK, so the archive table is untouched).
+model WebsiteShowcase {
+  id            String    @id @default(uuid())
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId    String
+  /// The task whose Archive tab holds these links.
+  task          Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId        String?
+  title         String
+  /// TaskAttachment (kind ARCHIVE) holding the old site's ZIP snapshot.
+  oldArchiveId  String?
+  /// Or the old site as a link (still live, or its web.archive.org copy).
+  oldSiteUrl    String?
+  /// The new site, live.
+  newSiteUrl    String?
+  /// Or a snapshot of the new site, from the Archive tab.
+  newArchiveId  String?
+  /// DRAFT | PUBLISHED
+  status        String    @default("DRAFT")
+  newLaunchedAt DateTime?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([taskId])
 }

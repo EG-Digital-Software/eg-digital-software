@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { setTaskSiteLinks } from '../services/showcase.service.js';
 import type { Role } from '@prisma/client';
 import * as taskService from '../services/task.service.js';
 import * as clientService from '../services/client.service.js';
@@ -350,6 +351,24 @@ export const renameArchive = asyncHandler(async (req: Request, res: Response) =>
     res,
     await taskService.renameArchiveFile(customerId, req.params.taskId, req.params.attachmentId, name),
     'File renamed'
+  );
+});
+
+export const setSiteLinks = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await resolve(req);
+  return ok(
+    res,
+    await setTaskSiteLinks(customerId, req.params.taskId, req.body, req.user?.sub),
+    'Website links saved'
+  );
+});
+
+export const rebuildArchiveSite = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = await resolve(req);
+  return ok(
+    res,
+    await taskService.rebuildArchiveSite(customerId, req.params.taskId, req.params.attachmentId),
+    'Preparing the website snapshot'
   );
 });
 

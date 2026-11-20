@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import * as ctrl from '../controllers/task.controller.js';
+import { taskSiteLinksSchema } from '../validators/settings.validator.js';
 import * as social from '../controllers/social.controller.js';
 import * as content from '../controllers/content.controller.js';
 import * as report from '../controllers/report.controller.js';
@@ -170,6 +171,10 @@ export function buildTaskRouter(readOnly = false): Router {
     // archived media; everyone else views it through the task payload.
     router.post('/tasks/:taskId/archive', archiveUpload.single('file'), ctrl.uploadArchive);
     router.patch('/tasks/:taskId/archive/:attachmentId', ctrl.renameArchive);
+    // Build (again) the fast website copy of an archived ZIP or saved HTML page.
+    router.post('/tasks/:taskId/archive/:attachmentId/site', ctrl.rebuildArchiveSite);
+    // Old/new website links shown in the Archive tab and on the Preview page.
+    router.put('/tasks/:taskId/site-links', validate({ body: taskSiteLinksSchema }), ctrl.setSiteLinks);
     router.delete('/tasks/:taskId/archive/:attachmentId', ctrl.deleteArchive);
   }
 

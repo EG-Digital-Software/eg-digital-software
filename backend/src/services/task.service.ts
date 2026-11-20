@@ -4,6 +4,7 @@ import { prisma } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 import { storage } from './storage/index.js';
+import { buildArchiveSiteInBackground, isSiteUpload, removeArchiveSite } from './archiveSite.service.js';
 import { nextSequence, formatTaskNumber } from '../utils/sequence.js';
 import { notify } from './notification.service.js';
 import { pushToCustomer } from './push.service.js';
@@ -198,6 +199,12 @@ const taskInclude = {
     orderBy: { createdAt: 'desc' },
     include: { attachments: { orderBy: { createdAt: 'asc' } } },
   },
+  // Old/new website links set in the Archive tab (one pair per task).
+  websiteShowcases: {
+    orderBy: { createdAt: 'asc' },
+    take: 1,
+    select: { oldSiteUrl: true, newSiteUrl: true, updatedAt: true },
+  },
 } satisfies Prisma.TaskInclude;
 
 /**
@@ -222,11 +229,18 @@ function shapeTask<T extends { labels: { label: unknown }[] }>(task: T) {
     comments?: { authorType: Role; authorName: string; body: string; reactions?: { userType: Role; userName: string }[] }[];
   };
   const comments = withChat.comments?.map((c) => maskComment(withChat, c));
+  // The Archive tab's website links, as one object (null when none are set).
+  const { websiteShowcases, ...rest } = task as T & {
+    websiteShowcases?: { oldSiteUrl: string | null; newSiteUrl: string | null; updatedAt: Date }[];
+  };
+  const links = websiteShowcases?.[0];
+  const siteLinks = links && (links.oldSiteUrl || links.newSiteUrl) ? links : null;
   return {
-    ...task,
+    ...rest,
     labels: task.labels.map((l) => l.label),
     attachments,
     archive,
+    ...(websiteShowcases ? { siteLinks } : {}),
     ...(notes ? { notes } : {}),
     ...(comments ? { comments } : {}),
   };
@@ -1047,7 +1061,7 @@ export async function addArchiveFile(
   const safeName = file.originalname.replace(/[^\w.\-]+/g, '_');
   const key = `tasks/${taskId}/archive/${Date.now()}-${safeName}`;
   const url = await storage.save(key, file.buffer, file.mimetype);
-  return prisma.taskAttachment.create({
+  const saved = await prisma.taskAttachment.create({
     data: {
       taskId,
       kind: 'ARCHIVE',
@@ -1058,6 +1072,34 @@ export async function addArchiveFile(
       uploadedById,
     },
   });
+  // A saved website (ZIP or HTML page) also gets a fast, clickable copy for
+  // viewing. The upload itself stays untouched for download.
+  if (isSiteUpload(file.originalname, file.mimetype)) {
+    buildArchiveSiteInBackground(key, file.buffer, file.originalname, file.mimetype);
+  }
+  return saved;
+}
+
+/**
+ * (Re)build the website copy of an archived ZIP or saved HTML page — for one
+ * archived before snapshots existed, or whose build was interrupted. Only adds
+ * files next to the upload; the upload and its record are not changed.
+ */
+export async function rebuildArchiveSite(customerId: string, taskId: string, attachmentId: string) {
+  await ensureTask(customerId, taskId);
+  const file = await prisma.taskAttachment.findFirst({ where: { id: attachmentId, taskId, kind: 'ARCHIVE' } });
+  if (!file) throw ApiError.notFound('Archive file not found');
+  if (!isSiteUpload(file.fileName, file.contentType)) {
+    throw ApiError.badRequest('Only a website ZIP or a saved HTML page can be opened as a website');
+  }
+  // A file kept in another storage (e.g. a local dev server looking at a file
+  // uploaded on the live portal) can't be read here — say so instead of failing later.
+  if (/^https?:\/\//i.test(file.url) && storage.keyOf(file.url) === file.url) {
+    throw ApiError.badRequest('This file is kept in the live portal’s storage — make it load fast from the live portal');
+  }
+  // Read and build in the background: a saved page can be tens of MB.
+  buildArchiveSiteInBackground(storage.keyOf(file.url), () => storage.read(file.url), file.fileName, file.contentType);
+  return { id: file.id, building: true };
 }
 
 export async function renameArchiveFile(
@@ -1085,6 +1127,8 @@ export async function deleteArchiveFile(customerId: string, taskId: string, atta
   await storage
     .remove(file.url)
     .catch((err) => logger.warn({ err, url: file.url }, 'Failed to remove archive file from storage'));
+  // …and a website ZIP's unpacked snapshot alongside it.
+  if (isSiteUpload(file.fileName, file.contentType)) await removeArchiveSite(file.url);
   return { id: attachmentId };
 }
 

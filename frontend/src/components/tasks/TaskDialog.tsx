@@ -37,9 +37,6 @@ import {
   Search,
   MapPin,
   Cloud,
-  Upload,
-  Film,
-  Image as ImageIcon,
   Eye,
   Hourglass,
   Lock,
@@ -66,6 +63,7 @@ import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/store/auth';
 import { cn, downloadOnClick, formatDate, initials, mediaUrl } from '@/lib/utils';
 import { downloadChatDoc, printChatPdf } from '@/lib/chatExport';
+import { ArchiveTab } from './ArchiveTab';
 import { renderMessageBody, stripMentions } from '@/lib/mentions';
 import { NotoEmoji, withNotoEmoji } from '@/lib/emoji';
 import { PRIORITY_META, PRIORITY_ORDER, PROGRESS_META, PROGRESS_ORDER, TASK_TEAMS } from '@/lib/tasks';
@@ -294,7 +292,6 @@ export function TaskDialog({
   useAutoGrow(commentRef, comment);
   const fileRef = useRef<HTMLInputElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
-  const archiveRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -562,6 +559,27 @@ export function TaskDialog({
     onError: (e) => toast.error(apiErrorMessage(e)),
   });
   const removeArchive = useMutation({ mutationFn: (id: string) => api.deleteArchive(task!.id, id), onSuccess: () => { invalidateTask(); invalidate(); } });
+  // Old/new website links (Archive tab) — also shown side by side on Preview.
+  const saveSiteLinks = useMutation({
+    mutationFn: (v: { oldSiteUrl: string | null; newSiteUrl: string | null }) => api.setSiteLinks(task!.id, v),
+    onSuccess: () => {
+      invalidateTask();
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['admin', 'preview', 'showcases'] });
+      toast.success('Website links saved');
+    },
+    onError: (e) => toast.error(apiErrorMessage(e, 'Could not save the website links')),
+  });
+  // Unpack an archived website ZIP so it opens as a clickable snapshot.
+  const rebuildArchiveSite = useMutation({
+    mutationFn: (id: string) => api.rebuildArchiveSite(task!.id, id),
+    onSuccess: () => {
+      toast.success('Preparing the website — it opens in a moment');
+      // The viewer polls for the snapshot; drop any cached "not built" answer.
+      void qc.invalidateQueries({ queryKey: ['archive-site'] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not open the ZIP as a website'),
+  });
   // Approval files upload straight to storage; a single toast tracks the progress.
   const APPROVAL_UPLOAD_TOAST = 'approval-upload';
   const showUploadProgress = (p: number) => toast.loading(`Uploading files… ${p}%`, { id: APPROVAL_UPLOAD_TOAST });
@@ -1420,15 +1438,19 @@ export function TaskDialog({
             ) : (
               /* Archive tab — admin stores files/images/videos (original quality);
                  the client and team can only view them. */
-              <ArchivePanel
+              <ArchiveTab
                 files={liveTask?.archive ?? []}
                 isAdmin={isAdmin}
-                inputRef={archiveRef}
                 uploading={uploadArchive.isPending}
-                onPick={() => archiveRef.current?.click()}
                 onUpload={(f) => uploadArchive.mutate(f)}
                 onRename={(id, fileName) => renameArchive.mutate({ id, fileName })}
                 onDelete={(id) => removeArchive.mutate(id)}
+                onRebuild={(id) => rebuildArchiveSite.mutate(id)}
+                rebuildingId={rebuildArchiveSite.isPending ? rebuildArchiveSite.variables : undefined}
+                rebuildFailedId={rebuildArchiveSite.isError ? rebuildArchiveSite.variables : undefined}
+                siteLinks={liveTask?.siteLinks}
+                onSaveLinks={(v) => saveSiteLinks.mutate(v)}
+                savingLinks={saveSiteLinks.isPending}
               />
             )}
 
@@ -2313,137 +2335,6 @@ function TabPill({ active, onClick, icon, children, dot }: { active: boolean; on
         <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" aria-label="New activity" />
       )}
     </button>
-  );
-}
-
-const isImage = (t?: string | null) => !!t && t.startsWith('image/');
-const isVideo = (t?: string | null) => !!t && t.startsWith('video/');
-
-function humanSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-/**
- * Archive tab. Admins upload/rename/delete and download files at their original
- * quality; the client and team see the same media as read-only previews with no
- * download, edit or delete controls.
- */
-function ArchivePanel({
-  files,
-  isAdmin,
-  inputRef,
-  uploading,
-  onPick,
-  onUpload,
-  onRename,
-  onDelete,
-}: {
-  files: TaskAttachment[];
-  isAdmin: boolean;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  uploading: boolean;
-  onPick: () => void;
-  onUpload: (file: File) => void;
-  onRename: (id: string, fileName: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-
-  return (
-    <div className="mt-5 space-y-4">
-      {isAdmin && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-secondary/30 px-4 py-3">
-          <p className="text-xs text-muted-foreground">
-            Store any file, image or video. Files are kept at original quality — only you can edit, delete or download them.
-          </p>
-          <input
-            ref={inputRef}
-            type="file"
-            className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }}
-          />
-          <Button type="button" size="sm" onClick={onPick} disabled={uploading} className="shrink-0">
-            <Upload className="mr-1.5 h-4 w-4" /> {uploading ? 'Uploading…' : 'Upload'}
-          </Button>
-        </div>
-      )}
-
-      {files.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {isAdmin ? 'No archived files yet. Upload one to get started.' : 'Nothing has been archived for this task yet.'}
-        </p>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {files.map((f) => {
-            const url = mediaUrl(f.url) ?? '';
-            return (
-              <div key={f.id} className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-                {/* Preview */}
-                <div className="flex aspect-video items-center justify-center bg-secondary/50">
-                  {isImage(f.contentType) ? (
-                    <img src={url} alt={f.fileName} className="h-full w-full object-cover" loading="lazy" />
-                  ) : isVideo(f.contentType) ? (
-                    <video
-                      src={url}
-                      className="h-full w-full object-cover"
-                      controls
-                      preload="metadata"
-                      controlsList={isAdmin ? undefined : 'nodownload'}
-                    />
-                  ) : (
-                    <FileText className="h-10 w-10 text-muted-foreground" />
-                  )}
-                </div>
-
-                {/* Meta + actions */}
-                <div className="flex flex-col gap-1 p-2.5">
-                  {renaming === f.id ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        value={renameValue}
-                        autoFocus
-                        className="h-7 text-xs"
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') { const v = renameValue.trim(); if (v) onRename(f.id, v); setRenaming(null); }
-                          if (e.key === 'Escape') setRenaming(null);
-                        }}
-                      />
-                      <button type="button" className="text-muted-foreground hover:text-primary" onClick={() => { const v = renameValue.trim(); if (v) onRename(f.id, v); setRenaming(null); }}>
-                        <Check className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      {isImage(f.contentType) ? <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : isVideo(f.contentType) ? <Film className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                      <span className="flex-1 truncate text-xs font-medium" title={f.fileName}>{f.fileName}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground">{humanSize(f.size)}</span>
-                    {isAdmin && (
-                      <div className="flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
-                        <a href={url} download={f.fileName} onClick={downloadOnClick(url, f.fileName)} className="text-muted-foreground hover:text-primary" title="Download (original quality)">
-                          <Download className="h-4 w-4" />
-                        </a>
-                        <button type="button" className="text-muted-foreground hover:text-primary" title="Rename" onClick={() => { setRenaming(f.id); setRenameValue(f.fileName); }}>
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button type="button" className="text-muted-foreground hover:text-rose-500" title="Delete" onClick={() => onDelete(f.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }
 

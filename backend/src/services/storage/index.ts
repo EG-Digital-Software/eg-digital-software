@@ -18,7 +18,9 @@ const blobCorsOrigins = env.CORS_ORIGIN.split(',')
  * instances have ephemeral disks and lose uploads on every restart.
  */
 export interface StorageProvider {
-  save(key: string, data: Buffer, contentType?: string): Promise<string>;
+  save(key: string, data: Buffer, contentType?: string, opts?: SaveOptions): Promise<string>;
+  /** Whether stored files can carry a Content-Encoding (served pre-compressed). */
+  readonly supportsEncoding: boolean;
   getUrl(key: string): string;
   /** Delete a stored file. Accepts the value persisted on the record (the URL
    *  returned by save) or a raw key. Best-effort: a missing file is not an error. */
@@ -36,7 +38,19 @@ export interface StorageProvider {
    * `{ error }` explains a file that didn't arrive whole.
    */
   statUpload(url: string, keyPrefix: string, expect?: UploadExpectation): Promise<UploadStat | null>;
+  /** Read a stored file's bytes (URL from save, or a raw key). Null when it doesn't exist. */
+  read(urlOrKey: string): Promise<Buffer | null>;
+  /**
+   * Delete every file under a folder (e.g. an archived website's extracted
+   * pages). Accepts a URL or key prefix. Best-effort; returns how many went.
+   */
+  removePrefix(urlOrKeyPrefix: string): Promise<number>;
+  /** The storage key behind a URL returned by save (raw keys pass through). */
+  keyOf(urlOrKey: string): string;
 }
+
+/** Store already-gzipped bytes and serve them with Content-Encoding: gzip. */
+export type SaveOptions = { contentEncoding?: 'gzip' };
 
 /** What the browser says it uploaded — lets the server finish or check the blob. */
 export type UploadExpectation = { contentType?: string; size?: number };
@@ -44,6 +58,9 @@ export type UploadStat = { size: number } | { error: string };
 
 class LocalStorage implements StorageProvider {
   private root = path.resolve(process.cwd(), 'uploads');
+
+  // express.static can't add Content-Encoding, so local files are stored plain.
+  readonly supportsEncoding = false;
 
   async save(key: string, data: Buffer): Promise<string> {
     const dest = path.join(this.root, key);
@@ -57,8 +74,40 @@ class LocalStorage implements StorageProvider {
   }
 
   async remove(urlOrKey: string): Promise<void> {
+    await fs.rm(this.pathOf(urlOrKey), { force: true });
+  }
+
+  /** Disk path of a stored file, refusing anything that escapes the uploads folder. */
+  private pathOf(urlOrKey: string): string {
     const key = urlOrKey.startsWith('/uploads/') ? urlOrKey.slice('/uploads/'.length) : urlOrKey;
-    await fs.rm(path.join(this.root, key), { force: true });
+    const full = path.resolve(this.root, decodeURIComponent(key));
+    if (full !== this.root && !full.startsWith(this.root + path.sep)) throw new Error('Invalid storage key');
+    return full;
+  }
+
+  keyOf(urlOrKey: string): string {
+    return decodeURIComponent(urlOrKey.startsWith('/uploads/') ? urlOrKey.slice('/uploads/'.length) : urlOrKey);
+  }
+
+  async read(urlOrKey: string): Promise<Buffer | null> {
+    try {
+      return await fs.readFile(this.pathOf(urlOrKey));
+    } catch {
+      return null;
+    }
+  }
+
+  async removePrefix(urlOrKeyPrefix: string): Promise<number> {
+    let dir: string;
+    try {
+      dir = this.pathOf(urlOrKeyPrefix.replace(/\/+$/, ''));
+    } catch {
+      return 0; // outside the uploads folder — nothing to do
+    }
+    // Only ever a real sub-folder (e.g. tasks/<id>/archive/<file>.site), never the uploads root.
+    if (path.relative(this.root, dir).split(path.sep).filter(Boolean).length < 2) return 0;
+    await fs.rm(dir, { recursive: true, force: true });
+    return 1;
   }
 
   async createDirectUpload(): Promise<null> {
@@ -151,7 +200,9 @@ class AzureBlobStorage implements StorageProvider {
     return this.ready;
   }
 
-  async save(key: string, data: Buffer, contentType?: string): Promise<string> {
+  readonly supportsEncoding = true;
+
+  async save(key: string, data: Buffer, contentType?: string, opts: SaveOptions = {}): Promise<string> {
     await this.ensureContainer();
     void this.ensureCors();
     const blob = this.container.getBlockBlobClient(key);
@@ -159,6 +210,7 @@ class AzureBlobStorage implements StorageProvider {
       blobHTTPHeaders: {
         blobContentType: contentType ?? 'application/octet-stream',
         blobCacheControl: 'public, max-age=31536000, immutable',
+        blobContentEncoding: opts.contentEncoding,
       },
     });
     return blob.url;
@@ -170,14 +222,41 @@ class AzureBlobStorage implements StorageProvider {
 
   async remove(urlOrKey: string): Promise<void> {
     await this.ensureContainer();
-    // Records store the absolute blob URL; strip the container prefix (and any
-    // query string) back to the blob name before deleting.
+    await this.container.getBlockBlobClient(this.blobNameOf(urlOrKey)).deleteIfExists();
+  }
+
+  keyOf(urlOrKey: string): string {
+    return this.blobNameOf(urlOrKey);
+  }
+
+  /** Records store the absolute blob URL; strip the container prefix (and any query string) back to the blob name. */
+  private blobNameOf(urlOrKey: string): string {
     const base = this.container.url;
-    let blobName = urlOrKey;
-    if (urlOrKey.startsWith(base)) {
-      blobName = decodeURIComponent(urlOrKey.slice(base.length).replace(/^\/+/, '').split('?')[0]);
+    if (!urlOrKey.startsWith(base)) return urlOrKey;
+    return decodeURIComponent(urlOrKey.slice(base.length).replace(/^\/+/, '').split('?')[0]);
+  }
+
+  async read(urlOrKey: string): Promise<Buffer | null> {
+    await this.ensureContainer();
+    try {
+      return await this.container.getBlockBlobClient(this.blobNameOf(urlOrKey)).downloadToBuffer();
+    } catch (err) {
+      if (statusOf(err) === 404) return null;
+      throw err;
     }
-    await this.container.getBlockBlobClient(blobName).deleteIfExists();
+  }
+
+  async removePrefix(urlOrKeyPrefix: string): Promise<number> {
+    await this.ensureContainer();
+    const prefix = this.blobNameOf(urlOrKeyPrefix);
+    // Guard: only ever a real sub-folder, never the container root.
+    if (!prefix || !prefix.endsWith('/') || prefix.split('/').filter(Boolean).length < 2) return 0;
+    let removed = 0;
+    for await (const blob of this.container.listBlobsFlat({ prefix })) {
+      await this.container.getBlockBlobClient(blob.name).deleteIfExists();
+      removed++;
+    }
+    return removed;
   }
 
   async createDirectUpload(key: string): Promise<{ uploadUrl: string; url: string } | null> {

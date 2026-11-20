@@ -108,3 +108,30 @@ export const updateTeamRoleSchema = z.object({
 export const employeeRolesSchema = z.object({
   roleIds: z.array(z.string().uuid()).max(50),
 });
+
+/** Preview › Website showcases (old vs new website). */
+const showcaseUrl = z
+  .string()
+  .trim()
+  .max(500)
+  .refine((v) => v === '' || /^https?:\/\/[^\s]+$/i.test(v), 'Enter a full website address, starting with https://')
+  .nullable()
+  .optional();
+const showcaseBase = {
+  clientId: z.string().trim().min(1).max(40),
+  title: z.string().trim().max(120),
+  oldArchiveId: z.string().uuid().nullable().optional(),
+  oldSiteUrl: showcaseUrl,
+  newSiteUrl: showcaseUrl,
+  newArchiveId: z.string().uuid().nullable().optional(),
+  status: z.enum(['DRAFT', 'PUBLISHED']),
+  newLaunchedAt: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
+};
+export const createShowcaseSchema = z.object({
+  ...showcaseBase,
+  title: showcaseBase.title.optional(),
+  status: showcaseBase.status.optional(),
+});
+export const updateShowcaseSchema = z.object(showcaseBase).partial();
+/** A task's old/new website links (Archive tab); blank clears one. */
+export const taskSiteLinksSchema = z.object({ oldSiteUrl: showcaseUrl, newSiteUrl: showcaseUrl });

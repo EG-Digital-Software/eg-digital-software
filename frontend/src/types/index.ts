@@ -521,6 +521,13 @@ export interface AccessPointData {
   log: AccessPointLog[];
 }
 
+/** A task's old and new website, set in its Archive tab. */
+export interface TaskSiteLinks {
+  oldSiteUrl?: string | null;
+  newSiteUrl?: string | null;
+  updatedAt?: string;
+}
+
 export interface TaskAttachment {
   id: string;
   taskId: string;
@@ -601,6 +608,8 @@ export interface Task {
   attachments: TaskAttachment[];
   /** Admin-managed media (Archive tab). Clients/team can view, not mutate. */
   archive: TaskAttachment[];
+  /** Old/new website links set in the Archive tab (shown side by side on Preview). */
+  siteLinks?: TaskSiteLinks | null;
   approvals: TaskApproval[];
 }
 
