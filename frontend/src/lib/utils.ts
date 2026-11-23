@@ -68,6 +68,20 @@ export function mediaUrl(path?: string | null): string | undefined {
  * it as a blob and save that; if the fetch is blocked, open it in a new tab.
  */
 export async function downloadFile(url: string, fileName: string): Promise<void> {
+  const apiBase = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api').replace(/\/$/, '');
+  const apiOrigin = apiBase.replace(/\/api$/, '');
+  // Files in cloud storage: let the API hand back a signed "save as" link and
+  // let the browser stream it straight to disk. Fetching into memory first
+  // fails for videos and large files (and then they only open in a tab).
+  if (/^https?:\/\//i.test(url) && !url.startsWith(apiOrigin)) {
+    const a = document.createElement('a');
+    a.href = `${apiBase}/files/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(fileName)}`;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(String(res.status));

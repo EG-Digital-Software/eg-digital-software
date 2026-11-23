@@ -47,6 +47,19 @@ export interface StorageProvider {
   removePrefix(urlOrKeyPrefix: string): Promise<number>;
   /** The storage key behind a URL returned by save (raw keys pass through). */
   keyOf(urlOrKey: string): string;
+  /**
+   * A URL that makes the browser save a stored file under `fileName` instead of
+   * opening it, streamed straight from storage (any size, nothing buffered in
+   * the browser or the API). Null when `url` isn't one of our stored files.
+   */
+  downloadUrl(url: string, fileName: string): Promise<string | null>;
+}
+
+/** Content-Disposition that saves the file under its own name (non-ASCII safe). */
+export function attachmentDisposition(fileName: string): string {
+  const name = fileName.replace(/[\r\n"\\]/g, '_').slice(0, 200) || 'download';
+  const ascii = name.replace(/[^\x20-\x7e]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
 
 /** Store already-gzipped bytes and serve them with Content-Encoding: gzip. */
@@ -115,6 +128,12 @@ class LocalStorage implements StorageProvider {
   }
 
   async statUpload(): Promise<null> {
+    return null;
+  }
+
+  // Local files are served from the API origin, where the browser's own
+  // fetch-and-save works — no signed link needed.
+  async downloadUrl(): Promise<null> {
     return null;
   }
 }
@@ -257,6 +276,25 @@ class AzureBlobStorage implements StorageProvider {
       removed++;
     }
     return removed;
+  }
+
+  async downloadUrl(url: string, fileName: string): Promise<string | null> {
+    const base = `${this.container.url}/`;
+    if (!url.startsWith(base)) return null;
+    const blobName = decodeURIComponent(url.slice(base.length).split('?')[0]);
+    if (!blobName || blobName.split('/').includes('..')) return null;
+    const blob = this.container.getBlockBlobClient(blobName);
+    try {
+      // Read-only, this one blob, and long enough to finish a very large video.
+      return await blob.generateSasUrl({
+        permissions: BlobSASPermissions.parse('r'),
+        expiresOn: new Date(Date.now() + 6 * 60 * 60 * 1000),
+        contentDisposition: attachmentDisposition(fileName),
+      });
+    } catch (err) {
+      logger.warn({ err }, 'Could not sign a download URL — the file will open instead of saving');
+      return blob.url;
+    }
   }
 
   async createDirectUpload(key: string): Promise<{ uploadUrl: string; url: string } | null> {
