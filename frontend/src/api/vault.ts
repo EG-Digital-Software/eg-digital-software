@@ -71,6 +71,31 @@ export interface VaultInput {
   accessRoleIds?: string[];
 }
 
+export interface VaultBreach {
+  name: string;
+  domain: string | null;
+  logo: string | null;
+  description: string | null;
+  industry: string | null;
+  date: string | null;
+  records: number | null;
+  dataClasses: string[];
+  verified: boolean;
+  passwordRisk: string | null;
+  reference: string | null;
+  added: string | null;
+}
+
+export interface VaultSecurityCheck {
+  email: string;
+  checkedAt: string;
+  breaches: VaultBreach[];
+  pastes: number;
+  risk: { label: string; score: number } | null;
+  /** pwnedCount null = could not be checked. */
+  passwords: { entryId: string; name: string; pwnedCount: number | null }[];
+}
+
 type Unlock = { key: string; ttlSeconds: number };
 
 export const vaultApi = {
@@ -86,5 +111,7 @@ export const vaultApi = {
   reveal: async (id: string, kind: 'REVEALED' | 'COPIED') =>
     (await api.post<ApiEnvelope<{ password: string; notes: string | null }>>(`/vault/entries/${id}/reveal`, { kind }, h())).data
       .data,
+  securityCheck: async (email: string) =>
+    (await api.post<ApiEnvelope<VaultSecurityCheck>>('/vault/security-check', { email }, h())).data.data,
   remove: async (id: string) => (await api.delete<ApiEnvelope<{ id: string }>>(`/vault/entries/${id}`, h())).data.data,
 };

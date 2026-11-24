@@ -50,7 +50,7 @@ const entryBase = {
   url: opt(500),
   username: opt(200),
   password: z.string().min(1).max(500).optional(),
-  folder: z.enum(vault.FOLDERS),
+  folder: z.enum([...vault.FOLDERS, ...vault.RETIRED_FOLDERS]),
   notes: opt(4000),
   twoFactor: z.enum(vault.TWO_FACTOR).optional(),
   access: z.enum(vault.ACCESS).optional(),
@@ -60,6 +60,7 @@ const entryBase = {
 const createSchema = z.object({ ...entryBase, password: z.string().min(1, 'Password is required').max(500) });
 const updateSchema = z.object(entryBase).partial();
 const pinSchema = z.object({ pin: z.string().trim().min(1).max(12) });
+const checkSchema = z.object({ email: z.string().trim().toLowerCase().email('Enter a valid email address').max(254) });
 const revealSchema = z.object({ kind: z.enum(['REVEALED', 'COPIED']).default('REVEALED') });
 
 router.post(
@@ -87,6 +88,12 @@ router.patch(
   '/entries/:id',
   validate({ body: updateSchema }),
   asyncHandler(async (req, res) => ok(res, await vault.update(await unlocked(req), req.params.id, req.body), 'Login updated'))
+);
+// Have-I-Been-Pwned style check: the email's breaches + saved passwords found in leaks.
+router.post(
+  '/security-check',
+  validate({ body: checkSchema }),
+  asyncHandler(async (req, res) => ok(res, await vault.securityCheck(await unlocked(req), req.body.email)))
 );
 router.post(
   '/entries/:id/reveal',

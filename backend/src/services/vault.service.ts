@@ -28,7 +28,9 @@ const MAX_FAILS = 5;
 const FAIL_WINDOW_MS = 15 * 60_000;
 export const ROTATION_DAYS = 90;
 
-export const FOLDERS = ['Software', 'Hosting & domains', 'Banking & finance', 'Suppliers', 'Social media', 'Other'] as const;
+export const FOLDERS = ['Software', 'Hosting & domains', 'Suppliers', 'Social media', 'Other'] as const;
+/** No longer offered; still accepted so a login already filed there can be saved. */
+export const RETIRED_FOLDERS = ['Banking & finance'] as const;
 export const TWO_FACTOR = ['Off', 'Authenticator app', 'SMS', 'Email', 'Security key'] as const;
 export const ACCESS = ['ADMINS', 'TEAM', 'PICK'] as const;
 
@@ -43,7 +45,16 @@ export interface Actor {
   customerId?: string | null;
 }
 
-export type VaultAction = 'UNLOCKED' | 'PIN_FAILED' | 'REVEALED' | 'COPIED' | 'ADDED' | 'EDITED' | 'ROTATED' | 'DELETED';
+export type VaultAction =
+  | 'UNLOCKED'
+  | 'PIN_FAILED'
+  | 'REVEALED'
+  | 'COPIED'
+  | 'ADDED'
+  | 'EDITED'
+  | 'ROTATED'
+  | 'DELETED'
+  | 'SECURITY_CHECK';
 
 /* ─── unlock ──────────────────────────────────────────────── */
 
@@ -398,4 +409,136 @@ export async function remove(actor: Actor, id: string) {
   await log(actor, 'DELETED', entry);
   await prisma.vaultEntry.delete({ where: { id } });
   return { id };
+}
+
+/* ─── security check ──────────────────────────────────────── */
+
+const UA = 'EG-Vault-Security-Check';
+const BREACH_API = 'https://api.xposedornot.com/v1/breach-analytics';
+const PWNED_RANGE_API = 'https://api.pwnedpasswords.com/range/';
+
+export interface BreachInfo {
+  name: string;
+  domain: string | null;
+  logo: string | null;
+  description: string | null;
+  industry: string | null;
+  date: string | null;
+  records: number | null;
+  dataClasses: string[];
+  verified: boolean;
+  passwordRisk: string | null;
+  reference: string | null;
+  added: string | null;
+}
+
+/**
+ * Breaches an email address appears in, from XposedOrNot (free, no key) —
+ * the same kind of data Have I Been Pwned shows.
+ */
+async function emailBreaches(email: string) {
+  let res: Response;
+  try {
+    res = await fetch(`${BREACH_API}?email=${encodeURIComponent(email)}`, {
+      headers: { 'User-Agent': UA, Accept: 'application/json' },
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new ApiError(502, 'The breach lookup service did not respond — please try again');
+  }
+  if (res.status === 429) throw new ApiError(429, 'Too many checks right now — please wait a minute and try again');
+  if (res.status === 404) return { breaches: [] as BreachInfo[], pastes: 0, risk: null };
+  if (!res.ok) throw new ApiError(502, 'The breach lookup service is unavailable — please try again');
+  const j = (await res.json().catch(() => null)) as {
+    ExposedBreaches?: { breaches_details?: Record<string, unknown>[] } | null;
+    PastesSummary?: { cnt?: number } | null;
+    BreachMetrics?: { risk?: { risk_label?: string; risk_score?: number }[] } | null;
+  } | null;
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const breaches: BreachInfo[] = (j?.ExposedBreaches?.breaches_details ?? []).map((b) => ({
+    name: str(b.breach) ?? 'Unknown breach',
+    domain: str(b.domain),
+    logo: str(b.logo),
+    description: str(b.details),
+    industry: str(b.industry),
+    date: str(b.xposed_date) ?? (b.xposed_date != null ? String(b.xposed_date) : null),
+    records: typeof b.xposed_records === 'number' ? b.xposed_records : Number(b.xposed_records) || null,
+    dataClasses: (str(b.xposed_data) ?? '').split(';').map((s) => s.trim()).filter(Boolean),
+    verified: b.verified === 'Yes',
+    passwordRisk: str(b.password_risk),
+    reference: str(b.references),
+    added: str(b.added),
+  }));
+  // Newest first, like Have I Been Pwned.
+  breaches.sort((a, b) => (b.added ?? b.date ?? '').localeCompare(a.added ?? a.date ?? ''));
+  const risk = j?.BreachMetrics?.risk?.[0];
+  return {
+    breaches,
+    pastes: Number(j?.PastesSummary?.cnt) || 0,
+    risk: risk?.risk_label ? { label: risk.risk_label, score: Number(risk.risk_score) || 0 } : null,
+  };
+}
+
+/**
+ * How often a password appears in known leaks (Have I Been Pwned's free Pwned
+ * Passwords range API). Only the first 5 characters of its SHA-1 hash leave
+ * the server — never the password.
+ */
+async function pwnedCounts(passwords: string[]): Promise<(number | null)[]> {
+  const ranges = new Map<string, Promise<Map<string, number> | null>>();
+  const range = (prefix: string) => {
+    if (!ranges.has(prefix)) {
+      ranges.set(
+        prefix,
+        fetch(PWNED_RANGE_API + prefix, {
+          headers: { 'User-Agent': UA, 'Add-Padding': 'true' },
+          signal: AbortSignal.timeout(15_000),
+        })
+          .then(async (r) => {
+            if (!r.ok) return null;
+            const m = new Map<string, number>();
+            for (const line of (await r.text()).split('\n')) {
+              const [suffix, count] = line.trim().split(':');
+              if (suffix && count) m.set(suffix.toUpperCase(), Number(count));
+            }
+            return m;
+          })
+          .catch(() => null)
+      );
+    }
+    return ranges.get(prefix)!;
+  };
+  return Promise.all(
+    passwords.map(async (pw) => {
+      const sha = crypto.createHash('sha1').update(pw, 'utf8').digest('hex').toUpperCase();
+      const m = await range(sha.slice(0, 5));
+      return m ? (m.get(sha.slice(5)) ?? 0) : null;
+    })
+  );
+}
+
+export async function securityCheck(actor: Actor, email: string) {
+  const scope = await scopeFor(actor);
+  const entries = await prisma.vaultEntry.findMany({
+    where: scope.where,
+    select: { id: true, name: true, passwordEnc: true, customerId: true },
+    orderBy: { name: 'asc' },
+  });
+  const plain = entries.map((e) => decryptSecret(e.passwordEnc));
+  const [emailResult, counts] = await Promise.all([
+    emailBreaches(email),
+    pwnedCounts(plain.map((p) => p ?? '')),
+  ]);
+  await log(actor, 'SECURITY_CHECK', null);
+  return {
+    email,
+    checkedAt: new Date().toISOString(),
+    ...emailResult,
+    passwords: entries.map((e, i) => ({
+      entryId: e.id,
+      name: e.name,
+      // null = could not be checked (lookup failed or password unreadable).
+      pwnedCount: plain[i] === null ? null : counts[i],
+    })),
+  };
 }

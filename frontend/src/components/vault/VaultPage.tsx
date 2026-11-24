@@ -18,7 +18,16 @@ import {
   X,
 } from 'lucide-react';
 import { PageHeader } from '@/components/shared/misc';
-import { setVaultKey, vaultApi, type VaultAccess, type VaultEntry, type VaultInput, type VaultLogRow } from '@/api/vault';
+import {
+  setVaultKey,
+  vaultApi,
+  type VaultAccess,
+  type VaultEntry,
+  type VaultInput,
+  type VaultLogRow,
+  type VaultSecurityCheck,
+} from '@/api/vault';
+import { SecurityCheckDialog } from './SecurityCheckDialog';
 import { useAuth } from '@/store/auth';
 
 export type VaultPortal = 'admin' | 'team' | 'client';
@@ -66,6 +75,7 @@ const ACTION_TEXT: Record<string, string> = {
   EDITED: 'Login edited',
   ROTATED: 'Password changed',
   DELETED: 'Login deleted',
+  SECURITY_CHECK: 'Security check run',
 };
 
 const ACCESS_TEXT: Record<VaultAccess, string> = {
@@ -307,6 +317,14 @@ function UnlockedVault({ portal, eyebrow, description, myName, revealed, setReve
   const [copied, setCopied] = useState<string | null>(null);
   const [editing, setEditing] = useState<VaultEntry | 'new' | null>(null);
   const [showLog, setShowLog] = useState(false);
+  const [showCheck, setShowCheck] = useState(false);
+  const [check, setCheck] = useState<VaultSecurityCheck | null>(null);
+  /** entryId → times the saved password was seen in leaks (from the last check). */
+  const pwned = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of check?.passwords ?? []) if (p.pwnedCount) m.set(p.entryId, p.pwnedCount);
+    return m;
+  }, [check]);
 
   const items = useMemo(() => listQ.data?.items ?? [], [listQ.data]);
   const perms = listQ.data?.permissions;
@@ -474,10 +492,9 @@ function UnlockedVault({ portal, eyebrow, description, myName, revealed, setReve
         <button
           className="btn bg"
           type="button"
-          disabled={listQ.isFetching}
-          onClick={() => listQ.refetch().then(() => toast.success('Security check complete'))}
+          onClick={() => setShowCheck(true)}
         >
-          <RefreshCw /> {listQ.isFetching ? 'Checking…' : 'Run security check'}
+          <RefreshCw /> Run security check
         </button>
       </section>
 
@@ -653,6 +670,15 @@ function UnlockedVault({ portal, eyebrow, description, myName, revealed, setReve
                       </span>
                       <span>
                         <span className={badgeClass(e)}>{strengthLabel(e)}</span>
+                        {pwned.has(e.id) && (
+                          <span
+                            className="chip c-red"
+                            title={`Seen ${pwned.get(e.id)!.toLocaleString()} times in data leaks`}
+                            style={{ marginTop: 4, display: 'inline-flex' }}
+                          >
+                            Breached
+                          </span>
+                        )}
                       </span>
                       <span style={{ fontSize: 13 }}>
                         {fmtDate(e.passwordChangedAt)}
@@ -718,6 +744,19 @@ function UnlockedVault({ portal, eyebrow, description, myName, revealed, setReve
             });
             qc.invalidateQueries({ queryKey: ['vault'] });
           }}
+        />
+      )}
+      {showCheck && (
+        <SecurityCheckDialog
+          defaultEmail={check?.email ?? ''}
+          result={check}
+          onResult={(r) => {
+            setCheck(r);
+            listQ.refetch();
+            qc.invalidateQueries({ queryKey: ['vault', 'logs'] });
+          }}
+          onClose={() => setShowCheck(false)}
+          onLocked={onLocked}
         />
       )}
       {showLog && <LogDrawer onClose={() => setShowLog(false)} onLocked={onLocked} />}
@@ -1264,7 +1303,7 @@ function EntryDrawer({
           <label style={fieldLabel}>
             <span className="muted">Folder</span>
             <select className="inp" value={folder} onChange={(e) => setFolder(e.target.value)}>
-              {(meta?.folders ?? [folder]).map((f) => (
+              {[...(meta?.folders ?? []), ...(meta?.folders.includes(folder) ? [] : [folder])].map((f) => (
                 <option key={f}>{f}</option>
               ))}
             </select>
