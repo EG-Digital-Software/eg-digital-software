@@ -408,6 +408,7 @@ model Customer {
   socialCampaigns    SocialCampaignDaily[]
   socialPeriodValues SocialPeriodValue[]
   websiteShowcases   WebsiteShowcase[]
+  vaultEntries       VaultEntry[]
 
   @@index([status])
   @@index([businessType])
@@ -1542,4 +1543,58 @@ model WebsiteShowcase {
 
   @@index([customerId])
   @@index([taskId])
+}
+
+/// Password vault login. Eloma Group's own team logins (customerId null) or a
+/// client's logins (customerId set). Password and notes are AES-256-GCM
+/// encrypted with CREDENTIAL_ENC_KEY; passwordFp is a keyed fingerprint used
+/// only to spot reused passwords without decrypting.
+model VaultEntry {
+  id                String    @id @default(uuid())
+  customer          Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId        String?
+  name              String
+  url               String?
+  username          String?
+  passwordEnc       String
+  passwordFp        String
+  /// STRONG | FAIR | WEAK — scored when the password is saved.
+  strength          String
+  folder            String
+  notesEnc          String?
+  /// Off | Authenticator app | SMS | Email | Security key
+  twoFactor         String    @default("Off")
+  /// Company logins only: ADMINS | TEAM | PICK (pick = accessEmployeeIds + accessRoleIds).
+  access            String    @default("ADMINS")
+  accessEmployeeIds String[]  @default([])
+  accessRoleIds     String[]  @default([])
+  ownerName         String
+  createdById       String
+  createdByType     Role
+  passwordChangedAt DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  logs              VaultLog[]
+
+  @@index([customerId])
+}
+
+/// Vault access log: UNLOCKED, PIN_FAILED, REVEALED, COPIED, ADDED, EDITED,
+/// ROTATED, DELETED. Never stores the secret itself.
+model VaultLog {
+  id         String      @id @default(uuid())
+  entry      VaultEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  entryId    String?
+  entryName  String?
+  customerId String?
+  userId     String
+  userType   Role
+  userName   String
+  action     String
+  createdAt  DateTime    @default(now())
+
+  @@index([entryId])
+  @@index([customerId])
+  @@index([userId, action, createdAt])
+  @@index([createdAt])
 }

@@ -1,4 +1,4 @@
-import { Building2, ListChecks, User } from 'lucide-react';
+import { Building2, ListChecks, User, Vault } from 'lucide-react';
 import { employeeTaskApi } from '@/api/tasks';
 import { useBoardHasNewActivity } from '@/lib/taskSeen';
 import { PortalShell } from '@/components/layout/PortalShell';
@@ -39,6 +39,7 @@ export function EmployeeLayout() {
         { to: '/employee/tasks', label: 'Tasks', icon: ListChecks, activity: tasksDot },
         { to: '/employee/customers', label: 'Assigned Customers', icon: Building2 },
         ...granted,
+        { to: '/employee/vault', label: 'Vault', icon: Vault },
       ]}
       menuItems={[{ label: 'My Account', icon: User, to: '/employee/account' }]}
     />

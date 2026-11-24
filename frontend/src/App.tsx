@@ -39,6 +39,9 @@ const ClientInvoicesPage = lazy(() => import('@/pages/client/ClientInvoicesPage'
 const ClientInvoiceDetail = lazy(() => import('@/pages/client/ClientInvoiceDetail'));
 const ClientLicencesPage = lazy(() => import('@/pages/client/ClientLicencesPage'));
 const ClientDetailsPage = lazy(() => import('@/pages/client/ClientDetailsPage'));
+const AdminVaultPage = lazy(() => import('@/pages/vault/VaultPages').then((m) => ({ default: m.AdminVaultPage })));
+const TeamVaultPage = lazy(() => import('@/pages/vault/VaultPages').then((m) => ({ default: m.TeamVaultPage })));
+const ClientVaultPage = lazy(() => import('@/pages/vault/VaultPages').then((m) => ({ default: m.ClientVaultPage })));
 const ClientAgreementPage = lazy(() => import('@/pages/client/ClientAgreementPage'));
 const ClientTasksPage = lazy(() => import('@/pages/client/ClientTasksPage'));
 const AccountPage = lazy(() => import('@/pages/account/AccountPage'));
@@ -93,6 +96,7 @@ export default function App() {
                 <Route path="licences" element={<ClientLicencesPage />} />
                 <Route path="details" element={<ClientDetailsPage />} />
                 <Route path="agreement" element={<ClientAgreementPage />} />
+                <Route path="vault" element={<ClientVaultPage />} />
                 <Route path="account" element={<AccountPage />} />
               </Route>
             </Route>
@@ -103,6 +107,7 @@ export default function App() {
                 <Route index element={<Navigate to="/employee/tasks" replace />} />
                 <Route path="tasks" element={<EmployeeTasksPage />} />
                 <Route path="customers" element={<EmployeeCustomersPage />} />
+                <Route path="vault" element={<TeamVaultPage />} />
                 <Route path="account" element={<AccountPage />} />
               </Route>
             </Route>
@@ -152,6 +157,7 @@ export default function App() {
                 <Route element={<RequireTab />}>
                   <Route path="team" element={<TeamDashboardPage />} />
                   <Route path="approvals" element={<ApprovalsPage />} />
+                  <Route path="vault" element={<AdminVaultPage />} />
                   <Route path="marketing" element={<CompanyReportPage view="mkt" />} />
                   <Route path="cloud" element={<CompanyReportPage view="azure" />} />
                   <Route path="profile" element={<ProfilePage />} />

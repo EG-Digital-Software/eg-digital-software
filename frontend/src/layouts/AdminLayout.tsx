@@ -14,6 +14,7 @@ import {
   TrendingUp,
   User,
   Users,
+  Vault,
 } from 'lucide-react';
 import { adminApi } from '@/api/resources';
 import { useAdminTaskActivity } from '@/lib/taskSeen';
@@ -58,6 +59,7 @@ function SuperAdminLayout() {
         { to: '/admin/tasks', label: 'Tasks', icon: ListChecks, activity: tasksDot },
         { to: '/admin/billing', label: 'Billing', icon: Receipt },
         { to: '/admin/products', label: 'Products', icon: Package },
+        { to: '/admin/vault', label: 'Vault', icon: Vault },
         { to: '/admin/payments', label: 'Payments', icon: CreditCard },
         { to: '/admin/approvals', label: 'Approvals', icon: BadgeCheck, count: pending ?? 0, countTone: 'orange' },
         { to: '/admin/reports', label: 'Report', icon: BarChart3 },

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Box, Building2, FileSignature, Home, ListChecks, ReceiptText, User } from 'lucide-react';
+import { Box, Building2, FileSignature, Home, ListChecks, ReceiptText, User, Vault } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
 import { cn } from '@/lib/utils';
 import { CLIENT_TASK_SUMMARY_KEY, useClientTaskActivity } from '@/lib/taskSeen';
@@ -75,6 +75,7 @@ export function ClientLayout() {
         },
         { to: '/client/agreement', label: 'Agreements', icon: FileSignature, count: toSign, countTone: 'orange' },
         { to: '/client/details', label: 'Company', icon: Building2 },
+        { to: '/client/vault', label: 'Vault', icon: Vault },
       ]}
       menuStatus={
         status && (

@@ -13,6 +13,7 @@ import notificationRoutes from './notification.routes.js';
 import geoRoutes from './geo.routes.js';
 import abnRoutes from './abn.routes.js';
 import fileRoutes from './file.routes.js';
+import vaultRoutes from './vault.routes.js';
 import * as socialCtrl from '../controllers/social.controller.js';
 
 const router = Router();
@@ -39,5 +40,6 @@ router.use('/notifications', notificationRoutes);
 router.use('/geo', geoRoutes);
 router.use('/abn', abnRoutes);
 router.use('/files', fileRoutes);
+router.use('/vault', vaultRoutes);
 
 export default router;
