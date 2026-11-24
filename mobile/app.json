@@ -75,6 +75,7 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-sharing",
+      "./plugins/withOptionalScreenFeatures",
       [
         "expo-location",
         {
