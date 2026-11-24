@@ -14,6 +14,7 @@ import geoRoutes from './geo.routes.js';
 import abnRoutes from './abn.routes.js';
 import fileRoutes from './file.routes.js';
 import vaultRoutes from './vault.routes.js';
+import feedbackRoutes from './feedback.routes.js';
 import * as socialCtrl from '../controllers/social.controller.js';
 
 const router = Router();
@@ -41,5 +42,6 @@ router.use('/geo', geoRoutes);
 router.use('/abn', abnRoutes);
 router.use('/files', fileRoutes);
 router.use('/vault', vaultRoutes);
+router.use('/feedback', feedbackRoutes);
 
 export default router;

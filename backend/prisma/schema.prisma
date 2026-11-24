@@ -409,6 +409,8 @@ model Customer {
   socialPeriodValues SocialPeriodValue[]
   websiteShowcases   WebsiteShowcase[]
   vaultEntries       VaultEntry[]
+  taskFeedback       TaskFeedback[]
+  testimonials       Testimonial[]
 
   @@index([status])
   @@index([businessType])
@@ -913,6 +915,7 @@ model Task {
   contentPosts       ContentPost[]
   reportDashboards   ReportDashboard[]
   websiteShowcases   WebsiteShowcase[]
+  feedback           TaskFeedback?
 
   @@index([customerId])
   @@index([bucketId])
@@ -1597,4 +1600,63 @@ model VaultLog {
   @@index([customerId])
   @@index([userId, action, createdAt])
   @@index([createdAt])
+}
+
+// ─── Feedback & testimonials ──────────────────────────────
+
+/// A client's star review of one completed task. One per task. Status is the
+/// admin's decision on public use: NEW (with our team) | PUBLISHED | HIDDEN.
+/// displayAs is the client's choice: COMPANY | PERSON | PRIVATE (team only).
+model TaskFeedback {
+  id           String   @id @default(uuid())
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId       String   @unique
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId   String
+  clientUserId String
+  clientName   String
+  rating       Int
+  tags         String[] @default([])
+  comment      String?
+  displayAs    String   @default("COMPANY")
+  displayName  String?
+  status       String   @default("NEW")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+/// A client testimonial (words, optional photo / video). Nothing is used until
+/// the client approves the final wording. An admin edit is held in pendingQuote
+/// and the status goes WITH_CUSTOMER until the client accepts or declines it.
+/// Status: APPROVED | WITH_CUSTOMER | WITHDRAWN.
+/// uses: WEBSITE | PROPOSALS | SOCIAL | CASE_STUDY.
+model Testimonial {
+  id           String   @id @default(uuid())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId   String
+  clientUserId String
+  taskId       String?
+  problem      String?
+  change       String?
+  recommend    String?
+  quote        String
+  pendingQuote String?
+  personName   String
+  jobTitle     String?
+  companyName  String
+  photoUrl     String?
+  videoUrl     String?
+  videoSeconds Int?
+  uses         String[] @default([])
+  service      String?
+  status       String   @default("APPROVED")
+  featured     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
 }

@@ -41,6 +41,9 @@ const ClientLicencesPage = lazy(() => import('@/pages/client/ClientLicencesPage'
 const ClientDetailsPage = lazy(() => import('@/pages/client/ClientDetailsPage'));
 const AdminVaultPage = lazy(() => import('@/pages/vault/VaultPages').then((m) => ({ default: m.AdminVaultPage })));
 const TeamVaultPage = lazy(() => import('@/pages/vault/VaultPages').then((m) => ({ default: m.TeamVaultPage })));
+const ClientFeedbackPage = lazy(() => import('@/pages/feedback/ClientFeedbackPage'));
+const ShareTestimonialPage = lazy(() => import('@/pages/feedback/ShareTestimonialPage'));
+const AdminFeedbackPage = lazy(() => import('@/pages/feedback/AdminFeedbackPage'));
 const ClientVaultPage = lazy(() => import('@/pages/vault/VaultPages').then((m) => ({ default: m.ClientVaultPage })));
 const ClientAgreementPage = lazy(() => import('@/pages/client/ClientAgreementPage'));
 const ClientTasksPage = lazy(() => import('@/pages/client/ClientTasksPage'));
@@ -97,6 +100,8 @@ export default function App() {
                 <Route path="details" element={<ClientDetailsPage />} />
                 <Route path="agreement" element={<ClientAgreementPage />} />
                 <Route path="vault" element={<ClientVaultPage />} />
+                <Route path="feedback" element={<ClientFeedbackPage />} />
+                <Route path="feedback/testimonial" element={<ShareTestimonialPage />} />
                 <Route path="account" element={<AccountPage />} />
               </Route>
             </Route>
@@ -158,6 +163,7 @@ export default function App() {
                   <Route path="team" element={<TeamDashboardPage />} />
                   <Route path="approvals" element={<ApprovalsPage />} />
                   <Route path="vault" element={<AdminVaultPage />} />
+                  <Route path="feedback" element={<AdminFeedbackPage />} />
                   <Route path="marketing" element={<CompanyReportPage view="mkt" />} />
                   <Route path="cloud" element={<CompanyReportPage view="azure" />} />
                   <Route path="profile" element={<ProfilePage />} />

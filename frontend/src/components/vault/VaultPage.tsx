@@ -717,10 +717,7 @@ function UnlockedVault({ portal, eyebrow, description, myName, revealed, setReve
               }}
             />
           ) : (
-            <div className="muted" style={{ textAlign: 'center', padding: '40px 0' }}>
-              <VaultIcon size={28} style={{ margin: '0 auto 10px', display: 'block' }} />
-              Select a login to see its details.
-            </div>
+            <NoSelection onOpenLog={() => setShowLog(true)} onLocked={onLocked} />
           )}
         </aside>
       </div>
@@ -1075,7 +1072,18 @@ function LogLine({ l, withEntry }: { l: VaultLogRow; withEntry?: boolean }) {
 
 /* ─── drawers ────────────────────────────────────────────── */
 
-function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Sheet({
+  title,
+  onClose,
+  children,
+  popup,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  /** Centred popup instead of a side drawer. */
+  popup?: boolean;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -1092,15 +1100,19 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
         inset: 0,
         background: 'rgba(6, 13, 25, 0.5)',
         display: 'flex',
-        justifyContent: 'flex-end',
+        justifyContent: popup ? 'center' : 'flex-end',
+        alignItems: popup ? 'center' : 'stretch',
+        padding: popup ? 16 : 0,
         zIndex: 90,
       }}
     >
       <div
         style={{
           width: '100%',
-          maxWidth: 480,
-          height: '100%',
+          maxWidth: popup ? 620 : 480,
+          height: popup ? 'auto' : '100%',
+          maxHeight: popup ? 'min(80vh, 720px)' : undefined,
+          borderRadius: popup ? 16 : 0,
           overflowY: 'auto',
           background: 'var(--surf)',
           color: 'var(--fg)',
@@ -1108,7 +1120,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
           display: 'flex',
           flexDirection: 'column',
           gap: 16,
-          boxShadow: '-20px 0 60px -20px rgba(15, 35, 64, 0.5)',
+          boxShadow: popup ? '0 24px 80px -20px rgba(15, 35, 64, 0.6)' : '-20px 0 60px -20px rgba(15, 35, 64, 0.5)',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -1435,13 +1447,47 @@ function Picker({
   );
 }
 
+/** Detail panel before a login is picked: a prompt plus the vault's latest access log. */
+function NoSelection({ onOpenLog, onLocked }: { onOpenLog: () => void; onLocked: () => void }) {
+  const q = useQuery({ queryKey: ['vault', 'logs', 'all'], queryFn: () => vaultApi.logs(), retry: false });
+  useEffect(() => {
+    if (statusOf(q.error) === 423) onLocked();
+  }, [q.error, onLocked]);
+  const rows = q.data ?? [];
+  return (
+    <>
+      <div className="muted" style={{ textAlign: 'center', padding: '16px 0 4px' }}>
+        <VaultIcon size={28} style={{ margin: '0 auto 10px', display: 'block' }} />
+        Select a login to see its details.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span className="eyebrow">ACCESS LOG</span>
+        {q.isLoading ? (
+          <div className="skel" style={{ height: 120 }} />
+        ) : rows.length === 0 ? (
+          <span className="muted" style={{ fontSize: 13 }}>
+            No activity yet.
+          </span>
+        ) : (
+          rows.slice(0, 8).map((l) => <LogLine key={l.id} l={l} withEntry />)
+        )}
+      </div>
+      {rows.length > 0 && (
+        <button className="btn bg" type="button" onClick={onOpenLog}>
+          View full access log
+        </button>
+      )}
+    </>
+  );
+}
+
 function LogDrawer({ onClose, onLocked }: { onClose: () => void; onLocked: () => void }) {
   const q = useQuery({ queryKey: ['vault', 'logs', 'all'], queryFn: () => vaultApi.logs(), retry: false });
   useEffect(() => {
     if (statusOf(q.error) === 423) onLocked();
   }, [q.error, onLocked]);
   return (
-    <Sheet title="Access log" onClose={onClose}>
+    <Sheet title="Access log" onClose={onClose} popup>
       <p className="muted" style={{ margin: 0, fontSize: 13 }}>
         Every unlock, reveal, copy and change in the vault — newest first.
       </p>

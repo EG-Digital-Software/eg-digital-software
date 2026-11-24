@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Box, Building2, FileSignature, Home, ListChecks, ReceiptText, User, Vault } from 'lucide-react';
+import { Box, Building2, FileSignature, Home, ListChecks, MessageSquareHeart, ReceiptText, User, Vault } from 'lucide-react';
 import { clientApi } from '@/api/client-portal';
+import { feedbackApi } from '@/api/feedback';
 import { cn } from '@/lib/utils';
 import { CLIENT_TASK_SUMMARY_KEY, useClientTaskActivity } from '@/lib/taskSeen';
 import { PortalShell } from '@/components/layout/PortalShell';
@@ -30,6 +31,9 @@ export function ClientLayout() {
   });
   const openTasks = tasks?.filter((t) => t.progress !== 'COMPLETED').length ?? 0;
   const toSign = profile?.documents?.filter(needsSignature).length ?? 0;
+  // Completed tasks still waiting for a star review.
+  const { data: feedback } = useQuery({ queryKey: ['client', 'feedback'], queryFn: feedbackApi.client, enabled: !!profile });
+  const toReview = feedback?.ready.length ?? 0;
   const accountName = profile?.companyName?.trim() || profile?.contactPerson?.trim() || undefined;
   const country = profile?.registrationCountry
     ? (new Intl.DisplayNames(['en'], { type: 'region' }).of(profile.registrationCountry) ?? 'Australia')
@@ -74,6 +78,7 @@ export function ClientLayout() {
             : undefined,
         },
         { to: '/client/agreement', label: 'Agreements', icon: FileSignature, count: toSign, countTone: 'orange' },
+        { to: '/client/feedback', label: 'Feedback', icon: MessageSquareHeart, count: toReview, countTone: 'orange' },
         { to: '/client/details', label: 'Company', icon: Building2 },
         { to: '/client/vault', label: 'Vault', icon: Vault },
       ]}
