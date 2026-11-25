@@ -35,7 +35,7 @@ import { formatDay, formatSize, formatTime, isImage, sameDay } from '../lib/form
 import { fileUrl, type PickedFile } from '../api/tasks';
 import { useFileViewer } from '../lib/fileViewer';
 import { errorMessage } from '../api/client';
-import { colors, fonts } from '../theme';
+import { colors, fonts, page } from '../theme';
 import { initials } from '../lib/format';
 
 const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
@@ -295,6 +295,8 @@ export default function TaskChatScreen() {
       keyboardVerticalOffset={0}
     >
       <AppBar title={task.title} back />
+      {/* Tablets: the conversation keeps a readable width, centred. */}
+      <View style={[{ flex: 1 }, page]}>
       <View style={styles.sub}>
         <Muted size={13} numberOfLines={1}>
           {task.taskNumber} · {teamName(task)}
@@ -490,6 +492,7 @@ export default function TaskChatScreen() {
               }
         }
       />
+      </View>
     </KeyboardAvoidingView>
   );
 }

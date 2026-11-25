@@ -259,7 +259,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   brand: { flex: 1, minHeight: 300, alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 24 },
-  sheet: { backgroundColor: '#fff', paddingHorizontal: 22, paddingTop: 8 },
+  // Tablets: the form stays phone-width, centred.
+  sheet: { backgroundColor: '#fff', paddingHorizontal: 22, paddingTop: 8, width: '100%', maxWidth: 520, alignSelf: 'center' },
   label: { marginTop: 14, marginBottom: 6 },
   input: {
     minHeight: 50,

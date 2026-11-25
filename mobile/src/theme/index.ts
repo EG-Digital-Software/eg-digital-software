@@ -50,3 +50,11 @@ export const fonts = {
 };
 
 export const GUTTER = 18;
+
+/**
+ * Widest a page's content grows (iPad / large phones in landscape). Wider screens
+ * keep it centred; phones are narrower than this, so nothing changes there.
+ */
+export const PAGE_MAX = 760;
+/** Centred, width-capped column: spread into any page / list content style. */
+export const page = { width: '100%', maxWidth: PAGE_MAX, alignSelf: 'center' } as const;

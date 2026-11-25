@@ -23,9 +23,18 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "org.elomagroup.egdigital",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Choose photos and videos to share in task chats.",
-        "NSCameraUsageDescription": "Take photos to share in task chats."
+        "NSCameraUsageDescription": "Take photos to share in task chats.",
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       }
     },
     "android": {

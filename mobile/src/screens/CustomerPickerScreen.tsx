@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, FlatList, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, FlatList, Pressable, Alert, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -8,7 +8,7 @@ import { listCustomers } from '../api/portal';
 import { errorMessage } from '../api/client';
 import { displayName, useAuth } from '../context/AuthContext';
 import { Avatar, Bird, Btn, Card, ErrorBox, KeyboardSafe, Loading, Muted, SearchField, T, Toggle } from '../ui';
-import { colors, GUTTER } from '../theme';
+import { colors, GUTTER, PAGE_MAX } from '../theme';
 import type { CustomerSummary } from '../api/types';
 
 const label = (c: CustomerSummary) => c.companyName || c.contactPerson || c.clientId;
@@ -16,6 +16,7 @@ const label = (c: CustomerSummary) => c.companyName || c.contactPerson || c.clie
 /** Admin: choose which customer's portal to open (signed in from the logo). */
 export default function CustomerPickerScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const nav = useNavigation<any>();
   const { user, openCustomer, signOut } = useAuth();
   const [q, setQ] = useState('');
@@ -60,7 +61,7 @@ export default function CustomerPickerScreen() {
         data={list.data ?? []}
         keyExtractor={(c) => c.clientId}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: GUTTER, paddingBottom: insets.bottom + 24, gap: 10 }}
+        contentContainerStyle={{ padding: GUTTER, paddingBottom: insets.bottom + 24, gap: 10, paddingHorizontal: Math.max(GUTTER, (width - PAGE_MAX) / 2) }}
         ListHeaderComponent={
           <View style={{ gap: 12, marginBottom: 4 }}>
             <Muted size={14}>Signed in as admin · {displayName(user)}. Open a customer to see the app exactly as they do.</Muted>

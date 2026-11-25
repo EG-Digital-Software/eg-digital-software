@@ -7,6 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Bird, T, useKeyboardVisible, type IconName } from './ui';
 import { colors } from './theme';
 
+// Tablets: the tabs stay grouped in the middle instead of spreading edge to edge.
+const BAR_MAX = 560;
+
 export type TabMeta = Record<string, { label: string; icon: IconName; iconOn: IconName }>;
 
 /** The raised EG Eloma logo in the middle of the bar (web portal dock); opens the menu. */
@@ -58,6 +61,7 @@ export function TabBar({
       onLayout={center ? (e) => setWidth(e.nativeEvent.layout.width) : undefined}
     >
       {center && width ? <NotchLine width={width} /> : null}
+      <View style={styles.row}>
       {center ? items.slice(0, split) : items}
       {center ? (
         <View style={styles.fabSlot}>
@@ -73,6 +77,7 @@ export function TabBar({
         </View>
       ) : null}
       {center ? items.slice(split) : null}
+      </View>
     </View>
   );
 }
@@ -99,7 +104,8 @@ function NotchLine({ width }: { width: number }) {
 }
 
 const styles = StyleSheet.create({
-  nav: { flexDirection: 'row', paddingTop: 10, paddingHorizontal: 4, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line },
+  row: { flexDirection: 'row', width: '100%', maxWidth: BAR_MAX, alignSelf: 'center' },
+  nav: { paddingTop: 10, paddingHorizontal: 4, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line },
   item: { flex: 1, alignItems: 'center', gap: 4, minWidth: 0 },
   fabSlot: { width: 72, alignItems: 'center' },
   // Raised round logo button, as the web dock's centre button.

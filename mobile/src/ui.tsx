@@ -20,11 +20,12 @@ import {
   type ViewStyle,
   type TextStyle,
   type StyleProp,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, avatarFills, GUTTER } from './theme';
+import { colors, fonts, avatarFills, GUTTER, page } from './theme';
 import { useAuth } from './context/AuthContext';
 import { useNotificationCount } from './lib/portal';
 import { initials } from './lib/format';
@@ -482,6 +483,9 @@ export function Sheet({
   const insets = useSafeAreaInsets();
   const kb = useFocusedInputVisible();
   const keyboard = useKeyboardVisible();
+  // Tablets: a centred sheet instead of one stretched edge to edge.
+  const { width } = useWindowDimensions();
+  const side = width > 720 ? (width - 640) / 2 : 0;
   const body = scroll ? (
     <ScrollView {...kb.scrollProps} contentContainerStyle={{ paddingBottom: 8 }}>
       {children}
@@ -493,7 +497,7 @@ export function Sheet({
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <KeyboardSafe>
         <Pressable style={s.scrim} onPress={onClose} />
-        <View style={[s.sheet, { paddingBottom: keyboard ? 12 : Math.max(insets.bottom, 12) + 16 }]}>
+        <View style={[s.sheet, { left: side, right: side, paddingBottom: keyboard ? 12 : Math.max(insets.bottom, 12) + 16 }]}>
           <View style={s.grab} />
           {body}
         </View>
@@ -540,7 +544,7 @@ export function AppBar({ title, back }: { title: string; back?: boolean }) {
   const me = user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email : '';
   return (
     <View style={{ paddingTop: insets.top, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.line, zIndex: 5 }}>
-      <View style={s.abar}>
+      <View style={[s.abar, page]}>
         {back ? (
           <Pressable style={s.ibtn} onPress={() => nav.goBack()} accessibilityLabel="Back" hitSlop={4}>
             <Ionicons name="arrow-back" size={22} color={colors.fg} />
@@ -612,7 +616,10 @@ export function Screen({
           contentContainerStyle={{ paddingHorizontal: GUTTER, paddingTop: 12, paddingBottom: padBottom }}
           refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.navy} /> : undefined}
         >
-          <RevealContext.Provider value={kb.reveal}>{children}</RevealContext.Provider>
+          <RevealContext.Provider value={kb.reveal}>
+            {/* Width cap on an inner view, never on the scroll content container (iOS hit-testing). */}
+            <View style={page}>{children}</View>
+          </RevealContext.Provider>
         </ScrollView>
       </KeyboardSafe>
     </View>
