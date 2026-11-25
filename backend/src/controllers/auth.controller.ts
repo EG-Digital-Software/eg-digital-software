@@ -182,13 +182,16 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
   );
   // Every previous refresh token is now revoked, so this device needs the new
   // one — otherwise changing your password logged you out of your own session.
-  setRefreshCookie(res, result.refreshToken);
+  // The phone app keeps its refresh token in the body, like login and refresh.
+  const nativeApp = isNativeApp(req);
+  if (!nativeApp) setRefreshCookie(res, result.refreshToken);
   return ok(
     res,
     {
       user: result.user,
       accessToken: result.accessToken,
       sessionsRevoked: result.sessionsRevoked,
+      ...(nativeApp && { refreshToken: result.refreshToken }),
     },
     'Password updated'
   );

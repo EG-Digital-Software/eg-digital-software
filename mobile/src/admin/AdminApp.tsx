@@ -10,6 +10,12 @@ import * as dashboard from './dashboard';
 import * as customers from './customers';
 import * as tasks from './tasks';
 import * as billing from './billing';
+import * as team from './team';
+import * as products from './products';
+import * as vault from './vault';
+import * as feedback from './feedback';
+import * as company from './company';
+import * as settings from './settings';
 import AdminMoreScreen from './more/AdminMoreScreen';
 import AdminProfileScreen from './more/AdminProfileScreen';
 
@@ -60,4 +66,10 @@ export const adminRootScreens: AdminRoute[] = [
   ...customers.routes,
   ...tasks.routes,
   ...billing.routes,
+  ...team.routes,
+  ...products.routes,
+  ...vault.routes,
+  ...feedback.routes,
+  ...company.routes,
+  ...settings.routes,
 ];

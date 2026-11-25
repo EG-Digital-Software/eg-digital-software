@@ -17,16 +17,30 @@ export default function AdminMoreScreen() {
     {
       title: 'Manage',
       rows: [
-        { icon: 'checkmark-done-outline', title: 'Approvals', sub: 'Registrations and time sheet requests', go: () => nav.navigate('Approvals') },
+        { icon: 'people-outline', title: 'Team', sub: 'Members, roles and access', go: () => nav.navigate('Team') },
+        { icon: 'cube-outline', title: 'Products', sub: 'Catalogue, pricing and bulk upload', go: () => nav.navigate('ProductsHome') },
+        { icon: 'lock-closed-outline', title: 'Vault', sub: 'Saved passwords and logins', go: () => nav.navigate('Vault') },
+        { icon: 'chatbubble-ellipses-outline', title: 'Feedback', sub: 'Client reviews and testimonials', go: () => nav.navigate('Feedback') },
         { icon: 'card-outline', title: 'Payments', sub: 'Transactions and payment status', go: () => nav.navigate('Payments') },
-        { icon: 'eye-outline', title: 'View as client', sub: 'Open a customer’s app exactly as they see it', go: () => nav.navigate('CustomerPicker') },
+        { icon: 'checkmark-done-outline', title: 'Approvals', sub: 'Registrations and time sheet requests', go: () => nav.navigate('Approvals') },
+        { icon: 'eye-outline', title: 'Preview', sub: 'Open a customer’s app exactly as they see it', go: () => nav.navigate('CustomerPicker') },
+      ],
+    },
+    {
+      title: 'Insights',
+      rows: [
+        { icon: 'bar-chart-outline', title: 'Report', sub: 'Revenue, customers and payments', go: () => nav.navigate('Report') },
+        { icon: 'trending-up-outline', title: 'Marketing', sub: 'EG Eloma marketing report', go: () => nav.navigate('CompanyReport', { view: 'mkt' }) },
+        { icon: 'cloud-outline', title: 'Cloud', sub: 'Azure performance', go: () => nav.navigate('CompanyReport', { view: 'azure' }) },
       ],
     },
     {
       title: 'You',
       rows: [
         { icon: 'notifications-outline', title: 'Notifications', sub: 'Everything that needs your attention', go: () => nav.navigate('Notifications') },
-        { icon: 'person-outline', title: 'Profile & settings', sub: 'Phone notifications', go: () => nav.navigate('Profile') },
+        { icon: 'person-circle-outline', title: 'My Account', sub: 'Profile, password and access PIN', go: () => nav.navigate('AccountSettings') },
+        { icon: 'settings-outline', title: 'Settings', sub: 'Organisation details and access PINs', go: () => nav.navigate('Settings') },
+        { icon: 'phone-portrait-outline', title: 'This phone', sub: 'Phone notifications and fingerprint sign-in', go: () => nav.navigate('Profile') },
       ],
     },
   ];

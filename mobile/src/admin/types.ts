@@ -19,6 +19,9 @@ import type React from 'react';
  *   Approvals        —                                 — dashboard
  *   Notifications    —                                 — shared
  *   CustomerPicker   —                                 — shared ("View as client")
+ *   Team, ProductsHome, Vault, Feedback, Report       — More screen entries
+ *   CompanyReport    { view: 'mkt' | 'azure' }        — company (Marketing / Cloud)
+ *   Settings, AccountSettings { tab? }                — settings
  */
 export interface AdminRoute {
   name: string;
