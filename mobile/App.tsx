@@ -10,6 +10,7 @@ import { ScopeProvider } from './src/context/ScopeContext';
 import Navigation from './src/navigation';
 import { FileViewerProvider } from './src/lib/fileViewer';
 import { useAppUpdates } from './src/lib/appUpdates';
+import { AppLockProvider } from './src/lib/appLock';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5_000 } },
@@ -33,10 +34,12 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ScopeProvider>
-            <FileViewerProvider>
-              <StatusBar style="dark" />
-              <Navigation />
-            </FileViewerProvider>
+            <AppLockProvider>
+              <FileViewerProvider>
+                <StatusBar style="dark" />
+                <Navigation />
+              </FileViewerProvider>
+            </AppLockProvider>
           </ScopeProvider>
         </AuthProvider>
       </QueryClientProvider>

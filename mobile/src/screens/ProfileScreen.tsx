@@ -6,6 +6,7 @@ import { displayName, useAuth } from '../context/AuthContext';
 import { errorMessage } from '../api/client';
 import { countryLabel, useProfile } from '../lib/portal';
 import { pushEnabled, setPushEnabled } from '../lib/push';
+import { useAppLock } from '../lib/appLock';
 import { Avatar, Btn, Card, Eyebrow, KV, Muted, Screen, T, Toggle } from '../ui';
 import { colors } from '../theme';
 import { APP_VERSION, roleOf } from './ClientMenu';
@@ -48,6 +49,15 @@ export default function ProfileScreen() {
     }
   };
 
+  const lock = useAppLock();
+  const flipLock = async (on: boolean) => {
+    try {
+      await lock.setEnabled(on);
+    } catch (e) {
+      Alert.alert('App lock', errorMessage(e));
+    }
+  };
+
   // Push is per phone: switching it off removes this phone from the API.
   const [pushOn, setPushOn] = useState(true);
   useEffect(() => {
@@ -68,6 +78,7 @@ export default function ProfileScreen() {
     { t: 'Push notifications', d: 'New messages, signatures and invoices', on: pushOn, flip: (v) => void flipPush(v) },
     { t: 'Email updates', d: `A weekly summary to ${email || 'your email'}`, on: prefs.email, flip: (v) => setPref('email', v) },
     { t: `${bio.label} sign-in`, d: 'Skip the password on this phone', on: bio.enabled, flip: (v) => void flipBio(v), disabled: !!admin },
+    { t: 'App lock', d: `Ask for ${bio.label} every time the app opens`, on: lock.enabled, flip: (v) => void flipLock(v), disabled: !!admin },
   ];
 
   return (

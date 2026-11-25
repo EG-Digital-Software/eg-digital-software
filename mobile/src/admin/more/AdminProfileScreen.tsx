@@ -3,6 +3,7 @@ import { View, Alert } from 'react-native';
 import { displayName, useAuth } from '../../context/AuthContext';
 import { errorMessage } from '../../api/client';
 import { pushEnabled, setPushEnabled } from '../../lib/push';
+import { useAppLock } from '../../lib/appLock';
 import { Avatar, Btn, Card, Eyebrow, KV, Muted, Screen, T, Toggle } from '../../ui';
 import { colors } from '../../theme';
 
@@ -31,6 +32,14 @@ export default function AdminProfileScreen() {
       await setBioEnabled(on, 'SUPER_ADMIN');
     } catch (e) {
       Alert.alert(`${bio.label} sign-in`, errorMessage(e));
+    }
+  };
+  const lock = useAppLock();
+  const flipLock = async (on: boolean) => {
+    try {
+      await lock.setEnabled(on);
+    } catch (e) {
+      Alert.alert('App lock', errorMessage(e));
     }
   };
   const name = displayName(user);
@@ -63,6 +72,15 @@ export default function AdminProfileScreen() {
           <Muted size={12.5}>Skip the password for admin sign-in on this phone</Muted>
         </View>
         <Toggle value={bio.adminEnabled} onChange={(v) => void flipBio(v)} />
+      </Card>
+      <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13 }}>
+        <View style={{ flex: 1 }}>
+          <T w="s" size={14}>
+            App lock
+          </T>
+          <Muted size={12.5}>Ask for {bio.label} every time the app opens</Muted>
+        </View>
+        <Toggle value={lock.enabled} onChange={(v) => void flipLock(v)} />
       </Card>
       <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} style={{ marginTop: 20 }} />
     </Screen>
