@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/routes/ProtectedRoute';
 import { RequireTab, AdminHome } from '@/routes/RequireTab';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ClientLayout } from '@/layouts/ClientLayout';
+import { ClientPreviewGate } from '@/components/layout/ClientPreviewGate';
 import { EmployeeLayout } from '@/layouts/EmployeeLayout';
 import { TooltipProvider } from '@/components/ui/misc';
 import { LoadingBlock } from '@/components/shared/states';
@@ -99,9 +100,11 @@ export default function App() {
                 <Route path="licences" element={<ClientLicencesPage />} />
                 <Route path="details" element={<ClientDetailsPage />} />
                 <Route path="agreement" element={<ClientAgreementPage />} />
-                <Route path="vault" element={<ClientVaultPage />} />
-                <Route path="feedback" element={<ClientFeedbackPage />} />
-                <Route path="feedback/testimonial" element={<ShareTestimonialPage />} />
+                <Route element={<ClientPreviewGate />}>
+                  <Route path="vault" element={<ClientVaultPage />} />
+                  <Route path="feedback" element={<ClientFeedbackPage />} />
+                  <Route path="feedback/testimonial" element={<ShareTestimonialPage />} />
+                </Route>
                 <Route path="account" element={<AccountPage />} />
               </Route>
             </Route>

@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { requirePreviewClient } from '../middleware/previewClient.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
 import { findById } from '../services/accounts.js';
@@ -16,6 +17,8 @@ import * as vault from '../services/vault.service.js';
  */
 const router = Router();
 router.use(authenticate, authorize(Role.SUPER_ADMIN, Role.EMPLOYEE, Role.CLIENT));
+// Client vault is a preview section — only the demo client gets in.
+router.use(requirePreviewClient);
 
 // An admin viewing a client's portal uses their own admin vault instead.
 router.use((req, _res, next) => {

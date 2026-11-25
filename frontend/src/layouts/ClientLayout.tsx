@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { CLIENT_TASK_SUMMARY_KEY, useClientTaskActivity } from '@/lib/taskSeen';
 import { PortalShell } from '@/components/layout/PortalShell';
 import { needsSignature } from '@/lib/agreements';
+import { canSeePreview, PREVIEW_LOCKED_REASON } from '@/lib/clientPreview';
 
 // Account status → label + dot shown in the account menu.
 const ACCOUNT_STATUS: Record<string, { label: string; dot: string }> = {
@@ -32,7 +33,10 @@ export function ClientLayout() {
   const openTasks = tasks?.filter((t) => t.progress !== 'COMPLETED').length ?? 0;
   const toSign = profile?.documents?.filter(needsSignature).length ?? 0;
   // Completed tasks still waiting for a star review.
-  const { data: feedback } = useQuery({ queryKey: ['client', 'feedback'], queryFn: feedbackApi.client, enabled: !!profile });
+  // Feedback & Vault are preview sections — open only for the demo client.
+  const preview = canSeePreview(profile?.clientId);
+  const previewLock = profile && !preview ? PREVIEW_LOCKED_REASON : undefined;
+  const { data: feedback } = useQuery({ queryKey: ['client', 'feedback'], queryFn: feedbackApi.client, enabled: preview });
   const toReview = feedback?.ready.length ?? 0;
   const accountName = profile?.companyName?.trim() || profile?.contactPerson?.trim() || undefined;
   const country = profile?.registrationCountry
@@ -78,9 +82,9 @@ export function ClientLayout() {
             : undefined,
         },
         { to: '/client/agreement', label: 'Agreements', icon: FileSignature, count: toSign, countTone: 'orange' },
-        { to: '/client/feedback', label: 'Feedback', icon: MessageSquareHeart, count: toReview, countTone: 'orange' },
+        { to: '/client/feedback', label: 'Feedback', icon: MessageSquareHeart, count: toReview, countTone: 'orange', lockedReason: previewLock },
         { to: '/client/details', label: 'Company', icon: Building2 },
-        { to: '/client/vault', label: 'Vault', icon: Vault },
+        { to: '/client/vault', label: 'Vault', icon: Vault, lockedReason: previewLock },
       ]}
       menuStatus={
         status && (

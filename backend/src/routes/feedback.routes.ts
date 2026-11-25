@@ -5,6 +5,7 @@ import { Role } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { requirePreviewClient } from '../middleware/previewClient.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { ApiError } from '../utils/ApiError.js';
 import { findById } from '../services/accounts.js';
@@ -62,6 +63,8 @@ const testimonialSchema = z.object({
 
 const client = Router();
 client.use(authenticate, authorize(Role.CLIENT));
+// Client feedback is a preview section — only the demo client gets in.
+client.use(requirePreviewClient);
 // An admin viewing the portal is read-only unless they opened it in Edit mode.
 client.use((req: Request, _res: Response, next: NextFunction) => {
   if (req.user?.imp && !req.user.edit && req.method !== 'GET') {
