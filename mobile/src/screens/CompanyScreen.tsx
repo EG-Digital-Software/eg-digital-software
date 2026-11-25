@@ -6,7 +6,7 @@ import { ADDRESS_LABEL, addressLine, formatAbn, formatAcn, prettyEnum, useProfil
 import { initials } from '../lib/format';
 import { Avatar, Btn, Card, ErrorBox, KV, Loading, Muted, Pill, Screen, SectionHead, T } from '../ui';
 import { colors } from '../theme';
-import { roleOf } from './MoreScreen';
+import { roleOf } from './ClientMenu';
 
 const ACCOUNT_PILL: Record<string, { kind: 'ok' | 'warn' | 'ns' | 'red'; label: string }> = {
   ACTIVE: { kind: 'ok', label: 'Active' },

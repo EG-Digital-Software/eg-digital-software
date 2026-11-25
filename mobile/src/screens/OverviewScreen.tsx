@@ -95,7 +95,7 @@ export default function OverviewScreen() {
         {toSign > 0 ? (
           <Btn title="Review and sign" onPress={() => go('Agreements')} />
         ) : owed > 0 ? (
-          <Btn title="View invoices" onPress={() => go('More', 'Invoices')} />
+          <Btn title="View invoices" onPress={() => nav.navigate('Invoices')} />
         ) : (
           <Btn title="View tasks" onPress={() => go('Tasks')} />
         )}
@@ -105,7 +105,7 @@ export default function OverviewScreen() {
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
         <Quick icon="create-outline" bg={colors.warnBg} fg="#B86E00" title="Sign" sub={`${toSign} waiting`} onPress={() => go('Agreements')} />
         <Quick icon="list-outline" bg={colors.onBg} fg={colors.onFg} title="Tasks" sub={`${unreadTasks} unread`} onPress={() => go('Tasks')} />
-        <Quick icon="document-text-outline" bg={colors.greenSoft} fg={colors.green} title="Invoices" sub={owedText} onPress={() => go('More', 'Invoices')} />
+        <Quick icon="document-text-outline" bg={colors.greenSoft} fg={colors.green} title="Invoices" sub={owedText} onPress={() => nav.navigate('Invoices')} />
         <Quick
           icon="chatbubble-outline"
           bg={colors.soft}
@@ -117,7 +117,7 @@ export default function OverviewScreen() {
       </View>
 
       {/* Contracts and renewals */}
-      <SectionHead title="Contracts and renewals" action="Manage" onAction={() => go('More', 'Products')} />
+      <SectionHead title="Contracts and renewals" action="Manage" onAction={() => nav.navigate('Products')} />
       <Card>
         <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 }}>
           {licences.length ? (

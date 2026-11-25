@@ -556,7 +556,7 @@ export function AppBar({ title, back }: { title: string; back?: boolean }) {
           {unread > 0 ? <View style={s.dotb} /> : null}
         </Pressable>
         <Pressable
-          onPress={() => nav.navigate('Main', { screen: 'More', params: { screen: 'Profile', initial: false } })}
+          onPress={() => nav.navigate('Profile')}
           accessibilityLabel="Your profile"
           style={{ marginRight: 6 }}
         >

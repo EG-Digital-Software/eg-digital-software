@@ -1,18 +1,20 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { displayName, useAuth } from '../../context/AuthContext';
-import { Avatar, Btn, Card, Eyebrow, Muted, Screen, T, type IconName } from '../../ui';
+import { Avatar, Btn, Card, Eyebrow, Muted, T, type IconName } from '../../ui';
 import { colors } from '../../theme';
-import { APP_VERSION } from '../../screens/MoreScreen';
+import { APP_VERSION } from '../../screens/ClientMenu';
 
 type Row = { icon: IconName; title: string; sub: string; go: () => void };
 
-/** Admin "More": the screens that don't get a tab of their own. */
-export default function AdminMoreScreen() {
-  const nav = useNavigation<any>();
+/**
+ * Admin menu, opened from the logo in the middle of the tab bar: every screen
+ * that doesn't get a tab of its own. `go` closes the menu and opens the screen.
+ */
+export default function AdminMenu({ go, onClose }: { go: (name: string, params?: object) => void; onClose: () => void }) {
   const { user, signOut } = useAuth();
+  const nav = { navigate: go };
   const groups: { title: string; rows: Row[] }[] = [
     {
       title: 'Manage',
@@ -46,7 +48,7 @@ export default function AdminMoreScreen() {
   ];
 
   return (
-    <Screen title="More">
+    <View>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 }}>
         <Avatar name={displayName(user)} size={48} fill={colors.navy} color="#fff" />
         <View style={{ flex: 1 }}>
@@ -81,10 +83,18 @@ export default function AdminMoreScreen() {
         </View>
       ))}
 
-      <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} style={{ marginTop: 20 }} />
+      <Btn
+        title="Sign out"
+        variant="ghost"
+        onPress={() => {
+          onClose();
+          void signOut();
+        }}
+        style={{ marginTop: 20 }}
+      />
       <Muted size={12} style={{ textAlign: 'center', marginTop: 14 }}>
         EG Eloma app v{APP_VERSION} · Admin
       </Muted>
-    </Screen>
+    </View>
   );
 }

@@ -132,7 +132,8 @@ export async function unregisterPush() {
 export type PushTarget =
   | { name: 'Thread'; params: { taskId: string; clientId?: string } }
   | { name: 'Main'; params: { screen: string; params?: object } }
-  | { name: 'Notifications' };
+  | { name: 'Notifications' }
+  | { name: 'Invoices' };
 
 export function targetOf(data: Record<string, unknown> | undefined): PushTarget | null {
   const type = String(data?.type ?? '');
@@ -144,7 +145,7 @@ export function targetOf(data: Record<string, unknown> | undefined): PushTarget 
   if (entityType === 'task' && id) return { name: 'Thread', params: { taskId: id, clientId } };
   if (entityType === 'document' || type === 'AGREEMENT') return { name: 'Main', params: { screen: 'Agreements' } };
   if (entityType === 'invoice' || /invoice/i.test(type)) {
-    return { name: 'Main', params: { screen: 'More', params: { screen: 'Invoices', initial: false } } };
+    return { name: 'Invoices' };
   }
   return { name: 'Notifications' };
 }

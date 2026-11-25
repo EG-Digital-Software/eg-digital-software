@@ -1,11 +1,10 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { displayName, useAuth } from '../context/AuthContext';
 import { SUPPORT_PHONE, countryLabel, useProfile } from '../lib/portal';
 import { initials } from '../lib/format';
-import { Avatar, Btn, Card, KV, Muted, Screen, T } from '../ui';
+import { Avatar, Btn, Card, KV, Muted, T } from '../ui';
 import { colors } from '../theme';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -15,8 +14,12 @@ export function roleOf(position?: string | null) {
   return position?.trim() || 'Owner';
 }
 
-export default function MoreScreen() {
-  const nav = useNavigation<any>();
+/**
+ * Client menu, opened from the logo in the middle of the tab bar (the old More
+ * tab). `go` closes the menu and opens the screen.
+ */
+export default function ClientMenu({ go, onClose }: { go: (name: string) => void; onClose: () => void }) {
+  const nav = { navigate: go };
   const { user, admin, signOut, exitCustomer } = useAuth();
   const profile = useProfile();
   const p = profile.data;
@@ -30,7 +33,7 @@ export default function MoreScreen() {
   ];
 
   return (
-    <Screen title="More" refreshing={profile.isRefetching} onRefresh={() => void profile.refetch()}>
+    <View>
       <Card style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Avatar label={initials(company)} size={52} radius={14} fill={colors.navy} color="#fff" />
         <View style={{ flex: 1 }}>
@@ -71,11 +74,22 @@ export default function MoreScreen() {
 
       <KV style={{ marginTop: 16 }} rows={[['Country', countryLabel(p?.registrationCountry)], ['Support', SUPPORT_PHONE]]} />
 
-      {admin ? <Btn title="Switch customer" variant="ghost" icon="swap-horizontal" onPress={exitCustomer} style={{ marginTop: 16 }} /> : null}
-      <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} style={{ marginTop: 16 }} />
+      {admin ? <Btn title="Switch customer" variant="ghost" icon="swap-horizontal" onPress={() => {
+            onClose();
+            exitCustomer();
+          }} style={{ marginTop: 16 }} /> : null}
+      <Btn
+        title="Sign out"
+        variant="ghost"
+        onPress={() => {
+          onClose();
+          void signOut();
+        }}
+        style={{ marginTop: 16 }}
+      />
       <Muted size={12} style={{ textAlign: 'center', marginTop: 14 }}>
         EG Eloma Client Portal · Eloma Group · v{APP_VERSION}
       </Muted>
-    </Screen>
+    </View>
   );
 }

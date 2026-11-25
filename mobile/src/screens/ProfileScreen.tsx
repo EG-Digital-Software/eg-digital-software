@@ -8,7 +8,7 @@ import { countryLabel, useProfile } from '../lib/portal';
 import { pushEnabled, setPushEnabled } from '../lib/push';
 import { Avatar, Btn, Card, Eyebrow, KV, Muted, Screen, T, Toggle } from '../ui';
 import { colors } from '../theme';
-import { APP_VERSION, roleOf } from './MoreScreen';
+import { APP_VERSION, roleOf } from './ClientMenu';
 
 type Prefs = { push: boolean; email: boolean };
 const PREFS_KEY = (id: string) => `eg:prefs:${id}`;

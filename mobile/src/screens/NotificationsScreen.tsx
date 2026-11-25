@@ -35,8 +35,8 @@ function target(n: AppNotification, admin: boolean): { name: string; params?: ob
   const task = /[?&]task=([0-9a-f-]+)/i.exec(link) ?? /tasks\/([0-9a-f-]{36})/i.exec(link);
   if (task) return { name: 'Thread', params: { taskId: task[1] } };
   if (/agreement|document/i.test(link)) return { name: 'Main', params: { screen: 'Agreements' } };
-  if (/invoice|billing/i.test(link)) return { name: 'Main', params: { screen: 'More', params: { screen: 'Invoices', initial: false } } };
-  if (/licen|product/i.test(link)) return { name: 'Main', params: { screen: 'More', params: { screen: 'Products', initial: false } } };
+  if (/invoice|billing/i.test(link)) return { name: 'Invoices' };
+  if (/licen|product/i.test(link)) return { name: 'Products' };
   if (/task/i.test(link)) return { name: 'Main', params: { screen: 'Tasks' } };
   return null;
 }

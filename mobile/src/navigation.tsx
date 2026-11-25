@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -15,7 +15,7 @@ import { useAuth } from './context/AuthContext';
 import { useBoard } from './lib/queries';
 import { unreadCount, useSeenVersion } from './lib/seen';
 import { needsSignature, useProfile } from './lib/portal';
-import { Bird, T, useKeyboardVisible, type IconName } from './ui';
+import { Bird, Sheet, T, useKeyboardVisible, type IconName } from './ui';
 import { colors } from './theme';
 
 import LoginScreen from './screens/LoginScreen';
@@ -26,7 +26,7 @@ import ChatsScreen from './screens/ChatsScreen';
 import TaskChatScreen from './screens/TaskChatScreen';
 import AgreementsScreen from './screens/AgreementsScreen';
 import AgreementViewerScreen from './screens/AgreementViewerScreen';
-import MoreScreen from './screens/MoreScreen';
+import ClientMenu from './screens/ClientMenu';
 import ProductsScreen from './screens/ProductsScreen';
 import InvoicesScreen from './screens/InvoicesScreen';
 import CompanyScreen from './screens/CompanyScreen';
@@ -36,7 +36,6 @@ import NotificationsScreen from './screens/NotificationsScreen';
 const Root = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const TasksStack = createNativeStackNavigator();
-const MoreStack = createNativeStackNavigator();
 
 const plain = { headerShown: false, contentStyle: { backgroundColor: '#fff' } } as const;
 
@@ -49,24 +48,11 @@ function TasksNav() {
   );
 }
 
-function MoreNav() {
-  return (
-    <MoreStack.Navigator screenOptions={plain}>
-      <MoreStack.Screen name="MoreHome" component={MoreScreen} />
-      <MoreStack.Screen name="Products" component={ProductsScreen} />
-      <MoreStack.Screen name="Invoices" component={InvoicesScreen} />
-      <MoreStack.Screen name="Company" component={CompanyScreen} />
-      <MoreStack.Screen name="Profile" component={ProfileScreen} />
-    </MoreStack.Navigator>
-  );
-}
-
 const TABS: Record<string, { label: string; icon: IconName; iconOn: IconName }> = {
   Overview: { label: 'Overview', icon: 'home-outline', iconOn: 'home' },
   Tasks: { label: 'Tasks', icon: 'list-outline', iconOn: 'list' },
   Chats: { label: 'Chats', icon: 'chatbubble-outline', iconOn: 'chatbubble' },
   Agreements: { label: 'Agreements', icon: 'create-outline', iconOn: 'create' },
-  More: { label: 'More', icon: 'menu-outline', iconOn: 'menu' },
 };
 
 function NavBar(props: BottomTabBarProps) {
@@ -82,7 +68,20 @@ function NavBar(props: BottomTabBarProps) {
     Chats: [unreadMsgs, colors.red],
     Agreements: [toSign, colors.amber],
   };
-  return <TabBar {...props} tabs={TABS} badges={badges} />;
+  // The logo in the middle opens the menu (Products, Invoices, Company, Profile).
+  const [menu, setMenu] = useState(false);
+  const go = (name: string) => {
+    setMenu(false);
+    props.navigation.navigate(name);
+  };
+  return (
+    <>
+      <TabBar {...props} tabs={TABS} badges={badges} center={{ onPress: () => setMenu(true), open: menu }} />
+      <Sheet open={menu} onClose={() => setMenu(false)}>
+        <ClientMenu go={go} onClose={() => setMenu(false)} />
+      </Sheet>
+    </>
+  );
 }
 
 function Tabs() {
@@ -92,7 +91,6 @@ function Tabs() {
       <Tab.Screen name="Tasks" component={TasksNav} />
       <Tab.Screen name="Chats" component={ChatsScreen} />
       <Tab.Screen name="Agreements" component={AgreementsScreen} />
-      <Tab.Screen name="More" component={MoreNav} />
     </Tab.Navigator>
   );
 }
@@ -154,7 +152,7 @@ function usePushNotifications(signedIn: boolean, accountKey: string | null) {
       return;
     }
     pending.current = null;
-    if (target.name === 'Notifications') navRef.navigate('Notifications');
+    if (target.name === 'Notifications' || target.name === 'Invoices') navRef.navigate(target.name);
     else navRef.navigate(target.name, target.params);
   };
 
@@ -223,6 +221,10 @@ export default function Navigation() {
             <Root.Screen name="AgreementSign" component={AgreementViewerScreen} />
             <Root.Screen name="AgreementPreview" component={AgreementViewerScreen} />
             <Root.Screen name="Notifications" component={NotificationsScreen} />
+            <Root.Screen name="Products" component={ProductsScreen} />
+            <Root.Screen name="Invoices" component={InvoicesScreen} />
+            <Root.Screen name="Company" component={CompanyScreen} />
+            <Root.Screen name="Profile" component={ProfileScreen} />
           </>
         )}
       </Root.Navigator>
