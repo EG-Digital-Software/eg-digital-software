@@ -24,13 +24,13 @@ export default function AdminProfileScreen() {
   };
   const flipBio = async (on: boolean) => {
     if (on && !bio.available) {
-      Alert.alert('Fingerprint not set up', 'Add a fingerprint in your phone’s settings first.');
+      Alert.alert(`${bio.label} not set up`, `Set up ${bio.label} in your phone’s settings first.`);
       return;
     }
     try {
       await setBioEnabled(on, 'SUPER_ADMIN');
     } catch (e) {
-      Alert.alert('Fingerprint sign-in', errorMessage(e));
+      Alert.alert(`${bio.label} sign-in`, errorMessage(e));
     }
   };
   const name = displayName(user);
@@ -58,7 +58,7 @@ export default function AdminProfileScreen() {
       <Card style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13 }}>
         <View style={{ flex: 1 }}>
           <T w="s" size={14}>
-            Fingerprint sign-in
+            {bio.label} sign-in
           </T>
           <Muted size={12.5}>Skip the password for admin sign-in on this phone</Muted>
         </View>

@@ -13,7 +13,7 @@ type Row = { icon: IconName; title: string; sub: string; go: () => void };
  * that doesn't get a tab of its own. `go` closes the menu and opens the screen.
  */
 export default function AdminMenu({ go, onClose }: { go: (name: string, params?: object) => void; onClose: () => void }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, bio } = useAuth();
   const nav = { navigate: go };
   const groups: { title: string; rows: Row[] }[] = [
     {
@@ -42,7 +42,7 @@ export default function AdminMenu({ go, onClose }: { go: (name: string, params?:
         { icon: 'notifications-outline', title: 'Notifications', sub: 'Everything that needs your attention', go: () => nav.navigate('Notifications') },
         { icon: 'person-circle-outline', title: 'My Account', sub: 'Profile, password and access PIN', go: () => nav.navigate('AccountSettings') },
         { icon: 'settings-outline', title: 'Settings', sub: 'Organisation details and access PINs', go: () => nav.navigate('Settings') },
-        { icon: 'phone-portrait-outline', title: 'This phone', sub: 'Phone notifications and fingerprint sign-in', go: () => nav.navigate('Profile') },
+        { icon: 'phone-portrait-outline', title: 'This phone', sub: `Phone notifications and ${bio.label} sign-in`, go: () => nav.navigate('Profile') },
       ],
     },
   ];

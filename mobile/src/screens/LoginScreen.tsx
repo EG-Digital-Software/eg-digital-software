@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, TextInput, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth, type LoginChallenge, type Portal } from '../context/AuthContext';
+import { takeBioLaunchPrompt, useAuth, type LoginChallenge, type Portal } from '../context/AuthContext';
 import { errorMessage, request } from '../api/client';
 import { Bird, Btn, KeyboardSafe, Muted, Pill, T, useFocusedInputVisible } from '../ui';
 import { colors, fonts } from '../theme';
@@ -24,7 +24,7 @@ function Dots() {
 }
 
 export default function LoginScreen() {
-  const { signIn, verifyOtp, resendOtp, signInWithBio } = useAuth();
+  const { signIn, verifyOtp, resendOtp, signInWithBio, bio } = useAuth();
   const insets = useSafeAreaInsets();
   // Tapping the logo reveals the admin sign-in (the app itself is the client portal).
   const [portal, setPortal] = useState<Portal>('CLIENT');
@@ -100,17 +100,28 @@ export default function LoginScreen() {
     }
   };
 
-  const onBio = async () => {
+  const onBio = async (which: Portal = portal) => {
     setError(null);
     setBioLoading(true);
     try {
-      await signInWithBio(portal);
+      await signInWithBio(which);
     } catch (e) {
-      setError(errorMessage(e, 'Fingerprint sign-in failed'));
+      setError(errorMessage(e, `${bio.label} sign-in failed`));
     } finally {
       setBioLoading(false);
     }
   };
+
+  // App just opened and biometric sign-in is on: ask for Face ID / fingerprint straight away.
+  useEffect(() => {
+    if (!bio.checked || !takeBioLaunchPrompt() || !bio.available) return;
+    const which: Portal | null = bio.enabled && bio.saved ? 'CLIENT' : bio.adminEnabled && bio.adminSaved ? 'SUPER_ADMIN' : null;
+    if (!which) return;
+    setPortal(which);
+    void onBio(which);
+    // Runs once, when the phone's biometric state is first known.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bio.checked]);
 
   const onReset = async () => {
     if (!email.includes('@')) {
@@ -237,7 +248,16 @@ export default function LoginScreen() {
               </View>
               {error ? <T size={14} color={colors.red} style={{ marginTop: 10 }}>{error}</T> : null}
               <Btn title="Sign in" onPress={onSubmit} loading={loading} style={{ marginTop: 20 }} />
-              <Btn title="Sign in with fingerprint" variant="ghost" onPress={onBio} loading={bioLoading} style={{ marginTop: 10 }} />
+              {bio.available ? (
+                <Btn
+                  title={`Sign in with ${bio.label}`}
+                  icon={bio.face ? 'scan-outline' : 'finger-print-outline'}
+                  variant="ghost"
+                  onPress={() => void onBio()}
+                  loading={bioLoading}
+                  style={{ marginTop: 10 }}
+                />
+              ) : null}
               {isAdmin ? (
                 <Btn title="Back to client sign-in" variant="ghost" onPress={toggleAdmin} style={{ marginTop: 10 }} />
               ) : null}

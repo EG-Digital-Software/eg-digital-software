@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import {
   ApiError,
   api,
@@ -52,8 +53,12 @@ interface AuthState {
   openCustomer: (clientId: string, companyName: string, edit: boolean) => Promise<void>;
   /** Admin: leave the customer's portal and pick another. */
   exitCustomer: () => void;
-  /** Fingerprint sign-in (this phone only), kept separately for the client and admin sign-ins. */
-  bio: { available: boolean; enabled: boolean; saved: boolean; adminEnabled: boolean; adminSaved: boolean };
+  /**
+   * Biometric sign-in (this phone only), kept separately for the client and admin
+   * sign-ins. `label` is what the phone calls it (Face ID, Touch ID, Fingerprint…);
+   * `checked` turns true once the phone has been asked.
+   */
+  bio: Bio;
   setBioEnabled: (on: boolean, portal?: Portal) => Promise<void>;
   signInWithBio: (portal?: Portal) => Promise<void>;
 }
@@ -72,7 +77,48 @@ const BIO_ADMIN_ON_KEY = 'eg.bio.admin.on';
 const BIO_ADMIN_TOKEN_KEY = 'eg.bio.admin.token';
 const bioKeys = (portal: Portal) =>
   portal === 'SUPER_ADMIN' ? { on: BIO_ADMIN_ON_KEY, token: BIO_ADMIN_TOKEN_KEY } : { on: BIO_ON_KEY, token: BIO_TOKEN_KEY };
-const NO_BIO = { available: false, enabled: false, saved: false, adminEnabled: false, adminSaved: false };
+export interface Bio {
+  available: boolean;
+  enabled: boolean;
+  saved: boolean;
+  adminEnabled: boolean;
+  adminSaved: boolean;
+  label: string;
+  face: boolean;
+  checked: boolean;
+}
+
+const NO_BIO: Bio = {
+  available: false,
+  enabled: false,
+  saved: false,
+  adminEnabled: false,
+  adminSaved: false,
+  label: Platform.OS === 'ios' ? 'Face ID' : 'Fingerprint',
+  face: Platform.OS === 'ios',
+  checked: false,
+};
+
+/**
+ * Face ID / fingerprint opens by itself only when the app starts signed out, once.
+ * Any session (restored, or signed in) uses it up, so signing out never re-prompts.
+ */
+let launchPrompt = true;
+export function takeBioLaunchPrompt() {
+  const v = launchPrompt;
+  launchPrompt = false;
+  return v;
+}
+
+/** What this phone calls its biometric sign-in. */
+function bioKind(types: LocalAuthentication.AuthenticationType[]): { label: string; face: boolean } {
+  const T = LocalAuthentication.AuthenticationType;
+  const ios = Platform.OS === 'ios';
+  if (types.includes(T.FACIAL_RECOGNITION)) return { label: ios ? 'Face ID' : 'Face unlock', face: true };
+  if (types.includes(T.FINGERPRINT)) return { label: ios ? 'Touch ID' : 'Fingerprint', face: false };
+  if (types.includes(T.IRIS)) return { label: 'Iris unlock', face: true };
+  return { label: NO_BIO.label, face: NO_BIO.face };
+}
 
 type AdminMeta = Omit<AdminView, 'accessToken' | 'refreshToken'>;
 
@@ -144,9 +190,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadBio = async () => {
     try {
-      const [hw, enrolled, on, token, adminOn, adminToken] = await Promise.all([
+      const [hw, enrolled, types, on, token, adminOn, adminToken] = await Promise.all([
         LocalAuthentication.hasHardwareAsync(),
         LocalAuthentication.isEnrolledAsync(),
+        LocalAuthentication.supportedAuthenticationTypesAsync(),
         SecureStore.getItemAsync(BIO_ON_KEY),
         SecureStore.getItemAsync(BIO_TOKEN_KEY),
         SecureStore.getItemAsync(BIO_ADMIN_ON_KEY),
@@ -158,9 +205,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         saved: !!token,
         adminEnabled: adminOn === '1',
         adminSaved: !!adminToken,
+        ...bioKind(types),
+        checked: true,
       });
     } catch {
-      setBio(NO_BIO);
+      setBio({ ...NO_BIO, checked: true });
     }
   };
 
@@ -168,6 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Every session change (login, silent refresh, expiry) lands here.
     let seenFor: string | null | undefined;
     setSessionListener((s) => {
+      if (s) launchPrompt = false;
       setCurrent(s);
       void persist(s);
       // Read markers are per user — reload only when the user changes.
@@ -254,7 +304,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const keepFor: Portal | null =
       role === 'CLIENT' && bio.enabled ? 'CLIENT' : role === 'SUPER_ADMIN' && bio.adminEnabled ? 'SUPER_ADMIN' : null;
     if (keepFor && refreshToken) {
-      // Fingerprint sign-in is on: keep this phone's session to unlock next time.
+      // Biometric sign-in is on: keep this phone's session to unlock next time.
       try {
         const older = await SecureStore.getItemAsync(bioKeys(keepFor).token);
         await SecureStore.setItemAsync(bioKeys(keepFor).token, refreshToken);
@@ -309,8 +359,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setBioEnabled = async (on: boolean, portal: Portal = 'CLIENT') => {
     const keys = bioKeys(portal);
     if (on) {
-      const r = await LocalAuthentication.authenticateAsync({ promptMessage: 'Turn on fingerprint sign-in' });
-      if (!r.success) throw new Error('Fingerprint was not confirmed.');
+      const r = await LocalAuthentication.authenticateAsync({ promptMessage: `Turn on ${bio.label} sign-in` });
+      if (!r.success) throw new Error(`${bio.label} was not confirmed.`);
       await SecureStore.setItemAsync(keys.on, '1');
     } else {
       await SecureStore.deleteItemAsync(keys.on);
@@ -325,7 +375,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const keys = bioKeys(portal);
     const kept = await SecureStore.getItemAsync(keys.token);
     if (!kept) {
-      throw new Error('Sign in with your password once, then turn on Fingerprint sign-in in your Profile.');
+      throw new Error(`Sign in with your password once, then turn on ${bio.label} sign-in in your Profile.`);
     }
     const r = await LocalAuthentication.authenticateAsync({
       promptMessage: portal === 'SUPER_ADMIN' ? 'Admin sign-in to EG Eloma' : 'Sign in to EG Eloma',
@@ -337,7 +387,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       await SecureStore.deleteItemAsync(keys.token);
       void loadBio();
-      throw new Error('Fingerprint sign-in has expired on this phone. Please sign in with your password.');
+      throw new Error(`${bio.label} sign-in has expired on this phone. Please sign in with your password.`);
     }
     await SecureStore.deleteItemAsync(keys.token);
     void loadBio();

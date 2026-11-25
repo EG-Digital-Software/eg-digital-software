@@ -38,13 +38,13 @@ export default function ProfileScreen() {
 
   const flipBio = async (on: boolean) => {
     if (on && !bio.available) {
-      Alert.alert('Fingerprint not set up', 'Add a fingerprint in your phone’s settings first.');
+      Alert.alert(`${bio.label} not set up`, `Set up ${bio.label} in your phone’s settings first.`);
       return;
     }
     try {
       await setBioEnabled(on);
     } catch (e) {
-      Alert.alert('Fingerprint sign-in', errorMessage(e));
+      Alert.alert(`${bio.label} sign-in`, errorMessage(e));
     }
   };
 
@@ -67,7 +67,7 @@ export default function ProfileScreen() {
   const settings: { t: string; d: string; on: boolean; flip: (v: boolean) => void; disabled?: boolean }[] = [
     { t: 'Push notifications', d: 'New messages, signatures and invoices', on: pushOn, flip: (v) => void flipPush(v) },
     { t: 'Email updates', d: `A weekly summary to ${email || 'your email'}`, on: prefs.email, flip: (v) => setPref('email', v) },
-    { t: 'Fingerprint sign-in', d: 'Skip the password on this phone', on: bio.enabled, flip: (v) => void flipBio(v), disabled: !!admin },
+    { t: `${bio.label} sign-in`, d: 'Skip the password on this phone', on: bio.enabled, flip: (v) => void flipBio(v), disabled: !!admin },
   ];
 
   return (
