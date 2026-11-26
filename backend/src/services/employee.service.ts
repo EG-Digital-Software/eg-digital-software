@@ -1,5 +1,5 @@
 import { Prisma, CustomerStatus, ProductStatus } from '@prisma/client';
-import { prisma } from '../config/prisma.js';
+import { isDemoContext, prisma } from '../config/prisma.js';
 import type { PageQuery } from '../utils/http.js';
 import { getLicences } from './dashboard.service.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -113,6 +113,8 @@ export async function impersonateEmployee(employeeId: string) {
     sub: employee.id,
     role: 'EMPLOYEE',
     email: employee.email,
+    // Opened from inside the demo portal → stay on the demo database.
+    ...(isDemoContext() ? { demo: true } : {}),
   });
 
   const user = {

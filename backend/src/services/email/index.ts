@@ -2,6 +2,14 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import { env, isProd } from '../../config/env.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../config/logger.js';
+import { isDemoContext } from '../../config/prisma.js';
+
+/** The demo portal never emails anyone — its sends are logged and dropped. */
+function skippedForDemo(msg: EmailMessage): boolean {
+  if (!isDemoContext()) return false;
+  logger.info({ subject: msg.subject }, '✉️  Demo portal — email not sent');
+  return true;
+}
 
 /**
  * Provider-agnostic email abstraction. Development logs to the console; set
@@ -326,6 +334,7 @@ if (resetProvider === emailProvider) {
 
 /** Fire-and-forget password-reset send through the Microsoft 365 no-reply mailbox. */
 export function sendResetEmail(msg: EmailMessage): void {
+  if (skippedForDemo(msg)) return;
   resetProvider
     .send(msg)
     .catch((err) => logger.error({ err, to: msg.to, provider: resetProvider.name }, 'Password-reset email send failed'));
@@ -337,6 +346,7 @@ export function sendResetEmail(msg: EmailMessage): void {
  * ApiError so the person signing in sees why no code came.
  */
 export async function deliverSecurityEmail(msg: EmailMessage): Promise<void> {
+  if (skippedForDemo(msg)) return;
   if (resetProvider === emailProvider && undeliverableReason) {
     throw ApiError.internal(`Email is not configured, so the sign-in code could not be sent. ${undeliverableReason}`);
   }
@@ -350,6 +360,7 @@ export async function deliverSecurityEmail(msg: EmailMessage): Promise<void> {
 
 /** Fire-and-forget send — never breaks the primary flow (used by notifications). */
 export function sendEmail(msg: EmailMessage): void {
+  if (skippedForDemo(msg)) return;
   emailProvider.send(msg).catch((err) => logger.error({ err }, 'Email send failed'));
 }
 
@@ -361,6 +372,7 @@ export function sendEmail(msg: EmailMessage): void {
  * surfaces as a visible failure instead of an invoice quietly marked as sent.
  */
 export async function deliverEmail(msg: EmailMessage): Promise<void> {
+  if (skippedForDemo(msg)) return;
   if (undeliverableReason) {
     // ApiError, not a plain Error: the handler echoes an ApiError's message to the
     // caller, while a plain one becomes an opaque "Internal server error" in

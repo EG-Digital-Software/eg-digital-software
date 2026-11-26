@@ -4,6 +4,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios';
 import { authStore } from '@/store/auth';
+import { queryClient } from '@/lib/queryClient';
 
 const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 
@@ -60,6 +61,9 @@ api.interceptors.response.use(
     // session — the impersonation token simply expired, so drop back to admin.
     if (error.response?.status === 401 && authStore.getState().impersonation) {
       authStore.getState().stopImpersonation();
+      // Drop the expired view's data (e.g. demo-portal sample data) so nothing
+      // from it lingers on the screen it returns to.
+      queryClient.clear();
       return Promise.reject(error);
     }
     if (error.response?.status === 401 && !original._retry && !isAuthCall) {

@@ -8,8 +8,9 @@ import type { User } from '@/types';
  */
 /** Set while an admin is viewing another account's portal (client or team member). */
 export interface Impersonation {
-  /** Which portal is being viewed — drives the banner wording and access mode. */
-  kind: 'client' | 'employee';
+  /** Which portal is being viewed — drives the banner wording and access mode.
+   *  'demo' is the admin Demo portal (sample data on a separate database). */
+  kind: 'client' | 'employee' | 'demo';
   /** Display name shown in the banner. */
   label: string | null;
   /** Admin route to return to when the admin exits the view. */
@@ -26,6 +27,9 @@ interface AuthState {
   impersonation: Impersonation | null;
   /** Snapshot of the admin session, kept so exiting impersonation is instant. */
   adminBackup: { user: User | null; accessToken: string | null } | null;
+  /** Outer views when one is opened inside another (a client's portal opened
+   *  from the Demo portal). Exiting returns to the view underneath. */
+  parents: { user: User | null; accessToken: string | null; impersonation: Impersonation }[];
   setSession: (user: User, accessToken: string) => void;
   setUser: (user: User) => void;
   setToken: (token: string | null) => void;
@@ -43,26 +47,41 @@ export const useAuth = create<AuthState>((set, get) => ({
   initialized: false,
   impersonation: null,
   adminBackup: null,
+  parents: [],
   setSession: (user, accessToken) => set({ user, accessToken }),
   setUser: (user) => set({ user }),
   setToken: (accessToken) => set({ accessToken }),
   setInitialized: (initialized) => set({ initialized }),
-  clear: () => set({ user: null, accessToken: null, impersonation: null, adminBackup: null }),
+  clear: () => set({ user: null, accessToken: null, impersonation: null, adminBackup: null, parents: [] }),
   startImpersonation: ({ user, accessToken, meta }) => {
-    const { user: adminUser, accessToken: adminToken, impersonation } = get();
-    // Keep the original admin snapshot even if start is somehow called twice.
-    const adminBackup = impersonation
-      ? get().adminBackup
-      : { user: adminUser, accessToken: adminToken };
-    set({ user, accessToken, impersonation: meta, adminBackup });
+    const { user: curUser, accessToken: curToken, impersonation, parents } = get();
+    if (impersonation) {
+      // Opening a view from inside another (e.g. a client's portal from the Demo
+      // portal): remember the outer view so Exit steps back to it. The original
+      // admin snapshot is kept as is.
+      set({
+        user,
+        accessToken,
+        impersonation: meta,
+        parents: [...parents, { user: curUser, accessToken: curToken, impersonation }],
+      });
+      return;
+    }
+    set({ user, accessToken, impersonation: meta, adminBackup: { user: curUser, accessToken: curToken }, parents: [] });
   },
   stopImpersonation: () => {
-    const backup = get().adminBackup;
+    const { parents, adminBackup: backup } = get();
+    const outer = parents[parents.length - 1];
+    if (outer) {
+      set({ user: outer.user, accessToken: outer.accessToken, impersonation: outer.impersonation, parents: parents.slice(0, -1) });
+      return;
+    }
     set({
       user: backup?.user ?? null,
       accessToken: backup?.accessToken ?? null,
       impersonation: null,
       adminBackup: null,
+      parents: [],
     });
   },
 }));

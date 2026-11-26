@@ -8,7 +8,7 @@ import {
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import argon2 from 'argon2';
-import { prisma } from '../config/prisma.js';
+import { isDemoContext, prisma } from '../config/prisma.js';
 import { storage } from './storage/index.js';
 import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -166,6 +166,8 @@ export async function impersonateCustomer(clientId: string, edit = false) {
     email: login?.email ?? '',
     cid: customer.id,
     ...(edit ? { edit: true } : {}),
+    // Opened from inside the demo portal → stay on the demo database.
+    ...(isDemoContext() ? { demo: true } : {}),
   });
 
   const user = {

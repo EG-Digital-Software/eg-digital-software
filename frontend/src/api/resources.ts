@@ -309,6 +309,12 @@ export interface TimeSheetRequest {
 }
 
 export const adminApi = {
+  /** Whether the Demo portal (sample-data database) is ready on this server. */
+  demoStatus: async () =>
+    (await api.get<ApiEnvelope<{ available: boolean; reason: string | null }>>('/admin/demo/status')).data.data,
+  /** Open the Demo portal: a separate admin session on the sample-data database. */
+  demoSession: async () =>
+    (await api.post<ApiEnvelope<{ accessToken: string; user: User }>>('/admin/demo/session')).data.data,
   registrations: async (params: Record<string, unknown> = {}) => {
     const { data } = await api.get<
       ListEnvelope<PendingUser> & { meta: { counts: Record<ApprovalStatus, number>; count: number } }

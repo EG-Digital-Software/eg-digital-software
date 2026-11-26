@@ -264,7 +264,8 @@ export async function saveTestimonialFile(customerId: string, file: Express.Mult
 
 const ownFile = (customerId: string, url?: string | null) => {
   if (!url) return null;
-  if (!storage.keyOf(url).startsWith(`testimonials/${customerId}/`)) throw ApiError.badRequest('Invalid file');
+  // Demo-portal uploads live under a `demo/` folder (see storage demoAware).
+  if (!storage.keyOf(url).replace(/^demo\//, '').startsWith(`testimonials/${customerId}/`)) throw ApiError.badRequest('Invalid file');
   return url;
 };
 

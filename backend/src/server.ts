@@ -3,12 +3,14 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { disconnectPrisma } from './config/prisma.js';
 import { startScheduler } from './config/scheduler.js';
+import { migrateDemoDatabase } from './services/demo.service.js';
 
 const app = createApp();
 
 const server = app.listen(env.PORT, () => {
   logger.info(`🚀 EG Eloma API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
   startScheduler();
+  migrateDemoDatabase();
 });
 
 async function shutdown(signal: string) {

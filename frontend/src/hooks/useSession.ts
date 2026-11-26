@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuth } from '@/store/auth';
 import type { User } from '@/types';
 import { silentRefresh } from '@/api/client';
+import { queryClient } from '@/lib/queryClient';
 import { loginRequest, logoutRequest, verifyLoginOtpRequest, type LoginChallenge, type Portal } from '@/api/auth';
 
 /**
@@ -50,6 +51,14 @@ export function useVerifyLoginOtp() {
 export function useLogout() {
   const clear = useAuth((s) => s.clear);
   return async () => {
+    // Inside the Demo portal "Sign out" just leaves the demo: its token is not
+    // the admin's own session, and signing out there must not end the real one.
+    const { impersonation, parents, stopImpersonation } = useAuth.getState();
+    if (impersonation?.kind === 'demo' || parents.some((p) => p.impersonation.kind === 'demo')) {
+      while (useAuth.getState().impersonation) stopImpersonation();
+      queryClient.clear();
+      return;
+    }
     // Revoke on the server FIRST — the request needs the still-valid access
     // token so the backend can revoke the refresh token and clear the httpOnly
     // cookie. Only then wipe local state. (Clearing first would send an

@@ -7,6 +7,7 @@ import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
+import { demoContext } from './middleware/demoContext.js';
 import routes from './routes/index.js';
 
 /**
@@ -59,7 +60,8 @@ export function createApp() {
     express.static(path.resolve(process.cwd(), 'uploads'))
   );
 
-  app.use('/api', routes);
+  // Demo-portal tokens run the whole request against the separate demo database.
+  app.use('/api', demoContext, routes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

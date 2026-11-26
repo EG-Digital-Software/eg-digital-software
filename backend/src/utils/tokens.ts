@@ -14,6 +14,8 @@ export interface AccessPayload {
   /** Client impersonation only: the admin chose "Edit", so writes are allowed.
    *  Absent (the default) keeps the session read-only. */
   edit?: boolean;
+  /** Demo-portal session: every request runs against the separate demo database. */
+  demo?: boolean;
 }
 
 export function signAccessToken(payload: AccessPayload): string {
@@ -31,6 +33,17 @@ export function signAccessToken(payload: AccessPayload): string {
 export function signImpersonationToken(payload: AccessPayload): string {
   return jwt.sign({ ...payload, imp: true }, env.JWT_SECRET, {
     expiresIn: '2h',
+  } as SignOptions);
+}
+
+/**
+ * Access token for the admin "Demo" portal. Like an impersonation token it has
+ * no refresh counterpart; when it expires the admin drops back to their own
+ * session. `demo: true` routes every request to the demo database.
+ */
+export function signDemoToken(payload: Omit<AccessPayload, 'demo' | 'imp'>): string {
+  return jwt.sign({ ...payload, demo: true }, env.JWT_SECRET, {
+    expiresIn: '8h',
   } as SignOptions);
 }
 

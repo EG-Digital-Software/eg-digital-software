@@ -22,6 +22,7 @@ import {
   updateShowcaseSchema,
 } from '../validators/settings.validator.js';
 import * as showcases from '../services/showcase.service.js';
+import * as demo from '../services/demo.service.js';
 import { checkFrameable } from '../services/frameCheck.service.js';
 import { asyncHandler, ok } from '../utils/http.js';
 import { runLicenceReminders } from '../services/reminder.service.js';
@@ -165,6 +166,17 @@ router.patch(
 );
 // Open a team member's portal AS them (impersonation) without their password.
 router.post('/employees/:id/impersonate', approvals.impersonateEmployee);
+
+// Demo portal: a full admin session on the separate sample-data database, for
+// showing the product to prospects. Only from a live admin session.
+router.get('/demo/status', asyncHandler(async (_req, res) => ok(res, await demo.demoStatus())));
+router.post(
+  '/demo/session',
+  asyncHandler(async (req, res) => {
+    if (req.user?.demo || req.user?.imp) throw ApiError.badRequest('Open the demo from your own admin session');
+    ok(res, await demo.startDemoSession());
+  })
+);
 
 // Team roles: each grants a set of admin tabs; a team member can hold several.
 router.get('/team-roles', teamRoles.list);

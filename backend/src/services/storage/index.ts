@@ -3,6 +3,7 @@ import path from 'node:path';
 import { BlobSASPermissions, BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
+import { isDemoContext } from '../../config/prisma.js';
 
 // Origins allowed to fetch() blob bytes cross-origin. Direct <a href> downloads
 // are not CORS-checked, but reading a blob with fetch (e.g. rendering an
@@ -398,4 +399,35 @@ function createStorage(): StorageProvider {
   return new AzureBlobStorage(connectionString, env.AZURE_STORAGE_CONTAINER);
 }
 
-export const storage: StorageProvider = createStorage();
+/**
+ * Demo-portal isolation. While a request runs against the demo database, new
+ * files are written under a `demo/` folder, and deletes are refused for anything
+ * outside it — so the demo can never overwrite or remove a live file.
+ */
+const DEMO_PREFIX = 'demo/';
+function demoAware(inner: StorageProvider): StorageProvider {
+  const demoKey = (key: string) => (key.startsWith(DEMO_PREFIX) ? key : DEMO_PREFIX + key.replace(/^\/+/, ''));
+  const isDemoFile = (urlOrKey: string) => inner.keyOf(urlOrKey).replace(/^\/+/, '').startsWith(DEMO_PREFIX);
+  return {
+    get supportsEncoding() {
+      return inner.supportsEncoding;
+    },
+    save: (key, data, contentType, opts) => inner.save(isDemoContext() ? demoKey(key) : key, data, contentType, opts),
+    getUrl: (key) => inner.getUrl(key),
+    remove: async (urlOrKey) => {
+      if (isDemoContext() && !isDemoFile(urlOrKey)) return;
+      return inner.remove(urlOrKey);
+    },
+    createDirectUpload: (key) => inner.createDirectUpload(isDemoContext() ? demoKey(key) : key),
+    statUpload: (url, keyPrefix, expect) => inner.statUpload(url, isDemoContext() ? demoKey(keyPrefix) : keyPrefix, expect),
+    read: (urlOrKey) => inner.read(urlOrKey),
+    removePrefix: async (urlOrKeyPrefix) => {
+      if (isDemoContext() && !isDemoFile(urlOrKeyPrefix)) return 0;
+      return inner.removePrefix(urlOrKeyPrefix);
+    },
+    keyOf: (urlOrKey) => inner.keyOf(urlOrKey),
+    downloadUrl: (url, fileName) => inner.downloadUrl(url, fileName),
+  };
+}
+
+export const storage: StorageProvider = demoAware(createStorage());

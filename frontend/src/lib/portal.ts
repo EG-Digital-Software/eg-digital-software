@@ -40,7 +40,8 @@ export function toPortal(param?: string): PortalSlug {
 /** Dashboard home per role (used after login). Keyed loosely so a legacy role
  *  the backend may still return simply falls through to the default. */
 export const ROLE_HOME: Record<string, string> = {
-  SUPER_ADMIN: '/admin/dashboard',
+  // The Super Admin lands on the launcher (search a client, Live or Demo).
+  SUPER_ADMIN: '/admin/start',
   CLIENT: '/client/dashboard',
   EMPLOYEE: '/employee/tasks',
 };

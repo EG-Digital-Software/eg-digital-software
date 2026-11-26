@@ -24,7 +24,7 @@ export const markAllRead = asyncHandler(async (req: Request, res: Response) => {
 
 /** The signed-in user's account — never an admin's "view as client" token. */
 function pushUser(req: Request) {
-  if (req.user?.imp) throw ApiError.badRequest('Sign in as yourself to receive notifications on this phone');
+  if (req.user?.imp || req.user?.demo) throw ApiError.badRequest('Sign in as yourself to receive notifications on this phone');
   return { userId: req.user!.sub, userType: req.user!.role };
 }
 

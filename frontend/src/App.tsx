@@ -23,6 +23,7 @@ const AdminTasksPage = lazy(() => import('@/pages/admin/AdminTasksPage'));
 const TeamDashboardPage = lazy(() => import('@/pages/admin/TeamDashboardPage'));
 const ReportPage = lazy(() => import('@/pages/admin/ReportPage'));
 const PreviewPage = lazy(() => import('@/pages/admin/PreviewPage'));
+const LauncherPage = lazy(() => import('@/pages/admin/LauncherPage'));
 const ProductsPage = lazy(() => import('@/pages/products/ProductsPage'));
 const BulkUploadPage = lazy(() => import('@/pages/products/BulkUploadPage'));
 const BillingPage = lazy(() => import('@/pages/billing/BillingPage'));
@@ -118,6 +119,11 @@ export default function App() {
                 <Route path="vault" element={<TeamVaultPage />} />
                 <Route path="account" element={<AccountPage />} />
               </Route>
+            </Route>
+
+            {/* Admin launcher (Super Admin only): search a client, Live or Demo */}
+            <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
+              <Route path="/admin/start" element={<LauncherPage />} />
             </Route>
 
             {/* Protected admin — team members reach the sections their roles grant */}

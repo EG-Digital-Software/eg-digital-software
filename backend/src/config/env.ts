@@ -7,6 +7,10 @@ const schema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  // Separate database behind the admin "Demo" portal (sample data for showing
+  // the product to prospects). Must be a different database from DATABASE_URL —
+  // the server refuses to enable the demo otherwise. Unset = demo disabled.
+  DEMO_DATABASE_URL: z.string().optional(),
 
   JWT_SECRET: z.string().min(8, 'JWT_SECRET must be set'),
   JWT_REFRESH_SECRET: z.string().min(8, 'JWT_REFRESH_SECRET must be set'),

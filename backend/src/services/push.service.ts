@@ -1,5 +1,5 @@
 import type { Role } from '@prisma/client';
-import { prisma } from '../config/prisma.js';
+import { isDemoContext, prisma } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
 
 /**
@@ -48,7 +48,8 @@ export async function unregisterDevice(user: PushTarget, token: string) {
 
 /** Push one message to every phone of the given users. */
 export function pushTo(targets: PushTarget[], message: PushMessage): void {
-  if (!targets.length) return;
+  // The demo portal never reaches a real phone.
+  if (!targets.length || isDemoContext()) return;
   void (async () => {
     const devices = await prisma.pushDevice.findMany({
       where: { OR: targets.map((t) => ({ userId: t.userId, userType: t.userType })) },
@@ -76,6 +77,7 @@ export function pushTo(targets: PushTarget[], message: PushMessage): void {
 
 /** Push one message to every registered phone (all accounts). */
 export function pushToAllDevices(message: PushMessage): void {
+  if (isDemoContext()) return;
   void prisma.pushDevice
     .findMany({ distinct: ['userId', 'userType'], select: { userId: true, userType: true } })
     .then((users) => pushTo(users, message))
