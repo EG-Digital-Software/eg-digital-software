@@ -473,8 +473,7 @@ export function PortalShell({
         <header className="ec-head" style={impersonating ? { top: 40 } : undefined}>
           <div className="glass ec-head-in">
             <Link to={home} className="ec-brand" aria-label="Home">
-              <img className="logo-d" src={brand.iconLight} alt="" />
-              <img className="logo-l" src={brand.icon} alt="" />
+              <img className="logo-mark" src={brand.icon} alt="" />
               <div>
                 <div className="disp nm">EG Eloma</div>
                 <div className="by">BY ELOMA GROUP</div>

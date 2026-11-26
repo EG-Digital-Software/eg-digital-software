@@ -200,6 +200,8 @@ export const listCustomerQuerySchema = z.object({
   page: z.coerce.number().optional(),
   pageSize: z.coerce.number().optional(),
   search: z.string().optional(),
+  /** "true" → match the search against the company / trading name only. */
+  nameOnly: z.enum(['true', 'false']).optional(),
   status: z.enum(['ACTIVE', 'ARCHIVED', 'DORMANT', 'SUSPENDED', 'ACTIVE_TRIAL']).optional(),
   businessType: z.string().optional(),
   sortBy: z

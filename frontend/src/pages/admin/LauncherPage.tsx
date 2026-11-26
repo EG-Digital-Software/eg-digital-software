@@ -28,6 +28,19 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 /**
+ * Clients whose company or trading name has a word starting with the typed
+ * keyword ("him" → "The Himalayan"), so a few letters land on that client
+ * instead of everything containing those letters. Falls back to any name
+ * containing the keyword only when no word starts with it.
+ */
+function keywordMatches(list: Customer[], keyword: string): Customer[] {
+  const k = keyword.toLowerCase();
+  const names = (c: Customer) => [c.companyName, c.tradingAs].filter(Boolean).map((n) => n!.toLowerCase());
+  const wordStart = list.filter((c) => names(c).some((n) => n.split(/[^a-z0-9]+/).some((w) => w.startsWith(k)) || n.startsWith(k)));
+  return (wordStart.length ? wordStart : list).slice(0, 8);
+}
+
+/**
  * Admin landing after sign-in: search a client and choose Live or Demo.
  *  • Live, no client picked → the admin portal.
  *  • Live, client picked    → that client's portal in Edit mode.
@@ -53,11 +66,11 @@ export default function LauncherPage() {
 
   const { data: results, isFetching } = useQuery({
     queryKey: ['launcher-search', term],
-    queryFn: () => customerApi.list({ search: term, pageSize: 8, status: 'ACTIVE' }),
+    queryFn: () => customerApi.list({ search: term, nameOnly: 'true', pageSize: 50, status: 'ACTIVE' }),
     enabled: searching,
     staleTime: 15_000,
   });
-  const matches = searching ? (results?.items ?? []) : [];
+  const matches = searching ? keywordMatches(results?.items ?? [], term) : [];
 
   const { data: demo } = useQuery({
     queryKey: ['demo-status'],

@@ -13,6 +13,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const { items, total } = await customerService.listCustomers({
     ...page,
     search: req.query.search as string | undefined,
+    nameOnly: req.query.nameOnly === 'true',
     status: req.query.status as never,
     businessType: req.query.businessType as never,
     sortBy: req.query.sortBy as string | undefined,

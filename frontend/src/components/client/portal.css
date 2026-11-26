@@ -401,8 +401,11 @@ html.eg-eloma.eg-ecp body {
   height: 34px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: #0f2340 url('/eg-eloma-mark-light.png') center / 70% no-repeat;
-  box-shadow: 0 0 0 3px rgba(45, 185, 138, 0.18);
+  /* White disc with the standard full-colour hummingbird mark (as used everywhere else). */
+  background: #ffffff url('/eg-eloma-mark.png') center / 70% no-repeat;
+  box-shadow:
+    0 0 0 1px rgba(15, 35, 64, 0.08),
+    0 0 0 4px rgba(45, 185, 138, 0.18);
 }
 .ecp .ico {
   width: 34px;
@@ -1096,9 +1099,18 @@ html.eg-eloma.eg-ecp body {
   height: 40px;
   width: auto;
 }
-.ecp .ec-brand .logo-l { display: none; }
-.ecp.light .ec-brand .logo-d { display: none; }
-.ecp.light .ec-brand .logo-l { display: block; }
+/* One logo colour in both themes: the full-colour mark on a white disc. */
+.ecp .ec-brand .logo-mark {
+  width: 40px;
+  height: 40px;
+  padding: 6px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(15, 35, 64, 0.08),
+    0 0 0 3px rgba(45, 185, 138, 0.18);
+}
 .ecp .ec-brand .nm {
   text-transform: uppercase;
   letter-spacing: 0.3em;

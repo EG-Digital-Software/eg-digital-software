@@ -5,7 +5,6 @@ import { brand } from '@/config/brand';
 import { Logo } from '@/components/layout/Logo';
 import { Spinner } from '@/components/shared/states';
 import { cn } from '@/lib/utils';
-import hummingbird from '@/assets/eg-hummingbird.png';
 
 /** Brand green used for the spotlight dots, glow and submit button. */
 const ACCENT = '#2EB88A';
@@ -74,7 +73,7 @@ const KEYFRAMES = `
 .eg-shadow{animation:egShadow 4s ease-in-out infinite}
 .eg-spot{-webkit-mask-image:radial-gradient(circle,#000 0,rgba(0,0,0,0) 260px);mask-image:radial-gradient(circle,#000 0,rgba(0,0,0,0) 260px);-webkit-mask-size:200% 200%;mask-size:200% 200%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;animation:egSpot 14s ease-in-out infinite}
 .eg-input:-webkit-autofill,.eg-input:-webkit-autofill:hover,.eg-input:-webkit-autofill:focus,.eg-input:autofill{-webkit-text-fill-color:var(--eg-text);caret-color:var(--eg-text);-webkit-box-shadow:0 0 0 1000px var(--eg-bg) inset;box-shadow:0 0 0 1000px var(--eg-bg) inset;transition:background-color 9999s ease-in-out 0s}
-@media (max-height:500px){.eg-shell{gap:16px;padding-top:56px;padding-bottom:56px}.eg-bird{height:72px;width:110px;margin-top:-14px}.eg-bird-img{width:72px}.eg-bird-img-light{width:64px}.eg-title{font-size:30px}}
+@media (max-height:500px){.eg-shell{gap:16px;padding-top:56px;padding-bottom:56px}.eg-bird{height:72px;width:110px;margin-top:-14px}.eg-bird-img{width:72px;height:72px}.eg-bird-img-light{width:64px}.eg-title{font-size:30px}}
 @media (prefers-reduced-motion:reduce){.eg-float,.eg-shadow,.eg-spot{animation:none}}
 `;
 
@@ -180,7 +179,10 @@ export function SpotlightShell({
       <div aria-hidden="true" className="eg-bird relative z-[1] -mb-1.5 -mt-[25px] h-[110px] w-[150px] sm:-mt-[27px] sm:h-[140px] sm:w-[200px]">
         <div className="eg-float absolute inset-0 flex items-end justify-center">
           {dark ? (
-            <img src={hummingbird} alt="" className="eg-bird-img relative block w-[105px] sm:w-[140px]" />
+            // Same full-colour mark as light mode, on a white disc so it reads on the dark page.
+            <span className="eg-bird-img relative grid h-[96px] w-[96px] place-items-center rounded-full bg-white shadow-[0_0_0_4px_rgba(45,185,138,0.25)] sm:h-[124px] sm:w-[124px]">
+              <img src={brand.icon} alt="" className="block w-[72%]" />
+            </span>
           ) : (
             <img src={brand.icon} alt="" className="eg-bird-img-light relative block w-[96px] sm:w-[124px]" />
           )}

@@ -32,6 +32,8 @@ export type CustomerListStatus = 'ACTIVE' | 'ARCHIVED' | 'DORMANT' | 'SUSPENDED'
 
 interface ListParams extends PageQuery {
   search?: string;
+  /** Match the search against the company / trading name only (admin launcher). */
+  nameOnly?: boolean;
   status?: CustomerListStatus;
   businessType?: string;
   sortBy?: string;
@@ -76,7 +78,12 @@ export async function listCustomers(params: ListParams) {
   // businessType is a comma-separated list, so match by substring.
   if (params.businessType) where.businessType = { contains: params.businessType };
 
-  if (params.search) {
+  if (params.search && params.nameOnly) {
+    // Admin launcher: a client is picked by name, so e-mail, city or country
+    // ("aus" → Australia) must not pull in every client.
+    const like = { contains: params.search.trim(), mode: 'insensitive' as const };
+    where.OR = [{ companyName: like }, { tradingAs: like }];
+  } else if (params.search) {
     const q = params.search.trim();
     const like = { contains: q, mode: 'insensitive' as const };
     where.OR = [

@@ -21,11 +21,24 @@ export function Logo({
 }) {
   return (
     <span className={cn('inline-flex items-center gap-[0.4em] leading-none', className)}>
-      <img
-        src={light ? brand.iconLight : brand.icon}
-        alt={brand.companyName}
-        className={cn('w-auto object-contain', iconOnly ? 'h-[1.5em]' : 'h-[2.1em]')}
-      />
+      {light ? (
+        // Dark backgrounds: the same full-colour mark, on a white disc so the
+        // navy body stays visible (one logo colour everywhere).
+        <span
+          className={cn(
+            'inline-grid shrink-0 place-items-center rounded-full bg-white shadow-[0_0_0_1px_rgba(15,35,64,0.08),0_0_0_3px_rgba(45,185,138,0.22)]',
+            iconOnly ? 'h-[1.7em] w-[1.7em]' : 'h-[2.1em] w-[2.1em]'
+          )}
+        >
+          <img src={brand.icon} alt={brand.companyName} className="h-[72%] w-[72%] object-contain" />
+        </span>
+      ) : (
+        <img
+          src={brand.icon}
+          alt={brand.companyName}
+          className={cn('w-auto object-contain', iconOnly ? 'h-[1.5em]' : 'h-[2.1em]')}
+        />
+      )}
       {!iconOnly && (
         <span className="inline-flex flex-col">
           <span className="whitespace-nowrap font-semibold tracking-tight">
