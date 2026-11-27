@@ -17,6 +17,8 @@ button{font-family:inherit;cursor:pointer}
 .tab.active{background:var(--navy);color:#fff}
 /* Admin Marketing and Cloud pages each open one view: hide the Marketing / Azure switch there. */
 body[data-view] #tabs{display:none}
+/* Inside the admin frame the report uses the full width of the frame. */
+body[data-view] .wrap{max-width:none;padding:16px 20px}
 .placeholder{border:1px dashed #dfe1e4;border-radius:12px;padding:80px 20px;text-align:center;color:var(--t2)}
 .placeholder b{display:block;color:var(--strong);font-size:16px;margin-bottom:6px}
 
@@ -154,6 +156,7 @@ footer{display:flex;justify-content:space-between;align-items:center;gap:12px;fl
 .drawer-bg.open{opacity:1;pointer-events:auto}
 .drawer{position:fixed;top:0;right:0;height:100%;width:min(720px,100%);background:#fff;z-index:45;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(11,33,58,.08)}
 .drawer.open{transform:none}
+.drawer:not(.open){box-shadow:none;visibility:hidden;transition:transform .25s ease,visibility 0s .25s}
 .dh{padding:22px 24px 0;border-bottom:1px solid var(--line)}
 .dh .t{display:flex;justify-content:space-between;align-items:flex-start}
 .dh h3{font-size:18px;font-weight:600;color:var(--strong)}
