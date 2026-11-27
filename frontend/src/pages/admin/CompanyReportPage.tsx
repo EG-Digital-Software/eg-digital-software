@@ -25,13 +25,15 @@ function withMediaUrls(result: unknown): unknown {
  * Marketing: the frame asks the portal over postMessage for Eloma Group's own
  * social accounts and figures (Admin → Marketing API); the portal answers with
  * the signed-in admin's session. Never a client's data.
+ *
+ * Cloud: the frame asks for the live Azure figures (Admin → Cloud API), read
+ * from EG Eloma's subscription(s) by the server. Nothing is entered by hand.
  */
 export default function CompanyReportPage({ view }: { view: 'mkt' | 'azure' }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const html = reportHtml.replace('<body>', `<body data-view="${view}">`);
 
   useEffect(() => {
-    if (view !== 'mkt') return;
     const onMessage = async (e: MessageEvent) => {
       const win = frame.current?.contentWindow;
       const m = e.data as { __mk?: boolean; id?: number; type?: string; payload?: Record<string, unknown> } | null;
@@ -40,6 +42,9 @@ export default function CompanyReportPage({ view }: { view: 'mkt' | 'azure' }) {
       try {
         let result: unknown;
         switch (m.type) {
+          case 'azure':
+            result = await get(api.get('/admin/cloud/azure', { params: p.refresh ? { refresh: 1 } : {}, timeout: 300_000 }));
+            break;
           case 'load':
             result = await get(api.get(BASE));
             break;

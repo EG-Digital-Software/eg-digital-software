@@ -180,6 +180,24 @@ const schema = z.object({
   // Google Ads API versions are retired about a year after release — update when Google announces a sunset.
   GOOGLE_ADS_API_VERSION: z.string().default('v24'),
 
+  // ── Admin → Cloud: live Azure figures ──
+  // An Entra ID app registration (client secret) that can read the subscriptions.
+  // Roles on each subscription: Reader, Cost Management Reader, Security Reader
+  // (and Backup Reader where backups are used). For MFA coverage the app also
+  // needs the Microsoft Graph application permission AuditLog.Read.All
+  // (admin-consented). Until tenant, client id, secret and at least one
+  // subscription id are set, the Cloud tab says the connection is not set up.
+  AZURE_MONITOR_TENANT_ID: z.string().optional(),
+  AZURE_MONITOR_CLIENT_ID: z.string().optional(),
+  AZURE_MONITOR_CLIENT_SECRET: z.string().optional(),
+  AZURE_MONITOR_SUBSCRIPTION_IDS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+  // Resource group tag that names the client. Resource groups with the same tag
+  // value are one client; untagged groups use the resource group name.
+  AZURE_MONITOR_CLIENT_TAG: z.string().default('client'),
+
   DEFAULT_CURRENCY: z.string().default('AUD'),
   DEFAULT_LOCALE: z.string().default('en-AU'),
 })

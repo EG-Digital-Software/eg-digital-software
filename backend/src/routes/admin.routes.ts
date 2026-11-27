@@ -35,6 +35,7 @@ import { timeSheetDecisionSchema } from '../validators/task.validator.js';
 import { findById } from '../services/accounts.js';
 import { ApiError } from '../utils/ApiError.js';
 import { groupSocial } from '../controllers/social.controller.js';
+import { getCloudReport } from '../services/cloud/azure.service.js';
 
 const router = Router();
 
@@ -145,6 +146,12 @@ router.post('/marketing/social/sync', groupSocial.sync);
 router.post('/marketing/social/connect/:provider', groupSocial.connect);
 router.put('/marketing/social/links/:company/:provider', groupSocial.link);
 router.delete('/marketing/social/connections/:connectionId', groupSocial.disconnect);
+
+// Cloud tab: live figures read from EG Eloma's Azure subscription(s), per client.
+router.get(
+  '/cloud/azure',
+  asyncHandler(async (req, res) => ok(res, await getCloudReport(req.query.refresh === '1')))
+);
 
 // Access Point PINs — every admin, team member and client login, for the admin.
 router.get('/access-pins', asyncHandler(async (_req, res) => ok(res, await accessPoint.listPins())));

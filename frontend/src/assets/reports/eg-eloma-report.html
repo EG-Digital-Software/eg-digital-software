@@ -703,16 +703,17 @@ tr.csel td{background:var(--accent-soft)!important}
   </div>
   </div>
   <div id="azure" hidden>
-  <div class="azcrumb" id="azCrumb" style="display:none"><button class="linkbtn" id="azBack" type="button">← All clients</button><span class="sep">/</span><b id="azCrumbName"></b><button class="btn outline sm" id="azDelClient" type="button">Remove client</button></div>
+  <div id="azConn"></div>
+  <div class="azcrumb" id="azCrumb" style="display:none"><button class="linkbtn" id="azBack" type="button">← All clients</button><span class="sep">/</span><b id="azCrumbName"></b></div>
   <div id="azAllV"><section style="padding-top:20px">
-    <div class="sh"><div><span class="eyebrow">Azure · managed by EG Eloma</span><h2 style="margin-top:6px">Azure subscription</h2><p id="azAllSub">One subscription, with each client's resources kept separate.</p></div><button class="btn outline sm" data-open-azr data-tabto="sub" type="button">Update subscription figures</button></div>
+    <div class="sh"><div><span class="eyebrow">Azure · managed by EG Eloma</span><h2 style="margin-top:6px">Azure subscription</h2><p id="azAllSub">One subscription, with each client's resources kept separate.</p></div><button class="btn outline sm" data-az-refresh type="button">Refresh from Azure</button></div>
     <div id="azSubPanel" style="margin-bottom:24px"></div>
     <div class="rgrid" id="azAllStats"></div>
   </section>
   <section style="padding-top:56px">
-    <div class="sh"><div><h2>Clients on this subscription</h2><p id="azCliSub">Each client's costing and optimisation, kept separate. Select a client to open its full report.</p></div><button class="btn primary sm" id="azAddClient" type="button">Add client</button></div>
+    <div class="sh"><div><h2>Clients on this subscription</h2><p id="azCliSub">Each resource group (or groups tagged with the same client) is a client. Select a client to open its full report.</p></div></div>
     <div class="ph"><h3>Costing and optimisation by client</h3><span id="azCostMonth"></span></div>
-    <div style="overflow-x:auto"><table class="grptab"><thead><tr><th>Client</th><th class="n">Spend</th><th class="n hide-m">Budget</th><th class="n hide-m">Share of subscription</th><th class="n">Saved a month</th><th class="n">Savings still available</th><th class="n hide-m">Open recommendations</th><th class="n hide-m">Oversized resources</th></tr></thead><tbody id="azCostRows"></tbody></table></div>
+    <div style="overflow-x:auto"><table class="grptab"><thead><tr><th>Client</th><th class="n">Spend</th><th class="n hide-m">Budget</th><th class="n hide-m">Share of subscription</th><th class="n">Savings available</th><th class="n hide-m">Open recommendations</th><th class="n hide-m">Oversized resources</th></tr></thead><tbody id="azCostRows"></tbody></table></div>
     <div class="ph" style="margin-top:40px"><h3>Health and security by client</h3></div>
     <div style="overflow-x:auto"><table class="grptab"><thead><tr><th>Client</th><th class="n">Availability</th><th class="n hide-m">Incidents</th><th class="n">Critical vulns</th><th class="n">High alerts</th><th class="n hide-m">Backups</th><th>Status</th></tr></thead><tbody id="azAllRows"></tbody></table></div>
   </section>
@@ -725,8 +726,8 @@ tr.csel td{background:var(--accent-soft)!important}
     </div>
     <div style="margin-top:36px">
       <div class="sh" style="margin-bottom:14px"><div><h3 style="font-size:18px;font-weight:600;color:var(--strong)">All recommendations</h3><p id="azOATSub" style="font-size:13px;color:var(--t2);margin-top:4px"></p></div>
-        <div class="filter" id="azOAF"><button class="on" data-f="all">All</button><button data-f="Open">Open</button><button data-f="In progress">In progress</button><button data-f="Done">Done</button></div></div>
-      <div style="overflow-x:auto"><table><thead><tr><th>Recommendation</th><th>Client</th><th class="hide-m">Type</th><th class="hide-m">Impact</th><th class="n">Saving a month</th><th>Status</th></tr></thead><tbody id="azOARecs"></tbody></table></div>
+        <div class="filter" id="azOAF"><button class="on" data-f="all">All</button><button data-f="Cost">Cost</button><button data-f="Performance">Performance</button><button data-f="Reliability">Reliability</button><button data-f="Security">Security</button></div></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Recommendation</th><th>Client</th><th class="hide-m">Type</th><th class="hide-m">Impact</th><th class="n">Saving a month</th><th class="hide-m">Source</th></tr></thead><tbody id="azOARecs"></tbody></table></div>
     </div>
   </section></div>
   <div id="azOne" hidden>
@@ -742,10 +743,9 @@ tr.csel td{background:var(--accent-soft)!important}
     </div>
     <div class="headline" id="azHeadline"></div>
   </header>
-  <div class="exbanner" id="azExample" hidden>Example figures for demonstration, not a real company. Clear them in Update data before sharing.</div>
-  <div class="datastrip">
-    <div><span class="dot"></span>Data last updated <b id="azDsWhen"></b> by <b id="azDsWho"></b> · Source: <span id="azDsSrc"></span></div>
-    <div class="acts"><button class="btn outline sm" id="azUpdateBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5l3 3L8 15H5v-3z"/></svg>Update data </button></div>
+    <div class="datastrip">
+    <div><span class="dot"></span>Read live from Azure <b id="azDsWhen"></b> · Source: Cost Management, Azure Monitor, Advisor, Defender for Cloud, Update Manager, Azure Backup and the Activity Log</div>
+    <div class="acts"><button class="btn outline sm" data-az-refresh type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 4v3.5h-3.5"/></svg>Refresh from Azure</button></div>
   </div>
 
   <div class="viewbar">
@@ -775,7 +775,7 @@ tr.csel td{background:var(--accent-soft)!important}
   <div id="azOvV"><div id="azMgmt" class="mgv"></div>
   <div id="azSetup"></div>
   <section>
-    <div class="sh"><div><h2>Summary</h2><p id="azNotesSub">Notes from your account manager</p></div></div>
+    <div class="sh"><div><h2>Summary</h2><p id="azNotesSub">What happened and what to do next</p></div></div>
     <div class="notes" id="azNotes"></div>
   </section>
   </div>
@@ -791,7 +791,7 @@ tr.csel td{background:var(--accent-soft)!important}
       <div class="panel" id="azScoreTrend"></div>
     </div>
     <div style="margin-top:32px;overflow-x:auto"><div class="ph"><h3>Security recommendations</h3><span id="azSecRecCount"></span></div>
-      <table><thead><tr><th>Recommendation</th><th class="hide-m">Resource</th><th>Impact</th><th>Status</th></tr></thead><tbody id="azSecRecs"></tbody></table></div>
+      <table><thead><tr><th>Recommendation</th><th class="hide-m">Resource</th><th>Impact</th></tr></thead><tbody id="azSecRecs"></tbody></table></div>
   </section>
   </div>
   <div id="azUseV" hidden>
@@ -827,21 +827,21 @@ tr.csel td{background:var(--accent-soft)!important}
 
   <section>
     <div class="sh"><div><h2>Performance and optimisation</h2><p id="azOptSub">Recommendations to make the environment faster, safer and cheaper, and their status</p></div>
-      <div class="filter" id="azOptFilter"><button class="on" data-f="all">All</button><button data-f="Open">Open</button><button data-f="In progress">In progress</button><button data-f="Done">Done</button></div></div>
-    <div style="overflow-x:auto"><table><thead><tr><th>Recommendation</th><th class="hide-m">Category</th><th class="hide-m">Resource</th><th>Impact</th><th class="n">Saving a month</th><th>Status</th></tr></thead><tbody id="azOpt"></tbody></table></div>
+      <div class="filter" id="azOptFilter"><button class="on" data-f="all">All</button><button data-f="Cost">Cost</button><button data-f="Performance">Performance</button><button data-f="Reliability">Reliability</button><button data-f="Security">Security</button></div></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Recommendation</th><th class="hide-m">Category</th><th class="hide-m">Resource</th><th>Impact</th><th class="n">Saving a month</th><th class="hide-m">Source</th></tr></thead><tbody id="azOpt"></tbody></table></div>
   </section>
 
   <section>
-    <div class="sh"><div><h2>Work completed</h2><p id="azWorkSub">What the EG Eloma team has done in the Azure environment</p></div><button class="btn outline sm" id="azLogBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>Log work </button></div>
+    <div class="sh"><div><h2>Work completed</h2><p id="azWorkSub">Changes the team made in the Azure environment</p></div></div>
     <div class="stats" id="azWorkStats"></div>
     <div class="grid2">
       <div class="panel"><div class="ph"><h3>Done</h3><span id="azWorkCount"></span></div><div id="azWorkList"></div></div>
-      <div class="panel"><div class="ph"><h3>In progress and next up</h3><span id="azNextCount"></span></div><div id="azWorkNext"></div></div>
+      <div class="panel"><div class="ph"><h3>Next up</h3><span id="azNextCount"></span></div><div id="azWorkNext"></div></div>
     </div>
   </section>
   </div>
   </div>
-  <footer><span class="brand"><img data-logo alt=""><span class="wm"><b>EG ELOMA</b><small>BY ELOMA GROUP</small></span></span><span id="azFoot">Figures from the Azure portal: Azure Monitor, Cost Management, Azure Advisor, Defender for Cloud, Update Manager and Azure Backup reports.</span></footer>
+  <footer><span class="brand"><img data-logo alt=""><span class="wm"><b>EG ELOMA</b><small>BY ELOMA GROUP</small></span></span><span id="azFoot">Figures read live from Azure: Cost Management, Azure Monitor, Azure Advisor, Defender for Cloud, Update Manager, Azure Backup, Resource Health and the Activity Log.</span></footer>
   </div>
 </div>
 
@@ -919,48 +919,6 @@ tr.csel td{background:var(--accent-soft)!important}
     <h4>Work log</h4><div id="lwList"></div>
   </div>
   <div class="df"><button class="linkbtn" id="ldReset">Clear entered figures</button><div class="r"><button class="btn outline" id="ldCancel">Cancel</button><button class="btn primary" id="ldSave">Save and refresh</button></div></div>
-</aside>
-<aside class="drawer" id="azDrawer" aria-label="Update Azure data">
-  <div class="dh"><div class="t"><div><h3>Update Azure data</h3><p>Leave anything blank that you don't have yet.</p></div><button class="x" id="azdClose" aria-label="Close">×</button></div>
-    <div class="dtabs" id="azDtabs" style="flex-wrap:wrap;gap:14px"><button data-dt="sub">Subscription</button><button class="on" data-dt="client">Client and targets</button><button data-dt="month">Monthly figures</button><button data-dt="res">Resources</button><button data-dt="rec">Recommendations</button><button data-dt="inc">Incidents</button><button data-dt="log">Log work</button></div></div>
-  <div class="db" id="azdSub" hidden><div id="azSubForm"></div><button class="btn primary sm" id="azsSave" type="button" style="margin-top:14px">Save subscription figures</button></div>
-  <div class="db" id="azdClient"><div id="azClientForm"></div></div>
-  <div class="db" id="azdMonth" hidden><div id="azMonthForm"></div></div>
-  <div class="db" id="azdRes" hidden>
-    <label class="drop" id="azResDrop"><b>Drop a resources CSV here</b>or click to choose a file<input type="file" id="azResFile" accept=".csv,text/csv" hidden></label>
-    <div class="tpl"><button class="btn outline sm" id="azResTpl" type="button">Download resources template</button></div>
-    <div class="msg" id="azResMsg"></div>
-    <p class="hint">Columns: name, type, size, cpu_avg, cpu_peak, memory, disk, monthly_cost (percentages as numbers). Use 30-day averages from Azure Monitor, CloudWatch or Cloud Monitoring. Uploading replaces the list.</p>
-    <h4>Current resources</h4><div id="azResList"></div></div>
-  <div class="db" id="azdRec" hidden>
-    <label class="drop" id="azRecDrop"><b>Drop an Azure Advisor (or similar) CSV here</b>or click to choose a file<input type="file" id="azRecFile" accept=".csv,text/csv" hidden></label>
-    <div class="msg" id="azRecMsg"></div>
-    <p class="hint">Recognised columns: Category, Business Impact (or Impact), Recommendation, Impacted resource (or Resource), Potential annual savings or monthly saving. New rows are added; existing ones keep their status.</p>
-    <h4>Add a recommendation</h4>
-    <div class="sf"><label style="grid-column:1/-1">Recommendation<input type="text" id="azRecTitle" placeholder="e.g. Right-size vm-legacy-02 to D2s_v5"></label>
-      <label>Category<select id="azRecCat"></select></label><label>Impact<select id="azRecImp"><option>High</option><option>Medium</option><option>Low</option></select></label>
-      <label>Resource<input type="text" id="azRecRes"></label><label>Saving a month ($)<input type="number" min="0" id="azRecSave"></label></div>
-    <button class="btn primary sm" id="azRecAdd" type="button" style="margin-top:12px">Add recommendation</button>
-    <h4>Recommendations</h4><div id="azRecList"></div></div>
-  <div class="db" id="azdInc" hidden>
-    <h4>Add an incident</h4>
-    <div class="sf"><label>Date<input type="date" id="azIncDate"></label><label>Duration (minutes)<input type="number" min="0" id="azIncDur"></label>
-      <label style="grid-column:1/-1">What happened<input type="text" id="azIncTitle" placeholder="e.g. CRM slow for 35 minutes"></label>
-      <label>Resource<input type="text" id="azIncRes"></label><label>Cause<input type="text" id="azIncCause" placeholder="e.g. Memory pressure at month end"></label>
-      <label class="chk" style="grid-column:1/-1"><input type="checkbox" id="azIncProv"> Caused by the cloud provider (not in our control)</label></div>
-    <button class="btn primary sm" id="azIncAdd" type="button" style="margin-top:12px">Add incident</button>
-    <h4>Incidents</h4><div id="azIncList"></div></div>
-  <div class="db" id="azdLog" hidden>
-    <h4>Add completed work</h4>
-    <div class="sf">
-      <label>Date<input type="date" id="azwDate"></label><label>Type of work<select id="azwCat"></select></label>
-      <label style="grid-column:1/-1">What was done<input type="text" id="azwTitle" placeholder="e.g. Patched 6 servers and rebooted out of hours"></label>
-      <label style="grid-column:1/-1">Details and result (optional)<textarea id="azwDetail" rows="3"></textarea></label>
-      <label>Done by<input type="text" id="azwOwner" placeholder="e.g. Cloud team"></label><label>Hours (optional)<input type="number" min="0" step="0.25" id="azwHours"></label>
-      <label class="chk" style="grid-column:1/-1"><input type="checkbox" id="azwVis" checked> Show in the report</label></div>
-    <button class="btn primary sm" id="azwAdd" type="button" style="margin-top:14px">Add to work log</button>
-    <h4>Work log</h4><div id="azwList"></div></div>
-  <div class="df"><button class="linkbtn" id="azdReset">Clear all Azure data</button><div class="r"><button class="btn outline" id="azdCancel">Close</button><button class="btn primary" id="azdSave">Save and refresh</button></div></div>
 </aside>
 <aside class="drawer" id="accDrawer" aria-label="Connected accounts">
   <div class="dh"><div class="t"><div><h3>Connected accounts</h3><p>Eloma Group's own social media logins. Each company reads only the Pages chosen for it here.</p></div><button class="x" id="accClose" aria-label="Close">×</button></div></div>
@@ -2079,190 +2037,205 @@ function mgmtAll(){
  mgmtRender('lMgmt',{name:'Local listing',ins:LINS,fixDone:LAUD.filter(lDone).length,fixTotal:LAUD.length,tasks:lWorkItems().length,nodata:!LAUD.length&&!LDATA.conn.gbp&&!LDATA.conn.rev&&listCount('Not checked')===LIST_DEF.length,tiles:[['Listing check score',LAUD.length?LSCORE(lOpen())+'<small>/100</small>':'–',LAUD.length?'Started at '+LSCORE(LAUD):'No check yet'],['Listings correct',listCount('Listed and correct')+'<small>/'+LIST_DEF.length+'</small>',listCount('Not checked')+' still to check'],['Google reviews',LDATA.conn.rev&&LDATA.rev.total!=null?int(LDATA.rev.total):'–',LDATA.conn.rev&&LDATA.rev.rating!=null?(+LDATA.rev.rating).toFixed(1)+'★ average':'Not entered'],['In the map pack',kp.length?kp.filter(x=>x.cur!=null&&x.cur<=3).length+'<small>/'+kp.length+'</small>':'–',kp.length?'Searches in Google Maps top 3':'Not checked yet']]});
  if(AZ.cl()!=='all')mgmtRender('azMgmt',{name:'Azure',ins:AZ.ins(),tasks:null,tiles:AZ.tiles()});}
 
-/* ================= AZURE PERFORMANCE (separate instance) ================= */
+/* ================= AZURE PERFORMANCE (live from Azure) ================= */
 const AZ=(()=>{
-/* ================= CLOUD PERFORMANCE DASHBOARD ================= */
-const CPROV=['Microsoft Azure','Amazon Web Services','Google Cloud','Microsoft 365'];
-const RCAT=['Cost','Performance','Reliability','Security','Operational excellence'];
-const CWCAT=['Patching and updates','Backup and recovery','Security','Cost optimisation','Performance','Monitoring','Support request','Other'];
-const MF=[['uptime','Availability (%)'],['resp','Average response time (ms)'],['cost','Total spend ($)'],['budget','Monthly budget ($)'],['patch','Patch compliance (%)'],['bjobs','Backup jobs run'],['bfail','Backup jobs failed'],['ahigh','High-severity security alerts'],['amed','Medium-severity security alerts'],['vuln','Critical vulnerabilities']];
-const CL_EMPTY=()=>({cfg:{client:'',site:'',prov:['Microsoft Azure'],tUp:99.9,tScore:80,tBackup:100,tPatch:95},months:{},res:[],recs:[],inc:[],base:{date:'',v:{}},work:[],notes:{text:'',items:['','','']},example:false});
+/* Every figure here is read live from EG Eloma's Azure subscription(s) by the server
+   (Admin → Cloud API). The page asks the portal for it over postMessage; nothing is
+   entered by hand or kept in the browser. A client is a resource group, or several
+   resource groups tagged with the same client name. */
+const TARGET={tUp:99.9,tScore:80,tBackup:100,tPatch:95};
+const CL_EMPTY=()=>({cfg:{client:'',site:'',...TARGET},months:{},res:[],recs:[],inc:[],work:[]});
+let LV=null,LOADING=false,LERR=null,SCHED=false;
 let CDATA=CL_EMPTY();
-let CMETA={at:null,by:'RJ',src:'not entered yet'};
-const CREG='egeloma-azure-clients',ckey=id=>'egeloma-azure-c-'+id,CMEM={};let CLIENTS=[],CLID=(location.hash.match(/[#&]az=([\w-]+)/)||[])[1]||'all';
-function regLoad(){try{CLIENTS=JSON.parse(localStorage.getItem(CREG)||'[]');}catch(e){}
- try{const old=localStorage.getItem('egeloma-azure-v1');if(old&&!CLIENTS.length){const o=JSON.parse(old);CLIENTS=[{id:'c1',name:(o.data&&o.data.cfg&&o.data.cfg.client)||'Client 1'}];localStorage.setItem(ckey('c1'),old);localStorage.removeItem('egeloma-azure-v1');regSave();}}catch(e){}
- if(CLID!=='all'&&!CLIENTS.find(c=>c.id===CLID))CLID='all';}
-function regDropDemo(){CLIENTS=CLIENTS.filter(c=>c.id!=='demo');if(CLID==='demo')CLID='all';}
-function regSave(){try{localStorage.setItem(CREG,JSON.stringify(CLIENTS));}catch(e){}}
-function readClient(id){let raw=CMEM[id];try{raw=localStorage.getItem(ckey(id))||raw;}catch(e){}if(raw){try{const o=JSON.parse(raw);if(o.data&&o.data.cfg&&o.data.months)return o;}catch(e){}}return null;}
-function clLoad(){CDATA=CL_EMPTY();CMETA={at:null,by:'RJ',src:'not entered yet'};if(CLID==='all')return;const o=readClient(CLID);if(o){CDATA=o.data;CMETA=o.meta;}const c=CLIENTS.find(x=>x.id===CLID);if(c&&!CDATA.cfg.client)CDATA.cfg.client=c.name;}
-function clStore(){if(CLID==='all')return;const raw=JSON.stringify({data:CDATA,meta:CMETA});CMEM[CLID]=raw;try{localStorage.setItem(ckey(CLID),raw);}catch(e){}const c=CLIENTS.find(x=>x.id===CLID);if(c&&CDATA.cfg.client&&c.name!==CDATA.cfg.client){c.name=CDATA.cfg.client;regSave();clClientOpts();}}
+let CLIENTS=[],CLID=(location.hash.match(/[#&]az=([\w-]+)/)||[])[1]||'all';
+let SUB={name:'',tScore:TARGET.tScore,months:{}};
+const toData=c=>c?{cfg:{client:c.name,site:c.rgs.join(', '),...TARGET},months:c.months||{},res:c.res||[],recs:(c.recs||[]).map(r=>({...r,st:'Open'})),inc:c.inc||[],work:c.work||[]}:CL_EMPTY();
+function clLoad(){CDATA=toData(CLIENTS.find(c=>c.id===CLID));}
 const mKey=i=>iso(i).slice(0,7),mName=k=>{const[y,m]=k.split('-').map(Number);return MONTHS[m-1]+' '+y;};
+const NOWM=new Date().toISOString().slice(0,7);
+const mLabel=k=>mName(k)+(k===NOWM?' (to date)':'');
 const curM=()=>Object.keys(CDATA.months).filter(k=>k<=mKey(R.e)).sort().pop()||null;
 const prevM=()=>{const c=curM();return c?Object.keys(CDATA.months).filter(k=>k<c).sort().pop()||null:null;};
-const SKEYS=['score','mfa'],SUBKEY='egeloma-azure-sub';let SUB={name:'',tScore:80,months:{}},SUBMEM=null;
-function subLoad(){let raw=SUBMEM;try{raw=localStorage.getItem(SUBKEY)||raw;}catch(e){}if(raw){try{const o=JSON.parse(raw);if(o&&o.months)SUB=o;}catch(e){}}}
-function subStore(){SUBMEM=JSON.stringify(SUB);try{localStorage.setItem(SUBKEY,SUBMEM);}catch(e){}}
+const SKEYS=['score','mfa'];
 const subM=lim=>Object.keys(SUB.months).filter(k=>k<=(lim||mKey(R.e))).sort().pop()||null;
 const SV=(k,m)=>{const r=m&&SUB.months[m];return r&&r[k]!=null&&r[k]!==''?+r[k]:null;};
 const MV=(k,m)=>{if(SKEYS.includes(k))return SV(k,m);const r=m&&CDATA.months[m];return r&&r[k]!=null&&r[k]!==''?+r[k]:null;};
 const incIn=m=>CDATA.inc.filter(x=>m&&x.date&&x.date.slice(0,7)===m);
 const bsucc=m=>{const j=MV('bjobs',m),f=MV('bfail',m);return j?((j-(f||0))/j*100):null;};
 const svcSum=m=>{const s=m&&CDATA.months[m]&&CDATA.months[m].svc;return s?Object.values(s).reduce((a,b)=>a+b,0):0;};
-function resStatus(r){const a=+r.cpu_avg,p=+r.cpu_peak,m=r.memory===''||r.memory==null?null:+r.memory;
- if(r.cpu_avg===''||r.cpu_avg==null||isNaN(a))return['neu','No usage data'];
+function resStatus(r){const a=r.cpu_avg==null?NaN:+r.cpu_avg,p=r.cpu_peak==null?0:+r.cpu_peak,m=r.memory==null?null:+r.memory;
+ if(isNaN(a))return['neu','No usage data'];
  if(a>75||p>=95||(m!=null&&m>85))return['bad','Under pressure'];
  if(a<10&&(m==null||m<35)&&p<40)return['warn','Oversized'];return['good','Right-sized'];}
-const recOpen=()=>CDATA.recs.filter(r=>r.st!=='Done');
-const savedPM=()=>CDATA.recs.filter(r=>r.st==='Done').reduce((t,r)=>t+(+r.save||0),0);
-const clCount=()=>Object.keys(CDATA.months).length;
-const clAwait=(t,p,steps,cls='')=>awaitBox(t,p,steps,cls).replace('data-open-seo','data-open-azr');
-document.addEventListener('click',e=>{const b=e.target.closest('[data-open-azr]');if(b)clOpenD(b.dataset.tabto||'client');});
+const recOpen=()=>CDATA.recs;
+const availPM=()=>CDATA.recs.reduce((t,r)=>t+(+r.save||0),0);
+const hasFig=f=>f&&Object.keys(f).some(k=>k==='svc'?Object.keys(f.svc||{}).length:f[k]!=null);
+const clCount=()=>Object.values(CDATA.months).filter(hasFig).length;
+const errFor=area=>LV&&(LV.errors||[]).find(e=>e.area===area);
+/* "Waiting for data" box: says where the figure comes from in Azure, and what is missing if Azure refused. */
+const azAwait=(t,p,areas,cls='')=>{const notes=(areas||[]).map(a=>{const e=errFor(a);return e?`<b>${esc(a)}:</b> ${esc(e.message)}`:null;}).filter(Boolean);
+ return awaitBox(t,p,notes,cls).replace(/<button[^>]*data-open-seo[^>]*>[\s\S]*?<\/button>/,'');};
 const pctTxt=(v,dp=1)=>v==null?'–':(+v).toFixed(dp)+'%';
 const bar=(v,col)=>`<span style="display:inline-block;width:70px;height:5px;border-radius:3px;background:#ebecee;vertical-align:middle;margin-left:8px;overflow:hidden"><i style="display:block;height:100%;width:${Math.min(v,100)}%;background:${col}"></i></span>`;
 
+/* ---------- loading from Azure ---------- */
+function azAsk(refresh){return new Promise((res,rej)=>{if(parent===window){rej(new Error('Open this report from the admin portal to read Azure'));return;}
+ const id=++BR.n;BR.p.set(id,{res,rej});parent.postMessage({__mk:true,id,type:'azure',payload:{refresh:!!refresh}},'*');
+ setTimeout(()=>{if(BR.p.has(id)){BR.p.delete(id);rej(new Error('Azure took too long to answer. Try Refresh from Azure again.'));}},310000);});}
+async function azLoad(refresh){if(LOADING)return;LOADING=true;LERR=null;azConn();
+ try{LV=await azAsk(refresh);CLIENTS=LV.clients||[];SUB={name:(LV.sub&&LV.sub.name)||'',tScore:TARGET.tScore,months:(LV.sub&&LV.sub.months)||{}};
+  if(CLID!=='all'&&!CLIENTS.find(c=>c.id===CLID))CLID='all';clLoad();if(refresh)toast('Figures read again from Azure');}
+ catch(err){LERR=err.message;}
+ LOADING=false;clRender();if(typeof mgmtAll==='function')mgmtAll();}
+function azConn(){const el=$('azConn');if(!el)return;
+ if(LOADING){el.innerHTML=`<div class="exbanner" style="display:block">Reading the latest figures from Azure. The first read can take a minute.</div>`;return;}
+ if(LERR){el.innerHTML=`<section style="padding-top:28px">${azAwait('Could not read Azure',esc(LERR),null)}</section>`;return;}
+ if(LV&&!LV.configured){el.innerHTML=`<section style="padding-top:28px">${awaitBox('Connect the Azure subscription','The Cloud tab reads every figure live from Azure. Add these settings to the API app in Azure (Configuration, Application settings), then restart it:',(LV.missing||[]).map(esc)).replace(/<button[^>]*data-open-seo[^>]*>[\s\S]*?<\/button>/,'')}</section>`;return;}
+ const E=LV?(LV.errors||[]):[];
+ el.innerHTML=E.length?`<div class="exbanner" style="display:block;text-align:left"><b>Some figures could not be read from Azure.</b> ${E.map(e=>`<span style="display:block;margin-top:4px">${esc(e.area)}: ${esc(e.message)}</span>`).join('')}</div>`:'';}
+
 /* ---------- header ---------- */
 function clHeader(){const m=curM(),c=CDATA.cfg,hl=(v,l,cls='')=>`<div class="hl ${cls}"><b>${v}</b><span>${l}</span></div>`;
- $('azEyebrow').textContent='Azure performance report'+(c.client?' · '+c.client:'');$('azTitle').textContent=m?mName(m):'Not set up yet';
- $('azMetaMonth').textContent=(c.site?'Resource group: '+c.site:'Shared Azure subscription')+(m?' · monthly figures for '+mName(m):'');
- $('azExample').hidden=!CDATA.example;
- const up=MV('uptime',m),cost=MV('cost',m),bud=MV('budget',m),sc=MV('score',m),bs=bsucc(m);
- $('azHeadline').innerHTML=hl(up!=null?up.toFixed(2)+'<small>%</small>':'–','Availability'+(up!=null?' (target '+c.tUp+'%)':''))+hl(cost!=null?money(cost):'–',bud?'Spend, '+Math.round(cost/bud*100)+'% of budget':'Monthly spend')+hl(savedPM()?money(savedPM()):'–','Savings made a month')+hl(MV('ahigh',m)!=null?int(MV('ahigh',m)):'–','High-severity alerts');
- $('azDsWhen').textContent=CMETA.at?fmtWhen(CMETA.at):'–';$('azDsWho').textContent=CMETA.by;$('azDsSrc').textContent=CMETA.src;$('azMetaUpdated').textContent=CMETA.at?'Updated '+new Date(CMETA.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';}
+ $('azEyebrow').textContent='Azure performance report'+(c.client?' · '+c.client:'');$('azTitle').textContent=m?mLabel(m):(LOADING?'Reading Azure…':'No figures yet');
+ $('azMetaMonth').textContent=(c.site?'Resource group'+(c.site.includes(',')?'s':'')+': '+c.site:'Shared Azure subscription')+(m?' · figures for '+mLabel(m):'');
+ const up=MV('uptime',m),cost=MV('cost',m),bud=MV('budget',m),av=availPM();
+ $('azHeadline').innerHTML=hl(up!=null?up.toFixed(2)+'<small>%</small>':'–','Availability'+(up!=null?' (target '+c.tUp+'%)':''))+hl(cost!=null?money(cost):'–',bud&&cost!=null?'Spend, '+Math.round(cost/bud*100)+'% of budget':'Monthly spend')+hl(av?money(av):'–','Savings available a month')+hl(MV('ahigh',m)!=null?int(MV('ahigh',m)):'–','High-severity alerts');
+ const at=LV&&LV.fetchedAt;$('azDsWhen').textContent=at?fmtWhen(at):(LOADING?'reading now':'–');$('azMetaUpdated').textContent=at?'Read from Azure '+new Date(at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';}
 
 /* ---------- results in numbers ---------- */
 const CRM=[
- {k:'uptime',sl:'availability',l:'Availability',u:'this month',cur:()=>MV('uptime',curM()),f:v=>(+v).toFixed(2)+'%',dir:1,unit:'pts',dp:2,src:'monthly figures'},
- {k:'inc',sl:'fewer incidents',l:'Incidents',u:'this month',cur:()=>curM()?incIn(curM()).length:null,f:v=>int(v),dir:-1,unit:'',src:'incidents'},
- {k:'resp',sl:'faster response times',l:'Average response time',cur:()=>MV('resp',curM()),f:v=>int(v)+'ms',dir:-1,pct:1,src:'monthly figures'},
- {k:'cost',sl:'lower monthly spend',l:'Monthly spend',cur:()=>MV('cost',curM()),f:v=>money(v),dir:-1,pct:1,src:'monthly figures'},
- {k:'saved',nc:0,sl:'savings made',l:'Savings made',u:'a month',cur:()=>CDATA.recs.length?savedPM():null,base:0,f:v=>money(v),dir:1,unit:'',src:'recommendations'},
- {k:'score',sl:'Secure Score',l:'Secure Score',cur:()=>MV('score',curM()),f:v=>Math.round(v)+'%',dir:1,unit:'pts',src:'monthly figures'},
- {k:'backup',sl:'backup success',l:'Backups succeeded',cur:()=>bsucc(curM()),f:v=>(+v).toFixed(1)+'%',dir:1,unit:'pts',dp:1,src:'monthly figures'},
- {k:'patch',sl:'patch compliance',l:'Patch compliance',cur:()=>MV('patch',curM()),f:v=>Math.round(v)+'%',dir:1,unit:'pts',src:'monthly figures'},
- {k:'mfa',sl:'MFA coverage',l:'Users with MFA',cur:()=>MV('mfa',curM()),f:v=>Math.round(v)+'%',dir:1,unit:'pts',src:'monthly figures'},
- {k:'ahigh',sl:'fewer high-severity alerts',l:'High-severity alerts',u:'this month',cur:()=>MV('ahigh',curM()),f:v=>int(v),dir:-1,unit:'',src:'monthly figures'},
- {k:'vuln',sl:'fewer critical vulnerabilities',l:'Critical vulnerabilities',cur:()=>MV('vuln',curM()),f:v=>int(v),dir:-1,unit:'',src:'monthly figures'},
- {k:'oversized',sl:'fewer oversized resources',l:'Oversized resources',cur:()=>CDATA.res.length?CDATA.res.filter(r=>resStatus(r)[1]==='Oversized').length:null,f:v=>int(v),dir:-1,unit:'',src:'resources'},
- {k:'pressure',sl:'fewer resources under pressure',l:'Resources under pressure',cur:()=>CDATA.res.length?CDATA.res.filter(r=>resStatus(r)[1]==='Under pressure').length:null,f:v=>int(v),dir:-1,unit:'',src:'resources'},
- {k:'recs',sl:'fewer open recommendations',l:'Open recommendations',cur:()=>CDATA.recs.length?recOpen().length:null,f:v=>int(v),dir:-1,unit:'',src:'recommendations'},
+ {k:'uptime',sl:'availability',l:'Availability',u:'this month',cur:()=>MV('uptime',curM()),f:v=>(+v).toFixed(2)+'%',dir:1,unit:'pts',dp:2,src:'Azure Monitor'},
+ {k:'inc',sl:'fewer incidents',l:'Incidents',u:'this month',cur:()=>curM()?incIn(curM()).length:null,f:v=>int(v),dir:-1,unit:'',src:'Resource Health'},
+ {k:'resp',sl:'faster response times',l:'Average response time',cur:()=>MV('resp',curM()),f:v=>int(v)+'ms',dir:-1,pct:1,src:'Azure Monitor'},
+ {k:'cost',sl:'lower monthly spend',l:'Monthly spend',cur:()=>MV('cost',curM()),f:v=>money(v),dir:-1,pct:1,src:'Cost Management'},
+ {k:'score',sl:'Secure Score',l:'Secure Score',cur:()=>MV('score',curM()),f:v=>Math.round(v)+'%',dir:1,unit:'pts',src:'Defender for Cloud'},
+ {k:'backup',sl:'backup success',l:'Backups succeeded',cur:()=>bsucc(curM()),f:v=>(+v).toFixed(1)+'%',dir:1,unit:'pts',dp:1,src:'Azure Backup'},
+ {k:'patch',sl:'patch compliance',l:'Patch compliance',cur:()=>MV('patch',curM()),f:v=>Math.round(v)+'%',dir:1,unit:'pts',src:'Azure Update Manager'},
+ {k:'mfa',sl:'MFA coverage',l:'Users with MFA',cur:()=>MV('mfa',curM()),f:v=>Math.round(v)+'%',dir:1,unit:'pts',src:'Entra ID'},
+ {k:'ahigh',sl:'fewer high-severity alerts',l:'High-severity alerts',u:'this month',cur:()=>MV('ahigh',curM()),f:v=>int(v),dir:-1,unit:'',src:'Defender for Cloud'},
+ {k:'vuln',sl:'fewer critical vulnerabilities',l:'Critical vulnerabilities',cur:()=>MV('vuln',curM()),f:v=>int(v),dir:-1,unit:'',src:'Defender for Cloud'},
+ {k:'oversized',sl:'fewer oversized resources',l:'Oversized resources',cur:()=>CDATA.res.length?CDATA.res.filter(r=>resStatus(r)[1]==='Oversized').length:null,f:v=>int(v),dir:-1,unit:'',src:'Azure Monitor'},
+ {k:'pressure',sl:'fewer resources under pressure',l:'Resources under pressure',cur:()=>CDATA.res.length?CDATA.res.filter(r=>resStatus(r)[1]==='Under pressure').length:null,f:v=>int(v),dir:-1,unit:'',src:'Azure Monitor'},
+ {k:'recs',sl:'fewer open recommendations',l:'Open recommendations',cur:()=>CDATA.recs.length?recOpen().length:null,f:v=>int(v),dir:-1,unit:'',src:'Azure Advisor'},
 ];
-CRM.forEach(m=>{if(m.base==null)delete m.base;});
-const CRMB=CRM.filter(m=>m.base==null);
+/* Starting point = the earliest month Azure still has for each measure (cost keeps 6 months, metrics and logs about 90 days). */
+const BASEF={uptime:k=>MV('uptime',k),resp:k=>MV('resp',k),cost:k=>MV('cost',k),backup:k=>bsucc(k),ahigh:k=>MV('ahigh',k),inc:k=>LV&&LV.months&&LV.months.indexOf(k)>=LV.months.length-3?incIn(k).length:null};
+function clBase(){const m=curM();let first=null;CRM.forEach(x=>{delete x.base;delete x.bdate;const f=BASEF[x.k];if(!f||!m)return;
+ const k=Object.keys(CDATA.months).sort().find(k=>k<m&&f(k)!=null);if(!k)return;x.base=f(k);x.bdate=k+'-01';if(!first||k<first)first=k;});return first;}
 
-/* ---------- work completed ---------- */
+/* ---------- work completed (Activity Log + action plan) ---------- */
 let CLINS=[],CLSHOWALL=false;
 const CAREA2CAT={Uptime:'Monitoring',Usage:'Performance',Cost:'Cost optimisation',Security:'Security',Backup:'Backup and recovery',Patching:'Patching and updates',Setup:'Monitoring',Optimisation:'Performance'};
-function clWorkItems(){const L=[];(CDATA.work||[]).forEach(w=>{if(w.vis)L.push({...w});});
- CDATA.recs.filter(r=>r.st==='Done').forEach(r=>L.push({id:'rec-'+r.id,date:r.done||null,cat:r.cat==='Cost'?'Cost optimisation':r.cat==='Security'?'Security':r.cat==='Reliability'?'Backup and recovery':'Performance',title:r.title,detail:(r.res?r.res+'. ':'')+(+r.save?'Saves about '+money(r.save)+' a month.':''),owner:'EG Eloma',fix:true}));
+function clWorkItems(){const L=(CDATA.work||[]).map(w=>({...w}));
  (CLINS.length?CLINS:clBuild()).filter(x=>x.sev!=='good').forEach(x=>{const st=stOf(x.id),cat=CAREA2CAT[x.area]||'Other',own=st.owner!=='Unassigned'?st.owner:'EG Eloma';
   if(st.status==='Done')L.push({id:'a-'+x.id,date:st.doneAt||null,cat,title:'Fixed: '+x.title,detail:'',owner:own,fix:true});
   else st.done.forEach(i=>L.push({id:'s-'+x.id+'-'+i,date:(st.at||{})[i]||null,cat,title:x.actions[i],detail:'Part of: '+x.title,owner:own,fix:true}));});
  return L.filter(w=>inRange(w.date)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));}
-function clWork(){const W=clWorkItems(),hrs=W.reduce((t,w)=>t+(+w.hours||0),0),prog=CDATA.recs.filter(r=>r.st==='In progress');
- $('azWorkSub').textContent='What the EG Eloma team has done for this client, '+(R.e===LAST?rangeText(R.s,R.e,' – ').replace(/ – .*/,'')+' to today':rangeText(R.s,R.e,' – '));
- $('azWorkStats').innerHTML=stat('Tasks completed',W.length,'',W.filter(w=>w.fix).length+' recommendations and fixes')+stat('Savings made',savedPM()?money(savedPM()):'–','',savedPM()?'a month, from completed recommendations':'None recorded yet')+stat('In progress',prog.length,'',prog.length?'recommendations being worked on':'Nothing in progress')+stat('Hours logged',hrs?trim(hrs.toFixed(1)):'–','',hrs?'from the work log':'Add hours when logging work');
+function clWork(){const W=clWorkItems(),ppl=new Set(W.filter(w=>!w.fix).map(w=>w.owner)).size,av=availPM();
+ $('azWorkSub').textContent='Changes the team made in this client\'s Azure resources (Activity Log), '+(R.e===LAST?rangeText(R.s,R.e,' – ').replace(/ – .*/,'')+' to today':rangeText(R.s,R.e,' – '));
+ $('azWorkStats').innerHTML=stat('Changes made',W.filter(w=>!w.fix).length,'',errFor('Activity log')?'Activity Log could not be read':'from the Azure Activity Log')+stat('Action plan steps done',W.filter(w=>w.fix).length,'','ticked in Team actions')+stat('People',ppl,'',ppl?'made changes in this period':'No changes in this period')+stat('Savings available',av?money(av):'–','',av?'a month, from Azure Advisor':'No cost recommendations open');
  $('azWorkCount').textContent=W.length+' item'+(W.length===1?'':'s');const show=CLSHOWALL?W:W.slice(0,6);
- $('azWorkList').innerHTML=show.map(w=>`<div class="wk"><div class="wd">${w.date?dfmt(dIdx(w.date)):'Date not recorded'}</div><div class="wb"><span class="wc ${w.fix?'fix':''}">${esc(w.cat)}</span><h4>${esc(w.title)}</h4>${w.detail?`<p>${esc(w.detail)}</p>`:''}<small>By ${esc(w.owner||'EG Eloma')}${w.hours?' · '+trim((+w.hours).toFixed(2))+' h':''}</small></div></div>`).join('')
-  +(W.length>6?`<button class="morebtn" id="azWorkMore">${CLSHOWALL?'Show fewer':'Show all '+W.length}</button>`:'')||'<p class="goalnote">No work logged in this period yet.</p>';
- const nx=CDATA.recs.filter(r=>r.st==='Open').sort((a,b)=>({High:0,Medium:1,Low:2}[a.imp]-{High:0,Medium:1,Low:2}[b.imp])||(+b.save||0)-(+a.save||0)).slice(0,4);
- $('azNextCount').textContent=prog.length?prog.length+' in progress':'';
- $('azWorkNext').innerHTML=(prog.length?`<div class="nxh">In progress</div>`+prog.map(r=>`<div class="nx"><span class="wc">${esc(r.cat)}</span><b>${esc(r.title)}</b><small>${esc(r.res||'')}${+r.save?' · saves about '+money(r.save)+' a month':''}</small></div>`).join(''):'')
-  +(nx.length?`<div class="nxh">Coming next</div>`+nx.map(r=>`<div class="nx"><span class="prio-pill ${r.imp==='High'?'bad':r.imp==='Medium'?'warn':'note'}">${r.imp} impact</span><b>${esc(r.title)}</b><small>${esc(r.cat)}${r.res?' · '+esc(r.res):''}${+r.save?' · saves about '+money(r.save)+' a month':''}</small></div>`).join(''):'')||'<p class="goalnote">No recommendations recorded yet.</p>';}
+ $('azWorkList').innerHTML=show.map(w=>`<div class="wk"><div class="wd">${w.date?dfmt(dIdx(w.date)):'Date not known'}</div><div class="wb"><span class="wc ${w.fix?'fix':''}">${esc(w.cat)}</span><h4>${esc(w.title)}</h4>${w.detail?`<p>${esc(w.detail)}</p>`:''}<small>By ${esc(w.owner||'EG Eloma')}</small></div></div>`).join('')
+  +(W.length>6?`<button class="morebtn" id="azWorkMore">${CLSHOWALL?'Show fewer':'Show all '+W.length}</button>`:'')||'<p class="goalnote">No changes recorded in this period.</p>';
+ const nx=CDATA.recs.slice().sort((a,b)=>({High:0,Medium:1,Low:2}[a.imp]-{High:0,Medium:1,Low:2}[b.imp])||(+b.save||0)-(+a.save||0)).slice(0,5);
+ $('azNextCount').textContent=CDATA.recs.length?CDATA.recs.length+' open':'';
+ $('azWorkNext').innerHTML=(nx.length?`<div class="nxh">Coming next</div>`+nx.map(r=>`<div class="nx"><span class="prio-pill ${r.imp==='High'?'bad':r.imp==='Medium'?'warn':'note'}">${r.imp} impact</span><b>${esc(r.title)}</b><small>${esc(r.cat)}${r.res?' · '+esc(r.res):''}${+r.save?' · saves about '+money(r.save)+' a month':''}</small></div>`).join(''):'')||'<p class="goalnote">No open recommendations from Azure.</p>';}
 document.addEventListener('click',e=>{if(e.target.id==='azWorkMore'){CLSHOWALL=!CLSHOWALL;clWork();}});
 
 /* ---------- sections ---------- */
-function clUptime(){const m=curM(),p=prevM(),c=CDATA.cfg;
- if(!m){$('azUpStats').classList.add('nostats');$('azUpStats').innerHTML=clAwait('Monthly figures not entered yet','Availability, response time and incidents show here once the first month is entered.',['Azure: Monitor, then Workbooks or Application Insights availability; AWS: CloudWatch; Google Cloud: Cloud Monitoring uptime checks.','Enter the month\'s figures in Update data, Monthly figures.']);$('azInc').innerHTML='';$('azIncCount').textContent='';return;}
- $('azUpStats').classList.remove('nostats');const up=MV('uptime',m),pu=MV('uptime',p),I=incIn(m),dt=I.reduce((t,x)=>t+(+x.dur||0),0),pI=p?incIn(p):null,rs=MV('resp',m),pr=MV('resp',p);
+function clUptime(){const m=curM(),p=prevM(),c=CDATA.cfg,up=MV('uptime',m),rs=MV('resp',m);
+ if(!m||(up==null&&rs==null&&!CDATA.inc.length)){$('azUpStats').classList.add('nostats');$('azUpStats').innerHTML=azAwait('No availability figures from Azure yet','Availability comes from Application Insights availability tests, App Service request errors and virtual machine availability in Azure Monitor. Incidents come from Resource Health.',['Usage','Activity log']);$('azInc').innerHTML='';$('azIncCount').textContent='';return;}
+ $('azUpStats').classList.remove('nostats');const pu=MV('uptime',p),I=incIn(m),dt=I.reduce((t,x)=>t+(+x.dur||0),0),pI=p?incIn(p):null,pr=MV('resp',p);
  const vs=(t)=>p?`<span class="cmp">${t} vs ${mName(p)}</span>`:'<span>No earlier month</span>';
- $('azUpStats').innerHTML=stat('Availability',up!=null?up.toFixed(2):'–',up!=null?'%':'',up==null?'Not entered':`<span class="${up>=c.tUp?'up':'down'}" style="font-weight:600">${up>=c.tUp?'Met':'Below'} the ${c.tUp}% target</span>`)
+ $('azUpStats').innerHTML=stat('Availability',up!=null?up.toFixed(2):'–',up!=null?'%':'',up==null?'No availability data':`<span class="${up>=c.tUp?'up':'down'}" style="font-weight:600">${up>=c.tUp?'Met':'Below'} the ${c.tUp}% target</span>`)
   +stat('Incidents',I.length,'',pI?vs(`<span class="${I.length<=pI.length?'up':'down'}">${I.length-pI.length>0?'+':''}${I.length-pI.length}</span>`):'<span>No earlier month</span>')
-  +stat('Downtime',int(dt),' min',I.filter(x=>x.prov).length?I.filter(x=>x.prov).length+' caused by the provider':'Across all incidents')
+  +stat('Downtime',int(dt),' min',I.filter(x=>x.prov).length?I.filter(x=>x.prov).length+' caused by Azure':'Across all incidents')
   +stat('Average response time',rs!=null?int(rs):'–',rs!=null?'ms':'',rs!=null&&pr!=null?vs(`<span class="${rs<=pr?'up':'down'}">${pct(rs,pr)>0?'+':''}${pct(rs,pr).toFixed(0)}%</span>`):'');
- $('azUpSub').textContent='Availability of '+(c.client||'the company')+'\'s services and any incidents, '+mName(m);
+ $('azUpSub').textContent='Availability of '+(c.client||'the company')+'\'s services and any incidents, '+mLabel(m);
  $('azIncCount').textContent=I.length?I.length+' in '+mName(m):'';
- $('azInc').innerHTML=I.sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<tr><td>${dfmt(dIdx(x.date))}</td><td><b style="font-weight:600;color:var(--strong)">${esc(x.title)}</b>${x.prov?' <span class="chip neu">Provider</span>':''}</td><td class="hide-m kwurl">${esc(x.res||'')}</td><td class="n">${int(+x.dur||0)} min</td><td class="hide-m" style="color:var(--t2)">${esc(x.cause||'')}</td></tr>`).join('')||`<tr><td colspan="5" class="empty">No incidents in ${mName(m)}.</td></tr>`;}
+ $('azInc').innerHTML=I.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<tr><td>${dfmt(dIdx(x.date))}</td><td><b style="font-weight:600;color:var(--strong)">${esc(x.title)}</b>${x.prov?' <span class="chip neu">Azure platform</span>':''}${x.ongoing?' <span class="chip bad">Ongoing</span>':''}</td><td class="hide-m kwurl">${esc(x.res||'')}</td><td class="n">${int(+x.dur||0)} min</td><td class="hide-m" style="color:var(--t2)">${esc(x.cause||'')}</td></tr>`).join('')||`<tr><td colspan="5" class="empty">No incidents in ${mName(m)}.</td></tr>`;}
 function clUsage(){const R2=CDATA.res;
- if(!R2.length){$('azUseDist').innerHTML=clAwait('No resources added yet','Each server, app, database and desktop pool, with how hard it is working, shows here.',['Export 30-day average and peak CPU and memory from Azure Monitor (or CloudWatch / Cloud Monitoring).','Upload them in Update data, Resources, using the template.']).replace('data-open-azr','data-open-azr data-tabto="res"');$('azUse').innerHTML='';return;}
+ if(!R2.length){$('azUseDist').innerHTML=azAwait('No servers, apps or databases found','Virtual machines, App Service plans, databases, caches and Kubernetes clusters in this client\'s resource groups show here with their 30-day CPU, memory and disk use from Azure Monitor.',['Resources','Usage']);$('azUse').innerHTML='';return;}
  const cols=[['Right-sized','#2db88c'],['Oversized','#c98a1b'],['Under pressure','#c2522d'],['No usage data','#e3e6ea']],cnt=s=>R2.filter(r=>resStatus(r)[1]===s).length;
  $('azUseDist').innerHTML=`<div class="dbar">${cols.map(c=>cnt(c[0])?`<i style="width:${cnt(c[0])/R2.length*100}%;background:${c[1]}"></i>`:'').join('')}</div><div class="dleg" style="grid-template-columns:repeat(4,1fr)">${cols.map(c=>`<div><span><i style="background:${c[1]}"></i>${c[0]}</span><b>${cnt(c[0])}</b><small>${c[0]==='Oversized'?'paying for unused capacity':c[0]==='Under pressure'?'may slow down':c[0]==='Right-sized'?'sized correctly':''}</small></div>`).join('')}</div>`;
  const col=v=>v>85?'#c2522d':v>70?'#c98a1b':'#2db88c',n=v=>v===''||v==null||isNaN(+v)?null:+v;
  $('azUse').innerHTML=R2.slice().sort((a,b)=>{const o={'Under pressure':0,'Oversized':1,'Right-sized':2,'No usage data':3};return o[resStatus(a)[1]]-o[resStatus(b)[1]];}).map(r=>{const s=resStatus(r),a=n(r.cpu_avg),p=n(r.cpu_peak),m=n(r.memory),d=n(r.disk);
   return `<tr><td><b style="font-weight:600;color:var(--strong)">${esc(r.name)}</b></td><td class="hide-m kwurl">${esc(r.type||'')}${r.size?' · '+esc(r.size):''}</td><td>${a!=null?Math.round(a)+'%'+(p!=null?' · '+Math.round(p)+'%':'')+bar(a,col(Math.max(a,p||0))):'–'}</td><td class="hide-m">${m!=null?Math.round(m)+'%'+bar(m,col(m)):'–'}</td><td class="hide-m">${d!=null?Math.round(d)+'%'+bar(d,col(d)):'–'}</td><td class="n hide-m">${n(r.monthly_cost)!=null?money(r.monthly_cost):'–'}</td><td><span class="chip ${s[0]}">${s[1]}</span></td></tr>`;}).join('');
- $('azResUseSub').textContent=`${R2.length} resources. CPU and memory are 30-day averages; high peaks or averages above 75% can slow things down, and averages under 10% mean paying for capacity that isn't used.`;}
+ $('azResUseSub').textContent=`${R2.length} resources. CPU and memory are 30-day averages from Azure Monitor and cost is the last 30 days; high peaks or averages above 75% can slow things down, and averages under 10% mean paying for capacity that isn't used.`;}
 function clCost(){const m=curM(),p=prevM(),cost=MV('cost',m),bud=MV('budget',m),pc=MV('cost',p);
- if(cost==null){$('azCostMain').innerHTML='<div class="ph"><h3>Monthly spend</h3></div>'+clAwait('Spend not entered yet','Monthly spend against budget shows here.',['Azure: Cost Management, Cost analysis, set the month, and copy the total and cost by service.','Enter them in Update data, Monthly figures.'],'sm').replace('data-open-azr','data-open-azr data-tabto="month"');}
- else{const ms=Object.keys(CDATA.months).sort().filter(k=>k<=m).slice(-6),vals=ms.map(k=>MV('cost',k)||0),mx=Math.max(...vals,bud||0)||1;
-  $('azCostMain').innerHTML=`<div class="ph"><h3>Monthly spend</h3><span>${mName(m)}</span></div><div class="kv" style="margin-top:0">${`<div><b>${money(cost)}</b><span>Spent</span></div><div><b>${bud?money(bud):'–'}</b><span>Budget</span></div>`}</div>
+ if(cost==null){$('azCostMain').innerHTML='<div class="ph"><h3>Monthly spend</h3></div>'+azAwait('No spend from Cost Management','Spend for this client\'s resource groups, and the budget set on them in Cost Management, shows here.',['Cost','Budgets'],'sm');}
+ else{const ms=Object.keys(CDATA.months).sort().filter(k=>k<=m&&MV('cost',k)!=null).slice(-6),vals=ms.map(k=>MV('cost',k)||0),mx=Math.max(...vals,bud||0)||1;
+  $('azCostMain').innerHTML=`<div class="ph"><h3>Monthly spend</h3><span>${mLabel(m)}</span></div><div class="kv" style="margin-top:0"><div><b>${money(cost)}</b><span>Spent</span></div><div><b>${bud?money(bud):'–'}</b><span>${bud?'Budget':'No budget set in Azure'}</span></div></div>
    ${bud?`<div class="pacing">${Math.round(cost/bud*100)}% of budget${cost>bud?' · <span style="color:var(--bad);font-weight:600">'+money(cost-bud)+' over</span>':' · '+money(bud-cost)+' under'}<div class="bar"><b style="width:${Math.min(cost/bud,1)*100}%;${cost>bud?'background:#c2522d':''}"></b></div></div>`:''}
-   ${pc!=null?`<div class="pacing">vs ${mName(p)}: <span class="${cost<=pc?'up':'down'}" style="font-weight:600;color:${cost<=pc?'var(--good)':'var(--bad)'}">${cost-pc>0?'+':'−'}${money(Math.abs(cost-pc))} (${pct(cost,pc)>0?'+':''}${pct(cost,pc).toFixed(1)}%)</span></div>`:''}
+   ${pc!=null?`<div class="pacing">vs ${mName(p)}: <span class="${cost<=pc?'up':'down'}" style="font-weight:600;color:${cost<=pc?'var(--good)':'var(--bad)'}">${cost-pc>0?'+':'−'}${money(Math.abs(cost-pc))} (${pc>0?(pct(cost,pc)>0?'+':'')+pct(cost,pc).toFixed(1)+'%':'new'})</span></div>`:''}
    ${ms.length>1?`<div style="display:flex;align-items:flex-end;gap:10px;height:90px;margin-top:22px">${ms.map((k,i)=>`<div style="flex:1;text-align:center;font-size:11px;color:var(--t3)"><div style="height:${vals[i]/mx*70}px;background:${k===m?'#2db88c':'#c9d3dc'};border-radius:4px 4px 0 0"></div>${MONTHS[+k.slice(5)-1].slice(0,3)}</div>`).join('')}</div>`:''}`;}
- const sv=savedPM(),op=recOpen().reduce((t,r)=>t+(+r.save||0),0);
- $('azSavings').innerHTML=`<div class="ph"><h3>Savings</h3><span>From optimisation recommendations</span></div>`+(CDATA.recs.length?`<div class="kv" style="margin-top:0"><div><b style="color:var(--good)">${money(sv)}</b><span>Saved a month (done)</span></div><div><b>${money(op)}</b><span>Still available a month</span></div><div><b>${money(sv*12)}</b><span>Saved a year</span></div><div><b>${money((sv+op)*12)}</b><span>Total a year if all done</span></div></div><div class="pacing">${sv+op?Math.round(sv/(sv+op)*100):0}% of identified savings made<div class="bar"><b style="width:${sv+op?sv/(sv+op)*100:0}%"></b></div></div>`
-  :clAwait('No recommendations yet','Upload an Azure Advisor export (or add recommendations by hand) to track savings found and made.',null,'sm').replace('data-open-azr','data-open-azr data-tabto="rec"'));
- const S=m&&CDATA.months[m]&&CDATA.months[m].svc,P=p&&CDATA.months[p]&&CDATA.months[p].svc;$('azSvcMonth').textContent=m?mName(m):'';
- if(S&&Object.keys(S).length){const tot=svcSum(m);$('azSvc').innerHTML=Object.entries(S).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${money(v)}</td><td class="n hide-m">${(v/tot*100).toFixed(0)}%${bar(v/tot*100,'#2db88c')}</td><td class="n cmp">${P&&P[k]?pcDelta(v,P[k],true):'–'}</td></tr>`).join('');}
- else $('azSvc').innerHTML='<tr><td colspan="4" class="empty">Cost by service not entered yet. Add it in Update data, Monthly figures.</td></tr>';
- $('azCostSub').textContent='Monthly spend, where it goes and what has been saved'+(m?', '+mName(m):'');}
+ const op=availPM(),cr=CDATA.recs.filter(r=>+r.save);
+ $('azSavings').innerHTML=`<div class="ph"><h3>Savings</h3><span>From Azure Advisor</span></div>`+(cr.length?`<div class="kv" style="margin-top:0"><div><b style="color:var(--good)">${money(op)}</b><span>Available a month</span></div><div><b>${money(op*12)}</b><span>Available a year</span></div><div><b>${cr.length}</b><span>Cost recommendations</span></div><div><b>${cost?Math.round(op/cost*100)+'%':'–'}</b><span>Of this month's spend</span></div></div>`
+  :azAwait('No savings found by Azure Advisor','Right-sizing, shutting down unused resources and reservations Advisor finds for this client show here.',['Advisor'],'sm'));
+ const S=m&&CDATA.months[m]&&CDATA.months[m].svc,P=p&&CDATA.months[p]&&CDATA.months[p].svc;$('azSvcMonth').textContent=m?mLabel(m):'';
+ if(S&&Object.keys(S).length){const tot=svcSum(m)||1;$('azSvc').innerHTML=Object.entries(S).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${money(v)}</td><td class="n hide-m">${(v/tot*100).toFixed(0)}%${bar(v/tot*100,'#2db88c')}</td><td class="n cmp">${P&&P[k]?pcDelta(v,P[k],true):'–'}</td></tr>`).join('');}
+ else $('azSvc').innerHTML=`<tr><td colspan="4" class="empty">${errFor('Cost')?esc(errFor('Cost').message):'No cost by service from Cost Management for this month.'}</td></tr>`;
+ $('azCostSub').textContent='Monthly spend, where it goes and what can be saved'+(m?', '+mLabel(m):'');}
 function clSecurity(){const m=curM(),p=prevM(),c=CDATA.cfg,sc=MV('score',m),ps=MV('score',p),C=2*Math.PI*48;
- if(sc==null&&MV('mfa',m)==null&&MV('patch',m)==null){$('azSecScore').innerHTML='<div class="ph"><h3>Security</h3></div>'+clAwait('Not entered yet','Secure Score, MFA coverage and patch compliance show here.',['Azure: Defender for Cloud (Secure Score) and Entra ID (MFA registration). Microsoft 365: Microsoft Secure Score.','Patch compliance: Azure Update Manager or your RMM tool.'],'sm').replace('data-open-azr','data-open-azr data-tabto="month"');}
+ if(sc==null&&MV('mfa',m)==null&&MV('patch',m)==null){$('azSecScore').innerHTML='<div class="ph"><h3>Security</h3></div>'+azAwait('No security figures from Azure yet','Secure Score (Defender for Cloud), MFA registration (Entra ID) and patch compliance (Azure Update Manager) show here.',['Secure Score','MFA','Patching'],'sm');}
  else{const col=sc>=SUB.tScore?'#2db88c':sc>=SUB.tScore-15?'#c98a1b':'#c2522d';
   $('azSecScore').innerHTML=`<div class="ph"><h3>Security</h3><span>Secure Score and MFA are subscription-wide · target ${SUB.tScore}%</span></div>${sc!=null?`<div class="ring"><svg viewBox="0 0 112 112"><circle cx="56" cy="56" r="48" fill="none" stroke="#ebecee" stroke-width="9"/><circle cx="56" cy="56" r="48" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${C*sc/100} ${C}" transform="rotate(-90 56 56)"/></svg><div><b>${Math.round(sc)}<small>%</small></b><p>Secure Score${ps!=null?`, <span class="mv ${sc>=ps?'up':'down'}">${sc-ps>=0?'+':''}${Math.round(sc-ps)} points</span> since ${mName(p)}`:''}.</p></div></div>`:''}
-  <div class="idx">${[['Users with MFA',MV('mfa',m),100],['Patch compliance',MV('patch',m),c.tPatch]].map(([l,v,t],i)=>`<div class="row" style="${i?'margin-top:8px':''}"><span>${l} (target ${t}%)</span><b style="color:${v==null?'var(--t3)':v>=t?'var(--good)':'var(--bad)'}">${v!=null?Math.round(v)+'%':'Not entered'}</b></div>`).join('')}<div class="row" style="margin-top:8px"><span>Open security recommendations</span><b>${CDATA.recs.filter(r=>r.cat==='Security'&&r.st!=='Done').length}</b></div></div>`;}
+  <div class="idx">${[['Users with MFA',MV('mfa',m),100,'MFA'],['Patch compliance',MV('patch',m),c.tPatch,'Patching']].map(([l,v,t,a],i)=>`<div class="row" style="${i?'margin-top:8px':''}"><span>${l} (target ${t}%)</span><b style="color:${v==null?'var(--t3)':v>=t?'var(--good)':'var(--bad)'}">${v!=null?Math.round(v)+'%':errFor(a)?'No access':'No data'}</b></div>`).join('')}<div class="row" style="margin-top:8px"><span>Open security recommendations</span><b>${CDATA.recs.filter(r=>r.cat==='Security').length}</b></div></div>`;}
  const j=MV('bjobs',m),f=MV('bfail',m),bs=bsucc(m),pbs=bsucc(p);
- $('azBackup').innerHTML=`<div class="ph"><h3>Backup</h3><span>Target ${c.tBackup}% of jobs succeed</span></div>`+(j?`<div class="kv" style="margin-top:0"><div><b style="color:${bs>=c.tBackup?'var(--good)':bs>=98?'var(--ink)':'var(--bad)'}">${bs.toFixed(1)}%</b><span>Jobs succeeded</span></div><div><b>${int(j)}</b><span>Backup jobs run</span></div><div><b>${int(f||0)}</b><span>Failed</span></div><div><b>${pbs!=null?(bs-pbs>=0?'+':'')+(bs-pbs).toFixed(1)+' pts':'–'}</b><span>Change since last month</span></div></div><div class="pacing">${bs>=c.tBackup?'All backups completed.':'Failed jobs are re-run and checked by the team.'}<div class="bar"><b style="width:${bs}%;${bs<98?'background:#c2522d':''}"></b></div></div>`
-  :clAwait('Not entered yet','Backup jobs run and failed show here (Azure Backup reports, Veeam or your backup tool).',null,'sm').replace('data-open-azr','data-open-azr data-tabto="month"'));
- $('azSecSub').textContent='Protection, patching and recovery'+(m?', '+mName(m):'');
- const ah=MV('ahigh',m),am=MV('amed',m),vu=MV('vuln',m),osr=CDATA.recs.filter(r=>r.cat==='Security'&&r.st!=='Done').length,dd=(k)=>{const a=MV(k,m),b=MV(k,p);return a!=null&&b!=null?`<span class="chg"><span class="${a<=b?'up':'down'}">${a-b>0?'+':''}${int(a-b)}</span> vs ${mName(p)}</span>`:'';};
- $('azThreat').innerHTML='<div class="ph"><h3>Threats and vulnerabilities</h3><span>Defender for Cloud</span></div>'+(ah==null&&vu==null&&am==null?clAwait('Not entered yet','Security alerts and critical vulnerabilities show here.',['Defender for Cloud, Security alerts: count high and medium alerts for the month.','Defender Vulnerability Management: count critical vulnerabilities.','Enter them in Update data, Monthly figures.'],'sm').replace('data-open-azr','data-open-azr data-tabto="month"')
-  :`<div class="kv" style="margin-top:0"><div><b style="color:${ah?'var(--bad)':'var(--good)'}">${ah!=null?int(ah):'–'}</b><span>High-severity alerts</span>${dd('ahigh')}</div><div><b>${am!=null?int(am):'–'}</b><span>Medium-severity alerts</span>${dd('amed')}</div><div><b style="color:${vu?'var(--bad)':'var(--good)'}">${vu!=null?int(vu):'–'}</b><span>Critical vulnerabilities</span>${dd('vuln')}</div><div><b>${osr}</b><span>Open security recommendations</span></div></div>`);
- const ms=Object.keys(CDATA.months).sort().filter(k=>k<=m&&MV('score',k)!=null).slice(-6);
- $('azScoreTrend').innerHTML='<div class="ph"><h3>Secure Score trend</h3><span>Last '+ms.length+' month'+(ms.length===1?'':'s')+'</span></div>'+(ms.length?`<div style="display:flex;align-items:flex-end;gap:10px;height:130px;margin-top:10px">${ms.map(k=>{const v=MV('score',k);return `<div style="flex:1;text-align:center;font-size:11px;color:var(--t3)"><div style="font-size:12px;color:var(--ink);font-weight:600;margin-bottom:4px">${Math.round(v)}%</div><div style="height:${v*0.9}px;background:${k===m?'#2db88c':'#c9d3dc'};border-radius:4px 4px 0 0"></div>${MONTHS[+k.slice(5)-1].slice(0,3)}</div>`}).join('')}</div><p class="goalnote">Target ${SUB.tScore}%.</p>`:'<p class="goalnote">Secure Score appears here once entered.</p>');
- const SR=CDATA.recs.filter(r=>r.cat==='Security').sort((a,b)=>({Open:0,'In progress':1,Done:2}[a.st]-{Open:0,'In progress':1,Done:2}[b.st]));$('azSecRecCount').textContent=SR.length?SR.filter(r=>r.st==='Done').length+' of '+SR.length+' done':'';
- $('azSecRecs').innerHTML=SR.map(r=>`<tr><td><b style="font-weight:600;color:var(--strong)">${esc(r.title)}</b></td><td class="hide-m kwurl">${esc(r.res||'')}</td><td><span class="prio-pill ${r.imp==='High'?'bad':r.imp==='Medium'?'warn':'note'}">${esc(r.imp)}</span></td><td><span class="chip ${r.st==='Done'?'good':r.st==='In progress'?'warn':'neu'}">${esc(r.st)}</span></td></tr>`).join('')||'<tr><td colspan="4" class="empty">No security recommendations recorded.</td></tr>';}
+ $('azBackup').innerHTML=`<div class="ph"><h3>Backup</h3><span>Target ${c.tBackup}% of jobs succeed</span></div>`+(j?`<div class="kv" style="margin-top:0"><div><b style="color:${bs>=c.tBackup?'var(--good)':bs>=98?'var(--ink)':'var(--bad)'}">${bs.toFixed(1)}%</b><span>Jobs succeeded</span></div><div><b>${int(j)}</b><span>Backup jobs run</span></div><div><b>${int(f||0)}</b><span>Failed</span></div><div><b>${pbs!=null?(bs-pbs>=0?'+':'')+(bs-pbs).toFixed(1)+' pts':'–'}</b><span>Change since last month</span></div></div><div class="pacing">${bs>=c.tBackup?'All backups completed.':'Failed jobs need re-running and checking.'}<div class="bar"><b style="width:${bs}%;${bs<98?'background:#c2522d':''}"></b></div></div>`
+  :azAwait('No backup jobs found','Backup jobs from the Recovery Services vaults that protect this client\'s servers show here.',['Backups'],'sm'));
+ $('azSecSub').textContent='Protection, patching and recovery'+(m?', '+mLabel(m):'');
+ const ah=MV('ahigh',m),am=MV('amed',m),vu=MV('vuln',m),osr=CDATA.recs.filter(r=>r.cat==='Security').length,dd=(k)=>{const a=MV(k,m),b=MV(k,p);return a!=null&&b!=null?`<span class="chg"><span class="${a<=b?'up':'down'}">${a-b>0?'+':''}${int(a-b)}</span> vs ${mName(p)}</span>`:'';};
+ $('azThreat').innerHTML='<div class="ph"><h3>Threats and vulnerabilities</h3><span>Defender for Cloud</span></div>'+(ah==null&&vu==null&&am==null?azAwait('No Defender for Cloud figures yet','Security alerts and critical vulnerabilities on this client\'s resources show here.',['Security alerts','Vulnerabilities'],'sm')
+  :`<div class="kv" style="margin-top:0"><div><b style="color:${ah?'var(--bad)':'var(--good)'}">${ah!=null?int(ah):'–'}</b><span>High-severity alerts</span>${dd('ahigh')}</div><div><b>${am!=null?int(am):'–'}</b><span>Medium-severity alerts</span>${dd('amed')}</div><div><b style="color:${vu?'var(--bad)':'var(--good)'}">${vu!=null?int(vu):'–'}</b><span>Critical vulnerabilities</span></div><div><b>${osr}</b><span>Open security recommendations</span></div></div>`);
+ const ms=Object.keys(SUB.months).sort().filter(k=>k<=(m||NOWM)&&SV('score',k)!=null).slice(-6);
+ $('azScoreTrend').innerHTML='<div class="ph"><h3>Secure Score</h3><span>'+(ms.length?mLabel(ms[ms.length-1]):'')+'</span></div>'+(ms.length?`<div style="display:flex;align-items:flex-end;gap:10px;height:130px;margin-top:10px">${ms.map(k=>{const v=SV('score',k);return `<div style="flex:1;text-align:center;font-size:11px;color:var(--t3)"><div style="font-size:12px;color:var(--ink);font-weight:600;margin-bottom:4px">${Math.round(v)}%</div><div style="height:${v*0.9}px;background:${k===m?'#2db88c':'#c9d3dc'};border-radius:4px 4px 0 0"></div>${MONTHS[+k.slice(5)-1].slice(0,3)}</div>`}).join('')}</div><p class="goalnote">Target ${SUB.tScore}%. Defender for Cloud gives the current score.</p>`:`<p class="goalnote">${errFor('Secure Score')?esc(errFor('Secure Score').message):'Secure Score appears here once Defender for Cloud reports it.'}</p>`);
+ const SR=CDATA.recs.filter(r=>r.cat==='Security').sort((a,b)=>({High:0,Medium:1,Low:2}[a.imp]-{High:0,Medium:1,Low:2}[b.imp]));$('azSecRecCount').textContent=SR.length?SR.length+' open':'';
+ $('azSecRecs').innerHTML=SR.map(r=>`<tr><td><b style="font-weight:600;color:var(--strong)">${esc(r.title)}</b></td><td class="hide-m kwurl">${esc(r.res||'')}</td><td><span class="prio-pill ${r.imp==='High'?'bad':r.imp==='Medium'?'warn':'note'}">${esc(r.imp)}</span></td></tr>`).join('')||`<tr><td colspan="3" class="empty">${errFor('Security recommendations')?esc(errFor('Security recommendations').message):'No open security recommendations in Defender for Cloud.'}</td></tr>`;}
 let clOptF='all';
-function clOpt(){const L=CDATA.recs.filter(r=>clOptF==='all'||r.st===clOptF).sort((a,b)=>({Open:0,'In progress':1,Done:2}[a.st]-{Open:0,'In progress':1,Done:2}[b.st])||({High:0,Medium:1,Low:2}[a.imp]-{High:0,Medium:1,Low:2}[b.imp]));
+const IMPO={High:0,Medium:1,Low:2};
+function clOpt(){const L=CDATA.recs.filter(r=>clOptF==='all'||r.cat===clOptF).sort((a,b)=>IMPO[a.imp]-IMPO[b.imp]||(+b.save||0)-(+a.save||0));
  document.querySelectorAll('#azOptFilter button').forEach(b=>b.classList.toggle('on',b.dataset.f===clOptF));
- $('azOpt').innerHTML=L.map(r=>`<tr><td><b style="font-weight:600;color:var(--strong)">${esc(r.title)}</b>${r.st==='Done'&&r.done?`<small style="display:block;color:var(--t3);font-size:12px">Done ${dfmt(dIdx(r.done),{year:'numeric'})}</small>`:''}</td><td class="hide-m">${esc(r.cat)}</td><td class="hide-m kwurl">${esc(r.res||'')}</td><td><span class="prio-pill ${r.imp==='High'?'bad':r.imp==='Medium'?'warn':'note'}">${esc(r.imp)}</span></td><td class="n">${+r.save?money(r.save):'–'}</td><td><span class="chip ${r.st==='Done'?'good':r.st==='In progress'?'warn':'neu'}">${esc(r.st)}</span></td></tr>`).join('')
-  ||`<tr><td colspan="6" class="empty">${CDATA.recs.length?'No recommendations with this status.':'No recommendations yet. Upload an Azure Advisor export in Update data, Recommendations.'}</td></tr>`;
- const d=CDATA.recs.filter(r=>r.st==='Done').length;$('azOptSub').textContent=CDATA.recs.length?`${d} of ${CDATA.recs.length} recommendations done. Categories follow Azure Advisor: cost, performance, reliability, security and operational excellence.`:'Recommendations to make this client\'s resources faster, safer and cheaper, and their status';}
-function clNotes(){const N=CDATA.notes,items=(N.items||[]).filter(Boolean);
- $('azNotes').innerHTML=N.text||items.length?`<div><p>${esc(N.text)}</p><div class="sig"><i>EG</i>EG Eloma cloud team</div></div><ol>${items.map(i=>`<li>${esc(i)}</li>`).join('')}</ol>`:`<div><p style="color:var(--t3)">The account manager's summary of the month appears here. Write it in Update data, Client and targets.</p></div><div></div>`;
- $('azNotesSub').textContent='Notes from your account manager'+(curM()?' on '+mName(curM()):'');}
-function clSetup(){const need=!CDATA.cfg.client||!clCount();
- $('azSetup').innerHTML=need?`<section style="padding-top:40px">${clAwait('Set up this Azure report',`Add the company, its Azure subscriptions and targets, then the first month's figures. Each section fills in as data is added.`,['Client and targets: client name, resource group and targets.','Monthly figures: availability, response time, spend, Secure Score, MFA, patching and backups.','Resources and Recommendations: upload Azure Monitor and Azure Advisor exports.'])}</section>`:'';}
+ $('azOpt').innerHTML=L.map(r=>`<tr><td><b style="font-weight:600;color:var(--strong)">${esc(r.title)}</b>${r.solution&&r.solution!==r.title?`<small style="display:block;color:var(--t3);font-size:12px">${esc(r.solution)}</small>`:''}</td><td class="hide-m">${esc(r.cat)}</td><td class="hide-m kwurl">${esc(r.res||'')}</td><td><span class="prio-pill ${r.imp==='High'?'bad':r.imp==='Medium'?'warn':'note'}">${esc(r.imp)}</span></td><td class="n">${+r.save?money(r.save):'–'}</td><td class="hide-m" style="color:var(--t2)">${esc(r.source||'')}</td></tr>`).join('')
+  ||`<tr><td colspan="6" class="empty">${CDATA.recs.length?'No recommendations in this category.':errFor('Advisor')?esc(errFor('Advisor').message):'No open recommendations from Azure Advisor or Defender for Cloud.'}</td></tr>`;
+ $('azOptSub').textContent=CDATA.recs.length?`${CDATA.recs.length} open recommendations from Azure Advisor and Defender for Cloud: cost, performance, reliability, security and operational excellence. Fixed ones drop off automatically.`:'Recommendations to make this client\'s resources faster, safer and cheaper';}
+/* Summary written from the live checks, not by hand. */
+function clNotes(){const m=curM(),c=CDATA.cfg,up=MV('uptime',m),cost=MV('cost',m),bud=MV('budget',m),ah=MV('ahigh',m),bs=bsucc(m),I=m?incIn(m):[];
+ const parts=[];if(up!=null)parts.push(`Availability was ${up.toFixed(2)}%, ${up>=c.tUp?'meeting':'below'} the ${c.tUp}% target${I.length?', with '+I.length+' incident'+(I.length>1?'s':''):' with no incidents'}.`);
+ if(cost!=null)parts.push(`Spend is ${money(cost)}${bud?' ('+Math.round(cost/bud*100)+'% of the '+money(bud)+' budget)':''}${m===NOWM?' so far this month':''}.`);
+ if(ah!=null)parts.push(ah?`${int(ah)} high-severity security alert${ah>1?'s need':' needs'} triage.`:'No high-severity security alerts.');
+ if(bs!=null)parts.push(`${bs.toFixed(1)}% of backup jobs succeeded.`);
+ if(availPM())parts.push(`Azure Advisor has found about ${money(availPM())} a month in savings.`);
+ const next=CLINS.filter(x=>x.sev==='bad'||x.sev==='warn'||x.sev==='opp').slice(0,3).map(x=>x.actions[0]+' ('+x.title.charAt(0).toLowerCase()+x.title.slice(1)+')');
+ $('azNotes').innerHTML=parts.length?`<div><p>${esc(parts.join(' '))}</p><div class="sig"><i>EG</i>Written from live Azure figures</div></div><ol>${next.map(i=>`<li>${esc(i)}</li>`).join('')}</ol>`:`<div><p style="color:var(--t3)">${LOADING?'Reading Azure…':'The summary appears once Azure returns figures for this client.'}</p></div><div></div>`;
+ $('azNotesSub').textContent='What happened'+(m?' in '+mLabel(m):'')+' and what to do next';}
+function clSetup(){$('azSetup').innerHTML=!LOADING&&LV&&LV.configured&&!clCount()&&!CDATA.res.length?`<section style="padding-top:40px">${azAwait('No figures from Azure for this client yet','This client\'s resource groups returned no spend, usage, security or backup figures. New resource groups fill in within a day of resources being added.',null)}</section>`:'';}
 
 /* ---------- team insights ---------- */
 function clBuild(){const L=[],add=o=>{o.id+='@'+CLID;L.push(o);},ev=(label,cur,was)=>({label,cur,was}),m=curM(),p=prevM(),c=CDATA.cfg;
- if(!CDATA.cfg.client||!m)add({id:'az-setup',sev:'opp',area:'Setup',score:20,title:'Finish setting up the cloud report',ev:[ev('Client',c.client||'Not set'),ev('Months entered',clCount())],why:'The report stays mostly empty until the first month is entered.',causes:['New report'],actions:['Enter the client name, resource group and targets','Enter the first month\'s figures','Upload resources (Azure Monitor) and recommendations (Azure Advisor)','Record a starting point so before-and-after shows next month']});
- const up=MV('uptime',m);if(up!=null){if(up<c.tUp)add({id:'az-up',sev:up<c.tUp-0.5?'bad':'warn',area:'Uptime',score:(c.tUp-up)*40,title:`Availability ${up.toFixed(2)}% is below the ${c.tUp}% target`,ev:[ev('Availability',up.toFixed(2)+'%',MV('uptime',p)!=null?MV('uptime',p).toFixed(2)+'%':null)],why:'Downtime stops staff and customers working, and breaches the agreed service level.',causes:['Incidents listed in Uptime and health','Single points of failure without redundancy'],actions:['Review each incident and record the root cause','Add monitoring alerts for the affected resources','Consider availability zones or a second instance for critical services']});
+ const up=MV('uptime',m);if(up!=null){if(up<c.tUp)add({id:'az-up',sev:up<c.tUp-0.5?'bad':'warn',area:'Uptime',score:(c.tUp-up)*40,title:`Availability ${up.toFixed(2)}% is below the ${c.tUp}% target`,ev:[ev('Availability',up.toFixed(2)+'%',MV('uptime',p)!=null?MV('uptime',p).toFixed(2)+'%':null)],why:'Downtime stops staff and customers working, and breaches the agreed service level.',causes:['Incidents listed in Uptime and health','Single points of failure without redundancy'],actions:['Review each incident and its root cause in Resource Health','Add monitoring alerts for the affected resources','Consider availability zones or a second instance for critical services']});
   else add({id:'az-upok',sev:'good',area:'Uptime',score:5,title:`Availability ${up.toFixed(2)}%, target met`,ev:[ev('Availability',up.toFixed(2)+'%')],keep:['Keep alerts and health checks under review','Report the result to management']});}
  CDATA.res.forEach(r=>{const s=resStatus(r)[1];
-  if(s==='Under pressure')add({id:'az-pr-'+r.name,sev:'warn',area:'Usage',score:+r.cpu_avg/5+(+r.memory||0)/10,title:`${r.name} is under pressure`,ev:[ev('CPU avg',Math.round(+r.cpu_avg)+'%'),ev('Peak',r.cpu_peak!==''?Math.round(+r.cpu_peak)+'%':'–'),ev('Memory',r.memory!==''&&r.memory!=null?Math.round(+r.memory)+'%':'–')],why:'High CPU or memory slows the apps that run on it and can lead to outages.',causes:['Workload grew since sizing','Inefficient queries or a runaway process','Busy periods such as month end'],actions:['Check the busiest processes or queries in Azure Monitor','Tune the workload or schedule heavy jobs out of hours','Scale up one size or add autoscale if it stays high','Recheck usage after 2 weeks']});
-  if(s==='Oversized')add({id:'az-ov-'+r.name,sev:'opp',area:'Usage',score:(+r.monthly_cost||0)/50,title:`${r.name} is oversized${+r.monthly_cost?' ('+money(r.monthly_cost)+' a month)':''}`,ev:[ev('CPU avg',Math.round(+r.cpu_avg)+'%'),ev('Memory',r.memory!==''&&r.memory!=null?Math.round(+r.memory)+'%':'–')],why:'The business is paying for capacity that is not being used.',causes:['Sized for a peak that no longer happens','Old workload no longer in use'],actions:['Confirm with the business owner what runs on it','Resize to a smaller size, or shut it down out of hours','Delete it if it is no longer needed','Record the saving as a completed recommendation']});});
+  if(s==='Under pressure')add({id:'az-pr-'+r.name,sev:'warn',area:'Usage',score:+r.cpu_avg/5+(+r.memory||0)/10,title:`${r.name} is under pressure`,ev:[ev('CPU avg',Math.round(+r.cpu_avg)+'%'),ev('Peak',r.cpu_peak!=null?Math.round(+r.cpu_peak)+'%':'–'),ev('Memory',r.memory!=null?Math.round(+r.memory)+'%':'–')],why:'High CPU or memory slows the apps that run on it and can lead to outages.',causes:['Workload grew since sizing','Inefficient queries or a runaway process','Busy periods such as month end'],actions:['Check the busiest processes or queries in Azure Monitor','Tune the workload or schedule heavy jobs out of hours','Scale up one size or add autoscale if it stays high','Recheck usage after 2 weeks']});
+  if(s==='Oversized')add({id:'az-ov-'+r.name,sev:'opp',area:'Usage',score:(+r.monthly_cost||0)/50,title:`${r.name} is oversized${+r.monthly_cost?' ('+money(r.monthly_cost)+' a month)':''}`,ev:[ev('CPU avg',Math.round(+r.cpu_avg)+'%'),ev('Memory',r.memory!=null?Math.round(+r.memory)+'%':'–')],why:'The business is paying for capacity that is not being used.',causes:['Sized for a peak that no longer happens','Old workload no longer in use'],actions:['Confirm with the business owner what runs on it','Resize to a smaller size, or shut it down out of hours','Delete it if it is no longer needed','Check the saving in Cost Management next month']});});
  const cost=MV('cost',m),bud=MV('budget',m),pc=MV('cost',p);
  if(cost!=null&&bud&&cost>bud)add({id:'az-bud',sev:cost>bud*1.1?'bad':'warn',area:'Cost',score:(cost/bud-1)*100,title:`Spend is ${money(cost-bud)} over budget`,ev:[ev('Spend',money(cost)),ev('Budget',money(bud))],why:'Overspend needs explaining to management and often grows if left.',causes:['New resources added','Usage growth','Resources left running'],actions:['Check Cost analysis for the services that grew','Set a budget alert at 90% in Cost Management','Apply the open cost recommendations']});
- else if(cost!=null&&pc!=null&&cost<pc*0.97)add({id:'az-costdn',sev:'good',area:'Cost',score:8,title:`Spend down ${money(pc-cost)} on last month`,ev:[ev('Spend',money(cost),money(pc))],keep:['Share the saving with management','Keep reviewing Advisor cost recommendations monthly']});
- const sc=null;if(sc!=null&&sc<SUB.tScore)add({id:'az-sec',sev:sc<SUB.tScore-15?'bad':'warn',area:'Security',score:(SUB.tScore-sc)/2,title:`Secure Score ${Math.round(sc)}% is below the ${SUB.tScore}% target`,ev:[ev('Secure Score',Math.round(sc)+'%',MV('score',p)!=null?Math.round(MV('score',p))+'%':null)],why:'A lower score means more open security gaps attackers could use.',causes:['Open Defender for Cloud recommendations'],actions:['Fix the top 5 recommendations by score impact in Defender for Cloud','Enable MFA for all users','Recheck the score next month']});
- const mfa=null;if(mfa!=null&&mfa<100)add({id:'az-mfa',sev:mfa<90?'bad':'warn',area:'Security',score:(100-mfa),title:`${Math.round(100-mfa)}% of users don't have MFA`,ev:[ev('With MFA',Math.round(mfa)+'%')],why:'Accounts without multi-factor authentication are the most common way in for attackers.',causes:['New users not enrolled','No Conditional Access policy requiring MFA'],actions:['List users without MFA in Entra ID','Turn on a Conditional Access policy requiring MFA','Follow up each remaining user']});
+ else if(cost!=null&&pc!=null&&m!==NOWM&&cost<pc*0.97)add({id:'az-costdn',sev:'good',area:'Cost',score:8,title:`Spend down ${money(pc-cost)} on last month`,ev:[ev('Spend',money(cost),money(pc))],keep:['Share the saving with management','Keep reviewing Advisor cost recommendations monthly']});
  const pt=MV('patch',m);if(pt!=null&&pt<c.tPatch)add({id:'az-patch',sev:pt<80?'bad':'warn',area:'Patching',score:(c.tPatch-pt),title:`Patch compliance ${Math.round(pt)}% (target ${c.tPatch}%)`,ev:[ev('Compliance',Math.round(pt)+'%')],why:'Unpatched servers are exposed to known security flaws.',causes:['Patches failed or reboots postponed'],actions:['Run missing updates in Azure Update Manager','Schedule a maintenance window for reboots','Recheck compliance after the window']});
- const bs=bsucc(m);if(bs!=null&&bs<c.tBackup)add({id:'az-bk',sev:bs<98?'bad':'warn',area:'Backup',score:(100-bs)*5,title:`${int(MV('bfail',m))} backup jobs failed (${bs.toFixed(1)}% succeeded)`,ev:[ev('Succeeded',bs.toFixed(1)+'%'),ev('Failed',int(MV('bfail',m)))],why:'A failed backup may mean data can\'t be restored after a problem.',causes:['Agent or network errors','Storage limits'],actions:['Re-run each failed job and confirm it completes','Fix the cause shown in the backup report','Do a test restore of one server this month']});
+ const bs=bsucc(m);if(bs!=null&&bs<c.tBackup)add({id:'az-bk',sev:bs<98?'bad':'warn',area:'Backup',score:(100-bs)*5,title:`${int(MV('bfail',m))} backup jobs failed (${bs.toFixed(1)}% succeeded)`,ev:[ev('Succeeded',bs.toFixed(1)+'%'),ev('Failed',int(MV('bfail',m)))],why:'A failed backup may mean data can\'t be restored after a problem.',causes:['Agent or network errors','Storage limits'],actions:['Re-run each failed job and confirm it completes','Fix the cause shown in the backup job details','Do a test restore of one server this month']});
  else if(bs!=null)add({id:'az-bkok',sev:'good',area:'Backup',score:6,title:'All backups succeeded',ev:[ev('Succeeded',bs.toFixed(1)+'%')],keep:['Do a test restore each quarter']});
- const hi=CDATA.recs.filter(r=>r.st==='Open'&&r.imp==='High');if(hi.length)add({id:'az-recs',sev:'warn',area:'Optimisation',score:hi.length*4,title:`${hi.length} high-impact recommendation${hi.length>1?'s':''} still open`,ev:hi.slice(0,3).map(r=>ev(r.cat,r.title.length>40?r.title.slice(0,40)+'…':r.title)),why:'High-impact recommendations are the quickest way to improve cost, security and reliability.',causes:['Not yet scheduled'],actions:hi.slice(0,4).map(r=>r.title)});
- if(CDATA.recs.length&&savedPM())add({id:'az-saved',sev:'good',area:'Cost',score:7,title:`${money(savedPM())} a month saved from recommendations`,ev:[ev('A year',money(savedPM()*12))],keep:['Highlight the yearly saving to management','Review Advisor again next month']});
+ const hi=CDATA.recs.filter(r=>r.imp==='High');if(hi.length)add({id:'az-recs',sev:'warn',area:'Optimisation',score:hi.length*4,title:`${hi.length} high-impact recommendation${hi.length>1?'s':''} open in Azure`,ev:hi.slice(0,3).map(r=>ev(r.cat,r.title.length>40?r.title.slice(0,40)+'…':r.title)),why:'High-impact recommendations are the quickest way to improve cost, security and reliability.',causes:['Not yet scheduled'],actions:hi.slice(0,4).map(r=>r.title)});
  const ah=MV('ahigh',m),vu=MV('vuln',m),am=MV('amed',m);
- if(ah)add({id:'az-alerts',sev:'bad',area:'Security',score:30+ah,title:`${int(ah)} high-severity security alert${ah>1?'s':''} this month`,ev:[ev('High',int(ah),MV('ahigh',p)!=null?int(MV('ahigh',p)):null),ev('Medium',am!=null?int(am):'–')],why:'High-severity alerts in Defender for Cloud can mean an active attack or a seriously exposed resource.',causes:['Suspicious sign-ins','Malware detected on a VM','Exposed management ports'],actions:['Open each high alert in Defender for Cloud and triage it today','Contain affected resources (isolate the VM, reset the account)','Record the cause and fix as an incident','Confirm the alert is resolved, not just dismissed']});
+ if(ah)add({id:'az-alerts',sev:'bad',area:'Security',score:30+ah,title:`${int(ah)} high-severity security alert${ah>1?'s':''} this month`,ev:[ev('High',int(ah),MV('ahigh',p)!=null?int(MV('ahigh',p)):null),ev('Medium',am!=null?int(am):'–')],why:'High-severity alerts in Defender for Cloud can mean an active attack or a seriously exposed resource.',causes:['Suspicious sign-ins','Malware detected on a VM','Exposed management ports'],actions:['Open each high alert in Defender for Cloud and triage it today','Contain affected resources (isolate the VM, reset the account)','Fix the cause and note it on the alert','Confirm the alert is resolved, not just dismissed']});
  else if(ah===0)add({id:'az-alertsok',sev:'good',area:'Security',score:6,title:'No high-severity security alerts',ev:[ev('Medium alerts',am!=null?int(am):'–')],keep:['Keep Defender for Cloud plans switched on','Review medium alerts weekly']});
- if(vu)add({id:'az-vuln',sev:vu>=5?'bad':'warn',area:'Security',score:10+vu,title:`${int(vu)} critical vulnerabilit${vu>1?'ies':'y'} found`,ev:[ev('Critical',int(vu),MV('vuln',p)!=null?int(MV('vuln',p)):null)],why:'Known critical flaws are the easiest way in for attackers.',causes:['Missing patches','Out-of-date software on servers'],actions:['List the affected machines in Defender Vulnerability Management','Patch or upgrade the affected software','Rescan and confirm the count drops']});
+ if(vu)add({id:'az-vuln',sev:vu>=5?'bad':'warn',area:'Security',score:10+vu,title:`${int(vu)} critical vulnerabilit${vu>1?'ies':'y'} found`,ev:[ev('Critical',int(vu))],why:'Known critical flaws are the easiest way in for attackers.',causes:['Missing patches','Out-of-date software on servers'],actions:['List the affected machines in Defender for Cloud','Patch or upgrade the affected software','Rescan and confirm the count drops']});
  const order={bad:0,warn:1,opp:1,good:2};L.sort((a,b)=>order[a.sev]-order[b.sev]||b.score-a.score);return L;}
 function clInsights(){CLINS=clBuild();const bad=CLINS.filter(x=>x.sev==='bad'),warn=CLINS.filter(x=>x.sev==='warn'||x.sev==='opp'),good=CLINS.filter(x=>x.sev==='good'),m=curM(),p=prevM();
- $('azInsSub').textContent=(m?'Automatic checks for '+mName(m)+(p?', compared with '+mName(p):''):'No monthly figures yet')+'.';
+ $('azInsSub').textContent=(m?'Automatic checks on live Azure figures for '+mLabel(m)+(p?', compared with '+mName(p):''):'No figures from Azure yet')+'.';
  $('azNBad').textContent=bad.length;$('azNWarn').textContent=warn.length;$('azNGood').textContent=good.length;const ob=bad.filter(x=>stOf(x.id).status!=='Done').length;$('azVCnt').textContent=ob;$('azVCnt').style.display=ob?'':'none';
  const top=bad.find(x=>stOf(x.id).status!=='Done')||warn.find(x=>stOf(x.id).status!=='Done');$('azPrio').textContent=top?top.title+'. First step: '+top.actions[0].charAt(0).toLowerCase()+top.actions[0].slice(1)+'.':'Nothing urgent.';
  const empty=t=>`<div class="allgood" style="grid-column:1/-1">${t}</div>`;$('azCBad').innerHTML=bad.map(card).join('')||empty('Nothing needs urgent attention.');$('azCWarn').innerHTML=warn.map(card).join('')||empty('No warning signs.');$('azCGood').innerHTML=good.map(card).join('')||empty('No standout wins yet.');
- const row=(l,v,pv,f,low,tgt)=>{const st=v==null?'<span class="chip neu">Not entered</span>':tgt!=null?(low?v<=tgt:v>=tgt)?'<span class="chip good">On target</span>':'<span class="chip bad">Off target</span>':pv==null?'<span class="chip neu">No comparison</span>':(low?v<=pv:v>=pv)?'<span class="chip good">Better or same</span>':'<span class="chip warn">Worse</span>';return `<tr><td>${l}</td><td>${v==null?'–':f(v)}</td><td>${pv==null?'–':f(pv)}</td><td>${st}</td></tr>`;},c=CDATA.cfg;
+ const row=(l,v,pv,f,low,tgt)=>{const st=v==null?'<span class="chip neu">No data</span>':tgt!=null?(low?v<=tgt:v>=tgt)?'<span class="chip good">On target</span>':'<span class="chip bad">Off target</span>':pv==null?'<span class="chip neu">No comparison</span>':(low?v<=pv:v>=pv)?'<span class="chip good">Better or same</span>':'<span class="chip warn">Worse</span>';return `<tr><td>${l}</td><td>${v==null?'–':f(v)}</td><td>${pv==null?'–':f(pv)}</td><td>${st}</td></tr>`;},c=CDATA.cfg;
  $('azHealth').innerHTML=row('Availability',MV('uptime',m),MV('uptime',p),v=>v.toFixed(2)+'%',0,c.tUp)+row('Incidents',m?incIn(m).length:null,p?incIn(p).length:null,int,1)+row('Average response time',MV('resp',m),MV('resp',p),v=>int(v)+'ms',1)+row('Spend',MV('cost',m),MV('cost',p),money,1,MV('budget',m))+row('Secure Score',MV('score',m),MV('score',p),v=>Math.round(v)+'%',0,SUB.tScore)+row('Users with MFA',MV('mfa',m),MV('mfa',p),v=>Math.round(v)+'%',0,100)+row('Patch compliance',MV('patch',m),MV('patch',p),v=>Math.round(v)+'%',0,c.tPatch)+row('Backups succeeded',bsucc(m),bsucc(p),v=>v.toFixed(1)+'%',0,c.tBackup);
  const pr=clPlanRows();$('azPlan').innerHTML=pr.map(r=>`<tr class="${r.done?'done':''}"><td><input type="checkbox" data-id="${r.x.id}" data-i="${r.i}" ${r.done?'checked':''} style="accent-color:var(--accent);width:15px;height:15px"></td><td><span class="act">${esc(r.a)}</span><span class="src">${r.x.area} · ${esc(r.x.title)}</span></td><td>${r.owner}</td><td>${r.done?'Done':r.status}</td></tr>`).join('')||'<tr><td></td><td colspan="3">No actions needed.</td></tr>';}
 function clPlanRows(){const r=[];CLINS.filter(x=>x.sev!=='good').forEach(x=>{const st=stOf(x.id);x.actions.forEach((a,i)=>r.push({x,a,i,done:st.done.includes(i),owner:st.owner,status:st.status}));});return r;}
@@ -2272,142 +2245,65 @@ const CLV={ov:'azOvV',sec:'azSecV',use:'azUseV',opt:'azOptV',team:'azTeamView'},
 $('azViews').onclick=e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#azViews button').forEach(x=>x.classList.toggle('on',x===b));Object.entries(CLV).forEach(([k,id])=>$(id).hidden=k!==b.dataset.v);$('azViewNote').textContent=CLVN[b.dataset.v];};
 $('azOptFilter').onclick=e=>{const b=e.target.closest('button');if(b){clOptF=b.dataset.f;clOpt();}};
 
-function clClientOpts(){}
-function clSummary(id){const keep=[CDATA,CMETA,CLID];const o=readClient(id);CDATA=o?o.data:CL_EMPTY();CLID=id;const m=curM(),r={m,up:MV('uptime',m),inc:m?incIn(m).length:null,cost:MV('cost',m),bud:MV('budget',m),sc:MV('score',m),ah:MV('ahigh',m),vu:MV('vuln',m),bs:bsucc(m),ov:CDATA.res.filter(x=>resStatus(x)[1]==='Oversized').length,sv:savedPM(),av:recOpen().reduce((t,x)=>t+(+x.save||0),0),orc:recOpen().length,nres:CDATA.res.length,nrec:CDATA.recs.length,tUp:CDATA.cfg.tUp,tSc:SUB.tScore,ex:CDATA.example,rg:CDATA.cfg.site};
- r.st=!m?['neu','No figures yet']:(r.ah||r.up!=null&&r.up<r.tUp-0.5||r.bs!=null&&r.bs<98)?['bad','Needs attention']:(r.up!=null&&r.up<r.tUp||r.cost!=null&&r.bud&&r.cost>r.bud||r.vu>=3||MV('patch',m)!=null&&MV('patch',m)<CDATA.cfg.tPatch)?['warn','Watch']:['good','On track'];[CDATA,CMETA,CLID]=keep;return r;}
-function clAllRender(){const S=CLIENTS.map(c=>({c,r:clSummary(c.id)}));subLoad();
- const sm=subM(),scost=SV('cost',sm),sbud=SV('budget',sm),ssc=SV('score',sm),smfa=SV('mfa',sm),envSum=S.filter(x=>x.r.m===sm).reduce((t,x)=>t+(x.r.cost||0),0),tc=scost!=null?scost:(envSum||null);
+/* ---------- all clients ---------- */
+function clSummary(id){const keep=[CDATA,CLID];CDATA=toData(CLIENTS.find(c=>c.id===id));CLID=id;const m=curM(),r={m,up:MV('uptime',m),inc:m?incIn(m).length:null,cost:MV('cost',m),bud:MV('budget',m),ah:MV('ahigh',m),vu:MV('vuln',m),bs:bsucc(m),ov:CDATA.res.filter(x=>resStatus(x)[1]==='Oversized').length,av:availPM(),orc:recOpen().length,nres:CDATA.res.length,nrec:CDATA.recs.length,tUp:CDATA.cfg.tUp,rg:CDATA.cfg.site,has:clCount()>0};
+ r.st=!r.has?['neu','No figures yet']:(r.ah||r.up!=null&&r.up<r.tUp-0.5||r.bs!=null&&r.bs<98)?['bad','Needs attention']:(r.up!=null&&r.up<r.tUp||r.cost!=null&&r.bud&&r.cost>r.bud||r.vu>=3||MV('patch',m)!=null&&MV('patch',m)<CDATA.cfg.tPatch)?['warn','Watch']:['good','On track'];[CDATA,CLID]=keep;return r;}
+function clAllRender(){const S=CLIENTS.map(c=>({c,r:clSummary(c.id)}));
+ const sm=subM(),scost=SV('cost',sm),sbud=SV('budget',sm),ssc=SV('score',sm)??SV('score',NOWM),smfa=SV('mfa',sm)??SV('mfa',NOWM),envSum=S.reduce((t,x)=>t+(x.r.m===sm&&x.r.cost||0),0),tc=scost!=null?scost:(envSum||null);
  const items=[];if(ssc!=null&&ssc<SUB.tScore)items.push([`Secure Score ${Math.round(ssc)}% is below the ${SUB.tScore}% target`,'Fix the top 5 recommendations by score impact in Defender for Cloud','bad']);
  if(smfa!=null&&smfa<100)items.push([`${Math.round(100-smfa)}% of users don't have MFA`,'Turn on a Conditional Access policy requiring MFA for every user','bad']);
  if(tc!=null&&sbud&&tc>sbud)items.push([`Subscription spend is ${money(tc-sbud)} over budget`,'Check Cost analysis grouped by resource group to find the growth','warn']);
- if(scost!=null&&envSum&&scost-envSum>scost*0.05)items.push([`${money(scost-envSum)} of spend isn't assigned to a client`,'Tag shared resources with the client, or agree how shared costs are split','warn']);
- $('azSubPanel').innerHTML=`<div class="grid2" style="margin-top:0"><div class="panel"><div class="ph"><h3>Subscription${SUB.name?': '+esc(SUB.name):''}</h3><span>${sm?mName(sm):'No figures yet'}</span></div>
-  ${sm?`<div class="kv" style="margin-top:0"><div><b>${tc!=null?money(tc):'–'}</b><span>Total spend${sbud&&tc!=null?', '+Math.round(tc/sbud*100)+'% of '+money(sbud):''}</span></div><div><b style="color:${ssc==null?'inherit':ssc>=SUB.tScore?'var(--good)':'var(--bad)'}">${ssc!=null?Math.round(ssc)+'%':'–'}</b><span>Secure Score (target ${SUB.tScore}%)</span></div><div><b style="color:${smfa==null?'inherit':smfa>=100?'var(--good)':'var(--bad)'}">${smfa!=null?Math.round(smfa)+'%':'–'}</b><span>Users with MFA</span></div><div><b>${scost!=null&&envSum?money(Math.max(scost-envSum,0)):'–'}</b><span>Shared or unassigned cost</span></div></div>`
-   :clAwait('Subscription figures not entered yet','Total spend, budget, Secure Score and MFA apply to the whole subscription, so they are entered once here.',['Cost Management: total for the month and the subscription budget.','Defender for Cloud: Secure Score. Entra ID: MFA registration.'],'sm').replace('data-open-azr','data-open-azr data-tabto="sub"')}</div>
+ if(scost!=null&&envSum&&scost-envSum>scost*0.05)items.push([`${money(scost-envSum)} of spend isn't assigned to a client`,'Tag shared resource groups with the client, or agree how shared costs are split','warn']);
+ $('azAllSub').textContent=SUB.name?'Live from '+SUB.name+'. Each client\'s resources are kept separate.':'One subscription, with each client\'s resources kept separate.';
+ $('azSubPanel').innerHTML=`<div class="grid2" style="margin-top:0"><div class="panel"><div class="ph"><h3>Subscription${SUB.name?': '+esc(SUB.name):''}</h3><span>${sm?mLabel(sm):''}</span></div>
+  ${tc!=null||ssc!=null||smfa!=null?`<div class="kv" style="margin-top:0"><div><b>${tc!=null?money(tc):'–'}</b><span>Total spend${sbud&&tc!=null?', '+Math.round(tc/sbud*100)+'% of '+money(sbud):''}</span></div><div><b style="color:${ssc==null?'inherit':ssc>=SUB.tScore?'var(--good)':'var(--bad)'}">${ssc!=null?Math.round(ssc)+'%':'–'}</b><span>Secure Score (target ${SUB.tScore}%)</span></div><div><b style="color:${smfa==null?'inherit':smfa>=100?'var(--good)':'var(--bad)'}">${smfa!=null?Math.round(smfa)+'%':'–'}</b><span>Users with MFA</span></div><div><b>${scost!=null&&envSum?money(Math.max(scost-envSum,0)):'–'}</b><span>Shared or unassigned cost</span></div></div>`
+   :azAwait(LOADING?'Reading Azure…':'No subscription figures yet','Total spend and budget (Cost Management), Secure Score (Defender for Cloud) and MFA (Entra ID) for the whole subscription show here.',['Cost','Budgets','Secure Score','MFA'],'sm')}</div>
   <div class="panel"><div class="ph"><h3>Subscription-wide items</h3><span>${items.length}</span></div>${items.map(i=>`<div class="nx"><span class="prio-pill ${i[2]}">${i[2]==='bad'?'High':'Medium'}</span><b>${i[0]}</b><small>First step: ${i[1]}</small></div>`).join('')||'<p class="goalnote">Nothing to flag at subscription level.</p>'}</div></div>`;
- $('azAllStats').innerHTML=[['Clients on the subscription',CLIENTS.length,CLIENTS.length?S.filter(x=>x.r.m).length+' with figures':'Add the first client'],['Need attention',S.filter(x=>x.r.st[0]==='bad').length,'high alerts, outages or failed backups'],['High-severity alerts',S.reduce((t,x)=>t+(x.r.ah||0),0),'across all clients, latest month'],['Saved a month',money(S.reduce((t,x)=>t+(x.r.sv||0),0)),'from completed recommendations']].map(s=>`<div class="rc"><div class="l">${s[0]}</div><div class="v">${s[1]}</div><div class="w">${s[2]}</div></div>`).join('');
+ $('azAllStats').innerHTML=[['Clients on the subscription',CLIENTS.length,CLIENTS.length?S.filter(x=>x.r.has).length+' with figures':'From the resource groups in Azure'],['Need attention',S.filter(x=>x.r.st[0]==='bad').length,'high alerts, outages or failed backups'],['High-severity alerts',S.reduce((t,x)=>t+(x.r.ah||0),0),'across all clients, latest month'],['Savings available',money(S.reduce((t,x)=>t+(x.r.av||0),0))+'<small>/mo</small>','from Azure Advisor']].map(s=>`<div class="rc"><div class="l">${s[0]}</div><div class="v">${s[1]}</div><div class="w">${s[2]}</div></div>`).join('');
  const f=(v,fn)=>v==null?'<span class="muted">–</span>':fn(v);
- const sm2=subM(),scost2=SV('cost',sm2);$('azCostMonth').textContent=sm2?'Latest month for each client':'';
- $('azCostRows').innerHTML=S.map(({c,r})=>`<tr class="click" data-cl="${c.id}"><td class="pg"><b>${esc(c.name)}</b><small>${r.rg?esc(r.rg)+' · ':''}${r.m?mName(r.m):'No monthly figures yet'}${r.ex?' · example':''}</small></td><td class="n">${f(r.cost,v=>`<span style="color:${r.bud&&v>r.bud?'var(--bad)':'inherit'}">${money(v)}</span>`)}</td><td class="n hide-m">${f(r.bud,money)}</td><td class="n hide-m">${r.cost!=null&&scost2?(r.cost/scost2*100).toFixed(0)+'%'+bar(r.cost/scost2*100,'#2db88c'):'–'}</td><td class="n" style="color:var(--good);font-weight:600">${r.sv?money(r.sv):'<span class="muted" style="font-weight:400">–</span>'}</td><td class="n">${r.av?money(r.av):(r.nrec?'$0':'<span class="muted">–</span>')}</td><td class="n hide-m">${r.nrec?r.orc:'–'}</td><td class="n hide-m">${r.nres?r.ov:'–'}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">No clients added yet. Use Add client to add each client on the subscription.</td></tr>';
- $('azAllRows').innerHTML=S.map(({c,r})=>`<tr class="click" data-cl="${c.id}"><td class="pg"><b>${esc(c.name)}</b><small>${r.rg?esc(r.rg):''}</small></td><td class="n">${f(r.up,v=>`<span style="color:${v>=r.tUp?'var(--good)':'var(--bad)'}">${v.toFixed(2)}%</span>`)}</td><td class="n hide-m">${f(r.inc,int)}</td><td class="n">${f(r.vu,v=>`<span style="color:${v?'var(--bad)':'inherit'}">${int(v)}</span>`)}</td><td class="n">${f(r.ah,v=>`<span style="color:${v?'var(--bad)':'inherit'}">${int(v)}</span>`)}</td><td class="n hide-m">${f(r.bs,v=>v.toFixed(1)+'%')}</td><td><span class="chip ${r.st[0]}">${r.st[1]}</span></td></tr>`).join('')||'<tr><td colspan="7" class="empty">No clients added yet.</td></tr>';}
+ $('azCostMonth').textContent=sm?mLabel(sm):'';
+ const none=LOADING?'Reading Azure…':LV&&LV.configured?'No resource groups found on the subscription.':'Connect the Azure subscription to list clients.';
+ $('azCostRows').innerHTML=S.map(({c,r})=>`<tr class="click" data-cl="${c.id}"><td class="pg"><b>${esc(c.name)}</b><small>${r.rg?esc(r.rg):''}</small></td><td class="n">${f(r.cost,v=>`<span style="color:${r.bud&&v>r.bud?'var(--bad)':'inherit'}">${money(v)}</span>`)}</td><td class="n hide-m">${f(r.bud,money)}</td><td class="n hide-m">${r.cost!=null&&scost?(r.cost/scost*100).toFixed(0)+'%'+bar(r.cost/scost*100,'#2db88c'):'–'}</td><td class="n" style="color:var(--good);font-weight:600">${r.av?money(r.av):'<span class="muted" style="font-weight:400">–</span>'}</td><td class="n hide-m">${r.nrec?r.orc:'0'}</td><td class="n hide-m">${r.nres?r.ov:'–'}</td></tr>`).join('')||`<tr><td colspan="7" class="empty">${none}</td></tr>`;
+ $('azAllRows').innerHTML=S.map(({c,r})=>`<tr class="click" data-cl="${c.id}"><td class="pg"><b>${esc(c.name)}</b><small>${r.rg?esc(r.rg):''}</small></td><td class="n">${f(r.up,v=>`<span style="color:${v>=r.tUp?'var(--good)':'var(--bad)'}">${v.toFixed(2)}%</span>`)}</td><td class="n hide-m">${f(r.inc,int)}</td><td class="n">${f(r.vu,v=>`<span style="color:${v?'var(--bad)':'inherit'}">${int(v)}</span>`)}</td><td class="n">${f(r.ah,v=>`<span style="color:${v?'var(--bad)':'inherit'}">${int(v)}</span>`)}</td><td class="n hide-m">${f(r.bs,v=>v.toFixed(1)+'%')}</td><td><span class="chip ${r.st[0]}">${r.st[1]}</span></td></tr>`).join('')||`<tr><td colspan="7" class="empty">${none}</td></tr>`;}
 /* ---------- optimisation across all clients ---------- */
-const OTYPE=r=>{const t=(r.title+' '+(r.res||'')).toLowerCase();if(/reserv|savings plan/.test(t))return'Reservations';if(/overnight|schedule|out of hours|auto-?shut/.test(t))return'Schedules';if(/resiz|right-?size|scale down|smaller|downsize/.test(t))return'Right-sizing';if(/shut ?down|delete|remove|unused|orphan|idle|switch off/.test(t))return'Remove unused';if(/tier|archive|lifecycle/.test(t))return'Storage';if(r.cat==='Performance'||/scale up|tune|upgrade/.test(t))return'Performance';if(r.cat==='Security')return'Security';if(r.cat==='Reliability')return'Reliability';return r.cat==='Cost'?'Other cost':'Other';};
+const OTYPE=r=>{const t=(r.title+' '+(r.solution||'')+' '+(r.res||'')).toLowerCase();if(/reserv|savings plan/.test(t))return'Reservations';if(/overnight|schedule|out of hours|auto-?shut/.test(t))return'Schedules';if(/resiz|right-?size|scale down|smaller|downsize/.test(t))return'Right-sizing';if(/shut ?down|delete|remove|unused|orphan|idle|switch off/.test(t))return'Remove unused';if(/tier|archive|lifecycle/.test(t))return'Storage';if(r.cat==='Performance'||/scale up|tune|upgrade/.test(t))return'Performance';if(r.cat==='Security')return'Security';if(r.cat==='Reliability')return'Reliability';return r.cat==='Cost'?'Other cost':'Other';};
 const OTN={'Right-sizing':'Smaller sizes for resources that are barely used','Remove unused':'Servers, disks and IPs nobody uses','Schedules':'Switch off outside working hours','Reservations':'1- or 3-year commitments for steady servers','Storage':'Cheaper tiers for old data','Other cost':'Other cost savings','Performance':'Faster apps for busy resources','Security':'Close security gaps','Reliability':'Backups, redundancy and recovery','Other':'Other improvements'};
 let oaF='all',oaT=null;
-function clOptAll(){const all=[],finds=[];CLIENTS.forEach(c=>{const o=readClient(c.id);if(!o)return;const d=o.data;
-  (d.recs||[]).forEach(r=>all.push({c,r,t:OTYPE(r)}));
-  (d.res||[]).forEach(x=>{const st=resStatus(x)[1];if(st==='Oversized'||st==='Under pressure'){const hasRec=(d.recs||[]).some(r=>(r.res||'').includes(x.name));finds.push({c,x,st,hasRec});}});});
- const sum=(f)=>all.filter(f).reduce((t,a)=>t+(+a.r.save||0),0),idf=sum(()=>true),done=sum(a=>a.r.st==='Done'),prog=sum(a=>a.r.st==='In progress'),open=sum(a=>a.r.st==='Open');
+function clOptAll(){const all=[],finds=[];CLIENTS.forEach(c=>{
+  (c.recs||[]).forEach(r=>all.push({c,r,t:OTYPE(r)}));
+  (c.res||[]).forEach(x=>{const st=resStatus(x)[1];if(st==='Oversized'||st==='Under pressure'){const hasRec=(c.recs||[]).some(r=>(r.res||'').toLowerCase().includes(x.name.toLowerCase()));finds.push({c,x,st,hasRec});}});});
+ const idf=all.reduce((t,a)=>t+(+a.r.save||0),0),hi=all.filter(a=>a.r.imp==='High').length;
  const unrec=finds.filter(f=>f.st==='Oversized'&&!f.hasRec).reduce((t,f)=>t+(+f.x.monthly_cost||0)*0.5,0);
- $('azOAStats').innerHTML=[['Savings found',money(idf)+'<small>/mo</small>',money(idf*12)+' a year, '+all.filter(a=>+a.r.save).length+' cost recommendations'],['Saved so far',`<span style="color:var(--good)">${money(done)}</span><small>/mo</small>`,idf?Math.round(done/idf*100)+'% of savings found':'Nothing done yet'],['In progress',money(prog)+'<small>/mo</small>',all.filter(a=>a.r.st==='In progress').length+' recommendations being worked on'],['Waiting for action',money(open)+'<small>/mo</small>',all.filter(a=>a.r.st==='Open').length+' open recommendations']]
+ $('azOAStats').innerHTML=[['Savings found',money(idf)+'<small>/mo</small>',all.filter(a=>+a.r.save).length+' cost recommendations from Azure Advisor'],['A year',money(idf*12),'if every saving is made'],['Open recommendations',all.length,'across all clients'],['High impact',hi,hi?'to schedule first':'None open']]
   .map(s=>`<div class="rc"><div class="l">${s[0]}</div><div class="v">${s[1]}</div><div class="w">${s[2]}</div></div>`).join('');
- const types=Object.keys(OTN).map(k=>{const L=all.filter(a=>a.t===k);return{k,L,av:L.filter(a=>a.r.st!=='Done').reduce((t,a)=>t+(+a.r.save||0),0),sv:L.filter(a=>a.r.st==='Done').reduce((t,a)=>t+(+a.r.save||0),0)};}).filter(x=>x.L.length);
- $('azOAType').innerHTML=`<div class="ph"><h3>By type of optimisation</h3><span>Click a type to filter</span></div>`+(types.length?`<table class="oatype"><thead><tr><th>Type</th><th class="n">Done</th><th class="n">Saved/mo</th><th class="n">Still available/mo</th></tr></thead><tbody>${types.map(x=>`<tr class="click${oaT===x.k?' csel':''}" data-ot="${x.k}"><td><b style="font-weight:600;color:var(--strong)">${x.k}</b><small style="display:block;color:var(--t3);font-size:12px">${OTN[x.k]}</small></td><td class="n">${x.L.filter(a=>a.r.st==='Done').length}/${x.L.length}</td><td class="n" style="color:var(--good)">${x.sv?money(x.sv):'–'}</td><td class="n">${x.av?money(x.av):'–'}</td></tr>`).join('')}</tbody></table>`:'<p class="goalnote">No recommendations recorded yet. Add them in each client, or upload an Azure Advisor export.</p>');
- $('azOAFind').innerHTML=`<div class="ph"><h3>Resources to right-size</h3><span>From usage figures</span></div>`+(finds.length?finds.sort((a,b)=>(a.st==='Under pressure'?0:1)-(b.st==='Under pressure'?0:1)||(+b.x.monthly_cost||0)-(+a.x.monthly_cost||0)).map(f=>`<div class="nx"><span class="chip ${f.st==='Oversized'?'warn':'bad'}">${f.st}</span> <span class="muted" style="font-size:12px">${esc(f.c.name)}</span><b>${esc(f.x.name)} · ${esc(f.x.size||f.x.type||'')}</b><small>CPU ${Math.round(+f.x.cpu_avg)}% average, ${Math.round(+f.x.cpu_peak||0)}% peak${f.x.memory!==''&&f.x.memory!=null?', memory '+Math.round(+f.x.memory)+'%':''}. ${f.st==='Oversized'?(f.hasRec?'Recommendation recorded.':`No recommendation yet: a smaller size could save about ${money((+f.x.monthly_cost||0)*0.5)} a month.`):(f.hasRec?'Recommendation recorded.':'No recommendation yet: scale up or tune before it causes an outage.')}</small></div>`).join('')+(unrec?`<p class="goalnote">About ${money(unrec)} a month of possible savings has no recommendation yet.</p>`:''):'<p class="goalnote">No oversized or overloaded resources in the latest usage figures.</p>');
+ const types=Object.keys(OTN).map(k=>{const L=all.filter(a=>a.t===k);return{k,L,av:L.reduce((t,a)=>t+(+a.r.save||0),0)};}).filter(x=>x.L.length);
+ $('azOAType').innerHTML=`<div class="ph"><h3>By type of optimisation</h3><span>Click a type to filter</span></div>`+(types.length?`<table class="oatype"><thead><tr><th>Type</th><th class="n">Open</th><th class="n">Available/mo</th></tr></thead><tbody>${types.map(x=>`<tr class="click${oaT===x.k?' csel':''}" data-ot="${x.k}"><td><b style="font-weight:600;color:var(--strong)">${x.k}</b><small style="display:block;color:var(--t3);font-size:12px">${OTN[x.k]}</small></td><td class="n">${x.L.length}</td><td class="n">${x.av?money(x.av):'–'}</td></tr>`).join('')}</tbody></table>`:`<p class="goalnote">${LOADING?'Reading Azure…':'No open recommendations from Azure Advisor or Defender for Cloud.'}</p>`);
+ $('azOAFind').innerHTML=`<div class="ph"><h3>Resources to right-size</h3><span>From Azure Monitor usage</span></div>`+(finds.length?finds.sort((a,b)=>(a.st==='Under pressure'?0:1)-(b.st==='Under pressure'?0:1)||(+b.x.monthly_cost||0)-(+a.x.monthly_cost||0)).map(f=>`<div class="nx"><span class="chip ${f.st==='Oversized'?'warn':'bad'}">${f.st}</span> <span class="muted" style="font-size:12px">${esc(f.c.name)}</span><b>${esc(f.x.name)} · ${esc(f.x.size||f.x.type||'')}</b><small>CPU ${Math.round(+f.x.cpu_avg)}% average, ${Math.round(+f.x.cpu_peak||0)}% peak${f.x.memory!=null?', memory '+Math.round(+f.x.memory)+'%':''}. ${f.st==='Oversized'?(f.hasRec?'Azure Advisor has a recommendation for it.':`Advisor has no recommendation yet: a smaller size could save about ${money((+f.x.monthly_cost||0)*0.5)} a month.`):(f.hasRec?'Azure Advisor has a recommendation for it.':'Scale up or tune it before it causes an outage.')}</small></div>`).join('')+(unrec?`<p class="goalnote">About ${money(unrec)} a month of possible savings has no Advisor recommendation yet.</p>`:''):'<p class="goalnote">No oversized or overloaded resources in the last 30 days.</p>');
  document.querySelectorAll('#azOAF button').forEach(b=>b.classList.toggle('on',b.dataset.f===oaF));
- const L=all.filter(a=>(oaF==='all'||a.r.st===oaF)&&(!oaT||a.t===oaT)).sort((a,b)=>({Open:0,'In progress':1,Done:2}[a.r.st]-{Open:0,'In progress':1,Done:2}[b.r.st])||(+b.r.save||0)-(+a.r.save||0)||({High:0,Medium:1,Low:2}[a.r.imp]-{High:0,Medium:1,Low:2}[b.r.imp]));
- $('azOATSub').textContent=`${L.length} of ${all.length} recommendations`+(oaT?' · '+oaT+' only (click the type again to clear)':'')+'. Change a status here and it updates that client\'s report.';
- $('azOARecs').innerHTML=L.map(a=>`<tr><td><b style="font-weight:600;color:var(--strong)">${esc(a.r.title)}</b>${a.r.res?`<small style="display:block;color:var(--t3);font-size:12px">${esc(a.r.res)}</small>`:''}</td><td><a href="#" data-opencl="${a.c.id}" style="color:var(--navy)">${esc(a.c.name)}</a></td><td class="hide-m">${a.t}</td><td class="hide-m"><span class="prio-pill ${a.r.imp==='High'?'bad':a.r.imp==='Medium'?'warn':'note'}">${esc(a.r.imp)}</span></td><td class="n">${+a.r.save?money(a.r.save):'–'}</td><td><select data-oarst="${a.c.id}|${a.r.id}" class="oasel ${a.r.st==='Done'?'good':a.r.st==='In progress'?'warn':''}">${['Open','In progress','Done'].map(o=>`<option ${o===a.r.st?'selected':''}>${o}</option>`).join('')}</select></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No recommendations match.</td></tr>';}
-document.addEventListener('change',e=>{const s=e.target.closest&&e.target.closest('[data-oarst]');if(!s)return;const[cid,rid]=s.dataset.oarst.split('|'),o=readClient(cid);if(!o)return;const r=o.data.recs.find(x=>x.id===rid);if(!r)return;
- r.st=s.value;r.done=s.value==='Done'?new Date().toISOString().slice(0,10):null;const raw=JSON.stringify(o);CMEM[cid]=raw;try{localStorage.setItem(ckey(cid),raw);}catch(_){}renderAll();toast('Status updated for '+(CLIENTS.find(c=>c.id===cid)||{}).name);});
+ const L=all.filter(a=>(oaF==='all'||a.r.cat===oaF)&&(!oaT||a.t===oaT)).sort((a,b)=>(+b.r.save||0)-(+a.r.save||0)||IMPO[a.r.imp]-IMPO[b.r.imp]);
+ $('azOATSub').textContent=`${L.length} of ${all.length} open recommendations`+(oaT?' · '+oaT+' only (click the type again to clear)':'')+'. Fixed ones drop off when Azure next checks.';
+ $('azOARecs').innerHTML=L.map(a=>`<tr><td><b style="font-weight:600;color:var(--strong)">${esc(a.r.title)}</b>${a.r.res?`<small style="display:block;color:var(--t3);font-size:12px">${esc(a.r.res)}</small>`:''}</td><td><a href="#" data-opencl="${a.c.id}" style="color:var(--navy)">${esc(a.c.name)}</a></td><td class="hide-m">${a.t}</td><td class="hide-m"><span class="prio-pill ${a.r.imp==='High'?'bad':a.r.imp==='Medium'?'warn':'note'}">${esc(a.r.imp)}</span></td><td class="n">${+a.r.save?money(a.r.save):'–'}</td><td class="hide-m" style="color:var(--t2)">${esc(a.r.source||'')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No recommendations match.</td></tr>';}
 document.addEventListener('click',e=>{const a=e.target.closest('[data-opencl]');if(a){e.preventDefault();clSwitch(a.dataset.opencl);return;}
  const t=e.target.closest('[data-ot]');if(t){oaT=oaT===t.dataset.ot?null:t.dataset.ot;clOptAll();return;}
- const f=e.target.closest('#azOAF button');if(f){oaF=f.dataset.f;clOptAll();}});
-function clRender(){const all=CLID==='all';$('azAllV').hidden=!all;$('azOne').hidden=all;$('azCrumb').style.display=all?'none':'';
- const c=CLIENTS.find(x=>x.id===CLID);$('azCrumbName').textContent=all?'':(CDATA.cfg.client||c&&c.name||'Client');
+ const f=e.target.closest('#azOAF button');if(f){oaF=f.dataset.f;clOptAll();}
+ if(e.target.closest('[data-az-refresh]'))azLoad(true);});
+function clRender(){if(!LV&&!LOADING&&!LERR&&!SCHED&&!$('azure').hidden){SCHED=true;setTimeout(()=>azLoad(false),0);}
+ const all=CLID==='all';$('azAllV').hidden=!all;$('azOne').hidden=all;$('azCrumb').style.display=all?'none':'';azConn();
+ $('azCrumbName').textContent=all?'':CDATA.cfg.client||'Client';
  if(all){CLINS=[];clAllRender();clOptAll();return;}
  clInsights();clHeader();clSetup();
- const B={date:CDATA.base.date,v:CDATA.base.v};renderResults(CRM,B,['azRes','azResSum','azResNote']);
- $('azResSub').textContent=`Where ${CDATA.cfg.client||'this client'} started and where it is now. "Now" is the latest month entered${curM()?' ('+mName(curM())+')':''}.`;
- if(!CDATA.base.date){$('azResSum').textContent='Record a starting point in Update data, Monthly figures, to show before and after.';}
+ const first=clBase();renderResults(CRM,{date:first?first+'-01':'',v:{}},['azRes','azResSum','azResNote']);
+ $('azRes').innerHTML=$('azRes').innerHTML.replace(/Not entered yet/g,'No data from Azure').replace(/Needs ([^<]+)/g,'Comes from $1').replace(/Starting point not recorded/g,'No earlier figure in Azure');
+ $('azResSub').textContent=`Where ${CDATA.cfg.client||'this client'} was and where it is now. "Was" is the earliest month Azure still holds${curM()?'; "now" is '+mLabel(curM()):''}.`;
+ if(!first)$('azResSum').textContent='Before-and-after comparisons appear once Azure holds more than one month of figures for this client.';
+ const miss=CRM.filter(m=>m.cur()==null).map(m=>m.src).filter((v,i,a)=>a.indexOf(v)===i);$('azResNote').textContent=miss.length?'No figures yet from: '+miss.join(', ')+'.':'';
  clWork();clUptime();clUsage();clCost();clSecurity();clOpt();clNotes();}
-
-/* ---------- drawer ---------- */
-function clBuildForms(){const c=CDATA.cfg;
- $('azClientForm').innerHTML=`<h4>Client</h4><div class="sf"><label>Client name<input type="text" id="azfClient" value="${esc(c.client)}" placeholder="e.g. Harbour Café Group"></label><label>Resource group(s) or tag<input type="text" id="azfSite" placeholder="e.g. rg-harbour-prod, rg-harbour-dev" value="${esc(c.site)}"></label></div>
-  <div class="sf" style="display:none">${CPROV.map(p=>`<label class="chk"><input type="checkbox" data-aprov="${p}" ${c.prov.includes(p)?'checked':''}> ${p}</label>`).join('')}</div>
-  <h4>Targets</h4><div class="sf"><label>Availability target (%)<input type="number" step="0.01" id="azfUp" value="${c.tUp}"></label><label>Backup success target (%)<input type="number" step="0.1" id="azfBk" value="${c.tBackup}"></label><label>Patch compliance target (%)<input type="number" id="azfPatch" value="${c.tPatch}"></label></div>
-  <h4>Account manager summary</h4><div class="sf"><label style="grid-column:1/-1">Summary of the month<textarea id="azfNote" rows="4">${esc(CDATA.notes.text)}</textarea></label>${[0,1,2].map(i=>`<label style="grid-column:1/-1">Next step ${i+1}<input type="text" data-anstep="${i}" value="${esc((CDATA.notes.items||[])[i]||'')}"></label>`).join('')}</div>`;
- const mk=curM()||mKey(R.e),r=CDATA.months[mk]||{};
- $('azMonthForm').innerHTML=`<h4>Month</h4><div class="sf"><label>Month these figures are for<input type="month" id="azfMonth" value="${mk}"></label><span></span></div>
-  <h4>Figures</h4><div class="sf">${MF.map(f=>`<label>${f[1]}<input type="number" step="any" min="0" data-amf="${f[0]}" value="${r[f[0]]??''}" placeholder="Not entered"></label>`).join('')}</div>
-  <h4>Cost by service</h4><div class="sf"><label style="grid-column:1/-1">One per line: service, cost<textarea id="azfSvc" rows="6" placeholder="Virtual Machines, 3120&#10;SQL Database, 1240">${r.svc?Object.entries(r.svc).map(([k,v])=>k+', '+v).join('\n'):''}</textarea></label></div>
-  <h4>Starting point (before EG Eloma's work)</h4><p class="hint" style="margin:0 0 12px">Figures from before the work began, so the report shows before and after.</p>
-  <div class="sf"><label>Date of starting point<input type="date" id="azbDate" value="${CDATA.base.date||''}"></label><span></span>${CRMB.map(m=>`<label>${m.l}${m.u?' ('+m.u+')':''}<input type="number" step="any" min="0" data-abf="${m.k}" value="${CDATA.base.v[m.k]??''}" placeholder="Not recorded"></label>`).join('')}</div>
-  <button class="btn outline sm" id="azbCopy" type="button" style="margin-top:12px">Use the latest month as the starting point</button>`;
- $('azfMonth').onchange=()=>{const r2=CDATA.months[$('azfMonth').value]||{};document.querySelectorAll('#azDrawer input[data-amf]').forEach(i=>i.value=r2[i.dataset.amf]??'');$('azfSvc').value=r2.svc?Object.entries(r2.svc).map(([k,v])=>k+', '+v).join('\n'):'';};
- clLists();}
-function clLists(){
- $('azResList').innerHTML=CDATA.res.map((r,i)=>`<div class="wl"><div><b>${esc(r.name)}</b><small>${esc(r.type||'')} ${esc(r.size||'')} · CPU ${r.cpu_avg??'–'}% · ${resStatus(r)[1]}</small></div><div class="r"><button class="btn outline sm" data-adelres="${i}">Delete</button></div></div>`).join('')||'<p class="goalnote">No resources yet.</p>';
- $('azRecCat').innerHTML=RCAT.map(c=>`<option>${c}</option>`).join('');
- $('azRecList').innerHTML=CDATA.recs.map(r=>`<div class="wl"><div><b>${esc(r.title)}</b><small>${esc(r.cat)} · ${esc(r.imp)}${r.res?' · '+esc(r.res):''}${+r.save?' · '+money(r.save)+'/mo':''}</small></div><div class="r"><select data-arst="${r.id}" style="border:1px solid #e2e4e7;border-radius:6px;padding:6px;font:500 12.5px Manrope,sans-serif">${['Open','In progress','Done'].map(o=>`<option ${o===r.st?'selected':''}>${o}</option>`).join('')}</select><button class="btn outline sm" data-adelrec="${r.id}">Delete</button></div></div>`).join('')||'<p class="goalnote">No recommendations yet.</p>';
- $('azIncList').innerHTML=CDATA.inc.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="wl"><div><b>${esc(x.title)}</b><small>${dfmt(dIdx(x.date),{year:'numeric'})} · ${int(+x.dur||0)} min${x.res?' · '+esc(x.res):''}</small></div><div class="r"><button class="btn outline sm" data-adelinc="${x.id}">Delete</button></div></div>`).join('')||'<p class="goalnote">No incidents recorded.</p>';
- $('azwCat').innerHTML=CWCAT.map(c=>`<option>${c}</option>`).join('');
- $('azwList').innerHTML=(CDATA.work||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(w=>`<div class="wl"><div><b>${esc(w.title)}</b><small>${w.date?dfmt(dIdx(w.date),{year:'numeric'}):''} · ${esc(w.cat)}${w.vis?'':' · Hidden from report'}</small></div><div class="r"><button class="btn outline sm" data-awvis="${w.id}">${w.vis?'Hide':'Show'}</button><button class="btn outline sm" data-awdel="${w.id}">Delete</button></div></div>`).join('')||'<p class="goalnote">No entries yet.</p>';}
-const clOpenD=(tab)=>{clBuildForms();clSubForm();const all=CLID==='all';document.querySelectorAll('#azDtabs button').forEach(b=>b.style.display=all&&b.dataset.dt!=='sub'?'none':'');if(all)tab='sub';const td=new Date().toISOString().slice(0,10);['azwDate','azIncDate'].forEach(i=>{if(!$(i).value)$(i).value=td;});document.querySelector(`#azDtabs [data-dt="${tab||'client'}"]`).click();$('azDrawer').classList.add('open');$('drawerBg').classList.add('open');};
-const clCloseD=()=>{$('azDrawer').classList.remove('open');$('drawerBg').classList.remove('open');};
-$('azUpdateBtn').onclick=()=>clOpenD('client');$('azdClose').onclick=clCloseD;$('azdCancel').onclick=clCloseD;$('drawerBg').onclick=()=>{closeD();sCloseD();lCloseD();clCloseD();};
-document.addEventListener('keydown',e=>{if(e.key==='Escape')clCloseD();});
-const CLT={sub:'azdSub',client:'azdClient',month:'azdMonth',res:'azdRes',rec:'azdRec',inc:'azdInc',log:'azdLog'};
-document.querySelectorAll('#azDtabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#azDtabs button').forEach(x=>x.classList.toggle('on',x===b));Object.entries(CLT).forEach(([k,id])=>$(id).hidden=b.dataset.dt!==k);});
-const clSaved=(src)=>{CMETA={at:new Date().toISOString(),by:'RJ',src:src||'team updates'};clStore();clLists();renderAll();};
-$('azdSave').onclick=()=>{const bad=[...document.querySelectorAll('#azDrawer input[type=number]')].find(i=>i.value!==''&&(isNaN(+i.value)||+i.value<0));if(bad){bad.focus();toast('Numbers must be 0 or more');return;}
- const c=CDATA.cfg;c.client=$('azfClient').value.trim();c.site=$('azfSite').value.trim();c.prov=[...document.querySelectorAll('#azDrawer [data-aprov]')].filter(i=>i.checked).map(i=>i.dataset.aprov);
- [['tUp','azfUp'],['tBackup','azfBk'],['tPatch','azfPatch']].forEach(([k,id])=>{if($(id).value!=='')c[k]=+$(id).value;});
- CDATA.notes={text:$('azfNote').value.trim(),items:[...document.querySelectorAll('#azDrawer [data-anstep]')].map(i=>i.value.trim())};
- const mk=$('azfMonth').value;const vals={};document.querySelectorAll('#azDrawer input[data-amf]').forEach(i=>{if(i.value!=='')vals[i.dataset.amf]=+i.value;});
- if(vals.uptime!=null&&vals.uptime>100){toast('Availability must be 100% or less');return;}if(vals.bfail!=null&&vals.bjobs!=null&&vals.bfail>vals.bjobs){toast('Failed jobs can\'t be more than jobs run');return;}
- const svc={};let badLine='';$('azfSvc').value.split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>{const i=l.lastIndexOf(','),k=l.slice(0,i).trim(),v=+l.slice(i+1).replace(/[$\s]/g,'');if(i<1||isNaN(v))badLine=l;else svc[k]=v;});
- if(badLine){toast('Check this cost line: '+badLine);return;}
- if(mk&&(Object.keys(vals).length||Object.keys(svc).length)){CDATA.months[mk]={...vals,svc};if(vals.cost==null&&Object.keys(svc).length)CDATA.months[mk].cost=Object.values(svc).reduce((a,b)=>a+b,0);}
- const bv={};document.querySelectorAll('#azDrawer input[data-abf]').forEach(i=>{if(i.value!=='')bv[i.dataset.abf]=+i.value;});CDATA.base={date:$('azbDate').value||(Object.keys(bv).length?iso(LAST):''),v:bv};
- clSaved('team updates');clCloseD();toast('Saved. The Azure report now shows the new figures');};
-document.addEventListener('click',e=>{const t=e.target;
- if(t.id==='azbCopy'){let n=0;CRMB.forEach(m=>{const v=m.cur(),i=document.querySelector(`#azDrawer input[data-abf="${m.k}"]`);if(v!=null&&i){i.value=+(+v).toFixed(m.dp||0);n++;}});if(curM())$('azbDate').value=curM()+'-01';toast(n?'Copied '+n+' figures. Click Save and refresh to keep them':'No figures entered yet');return;}
- const g=a=>t.closest(`[${a}]`);let x;
- if(x=g('data-adelres')){CDATA.res.splice(+x.dataset.adelres,1);clSaved();}
- else if(x=g('data-adelrec')){if(!confirm('Delete this recommendation?'))return;CDATA.recs=CDATA.recs.filter(r=>r.id!==x.dataset.adelrec);clSaved();}
- else if(x=g('data-adelinc')){CDATA.inc=CDATA.inc.filter(r=>r.id!==x.dataset.adelinc);clSaved();}
- else if(x=g('data-awvis')){const w=CDATA.work.find(r=>r.id===x.dataset.awvis);w.vis=!w.vis;clSaved();}
- else if(x=g('data-awdel')){if(!confirm('Delete this work log entry?'))return;CDATA.work=CDATA.work.filter(r=>r.id!==x.dataset.awdel);clSaved();}});
-document.addEventListener('change',e=>{const s=e.target.closest&&e.target.closest('[data-arst]');if(!s)return;const r=CDATA.recs.find(q=>q.id===s.dataset.arst);r.st=s.value;r.done=s.value==='Done'?new Date().toISOString().slice(0,10):null;clSaved();});
-$('azRecAdd').onclick=()=>{const t=$('azRecTitle').value.trim();if(!t){$('azRecTitle').focus();toast('Describe the recommendation');return;}CDATA.recs.push({id:'r'+Date.now(),title:t,cat:$('azRecCat').value,imp:$('azRecImp').value,res:$('azRecRes').value.trim(),save:$('azRecSave').value===''?0:+$('azRecSave').value,st:'Open',done:null});['azRecTitle','azRecRes','azRecSave'].forEach(i=>$(i).value='');clSaved();toast('Recommendation added');};
-$('azIncAdd').onclick=()=>{const t=$('azIncTitle').value.trim(),d=$('azIncDate').value;if(!t||!d){toast('Add the date and what happened');return;}CDATA.inc.push({id:'i'+Date.now(),date:d,title:t,dur:$('azIncDur').value===''?0:+$('azIncDur').value,res:$('azIncRes').value.trim(),cause:$('azIncCause').value.trim(),prov:$('azIncProv').checked});['azIncTitle','azIncDur','azIncRes','azIncCause'].forEach(i=>$(i).value='');$('azIncProv').checked=false;clSaved();toast('Incident added');};
-$('azwAdd').onclick=()=>{const t=$('azwTitle').value.trim(),d=$('azwDate').value;if(!t||!d){toast('Add the date and what was done');return;}CDATA.work.push({id:'cw'+Date.now(),date:d,cat:$('azwCat').value,title:t,detail:$('azwDetail').value.trim(),owner:$('azwOwner').value.trim()||'EG Eloma',hours:$('azwHours').value===''?null:+$('azwHours').value,vis:$('azwVis').checked});['azwTitle','azwDetail','azwHours'].forEach(i=>$(i).value='');clSaved();toast('Added to the work log');};
-$('azLogBtn').onclick=()=>clOpenD('log');
-$('azdReset').onclick=()=>{if(!confirm('Clear all of this client\'s Azure figures, including resources, recommendations, incidents and the work log?'))return;const nm=CDATA.cfg.client;CDATA=CL_EMPTY();CDATA.cfg.client=nm;CMETA={at:null,by:'RJ',src:'not entered yet'};clStore();clCloseD();renderAll();toast('Azure report cleared');};
-/* CSV helpers */
-function csvRows(text){return text.replace(/\r/g,'').split('\n').filter(l=>l.trim()).map(l=>{const o=[];let cur='',qt=false;for(const ch of l){if(ch==='"'){qt=!qt;}else if(ch===','&&!qt){o.push(cur.trim());cur='';}else cur+=ch;}o.push(cur.trim());return o;});}
-const hnorm=h=>h.toLowerCase().replace(/[^a-z]+/g,'_').replace(/^_|_$/g,'');
-function readFile(inp,drop,fn,msg){const handle=f=>{if(!f)return;if(!/\.csv$/i.test(f.name)){$(msg).className='msg err';$(msg).textContent='Please choose a .csv file.';return;}const r=new FileReader();r.onload=()=>{try{fn(csvRows(r.result),f.name);}catch(err){$(msg).className='msg err';$(msg).textContent=err.message;}};r.readAsText(f);};
- $(inp).onchange=e=>{handle(e.target.files[0]);e.target.value='';};['dragover','dragenter'].forEach(ev=>$(drop).addEventListener(ev,e=>{e.preventDefault();$(drop).classList.add('over');}));['dragleave','drop'].forEach(ev=>$(drop).addEventListener(ev,e=>{e.preventDefault();$(drop).classList.remove('over');}));$(drop).addEventListener('drop',e=>handle(e.dataTransfer.files[0]));}
-readFile('azResFile','azResDrop',(rows,name)=>{if(rows.length<2)throw new Error('The file has no data rows.');const h=rows[0].map(hnorm),ci=n=>h.findIndex(x=>n.includes(x));
- const map={name:ci(['name','resource','resource_name']),type:ci(['type','resource_type']),size:ci(['size','sku','tier']),cpu_avg:ci(['cpu_avg','cpu','avg_cpu','cpu_average','average_cpu']),cpu_peak:ci(['cpu_peak','max_cpu','peak_cpu','cpu_max']),memory:ci(['memory','memory_avg','mem','memory_percent']),disk:ci(['disk','disk_used','disk_percent']),monthly_cost:ci(['monthly_cost','cost','cost_month'])};
- if(map.name<0)throw new Error('Add a "name" column.');CDATA.res=rows.slice(1).filter(r=>r[map.name]).map(r=>{const o={};Object.entries(map).forEach(([k,i])=>o[k]=i>=0?(k==='name'||k==='type'||k==='size'?r[i]:(r[i]===''?'':+String(r[i]).replace(/[%$,\s]/g,''))):'');return o;});
- $('azResMsg').className='msg ok';$('azResMsg').textContent=`Loaded ${CDATA.res.length} resources from ${name}.`;clSaved('resources CSV ('+name+')');},'azResMsg');
-$('azResTpl').onclick=()=>dl('azure-resources-template.csv','name,type,size,cpu_avg,cpu_peak,memory,disk,monthly_cost\n'+(CDATA.res.length?CDATA.res.map(r=>[r.name,r.type,r.size,r.cpu_avg,r.cpu_peak,r.memory,r.disk,r.monthly_cost].join(',')).join('\n'):'vm-app-01,Virtual machine,D4s_v5,42,78,61,55,780'));
-readFile('azRecFile','azRecDrop',(rows,name)=>{if(rows.length<2)throw new Error('The file has no data rows.');const h=rows[0].map(hnorm),ci=n=>h.findIndex(x=>n.includes(x));
- const ti=ci(['recommendation','description','problem','short_description','title']),ca=ci(['category']),im=ci(['business_impact','impact']),re=ci(['impacted_resource','resource','resource_name','impacted_value']),an=ci(['potential_annual_savings','annual_savings','potential_annual_cost_savings']),mo=ci(['monthly_saving','monthly_savings','saving_a_month','savings']);
- if(ti<0)throw new Error('Add a "Recommendation" column.');let n=0;
- rows.slice(1).forEach(r=>{const t=r[ti];if(!t)return;const res=re>=0?r[re]:'';if(CDATA.recs.some(q=>q.title===t&&q.res===res))return;let cat=ca>=0?r[ca]:'Other';cat=RCAT.find(c=>c.toLowerCase().replace(/\s/g,'')===cat.toLowerCase().replace(/[\s_]/g,''))||(/cost/i.test(cat)?'Cost':/secur/i.test(cat)?'Security':/avail|reliab|high/i.test(cat)?'Reliability':/perf/i.test(cat)?'Performance':'Operational excellence');
-  const imp=im>=0&&/high/i.test(r[im])?'High':im>=0&&/low/i.test(r[im])?'Low':'Medium',sv=mo>=0?+String(r[mo]).replace(/[$,\s]/g,''):an>=0?+String(r[an]).replace(/[$,\s]/g,'')/12:0;
-  CDATA.recs.push({id:'r'+Date.now()+'-'+n,title:t,cat,imp,res,save:isNaN(sv)?0:Math.round(sv),st:'Open',done:null});n++;});
- $('azRecMsg').className='msg ok';$('azRecMsg').textContent=`Added ${n} recommendation${n===1?'':'s'} from ${name}.`;clSaved('recommendations CSV ('+name+')');},'azRecMsg');
-function clTiles(){const m=curM(),up=MV('uptime',m),cost=MV('cost',m),bud=MV('budget',m),sc=MV('score',m),bs=bsucc(m);return[['Availability',up!=null?up.toFixed(2)+'%':'–',up!=null?(up>=CDATA.cfg.tUp?'Target met':'Below the '+CDATA.cfg.tUp+'% target'):'Not entered'],['Monthly spend',cost!=null?money(cost):'–',cost!=null&&bud?Math.round(cost/bud*100)+'% of budget':'Not entered'],['Savings made',savedPM()?money(savedPM())+'<small>/mo</small>':'–',CDATA.recs.length?recOpen().length+' recommendations open':'None recorded'],['Secure Score',sc!=null?Math.round(sc)+'%':'–',bs!=null?'Backups '+bs.toFixed(1)+'% succeeded':'Not entered']];}
-function clSubForm(){subLoad();const mk=subM()||mKey(R.e),r=SUB.months[mk]||{};
- $('azSubForm').innerHTML=`<h4>Subscription</h4><div class="sf"><label>Subscription name<input type="text" id="azsName" value="${esc(SUB.name)}" placeholder="e.g. EG Eloma – Production"></label><label>Secure Score target (%)<input type="number" min="0" max="100" id="azsTarget" value="${SUB.tScore}"></label></div>
- <h4>Monthly figures for the whole subscription</h4><div class="sf"><label>Month<input type="month" id="azsMonth" value="${mk}"></label><span></span>${[['cost','Total spend ($)'],['budget','Subscription budget ($)'],['score','Secure Score (%)'],['mfa','Users with MFA (%)']].map(f=>`<label>${f[1]}<input type="number" step="any" min="0" data-sbf="${f[0]}" value="${r[f[0]]??''}" placeholder="Not entered"></label>`).join('')}</div>
- <p class="hint">Secure Score and MFA cover the whole subscription and tenant, so they are entered here once. Each client's own cost, availability, resources, alerts and backups are entered in that client.</p>`;
- $('azsMonth').onchange=()=>{const r2=SUB.months[$('azsMonth').value]||{};document.querySelectorAll('#azDrawer [data-sbf]').forEach(i=>i.value=r2[i.dataset.sbf]??'');};}
-document.addEventListener('click',e=>{if(e.target.id!=='azsSave')return;const bad=[...document.querySelectorAll('#azDrawer [data-sbf]')].find(i=>i.value!==''&&(isNaN(+i.value)||+i.value<0));if(bad){bad.focus();toast('Numbers must be 0 or more');return;}
- SUB.name=$('azsName').value.trim();if($('azsTarget').value!=='')SUB.tScore=+$('azsTarget').value;const v={};document.querySelectorAll('#azDrawer [data-sbf]').forEach(i=>{if(i.value!=='')v[i.dataset.sbf]=+i.value;});
- if(v.score>100||v.mfa>100){toast('Percentages must be 100 or less');return;}const mk=$('azsMonth').value;if(mk&&Object.keys(v).length)SUB.months[mk]=v;subStore();clCloseD();renderAll();toast('Subscription figures saved');});
+function clTiles(){const m=curM(),up=MV('uptime',m),cost=MV('cost',m),bud=MV('budget',m),sc=MV('score',m),bs=bsucc(m);return[['Availability',up!=null?up.toFixed(2)+'%':'–',up!=null?(up>=CDATA.cfg.tUp?'Target met':'Below the '+CDATA.cfg.tUp+'% target'):'No data'],['Monthly spend',cost!=null?money(cost):'–',cost!=null&&bud?Math.round(cost/bud*100)+'% of budget':cost!=null?'No budget set':'No data'],['Savings available',availPM()?money(availPM())+'<small>/mo</small>':'–',CDATA.recs.length?recOpen().length+' recommendations open':'None open'],['Secure Score',sc!=null?Math.round(sc)+'%':'–',bs!=null?'Backups '+bs.toFixed(1)+'% succeeded':'No backup data']];}
 function clSwitch(id){CLID=id;clLoad();clRender();if(typeof mgmtAll==='function')mgmtAll();if(typeof updHash==='function')updHash();window.scrollTo(0,0);}
 $('azBack').onclick=()=>clSwitch('all');
 $('azAllRows').onclick=$('azCostRows').onclick=e=>{const tr=e.target.closest('tr[data-cl]');if(tr)clSwitch(tr.dataset.cl);};
-$('azAddClient').onclick=()=>{const n=(prompt('Client name')||'').trim();if(!n)return;const id='c'+Date.now().toString(36);CLIENTS.push({id,name:n});regSave();CLID=id;CDATA=CL_EMPTY();CDATA.cfg.client=n;CDATA.cfg.prov=['Microsoft Azure'];CMETA={at:new Date().toISOString(),by:'RJ',src:'not entered yet'};clStore();clSwitch(id);clOpenD('client');};
-$('azDelClient').onclick=()=>{const c=CLIENTS.find(x=>x.id===CLID);if(!c||!confirm('Remove '+c.name+' and all of its figures from this report? (Nothing is changed in Azure.)'))return;try{localStorage.removeItem(ckey(CLID));}catch(e){}delete CMEM[CLID];CLIENTS=CLIENTS.filter(x=>x.id!==CLID);regSave();clSwitch('all');};
-regLoad();regDropDemo();subLoad();if(/\(demo\)/.test(SUB.name||''))SUB={name:'',tScore:80,months:{}};clLoad();
+const clCloseD=()=>{};
+if(document.body.dataset.view==='azure'&&!SCHED){SCHED=true;setTimeout(()=>azLoad(false),0);}
 
 return{render:clRender,ins:()=>CLINS,close:clCloseD,sum:()=>({cost:MV('cost',curM()),bud:MV('budget',curM())}),tiles:clTiles,cl:()=>CLID};})();
 $("drawerBg").onclick=()=>{closeD();sCloseD();lCloseD();AZ.close();};
