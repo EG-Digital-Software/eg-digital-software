@@ -15,6 +15,8 @@ button{font-family:inherit;cursor:pointer}
 .tab{background:#f3f4f6;border:0;border-radius:10px;padding:8px 16px;font-size:14px;font-weight:500;color:var(--t2)}
 .tab:hover{color:var(--strong)}
 .tab.active{background:var(--navy);color:#fff}
+/* Admin Marketing and Cloud pages each open one view: hide the Marketing / Azure switch there. */
+body[data-view] #tabs{display:none}
 .placeholder{border:1px dashed #dfe1e4;border-radius:12px;padding:80px 20px;text-align:center;color:var(--t2)}
 .placeholder b{display:block;color:var(--strong);font-size:16px;margin-bottom:6px}
 
@@ -123,7 +125,7 @@ tr.sel td{background:var(--accent-soft)!important}
 .post{background:none;border:0;text-align:left;padding:0;color:inherit}
 .post .img{aspect-ratio:1/1;border-radius:8px;background:linear-gradient(160deg,#f6f6f7,#e9eaec);position:relative;transition:transform .2s}
 .post:hover .img{transform:translateY(-2px)}
-.post .img span{position:absolute;left:12px;top:12px;font-size:11px;font-weight:600;background:#fff;padding:4px 9px;border-radius:5px}
+.post .img span{z-index:1;position:absolute;left:12px;top:12px;font-size:11px;font-weight:600;background:#fff;padding:4px 9px;border-radius:5px}
 .post .img svg{position:absolute;inset:0;margin:auto;width:42px;height:42px;opacity:.35}
 .post h4{font-size:14px;font-weight:600;color:var(--strong);margin:12px 0 4px}
 .post p{font-size:12px;color:var(--t2)}
@@ -179,6 +181,7 @@ footer{display:flex;justify-content:space-between;align-items:center;gap:12px;fl
 .steps{margin-top:22px;font-size:12.5px;color:var(--t2);line-height:1.7;padding-left:18px}
 .df{border-top:1px solid var(--line);padding:14px 24px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .df .r{display:flex;gap:8px}
+.acc-sec{margin-bottom:28px}.acc-sec>h4{margin-bottom:12px}.acc-row{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:10px}.acc-row h5{font-size:13.5px;font-weight:600;color:var(--strong);margin:0 0 2px}.acc-row small{display:block;font-size:12px;color:var(--t2);margin-top:2px}.acc-row small.bad{color:#c2522d}.acc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.acc-sel{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:12px}.acc-sel label{font-size:12px;color:var(--t2);display:flex;flex-direction:column;gap:4px}.acc-sel select,.acc-co select{font:inherit;font-size:13px;padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--strong);max-width:100%}.acc-co{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:13px;color:var(--t2)}.acc-login{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}.acc-login:first-of-type{border-top:0}
 .linkbtn{border:0;background:none;color:var(--t2);font-size:12.5px;text-decoration:underline;text-underline-offset:3px}
 
 /* view switch + team insights */
@@ -359,8 +362,9 @@ tr.csel td{background:var(--accent-soft)!important}
   <div id="other" class="placeholder" hidden><b id="otherName"></b>This tab is part of your existing portal.</div>
 
   <div id="mkt">
-  <div class="mktbar"><div><div class="eyebrow">Marketing · EG Eloma</div><div class="mkt-ov" id="mktOv"></div></div>
+  <div class="mktbar"><div><div class="eyebrow" id="mktEye">Marketing · EG Eloma</div><div class="mkt-ov" id="mktOv"></div></div>
     <div class="views" id="mktNav"><button data-sub="seo">SEO</button><button data-sub="social">Social Media</button><button data-sub="loc">Local Listing</button></div></div>
+  <div id="mktSoon" hidden></div>
   <div id="dash">
   <header class="report-head">
     <div class="curve-wrap"><svg class="curve" viewBox="0 0 1200 100" preserveAspectRatio="none" id="curve"></svg></div>
@@ -382,7 +386,7 @@ tr.csel td{background:var(--accent-soft)!important}
               <label>To<input type="date" id="dTo"></label>
               <div class="err" id="dErr"></div>
               <button class="btn primary sm" id="dApply" style="justify-content:center">Apply range</button>
-              <p class="hint">Data available from 1 Jan 2025 to 10 Nov 2026.</p>
+              <p class="hint" id="dHint">Data available from 1 Jan 2025.</p>
             </div>
           </div>
         </div>
@@ -400,7 +404,7 @@ tr.csel td{background:var(--accent-soft)!important}
   </header>
   <div class="datastrip">
     <div><span class="dot"></span>Data last updated <b id="dsWhen"></b> by <b id="dsWho"></b> · Source: <span id="dsSrc"></span> · <span id="dsRef">Refreshed just now</span></div>
-    <div class="acts"><button class="btn outline sm" id="refreshBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 11-1.8-4.3M16 3.5v3.2h-3.2"/></svg>Refresh</button><button class="btn outline sm" id="updateBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5l3 3L8 15H5v-3z"/></svg>Update data </button></div>
+    <div class="acts"><button class="btn primary sm" id="accBtn" data-open-acc><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5l3-3M7 9l-2 2a2.8 2.8 0 004 4l2-2M13 11l2-2a2.8 2.8 0 00-4-4L9 7"/></svg>Connected accounts</button><button class="btn outline sm" id="refreshBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 11-1.8-4.3M16 3.5v3.2h-3.2"/></svg>Refresh</button><button class="btn outline sm" id="updateBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5l3 3L8 15H5v-3z"/></svg>Update data </button></div>
   </div>
 
   <div class="viewbar">
@@ -962,6 +966,11 @@ tr.csel td{background:var(--accent-soft)!important}
     <h4>Work log</h4><div id="azwList"></div></div>
   <div class="df"><button class="linkbtn" id="azdReset">Clear all Azure data</button><div class="r"><button class="btn outline" id="azdCancel">Close</button><button class="btn primary" id="azdSave">Save and refresh</button></div></div>
 </aside>
+<aside class="drawer" id="accDrawer" aria-label="Connected accounts">
+  <div class="dh"><div class="t"><div><h3>Connected accounts</h3><p>Eloma Group's own social media logins. Each company reads only the Pages chosen for it here.</p></div><button class="x" id="accClose" aria-label="Close">×</button></div></div>
+  <div class="db" id="accBody"></div>
+  <div class="df"><span class="hint" id="accNote" style="margin:0;align-self:center"></span><div class="r"><button class="btn outline" id="accDone">Close</button></div></div>
+</aside>
 <div class="drawer-bg" id="drawerBg"></div>
 <div class="toast" id="toast"></div>
 
@@ -974,7 +983,10 @@ const int=n=>Math.round(n).toLocaleString('en-AU');
 const pct=(a,b)=>(a-b)/b*100;
 
 /* ---------- calendar ---------- */
-const DAY=864e5,D0=Date.UTC(2025,0,1),DEND=Date.UTC(2026,10,10),N=Math.round((DEND-D0)/DAY)+1;
+/* The calendar runs from 1 Jan 2025 to today (never earlier than 10 Nov 2026, where it used to end). */
+const DAY=864e5,D0=Date.UTC(2025,0,1),TODAY=new Date(),DEND=Math.max(Date.UTC(2026,10,10),Date.UTC(TODAY.getUTCFullYear(),TODAY.getUTCMonth(),TODAY.getUTCDate())),N=Math.round((DEND-D0)/DAY)+1;
+/* Day-by-day figures saved before the calendar grew are shorter: pad them with zeros so nothing saved is lost. */
+function padDays(o,oldN){if(!(oldN>0&&oldN<N))return o;(function walk(v){if(Array.isArray(v)){if(v.length===oldN&&v.every(x=>typeof x==='number'))while(v.length<N)v.push(0);else v.forEach(walk);}else if(v&&typeof v==='object')Object.values(v).forEach(walk);})(o);return o;}
 const dOf=i=>new Date(D0+i*DAY);
 const iOf=d=>Math.round((d-D0)/DAY);
 const iso=i=>dOf(i).toISOString().slice(0,10);
@@ -985,15 +997,18 @@ const MONTHS=['January','February','March','April','May','June','July','August',
 
 /* ---------- presets ---------- */
 const LAST=N-1;
+const CY=dOf(LAST).getUTCFullYear(),CM=dOf(LAST).getUTCMonth();
+const LM=new Date(Date.UTC(CY,CM-1,1)),LMY=LM.getUTCFullYear(),LMM=LM.getUTCMonth();
+const LQ0=Math.floor(CM/3)*3-3,LQS=new Date(Date.UTC(CY,LQ0,1)),LQE=new Date(Date.UTC(CY,LQ0+3,0)),LQY=LQS.getUTCFullYear(),LQM=LQS.getUTCMonth();
 const PRESETS=[
- {id:'report',name:'October report',s:LAST-29,e:LAST,title:'October 2026',eyebrow:'Social media report · EG Eloma',cmp:'September'},
+ {id:'report',name:'Last 30 days',s:LAST-29,e:LAST,title:'Last 30 days',cmp:'previous 30 days'},
  {id:'7d',name:'Last 7 days',s:LAST-6,e:LAST},
  {id:'14d',name:'Last 14 days',s:LAST-13,e:LAST},
  {id:'90d',name:'Last 90 days',s:LAST-89,e:LAST},
- {id:'mtd',name:'This month to date',s:iOf(Date.UTC(2026,10,1)),e:LAST},
- {id:'lm',name:'Last calendar month',s:iOf(Date.UTC(2026,9,1)),e:iOf(Date.UTC(2026,9,31)),title:'October 2026',cmp:'September'},
- {id:'q3',name:'Last quarter',s:iOf(Date.UTC(2026,6,1)),e:iOf(Date.UTC(2026,8,30)),title:'July to September 2026',cmp:'April to June'},
- {id:'ytd',name:'Year to date',s:iOf(Date.UTC(2026,0,1)),e:LAST,title:'2026 year to date',cmp:'same period in 2025',yoy:true},
+ {id:'mtd',name:'This month to date',s:iOf(Date.UTC(CY,CM,1)),e:LAST},
+ {id:'lm',name:'Last calendar month',s:iOf(LM.getTime()),e:iOf(Date.UTC(CY,CM,0)),title:MONTHS[LMM]+' '+LMY,cmp:MONTHS[(LMM+11)%12]},
+ {id:'q3',name:'Last quarter',s:iOf(LQS.getTime()),e:iOf(LQE.getTime()),title:MONTHS[LQM]+' to '+MONTHS[LQM+2]+' '+LQY,cmp:MONTHS[(LQM+9)%12]+' to '+MONTHS[(LQM+11)%12]},
+ {id:'ytd',name:'Year to date',s:iOf(Date.UTC(CY,0,1)),e:LAST,title:CY+' year to date',cmp:'same period in '+(CY-1),yoy:true},
 ];
 
 /* ---------- seeded data ---------- */
@@ -1002,19 +1017,60 @@ function gen(cur,prev,grow){
  const raw=Array.from({length:N},(_,i)=>(1+grow*i/N)*(.8+rnd()*.4)*(1+.12*Math.sin(i/3.5)));const out=new Array(N);let b=0;
  for(let end=N;end>0;end-=30,b++){const st=Math.max(0,end-30),t=(b===0?cur:b===1?prev:prev*Math.pow(.965,b-1)*(.92+rnd()*.16))*(end-st)/30;let sm=0;for(let i=st;i<end;i++)sm+=raw[i];for(let i=st;i<end;i++)out[i]=raw[i]/sm*t;}
  return out;}
-const PL=[{k:'ig',n:'Instagram',ab:'IG',h:'instagram.com/egeloma.au'},{k:'fb',n:'Facebook',ab:'FB',h:'facebook.com/egeloma.au'},{k:'li',n:'LinkedIn',ab:'IN',h:'linkedin.com/company/egeloma-au'},{k:'th',n:'Threads',ab:'TH',h:'threads.com/@egeloma.au'}];
+const PL=[{k:'ig',n:'Instagram',ab:'IG',h:'instagram.com/egeloma.au'},{k:'fb',n:'Facebook',ab:'FB',h:'facebook.com/egeloma.au'},{k:'li',n:'LinkedIn',ab:'IN',h:'linkedin.com/company/egeloma-au'},{k:'tt',n:'TikTok',ab:'TT',h:''},{k:'yt',n:'YouTube',ab:'YT',h:''},{k:'th',n:'Threads',ab:'TH',h:'threads.com/@egeloma.au'}];
+const PL_H0=Object.fromEntries(PL.map(p=>[p.k,p.h]));
 const ADN={google:'Google Ads',meta:'Meta Ads'};
 function defaults(){const d={pl:{},ads:{},tg:{nf:null,er:null,leads:null}};PL.forEach(p=>{d.pl[p.k]={fol:0};['reach','eng','nf','clk'].forEach(m=>d.pl[p.k][m]=new Array(N).fill(0));});['google','meta'].forEach(k=>{d.ads[k]={budget:0};['spend','clk','leads','rev','impr'].forEach(m=>d.ads[k][m]=new Array(N).fill(0));});return d;}
 let DATA=defaults();
 const POSTS=[];
-const CAMPS=[];
-const CT={google:[1,1,1],meta:[1,1,1]};
+/* Campaigns for the selected range: [name, 'google'|'meta', active, spend, leads, revenue] (rebuilt from CAMPDAYS). */
+let CAMPS=[],CAMPDAYS=[];
+function campsFor(){CAMPS=CAMPDAYS.map(c=>{let sp=0,ld=0,rv=0;for(const[d,v]of Object.entries(c.days)){const i=fromIso(d);if(i>=R.s&&i<=R.e){sp+=v[0]||0;ld+=v[1]||0;rv+=v[2]||0;}}return[esc(c.name),c.k,c.active,sp,ld,rv];}).filter(r=>r[3]>0||r[4]>0||r[5]>0);}
+
+/* ---------- Eloma Group companies: social figures per company ----------
+   Figures from connected accounts (Admin → Marketing API, through the portal) take
+   the place of hand-entered ones for the same platform; everything else stays as
+   entered in Update data, kept per company in this browser. */
+let LIVE=null,CO='egeloma';
+const ADS_OF={google_ads:'google',meta_ads:'meta'};
+const skey=co=>co==='egeloma'?'egeloma-social-v1':'eg-social-'+co+'-v1';
+function manualOf(co){try{const raw=localStorage.getItem(skey(co));if(raw){const o=JSON.parse(raw);if(o.data&&o.data.pl&&o.data.pl.ig){padDays(o.data,o.data.pl.ig.reach.length);if(o.data.pl.ig.reach.length===N)return o;}}}catch(e){}return null;}
+function fillMissing(d){const z=defaults();PL.forEach(p=>{if(!d.pl[p.k])d.pl[p.k]=z.pl[p.k];});['google','meta'].forEach(k=>{if(!d.ads[k])d.ads[k]=z.ads[k];});if(!d.tg)d.tg=z.tg;return d;}
+const liveOf=co=>(LIVE&&LIVE.data&&LIVE.data[co])||null;
+const linksOf=co=>LIVE?LIVE.links.filter(l=>l.company===co):[];
+/** Platform keys (ig, fb, li, tt, yt, google, meta) whose figures come from a connected account. */
+function connectedOf(co){const out=new Set();linksOf(co).forEach(l=>{const s=l.selected||{};if(l.provider==='meta'){if(s.pageId)out.add('fb');if(s.igId)out.add('ig');if(s.adAccountId)out.add('meta');}else if(l.provider==='linkedin'){if(s.orgId)out.add('li');}else if(l.provider==='google_ads'){if(s.customerId)out.add('google');}else if(l.provider==='tiktok')out.add('tt');else if(l.provider==='youtube')out.add('yt');});
+ const L=liveOf(co);if(L)Object.keys(L.metrics||{}).forEach(p=>out.add(ADS_OF[p]||p));return out;}
+function buildCo(co){const m=manualOf(co),d=fillMissing(m?m.data:defaults()),L=liveOf(co);
+ if(L)for(const[pl,days]of Object.entries(L.metrics||{})){const ak=ADS_OF[pl];
+  if(ak){const A=d.ads[ak];['spend','clk','leads','rev','impr'].forEach(f=>A[f]=new Array(N).fill(0));for(const[day,v]of Object.entries(days)){const i=fromIso(day);if(i<0||i>=N)continue;A.spend[i]=v[0]||0;A.clk[i]=v[1]||0;A.leads[i]=v[2]||0;A.rev[i]=v[3]||0;A.impr[i]=v[4]||0;}}
+  else if(d.pl[pl]){const P=d.pl[pl];['reach','eng','nf','clk'].forEach(f=>P[f]=new Array(N).fill(0));let fd=-1,fv=null;
+   for(const[day,v]of Object.entries(days)){const i=fromIso(day);if(i<0||i>=N)continue;P.reach[i]=v[0]||0;P.eng[i]=v[1]||0;P.nf[i]=v[2]||0;P.clk[i]=v[3]||0;if(v[4]!=null&&i>fd){fd=i;fv=v[4];}}
+   // Followers at the end of the calendar: the latest count read, plus new followers after that day.
+   if(fv!=null)P.fol=fv+sumR(P.nf,fd+1,LAST);}}
+ return{d,m};}
+/** Reach of one company in a range (group overview). */
+function coReach(co,s,e){const d=buildCo(co).d;return PL.reduce((a,p)=>a+sumR(d.pl[p.k].reach,s,e),0);}
+function useCompany(co){CO=co&&co!=='group'?co:'egeloma';const b=buildCo(CO),L=liveOf(CO),con=connectedOf(CO);DATA=b.d;
+ POSTS.length=0;if(L)(L.posts||[]).forEach(p=>{if(PL.some(q=>q.k===p.pl))POSTS.push(p);});
+ CAMPDAYS=L?(L.campaigns||[]).map(c=>({name:c.name,k:ADS_OF[c.platform],active:c.active,days:c.days})).filter(c=>c.k):[];
+ const syncs=linksOf(CO).map(l=>l.lastSyncAt).filter(Boolean).sort();
+ if(con.size){const names=[...con].map(k=>(PL.find(p=>p.k===k)||{n:ADN[k]}).n);META={at:syncs.length?syncs[syncs.length-1]:(b.m&&b.m.meta.at)||null,by:'automatic read',src:'connected accounts ('+names.join(', ')+')'+(b.m?' and manual entry':'')};}
+ else META=b.m&&b.m.meta?b.m.meta:{at:null,by:'nobody yet',src:'not entered yet'};
+ setHandles();}
+/** Profile names shown under each platform: from the connected accounts, otherwise EG Eloma's own handles. */
+function setHandles(){const own=CO==='egeloma',H={};
+ linksOf(CO).forEach(l=>{const c=LIVE.connections.find(x=>x.id===l.connectionId);if(!c)return;const s=l.selected||{};
+  if(l.provider==='meta'){const pg=(c.pages||[]).find(p=>p.id===s.pageId);if(pg)H.fb=pg.name;const ig=(c.pages||[]).map(p=>p.ig).find(i=>i&&i.id===s.igId);if(ig)H.ig='@'+ig.username;}
+  else if(l.provider==='linkedin'){const o=(c.options||[]).find(o=>o.id===s.orgId);if(o)H.li=o.name;}
+  else if(l.provider==='tiktok'||l.provider==='youtube')H[l.provider==='tiktok'?'tt':'yt']=c.name||'';});
+ PL.forEach(p=>p.h=H[p.k]||(own?PL_H0[p.k]:''));}
 
 /* ---------- state ---------- */
 const state={plat:'all',ad:'all',cmp:true,s:PRESETS[0].s,e:PRESETS[0].e,preset:'report'};
 const sumR=(a,s,e)=>{let t=0;for(let i=Math.max(0,s);i<=e;i++)t+=a[i];return t;};
 function per(){const len=state.e-state.s+1,P=PRESETS.find(p=>p.id===state.preset);
- let ps,pe;if(P&&P.yoy){ps=iOf(Date.UTC(2025,0,1));pe=ps+len-1;}else{ps=state.s-len;pe=state.s-1;}
+ let ps,pe;if(P&&P.yoy){ps=iOf(Date.UTC(dOf(state.s).getUTCFullYear()-1,0,1));pe=ps+len-1;}else{ps=state.s-len;pe=state.s-1;}
  return{s:state.s,e:state.e,len,ps,pe,has:ps>=0,P,cmpName:P&&P.cmp?P.cmp:'previous '+len+' days'};}
 
 /* ---------- helpers ---------- */
@@ -1032,11 +1088,11 @@ function header(){
  const f=fmt(r);$('hlReach').innerHTML=f[0]+'<small>'+f[1]+'</small>';
  if(R.has){const dd=Math.round(pct(r,pr));$('hlDelta').innerHTML=(dd>0?'+':'')+dd+'<small>%</small>';$('hlDeltaLbl').textContent='Reach vs '+R.cmpName;}else{$('hlDelta').textContent='–';$('hlDeltaLbl').textContent='No earlier data';}
  $('hlRoas').innerHTML=(rev/sp).toFixed(1)+'<small>×</small>';$('hlLeads').textContent=int(ld);
- const P=R.P;$('title').textContent=P&&P.title?P.title:(P?P.name:'Custom range');$('eyebrow').textContent='Social media report · EG Eloma';
+ const P=R.P;$('title').textContent=P&&P.title?P.title:(P?P.name:'Custom range');$('eyebrow').textContent='Social media report · '+coName();
  $('metaRange').textContent=rangeText(R.s,R.e)+' ('+R.len+' days)';$('drLabel').textContent=rangeText(R.s,R.e,' – ');
  $('cmpLbl').textContent='Compare with '+R.cmpName;$('cmpToggle').disabled=!R.has;$('cmpToggle').setAttribute('aria-pressed',state.cmp&&R.has);
  document.body.classList.toggle('no-compare',!(state.cmp&&R.has));
- $('notesSub').textContent=state.preset==='report'?'Notes from your account manager':'Notes from your account manager on the October report';
+ $('notesSub').textContent=state.preset==='report'?'Notes from your account manager':'Notes from your account manager';
  // curve
  const d=bucket(Array.from({length:R.len},(_,i)=>PL.reduce((a,p)=>a+DATA.pl[p.k].reach[R.s+i],0))).v,n=d.length,mx=Math.max(...d),mn=Math.min(...d);
  const x=i=>n>1?i*1200/(n-1):600,y=v=>92-(mx===mn?.5:(v-mn)/(mx-mn))*70,pth=d.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1)).join('');
@@ -1073,7 +1129,7 @@ function organic(){
  const pn=k=>PL.find(q=>q.k===k).n,img='<svg viewBox="0 0 40 40" fill="none" stroke="#14171c" stroke-width="1.5"><rect x="8" y="10" width="24" height="20" rx="3"/><circle cx="15" cy="17" r="2.5"/><path d="M8 27l7-6 5 4 4-3 8 6"/></svg>';
  const list=POSTS.filter(q=>{const i=fromIso(q.d);return i>=R.s&&i<=R.e&&(state.plat==='all'||q.pl===state.plat);}).sort((m,o)=>o.eng-m.eng).slice(0,4);
  $('postSub').textContent=(state.plat==='all'?'Highest engagement':'Highest engagement on '+pn(state.plat))+', '+rangeText(R.s,R.e,' – ');
- $('posts').innerHTML=list.map(q=>`<button class="post" data-i="${POSTS.indexOf(q)}"><div class="img"><span>${q.type}</span>${img}</div><h4>${q.t}</h4><p>${pn(q.pl)} · ${dfmt(fromIso(q.d))} · ${fmt(q.reach).join('')} reach · ${(q.eng/q.reach*100).toFixed(1)}%</p></button>`).join('')||'<div class="empty">No posts recorded in this date range'+(state.plat==='all'?'':' for '+pn(state.plat))+'.</div>';
+ $('posts').innerHTML=list.map(q=>`<button class="post" data-i="${POSTS.indexOf(q)}"><div class="img"><span>${esc(q.type)}</span>${q.img?`<img src="${esc(q.img)}" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:8px">`:img}</div><h4>${esc(q.t)}</h4><p>${pn(q.pl)} · ${dfmt(fromIso(q.d))} · ${fmt(q.reach).join('')} reach · ${q.reach?(q.eng/q.reach*100).toFixed(1)+"%":"–"}</p></button>`).join('')||'<div class="empty">No posts recorded in this date range'+(state.plat==='all'?'':' for '+pn(state.plat))+'.</div>';
 }
 function platTable(){
  $('platTable').innerHTML=PL.map(p=>{const D=DATA.pl[p.k],re=sumR(D.reach,R.s,R.e),en=sumR(D.eng,R.s,R.e);return `<tr class="click${state.plat===p.k?' sel':''}" data-p="${p.k}"><td><div style="display:flex;align-items:center"><span class="mono">${p.ab}</span><span class="pg"><b style="font-weight:500">${p.n}</b><small>${p.h}</small></span></div></td><td class="n">${fmt(folAt(p.k,R.e)).join('')}</td><td class="n">+${int(sumR(D.nf,R.s,R.e))}</td><td class="n">${fmt(re).join('')}</td><td class="n hide-m">${re?(en/re*100).toFixed(1)+'%':'–'}</td></tr>`}).join('');}
@@ -1098,11 +1154,11 @@ function ads(){
  $('adPanels').innerHTML=['google','meta'].map(k=>{const a=v[k];return `<div class="panel ${state.ad!=='all'&&state.ad!==k?'dim':''}"><h3>${ADN[k]}</h3><div class="sp">${money(a.spend)} spent · ${CAMPS.filter(r=>r[1]===k).length} campaigns</div>
   <div class="kv"><div><b class="${ahead(k,'leads')}">${int(a.leads)}</b><span>Leads</span></div><div><b class="${ahead(k,'cpl',1)}">$${a.cpl.toFixed(2)}</b><span>Cost per lead</span></div><div><b class="${ahead(k,'roas')}">${a.roas.toFixed(1)}×</b><span>Return on ad spend</span></div><div><b class="${ahead(k,'impr')}">${fmt(a.impr).join('')}</b><span>Impressions</span></div></div>
   <div class="pacing">Budget used: ${money(a.spend)} of ${money(a.budget)}<div class="bar"><b style="width:${Math.min(a.spend/a.budget,1)*100}%"></b></div></div></div>`}).join('');
- $('campTable').innerHTML=CAMPS.filter(r=>state.ad==='all'||r[1]===state.ad).map(r=>{const k=r[1],sp=r[3]/CT[k][0]*v[k].spend,ld=r[4]/CT[k][1]*v[k].leads,rv=r[5]/CT[k][2]*v[k].rev;return{r,sp,ld,rv};}).sort((a,b)=>b.rv/b.sp-a.rv/a.sp)
-  .map(({r,sp,ld,rv})=>`<tr><td>${r[0]}</td><td class="hide-m">${ADN[r[1]]}</td><td><span class="status ${r[2]?'':'off'}">${r[2]?'Active':'Paused'}</span></td><td class="n">${money(sp)}</td><td class="n">${int(ld)}</td><td class="n hide-m">$${(sp/Math.max(ld,1)).toFixed(2)}</td><td class="n">${(rv/sp).toFixed(1)}×</td></tr>`).join('');}
+ $('campTable').innerHTML=CAMPS.filter(r=>state.ad==='all'||r[1]===state.ad).map(r=>{const sp=r[3],ld=r[4],rv=r[5];return{r,sp,ld,rv};}).sort((a,b)=>b.rv/b.sp-a.rv/a.sp)
+  .map(({r,sp,ld,rv})=>`<tr><td>${r[0]}</td><td class="hide-m">${ADN[r[1]]}</td><td><span class="status ${r[2]?'':'off'}">${r[2]?'Active':'Paused'}</span></td><td class="n">${money(sp)}</td><td class="n">${int(ld)}</td><td class="n hide-m">$${(sp/Math.max(ld,1)).toFixed(2)}</td><td class="n">${sp>0?(rv/sp).toFixed(1)+"×":"–"}</td></tr>`).join('');}
 
 /* ---------- render ---------- */
-function renderAll(){R=per();header();headerFix();if(socOn()){socShow(true);organic();}else socEmpty();goals();if(adsOn()){adsShow(true);ads();}else adsEmpty();insights();seoRender();lRender();AZ.render();mktOverview();if(typeof curCo!=="undefined"&&curCo==="group")grpRender();mgmtAll();}
+function renderAll(){R=per();campsFor();header();headerFix();if(socOn()){socShow(true);organic();}else socEmpty();goals();if(adsOn()){adsShow(true);ads();}else adsEmpty();insights();seoRender();lRender();AZ.render();mktOverview();if(typeof curCo!=="undefined"&&curCo==="group")grpRender();mgmtAll();}
 
 /* ---------- date range picker ---------- */
 $('presets').innerHTML=PRESETS.map(p=>`<button data-id="${p.id}">${p.name}<small>${rangeText(p.s,p.e,' – ')}</small></button>`).join('');
@@ -1117,19 +1173,24 @@ $('drBtn').onclick=e=>{e.stopPropagation();openPop(!pop.classList.contains('open
 pop.onclick=e=>e.stopPropagation();document.addEventListener('click',()=>openPop(false));
 $('presets').onclick=e=>{const b=e.target.closest('button');if(!b)return;const p=PRESETS.find(q=>q.id===b.dataset.id);setRange(p.s,p.e,p.id);openPop(false);};
 $('dApply').onclick=()=>{const f=$('dFrom').value,t=$('dTo').value;if(!f||!t){$('dErr').textContent='Choose both dates.';return;}
- const s=fromIso(f),e=fromIso(t);if(s<0||e>LAST){$('dErr').textContent='Dates must be between 1 Jan 2025 and 10 Nov 2026.';return;}if(s>e){$('dErr').textContent='The start date must be before the end date.';return;}
+ const s=fromIso(f),e=fromIso(t);if(s<0||e>LAST){$('dErr').textContent='Dates must be between '+rangeText(0,LAST)+'.';return;}if(s>e){$('dErr').textContent='The start date must be before the end date.';return;}
  const match=PRESETS.find(p=>p.s===s&&p.e===e);setRange(s,e,match?match.id:'custom');openPop(false);};
 
 /* ---------- data store ---------- */
-const KEY='egeloma-social-v1';let META={at:'2026-11-10T16:12:00',by:'RJ',src:'not entered yet'},lastRefresh=Date.now();
-function fmtWhen(s){const d=new Date(s);return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}).toLowerCase();}
-function META_UI(){$('dsWhen').textContent=fmtWhen(META.at);$('dsWho').textContent=META.by;$('dsSrc').textContent=META.src;$('metaUpdated').textContent='Updated '+new Date(META.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});refTxt();}
+let META={at:null,by:'nobody yet',src:'not entered yet'},lastRefresh=Date.now();
+function fmtWhen(s){if(!s)return 'not yet';const d=new Date(s);return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}).toLowerCase();}
+function META_UI(){$('dsWhen').textContent=fmtWhen(META.at);$('dsWho').textContent=META.by;$('dsSrc').textContent=META.src;$('metaUpdated').textContent=META.at?'Updated '+new Date(META.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'Not updated yet';refTxt();}
 function refTxt(){const m=Math.round((Date.now()-lastRefresh)/60000);$('dsRef').textContent=m<1?'Refreshed just now':'Refreshed '+m+' min ago';}
 setInterval(refTxt,30000);
-function load(){try{const raw=localStorage.getItem(KEY);if(raw){const o=JSON.parse(raw);if(o.data&&o.data.pl&&o.data.pl.ig.reach.length===N){DATA=o.data;META=o.meta;}}}catch(e){}}
-function store(){try{localStorage.setItem(KEY,JSON.stringify({data:DATA,meta:META}));}catch(e){}}
-$('refreshBtn').onclick=e=>{const b=e.currentTarget;b.classList.add('spin');b.disabled=true;document.body.classList.add('loading');
- setTimeout(()=>{load();lastRefresh=Date.now();renderAll();b.classList.remove('spin');b.disabled=false;document.body.classList.remove('loading');toast('Dashboard refreshed with the latest saved data');},800);};
+/** Social figures of the selected company (connected accounts plus what was entered by hand). */
+function load(){useCompany(typeof curCo!=='undefined'?curCo:'egeloma');}
+/** Saves what was entered by hand for the selected company, in this browser. */
+function store(){try{localStorage.setItem(skey(CO),JSON.stringify({data:DATA,meta:META}));}catch(e){}}
+/* Refresh: read every connected account again (through the portal), then redraw. */
+$('refreshBtn').onclick=async e=>{const b=e.currentTarget;b.classList.add('spin');b.disabled=true;document.body.classList.add('loading');
+ let msg='Dashboard refreshed with the latest saved data';
+ try{if(LIVE&&LIVE.links.length){setLive(await bridge('sync'));msg='Connected accounts read again. Figures updated';}else load();}catch(err){load();msg=err.message;}
+ lastRefresh=Date.now();renderAll();b.classList.remove('spin');b.disabled=false;document.body.classList.remove('loading');toast(msg);};
 
 /* ---------- update drawer (edits apply to the selected range) ---------- */
 const SF=[['fol','Followers (at end)'],['nf','New followers'],['reach','Reach'],['eng','Engagements'],['clk','Link clicks']];
@@ -1140,8 +1201,8 @@ function setRangeTotal(arr,v){const old=sumR(arr,R.s,R.e);for(let i=R.s;i<=R.e;i
 function apply(d){PL.forEach(p=>{const v=d.pl[p.k],D=DATA.pl[p.k];if(!v)return;['nf','reach','eng','clk'].forEach(m=>{if(v[m]!=null&&!isNaN(v[m]))setRangeTotal(D[m],+v[m]);});if(v.fol!=null&&!isNaN(v.fol))D.fol+=(+v.fol-folAt(p.k,R.e));});
  ['google','meta'].forEach(k=>{const v=d.ads[k],A=DATA.ads[k];if(!v)return;['spend','clk','leads','rev','impr'].forEach(m=>{if(v[m]!=null&&!isNaN(v[m]))setRangeTotal(A[m],+v[m]);});if(v.budget!=null&&!isNaN(v.budget))A.budget=+v.budget;});}
 function buildForm(d){const rt=rangeText(R.s,R.e,' – ');$('fSocialH').textContent='Social media · '+rt;$('fAdsH').textContent='Advertising · '+rt;
- $('fSocial').innerHTML='<tr><th>Platform</th>'+SF.map(f=>`<th>${f[1]}</th>`).join('')+'</tr>'+PL.map(p=>`<tr><td>${p.n}</td>${SF.map(f=>`<td><input type="number" min="0" data-g="pl" data-k="${p.k}" data-f="${f[0]}" value="${d.pl[p.k][f[0]]}"></td>`).join('')}</tr>`).join('');
- $('fAds').innerHTML='<tr><th>Platform</th>'+AF.map(f=>`<th>${f[1]}</th>`).join('')+'</tr>'+['google','meta'].map(k=>`<tr><td>${ADN[k]}</td>${AF.map(f=>`<td><input type="number" min="0" data-g="ads" data-k="${k}" data-f="${f[0]}" value="${d.ads[k][f[0]]}"></td>`).join('')}</tr>`).join('');}
+ $('fSocial').innerHTML='<tr><th>Platform</th>'+SF.map(f=>`<th>${f[1]}</th>`).join('')+'</tr>'+PL.map(p=>`<tr><td>${p.n}</td>${SF.map(f=>`<td><input type="number" min="0" data-g="pl" data-k="${p.k}" data-f="${f[0]}" value="${d.pl[p.k][f[0]]}"${connectedOf(CO).has(p.k)?" disabled title=\"Filled from the connected account\"":""}></td>`).join('')}</tr>`).join('');
+ $('fAds').innerHTML='<tr><th>Platform</th>'+AF.map(f=>`<th>${f[1]}</th>`).join('')+'</tr>'+['google','meta'].map(k=>`<tr><td>${ADN[k]}</td>${AF.map(f=>`<td><input type="number" min="0" data-g="ads" data-k="${k}" data-f="${f[0]}" value="${d.ads[k][f[0]]}"${connectedOf(CO).has(k)&&f[0]!=="budget"?" disabled title=\"Filled from the connected account\"":""}></td>`).join('')}</tr>`).join('');}
 function readForm(){const d={pl:{},ads:{}};document.querySelectorAll('#drawer input[data-g]').forEach(i=>{(d[i.dataset.g][i.dataset.k]??={})[i.dataset.f]=i.value===''?null:+i.value;});return d;}
 let srcLabel='manual entry';
 const openD=()=>{buildForm(current());fillTg();srcLabel='manual entry';$('upMsg').className='msg';$('drawer').classList.add('open');$('drawerBg').classList.add('open');};
@@ -1151,7 +1212,7 @@ document.querySelectorAll('.dtabs button').forEach(b=>b.onclick=()=>{document.qu
 $('dSave').onclick=()=>{const bad=[...document.querySelectorAll('#drawer input[data-g]')].find(i=>i.value===''||+i.value<0);
  if(bad){bad.focus();toast('Please fill in every number (0 or more)');return;}
  apply(readForm());DATA.tg={};document.querySelectorAll('#drawer [data-tgk]').forEach(i=>DATA.tg[i.dataset.tgk]=i.value===''?null:+i.value);META={at:new Date().toISOString(),by:'RJ',src:srcLabel};store();lastRefresh=Date.now();closeD();renderAll();toast('Saved. The dashboard now shows the new numbers');};
-$('dReset').onclick=()=>{if(!confirm('Reset all numbers to the original data?'))return;try{localStorage.removeItem(KEY);}catch(e){}DATA=defaults();META={at:'2026-11-10T16:12:00',by:'RJ',src:'not entered yet'};lastRefresh=Date.now();closeD();renderAll();toast('Original data restored');};
+$('dReset').onclick=()=>{if(!confirm('Clear the numbers entered by hand for '+coName()+'? Figures from connected accounts stay.'))return;try{localStorage.removeItem(skey(CO));}catch(e){}useCompany(CO);lastRefresh=Date.now();closeD();renderAll();toast('Numbers entered by hand cleared');};
 
 /* CSV */
 const dl=(name,text)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);};
@@ -1244,7 +1305,7 @@ function buildInsights(){
    why:`Moving some budget to ${ADN[lo]} could bring in more leads for the same spend.`,causes:[`${ADN[hi]} is better for awareness and reach, ${ADN[lo]} for people already searching`],
    actions:[`Move 10 to 20% of ${ADN[hi]} budget to the best ${ADN[lo]} campaign`,`Keep ${ADN[hi]} running for awareness and retargeting`,'Review results after 2 weeks before moving more']});}
  // campaigns
- CAMPS.forEach(c=>{if(!c[2])return;const k=c[1],sp=c[3]/CT[k][0]*V[k].sp,rv=c[5]/CT[k][2]*V[k].rv,roas=rv/sp;
+ CAMPS.forEach(c=>{if(!c[2]||!(c[3]>0))return;const k=c[1],sp=c[3],rv=c[5],roas=rv/sp;
   if(roas<2)add({id:'camp-'+c[0],sev:'bad',area:ADN[k],score:(2-roas)*20,title:`"${c[0]}" returns only ${roas.toFixed(1)}× its spend`,ev:[ev('Spend',money(sp)),ev('Revenue',money(rv)),ev('ROAS',roas.toFixed(1)+'×')],
    why:'This campaign is close to losing money once costs are included.',causes:['Awareness objective rather than leads or sales','Audience too cold or too broad','Weak link between the ad and the landing page'],
    actions:['Cut the daily budget by half while testing changes','Switch the objective to leads or conversions if the goal is sales','Retarget people who watched 50% or more of the video instead of cold audiences','Pause it after 2 weeks if ROAS stays under 2×']});});
@@ -1678,7 +1739,7 @@ let SMETA={...SMETA_DEF},sLastRefresh=Date.now(),sPendingKw=null;
 function sMetaUI(){$('sDsWhen').textContent=fmtWhen(SMETA.at);$('sDsWho').textContent=SMETA.by;$('sDsSrc').textContent=SMETA.src;$('sMetaUpdated').textContent='Updated '+new Date(SMETA.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});sRefTxt();}
 function sRefTxt(){const m=Math.round((Date.now()-sLastRefresh)/60000);$('sDsRef').textContent=m<1?'Refreshed just now':'Refreshed '+m+' min ago';}
 setInterval(sRefTxt,30000);
-function sLoad(){try{const raw=localStorage.getItem(SKEY);if(raw){const o=JSON.parse(raw);if(o.data&&o.data.conn&&o.data.clk&&o.data.clk.length===N&&o.data.kw){SDATA=o.data;SMETA=o.meta;if(!SDATA.work)SDATA.work=WORK_DEF.map(w=>({...w}));if(!SDATA.base)SDATA.base={date:'2026-11-11',v:{}};}}}catch(e){}}
+function sLoad(){try{const raw=localStorage.getItem(SKEY);if(raw){const o=JSON.parse(raw);if(o.data&&o.data.clk)padDays(o.data,o.data.clk.length);if(o.data&&o.data.conn&&o.data.clk&&o.data.clk.length===N&&o.data.kw){SDATA=o.data;SMETA=o.meta;if(!SDATA.work)SDATA.work=WORK_DEF.map(w=>({...w}));if(!SDATA.base)SDATA.base={date:'2026-11-11',v:{}};}}}catch(e){}}
 function sStore(){try{localStorage.setItem(SKEY,JSON.stringify({data:SDATA,meta:SMETA}));}catch(e){}}
 $('sRefreshBtn').onclick=e=>{const b=e.currentTarget;b.classList.add('spin');b.disabled=true;document.body.classList.add('loading');
  setTimeout(()=>{sLoad();sLastRefresh=Date.now();renderAll();b.classList.remove('spin');b.disabled=false;document.body.classList.remove('loading');toast('SEO dashboard refreshed with the latest saved data');},800);};
@@ -1826,7 +1887,7 @@ function locDefaults(){return{gbp:{views:Z(),calls:Z(),dirs:Z(),web:Z(),newrev:Z
 let LDATA=locDefaults();
 const LKEY='egeloma-local-v1',LMETA_DEF={at:'2026-11-11T13:30:00',by:'RJ',src:'business details check (egeloma.com.au, elomagroup.com.au, ABN register)'};
 let LMETA={...LMETA_DEF};
-function lLoad(){try{const raw=localStorage.getItem(LKEY);if(raw){const o=JSON.parse(raw);if(o.data&&o.data.gbp&&o.data.gbp.views.length===N){LDATA=o.data;LMETA=o.meta;LIST_DEF.forEach(l=>{if(!LDATA.lists[l[0]])LDATA.lists[l[0]]={st:'Not checked',url:'',at:null};});}}}catch(e){}}
+function lLoad(){try{const raw=localStorage.getItem(LKEY);if(raw){const o=JSON.parse(raw);if(o.data&&o.data.gbp&&o.data.gbp.views)padDays(o.data,o.data.gbp.views.length);if(o.data&&o.data.gbp&&o.data.gbp.views.length===N){LDATA=o.data;LMETA=o.meta;LIST_DEF.forEach(l=>{if(!LDATA.lists[l[0]])LDATA.lists[l[0]]={st:'Not checked',url:'',at:null};});}}}catch(e){}}
 function lStore(){try{localStorage.setItem(LKEY,JSON.stringify({data:LDATA,meta:LMETA}));}catch(e){}}
 const lDone=a=>stOf('loc-a-'+a[0]).status==='Done';
 const lOpen=()=>LAUD.filter(a=>!lDone(a));
@@ -2021,18 +2082,18 @@ lLoad();
 /* ================= MARKETING (EG Eloma): social media guards + overview ================= */
 function socOn(){return PL.some(p=>sumR(DATA.pl[p.k].reach,R.s,R.e)>0);}
 function adsOn(){return['google','meta'].some(k=>sumR(DATA.ads[k].spend,R.s,R.e)>0);}
-const socAwait=(t,p,steps)=>awaitBox(t,p,steps).replace('data-open-seo','data-open-soc');
+const socAwait=(t,p,steps)=>awaitBox(t,p,steps).replace('<button class="btn outline sm" data-open-seo>Update data</button>','<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" data-open-acc>Connect accounts</button><button class="btn outline sm" data-open-soc>Enter by hand</button></div>');
 document.addEventListener('click',e=>{if(e.target.closest('[data-open-soc]'))openD();});
 function socShow(on){const g=$('line').closest('.grid2');g.hidden=!on;$('orgStats').classList.toggle('nostats',!on);$('platFilter').style.display=on?'':'none';}
-function socEmpty(){socShow(false);
- $('orgStats').innerHTML=socAwait('Social media figures not entered yet',`Reach, engagement, new followers and link clicks for EG Eloma's Instagram, Facebook, LinkedIn and Threads (egeloma.au) show here.`,
-  ['Instagram and Facebook: Meta Business Suite, Insights. LinkedIn: Page analytics. Threads: Insights in the app.','Set the dates to '+rangeText(R.s,R.e,' – ')+' and copy reach, engagements, new followers, link clicks and follower totals.','Click Update data and enter them, or upload the social CSV template.']);
- $('orgSub').textContent='Instagram, Facebook, LinkedIn and Threads (egeloma.au)';platTable();
- $('posts').innerHTML='<div class="empty">Top posts appear here once social media figures are entered.</div>';$('postSub').textContent='Highest engagement in this period';}
+function socEmpty(){socShow(false);const con=connectedOf(CO).size>0;
+ $('orgStats').innerHTML=socAwait(con?'No social media figures in this date range yet':'Social media not connected yet',con?`The connected accounts of ${esc(coName())} have no reach recorded for ${rangeText(R.s,R.e,' – ')}. A first read can take a few minutes; press Refresh to check again.`:`Connect ${esc(coName())}'s Facebook, Instagram, LinkedIn, TikTok or YouTube and reach, engagement, new followers, link clicks and top posts are read automatically.`,
+  con?[]:['Click Connect accounts and sign in with the login that manages the business Pages (one Meta login covers every Page it manages).','Under This company, choose the Page, Instagram account or channel that belongs to '+esc(coName())+'.','Figures load within a few minutes and refresh on their own every few hours. Threads, or anything not connected, can still be entered by hand.']);
+ $('orgSub').textContent='Instagram, Facebook, LinkedIn, TikTok, YouTube and Threads';platTable();
+ $('posts').innerHTML='<div class="empty">Top posts appear here once social media figures come in.</div>';$('postSub').textContent='Highest engagement in this period';}
 function adsShow(on){$('adStats').classList.toggle('nostats',!on);$('adFilter').style.display=on?'':'none';}
 function adsEmpty(){adsShow(false);
- $('adStats').innerHTML=socAwait('No advertising figures entered','If EG Eloma runs Google Ads or Meta Ads, spend, clicks, leads and return on ad spend show here. Leave this empty if there are no paid campaigns.',
-  ['Google Ads: Campaigns, set the dates, copy cost, clicks, conversions and conversion value.','Meta Ads Manager: amount spent, link clicks, leads and results value.','Enter them in Update data, Advertising, with the monthly budget.']);
+ $('adStats').innerHTML=socAwait('No advertising figures yet','If '+esc(coName())+' runs Google Ads or Meta Ads, spend, clicks, leads and return on ad spend show here. Leave this empty if there are no paid campaigns.',
+  ['Connect accounts: choose the Meta ad account or Google Ads account for this company, and figures are read automatically.','Or enter them by hand in Update data, Advertising, with the monthly budget.']);
  $('adPanels').innerHTML='';$('campTable').innerHTML='<tr><td colspan="7" class="empty">No campaigns recorded.</td></tr>';$('adSub').textContent='Google Ads and Meta Ads';}
 function headerFix(){const pr=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].reach,R.ps,R.pe),0);
  if(!socOn()){$('hlReach').textContent='–';}
@@ -2051,13 +2112,19 @@ const COS=[
  {k:'egtravels',n:'EG Travels',site:'',d:'Corporate and leisure travel booking',sec:['SEO','Social Media','Local Listing']},
  {k:'elomacare',n:'ELOMA Customer Care',site:'',d:'Inbound and outbound calls, email and chat',sec:['SEO','Local Listing']}];
 let curCo=(location.hash.match(/[#&]co=(\w+)/)||[])[1]||'group';if(curCo!=='group'&&!COS.find(c=>c.k===curCo))curCo='egeloma';
-$('coSel').innerHTML='<option value="group">Group overview</option>'+COS.map(c=>`<option value="${c.k}">${esc(c.n)}${c.live?'':' (not set up)'}</option>`).join('');
-function grpRender(){const ego=COS[0],reach=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].reach,R.s,R.e),0),tasks=workItems().length+lWorkItems().length;
+const coName=()=>(COS.find(x=>x.k===CO)||COS[0]).n;
+/** A company with connected social accounts (or fetched figures) gets its Social Media report even before SEO and Local Listing are set up. */
+const socialLive=k=>linksOf(k).length>0||connectedOf(k).size>0;
+const coLive=c=>!!c&&(c.live||socialLive(c.k));
+function coOpts(){$('coSel').innerHTML='<option value="group">Group overview</option>'+COS.map(c=>`<option value="${c.k}">${esc(c.n)}${c.live?'':socialLive(c.k)?' (social media only)':' (not set up)'}</option>`).join('');$('coSel').value=curCo;}
+coOpts();
+function grpRender(){const tasks=workItems().length+lWorkItems().length;
  const live=COS.filter(c=>c.live).length;
  $('grpStats').innerHTML=[['Companies set up',live+'<small>/'+COS.length+'</small>',COS.filter(c=>!c.live).map(c=>c.n).join(', ')+' to set up'],['SEO issues open',openAudit().length,'across companies set up'],['Listing issues open',lOpen().length,'across companies set up'],['Marketing tasks done',tasks,rangeText(R.s,R.e,' – ')]]
   .map(s=>`<div class="rc"><div class="l">${s[0]}</div><div class="v">${s[1]}</div><div class="w">${s[2]}</div></div>`).join('');
  const chips=c=>c.sec.map(s=>`<span class="chip neu" style="margin:0 4px 4px 0">${s}</span>`).join('');
- $('grpRows').innerHTML=COS.map(c=>{if(!c.live)return `<tr class="click" data-co="${c.k}"><td class="pg"><b>${esc(c.n)}</b><small>${c.site||'Website not linked on elomagroup.com.au'}</small></td><td>${chips(c)}</td><td class="n muted">–</td><td class="n muted">–</td><td class="n hide-m muted">–</td><td class="n hide-m muted">–</td><td class="n muted">–</td><td><span class="chip neu">Not set up</span></td></tr>`;
+ $('grpRows').innerHTML=COS.map(c=>{const reach=coReach(c.k,R.s,R.e);
+  if(!c.live)return `<tr class="click" data-co="${c.k}"><td class="pg"><b>${esc(c.n)}</b><small>${c.site||'Website not linked on elomagroup.com.au'}</small></td><td>${chips(c)}</td><td class="n muted">–</td><td class="n muted">–</td><td class="n hide-m${reach?'':' muted'}">${reach?fmt(reach).join(''):'–'}</td><td class="n hide-m muted">–</td><td class="n muted">–</td><td>${socialLive(c.k)?'<span class="chip good">Social connected</span>':'<span class="chip neu">Not set up</span>'}</td></tr>`;
   const hi=openAudit().filter(a=>a[1]==='high').length+lOpen().filter(a=>a[1]==='high').length;
   return `<tr class="click" data-co="${c.k}"><td class="pg"><b>${esc(c.n)}</b><small>${c.site}</small></td><td>${chips(c)}</td><td class="n">${openAudit().length}</td><td class="n">${lOpen().length}</td><td class="n hide-m">${reach?fmt(reach).join(''):'–'}</td><td class="n hide-m">${LDATA.conn.rev&&LDATA.rev.total!=null?int(LDATA.rev.total):'–'}</td><td class="n">${tasks}</td><td>${hi?`<span class="chip bad">${hi} high priority</span>`:'<span class="chip good">On track</span>'}</td></tr>`;}).join('');
  $('grpSub').textContent='Every Eloma Group business in one place, '+rangeText(R.s,R.e,' – ')+'. Select a company to open its reports.';}
@@ -2067,14 +2134,20 @@ function coSetupRender(c){
   ${[['SEO','Site check of '+(c.site||'the website')+', keywords, countries and before-and-after results'],['Social Media','Reach, engagement and followers for its own social profiles'],['Local Listing','Google Business Profile, directories, reviews and Maps rankings']].map(s=>`<div class="nx"><span class="chip ${c.sec.includes(s[0])?'good':'neu'}">${c.sec.includes(s[0])?'Included':'Optional'}</span><b>${s[0]}</b><small>${s[1]}</small></div>`).join('')}</div>
  <div class="panel"><div class="ph"><h3>To set it up</h3></div><ol class="steps" style="margin-top:0">
   <li>${c.site?`Confirm the website (${c.site}) so the site check can run, like the one for egeloma.com.au.`:'Add its website. None is linked on elomagroup.com.au.'}</li>
-  <li>Add its social media profiles and Google Business Profile.</li><li>Choose who on the team owns its reports.</li></ol>
+  <li>Connect its social media accounts: click Connect accounts below and choose its Pages. Its Social Media report starts straight away.</li><li>Add its Google Business Profile.</li><li>Choose who on the team owns its reports.</li></ol>
+  <button class="btn primary sm" data-open-acc style="margin-top:6px">Connect accounts</button>
   <p class="hint">Once set up, ${esc(c.n)} gets the same SEO, Social Media and Local Listing reports as EG Eloma, with its own data, targets and work log.</p></div></div></section>`;}
-function coView(){const az=curTab==='azure',c=COS.find(x=>x.k===curCo),grp=curCo==='group',live=!grp&&c&&c.live;
+function coView(){const az=curTab==='azure',c=COS.find(x=>x.k===curCo),grp=curCo==='group',live=!grp&&coLive(c),partial=live&&!c.live;
  $('coSel').value=curCo;$('coTitle').textContent=grp?'Group overview':c.n;$('coSub').textContent=grp?'All Eloma Group businesses':(c.site?c.site+' · ':'')+c.d;
  document.querySelector('.cobar').style.display=az?'none':'';$('group').hidden=az||!grp;$('coSetup').hidden=az||grp||live;
  if(!az)$('mkt').hidden=!live;
+ $('mktEye').textContent='Marketing · '+(grp||!c?'EG Eloma':c.n);
+ // Social-only company: SEO and Local Listing are not set up for it yet (they show EG Eloma's own data otherwise).
+ const soon=!az&&partial&&curSub!=='social';$('mktSoon').hidden=!soon;
+ if(soon){$('seo').hidden=true;$('loc').hidden=true;$('mktSoon').innerHTML=`<section style="padding-top:12px"><div class="await"><h3>${curSub==='seo'?'SEO':'Local Listing'} for ${esc(c.n)} isn't set up yet</h3><p>Its Social Media report is live from the connected accounts. ${curSub==='seo'?'SEO (Google Search Console)':'Local Listing (Google Business Profile)'} for ${esc(c.n)} comes next.</p><button class="btn outline sm" data-sub-go="social">Open Social Media</button></div></section>`;}
  if(!az&&grp)grpRender();else if(!az&&!live)coSetupRender(c);}
-function coApply(){showTab('mkt',curSub);}
+function coApply(){if(CO!==(curCo==='group'?'egeloma':curCo)){useCompany(curCo);renderAll();}const c=COS.find(x=>x.k===curCo);showTab('mkt',c&&!c.live&&coLive(c)?'social':curSub);}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-sub-go]');if(b)showTab('mkt',b.dataset.subGo);});
 $('coSel').onchange=()=>{curCo=$('coSel').value;coApply();window.scrollTo(0,0);};
 $('grpRows').onclick=e=>{const tr=e.target.closest('tr[data-co]');if(tr){curCo=tr.dataset.co;coApply();window.scrollTo(0,0);}};
 
@@ -2458,10 +2531,87 @@ regLoad();subLoad();clLoad();
 return{render:clRender,ins:()=>CLINS,close:clCloseD,sum:()=>({cost:MV('cost',curM()),bud:MV('budget',curM())}),tiles:clTiles,cl:()=>CLID};})();
 $("drawerBg").onclick=()=>{closeD();sCloseD();lCloseD();AZ.close();};
 
+/* ================= CONNECTED ACCOUNTS (Eloma Group's own social logins) =================
+   The page has no access of its own: it asks the admin portal over postMessage, and the
+   portal calls the Admin → Marketing API with the signed-in admin's session. */
+const BR={n:0,p:new Map()};
+addEventListener('message',e=>{const m=e.data;if(!m||!m.__mkr||e.source!==parent)return;const q=BR.p.get(m.id);if(!q)return;BR.p.delete(m.id);m.ok?q.res(m.result):q.rej(new Error(m.error||'Something went wrong'));});
+function bridge(type,payload){return new Promise((res,rej)=>{if(parent===window){rej(new Error('Open this report from the admin portal to use connected accounts'));return;}
+ const id=++BR.n;BR.p.set(id,{res,rej});parent.postMessage({__mk:true,id,type,payload},'*');
+ setTimeout(()=>{if(BR.p.has(id)){BR.p.delete(id);rej(new Error('The portal did not answer. Reload the page and try again.'));}},200000);});}
+function setLive(d){if(!d||!d.data)return;LIVE=d;useCompany(curCo);coOpts();renderAll();if(curTab==='mkt')coView();if($('accDrawer').classList.contains('open'))accRender();}
+async function liveLoad(quiet=true){try{setLive(await bridge('load'));}catch(err){if(!quiet)toast(err.message);}}
+/* A first read can take minutes: reload until the server says it is done (up to 15 minutes). */
+let syncT=null;function watchSync(){let n=0;clearInterval(syncT);syncT=setInterval(async()=>{if(++n>150){clearInterval(syncT);return;}try{const d=await bridge('load');setLive(d);if(!d.syncing){clearInterval(syncT);toast('Figures updated from the connected accounts');}}catch(_){}},6000);}
+
+const PROV=[['meta','Meta','Facebook Pages, Instagram accounts and Meta ad accounts. One login covers every Page it manages.'],['linkedin','LinkedIn','Company Pages the login is an admin of.'],['tiktok','TikTok','One TikTok account per login. Connect each company\'s account.'],['youtube','YouTube','One channel per Google login (or brand account). Connect each company\'s channel.'],['google_ads','Google Ads','Ad accounts the Google login can read.']];
+const PNAME=Object.fromEntries(PROV.map(p=>[p[0],p[1]]));
+let accCo='egeloma';
+const ago=s=>{if(!s)return 'not read yet';const m=Math.round((Date.now()-new Date(s))/60000);return m<1?'read just now':m<60?'read '+m+' min ago':m<1440?'read '+Math.round(m/60)+' h ago':'read '+fmtWhen(s);};
+const opt=(v,l,cur)=>`<option value="${esc(v)}"${v===cur?' selected':''}>${esc(l)}</option>`;
+function accRender(){const L=LIVE;
+ if(!L){$('accBody').innerHTML='<div class="await"><h3>Loading the connected accounts…</h3><p>If this stays, reload the page.</p></div>';return;}
+ const conns=p=>L.connections.filter(c=>c.provider===p),link=p=>L.links.find(l=>l.company===accCo&&l.provider===p);
+ const many=p=>conns(p).length>1,tag=(c,p)=>many(p)?' · '+(c.name||PNAME[p]):'';
+ const status=l=>!l?'<small>Not chosen for this company yet</small>':`<small${l.lastError?' class="bad"':''}>${l.lastError?esc(l.lastError):'Figures '+ago(l.lastSyncAt)}</small>`;
+ // This company
+ let h=`<div class="acc-sec"><h4>Pages for each company</h4><div class="acc-co">Company<select id="accCo">${COS.map(c=>opt(c.k,c.n,accCo)).join('')}</select></div>`;
+ PROV.forEach(([p,n])=>{const cs=conns(p),l=link(p),s=(l&&l.selected)||{},cid=l?l.connectionId:'';
+  h+=`<div class="acc-row" data-prov="${p}"><div class="acc-top"><div><h5>${n}</h5>${status(l)}</div>${l?`<button class="btn outline sm" data-unlink="${p}">Remove from ${esc((COS.find(c=>c.k===accCo)||{}).n)}</button>`:''}</div>`;
+  if(!cs.length){h+=`<small style="margin-top:8px">Connect a ${n} login below first.</small></div>`;return;}
+  if(p==='meta'){const pv=l&&s.pageId?cid+'|'+s.pageId:'',iv=l&&s.igId?cid+'|'+s.igId:'',av=l&&s.adAccountId?cid+'|'+s.adAccountId:'';
+   h+=`<div class="acc-sel"><label>Facebook Page<select data-f="page"><option value="">None</option>${cs.flatMap(c=>(c.pages||[]).map(x=>opt(c.id+'|'+x.id,x.name+tag(c,p),pv))).join('')}</select></label>
+   <label>Instagram account<select data-f="ig"><option value="">None</option>${cs.flatMap(c=>(c.pages||[]).filter(x=>x.ig).map(x=>opt(c.id+'|'+x.ig.id,'@'+x.ig.username+tag(c,p),iv))).join('')}</select></label>
+   <label>Meta ad account<select data-f="ad"><option value="">None</option>${cs.flatMap(c=>(c.adAccounts||[]).map(x=>opt(c.id+'|'+x.id,x.name+tag(c,p),av))).join('')}</select></label></div>`;}
+  else if(p==='linkedin'||p==='google_ads'){const v=l?cid+'|'+(p==='linkedin'?s.orgId:s.customerId):'';
+   h+=`<div class="acc-sel"><label>${p==='linkedin'?'Company Page':'Ad account'}<select data-f="asset"><option value="">None</option>${cs.flatMap(c=>(c.options||[]).map(x=>opt(c.id+'|'+x.id,x.name+tag(c,p),v))).join('')}</select></label></div>`;}
+  else h+=`<div class="acc-sel"><label>${p==='tiktok'?'TikTok account':'YouTube channel'}<select data-f="conn"><option value="">None</option>${cs.map(c=>opt(c.id,c.name||PNAME[p],cid)).join('')}</select></label></div>`;
+  h+=`<div style="margin-top:12px"><button class="btn primary sm" data-save="${p}">Save for ${esc((COS.find(c=>c.k===accCo)||{}).n)}</button></div></div>`;});
+ h+='</div>';
+ // Logins
+ h+='<div class="acc-sec"><h4>Connected logins</h4>';
+ PROV.forEach(([p,n,d])=>{const cs=conns(p),ok=L.providers&&L.providers[p];
+  h+=`<div class="acc-row"><div class="acc-top"><div><h5>${n}</h5><small>${d}</small></div><button class="btn outline sm" data-connect="${p}"${ok?'':' disabled title="Not set up on the server yet"'}>${ok?(cs.length?'Connect another':'Connect'):'Not set up yet'}</button></div>`;
+  cs.forEach(c=>{const used=L.links.filter(x=>x.connectionId===c.id).map(x=>(COS.find(o=>o.k===x.company)||{}).n).filter(Boolean);
+   h+=`<div class="acc-login"><div><b style="font-size:13px;font-weight:600">${esc(c.name||n)}</b>${c.status==='EXPIRED'?' <span class="chip bad">Reconnect needed</span>':''}<small>Connected by ${esc(c.connectedByName)} · ${used.length?'used by '+esc(used.join(', ')):'not used by any company yet'}</small>${c.lastError?`<small class="bad">${esc(c.lastError)}</small>`:''}</div><button class="linkbtn" data-disconnect="${c.id}">Disconnect</button></div>`;});
+  h+='</div>';});
+ h+='<p class="hint">Disconnecting ends the access. Figures already read stay in the report.</p></div>';
+ $('accBody').innerHTML=h;
+ $('accNote').textContent=L.syncing?'Reading figures…':'';}
+function accOpen(){accCo=curCo==='group'?'egeloma':curCo;accRender();$('accDrawer').classList.add('open');$('drawerBg').classList.add('open');if(!LIVE)liveLoad(false);}
+function accClose(){$('accDrawer').classList.remove('open');$('drawerBg').classList.remove('open');}
+document.addEventListener('click',e=>{if(e.target.closest('[data-open-acc]'))accOpen();});
+$('accClose').onclick=$('accDone').onclick=accClose;
+$('accBody').onchange=e=>{if(e.target.id==='accCo'){accCo=e.target.value;accRender();}};
+$('accBody').onclick=async e=>{const t=e.target.closest('button');if(!t)return;
+ try{
+  if(t.dataset.connect){const p=t.dataset.connect,w=window.open('about:blank','eg-group-connect','width=620,height=760');
+   const r=await bridge('connect',{provider:p});if(w&&!w.closed)w.location.href=r.url;else window.open(r.url,'_blank');
+   toast('Sign in with '+PNAME[p]+' in the new window');
+   if(w){const iv=setInterval(()=>{if(w.closed){clearInterval(iv);liveLoad(false).then(()=>toast(PNAME[p]+': now choose the Page for each company'));}},1000);setTimeout(()=>clearInterval(iv),15*60000);}
+   return;}
+  if(t.dataset.disconnect){const c=LIVE.connections.find(x=>x.id===t.dataset.disconnect);if(!c||!confirm('Disconnect '+(c.name||PNAME[c.provider])+'? Companies using it stop updating. Figures already read stay.'))return;
+   t.disabled=true;await bridge('disconnect',{id:c.id});await liveLoad(false);toast('Disconnected');return;}
+  if(t.dataset.unlink){const p=t.dataset.unlink;t.disabled=true;await bridge('link',{company:accCo,provider:p,connectionId:null});await liveLoad(false);toast(PNAME[p]+' removed from '+(COS.find(c=>c.k===accCo)||{}).n+'. Figures already read stay.');return;}
+  if(t.dataset.save){const p=t.dataset.save,row=t.closest('.acc-row'),val=f=>{const s=row.querySelector(`select[data-f="${f}"]`);return s?s.value:'';};
+   let body={company:accCo,provider:p};
+   if(p==='meta'){const parts=['page','ig','ad'].map(f=>val(f)).filter(Boolean).map(v=>v.split('|'));
+    if(!parts.length){toast('Choose at least one Page, Instagram account or ad account');return;}
+    if(new Set(parts.map(x=>x[0])).size>1){toast('Choose the Page, Instagram account and ad account from the same Facebook login');return;}
+    const g=f=>{const v=val(f);return v?v.split('|')[1]:null;};body={...body,connectionId:parts[0][0],pageId:g('page'),igId:g('ig'),adAccountId:g('ad')};}
+   else if(p==='tiktok'||p==='youtube'){const v=val('conn');if(!v){toast('Choose an account');return;}body.connectionId=v;}
+   else{const v=val('asset');if(!v){toast('Choose one from the list');return;}const[c,id]=v.split('|');body={...body,connectionId:c,assetId:id};}
+   t.disabled=true;t.textContent='Saving and reading figures…';
+   setLive(await bridge('link',body).then(()=>bridge('load')));
+   toast('Saved. '+PNAME[p]+' figures for '+(COS.find(c=>c.k===accCo)||{}).n+' are loading');if(LIVE&&LIVE.syncing)watchSync();}
+ }catch(err){toast(err.message);t.disabled=false;accRender();}};
+$("drawerBg").addEventListener('click',accClose);
+
 /* ---------- start ---------- */
 load();
 (function(){const m=location.hash.match(/range=([\w-]+)/);if(m){const p=PRESETS.find(q=>q.id===m[1]);if(p){setRange(p.s,p.e,p.id,true);return;}const c=m[1].match(/^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/);if(c){const s=fromIso(c[1]),e=fromIso(c[2]);if(s>=0&&e<=LAST&&s<=e){setRange(s,e,'custom',true);return;}}}setRange(PRESETS[0].s,PRESETS[0].e,'report',true);})();
 showTab(START_TAB||'seo');
+if(document.body.dataset.view!=='azure')liveLoad();
 </script>
 </body>
 </html>

@@ -40,7 +40,7 @@ export const exchangeCode = (code: string, provider: GoogleProvider) =>
     labelFor(provider)
   );
 
-const refresher = (provider: GoogleProvider) => (refreshToken: string): Promise<TokenSet> =>
+export const refresher = (provider: GoogleProvider) => (refreshToken: string): Promise<TokenSet> =>
   tokenRequest(
     'https://oauth2.googleapis.com/token',
     { grant_type: 'refresh_token', refresh_token: refreshToken, client_id: env.GOOGLE_CLIENT_ID!, client_secret: env.GOOGLE_CLIENT_SECRET! },

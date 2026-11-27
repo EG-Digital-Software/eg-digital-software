@@ -63,6 +63,17 @@ export async function tokenRequest(url: string, fields: Record<string, string>, 
 const refreshing = new Map<string, Promise<string>>();
 const MARGIN_MS = 5 * 60_000;
 
+/** Where a connection's tokens are read and saved: client SocialConnection rows by default. */
+export interface TokenStore {
+  read(id: string): Promise<{ id: string; accessTokenEnc: string; tokenExpiresAt: Date | null; assets: Prisma.JsonValue } | null>;
+  write(id: string, data: { accessTokenEnc: string; tokenExpiresAt: Date | null; scopes?: string; assets: Prisma.InputJsonValue }): Promise<unknown>;
+}
+
+const clientStore: TokenStore = {
+  read: (id) => prisma.socialConnection.findUnique({ where: { id } }),
+  write: (id, data) => prisma.socialConnection.update({ where: { id }, data }),
+};
+
 /**
  * A usable access token for a connection, refreshed (and saved) when it is
  * about to run out. Concurrent callers share one refresh.
@@ -70,14 +81,15 @@ const MARGIN_MS = 5 * 60_000;
 export async function accessTokenFor(
   conn: { id: string; accessTokenEnc: string; tokenExpiresAt: Date | null },
   refresh: (refreshToken: string) => Promise<TokenSet>,
-  label: string
+  label: string,
+  store: TokenStore = clientStore
 ): Promise<string> {
   const current = decryptSecret(conn.accessTokenEnc);
   if (current && (!conn.tokenExpiresAt || conn.tokenExpiresAt.getTime() - Date.now() > MARGIN_MS)) return current;
   const pending = refreshing.get(conn.id);
   if (pending) return pending;
   const job = (async () => {
-    const fresh = await prisma.socialConnection.findUnique({ where: { id: conn.id } });
+    const fresh = await store.read(conn.id);
     if (!fresh) throw new ConnectionError(`The ${label} connection was removed`, true);
     const tok = decryptSecret(fresh.accessTokenEnc);
     if (tok && (!fresh.tokenExpiresAt || fresh.tokenExpiresAt.getTime() - Date.now() > MARGIN_MS)) return tok;
@@ -97,14 +109,11 @@ export async function accessTokenFor(
     }
     const f = tokenFields(res, assets.refreshTokenEnc);
     if (!f.accessTokenEnc) throw new ConnectionError(`The ${label} access could not be stored securely (encryption key missing)`);
-    await prisma.socialConnection.update({
-      where: { id: fresh.id },
-      data: {
-        accessTokenEnc: f.accessTokenEnc,
-        tokenExpiresAt: f.tokenExpiresAt,
-        ...(res.scope ? { scopes: res.scope } : {}),
-        assets: { ...assets, refreshTokenEnc: f.refreshTokenEnc, refreshExpiresAt: f.refreshExpiresAt ?? assets.refreshExpiresAt ?? null } as unknown as Prisma.InputJsonValue,
-      },
+    await store.write(fresh.id, {
+      accessTokenEnc: f.accessTokenEnc,
+      tokenExpiresAt: f.tokenExpiresAt,
+      ...(res.scope ? { scopes: res.scope } : {}),
+      assets: { ...assets, refreshTokenEnc: f.refreshTokenEnc, refreshExpiresAt: f.refreshExpiresAt ?? assets.refreshExpiresAt ?? null } as unknown as Prisma.InputJsonValue,
     });
     return res.access_token;
   })().finally(() => refreshing.delete(conn.id));

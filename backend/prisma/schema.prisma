@@ -1660,3 +1660,118 @@ model Testimonial {
   @@index([customerId])
   @@index([status])
 }
+
+// ─── Eloma Group marketing (Admin → Marketing) ──────────────
+// Eloma Group's own companies (EG Eloma, Bivry, EG Imports, EG Travels, ELOMA
+// Customer Care) — never a client. Kept apart from the client tables above:
+// `company` is a fixed key from group.service.ts (egeloma, bivry, …), not a
+// Customer.
+
+/// A social media / ads login connected for the group through the platform's
+/// own sign-in. One login can serve several companies (a Meta login lists every
+/// Page it manages); GroupSocialLink says which Page feeds which company. The
+/// access token is encrypted (secretBox).
+model GroupSocialConnection {
+  id              String    @id @default(uuid())
+  provider        String
+  externalUserId  String
+  externalName    String?
+  accessTokenEnc  String
+  tokenExpiresAt  DateTime?
+  scopes          String?
+  assets          Json      @default("{}")
+  status          String    @default("ACTIVE")
+  lastError       String?
+  lastSyncAt      DateTime?
+  connectedById   String
+  connectedByName String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  links GroupSocialLink[]
+
+  @@unique([provider, externalUserId])
+}
+
+/// Which connected login (and which Page / Instagram / ad account on it) feeds
+/// one company for one provider. `selected` is { pageId, igId, adAccountId }
+/// for Meta, { orgId } for LinkedIn, { customerId } for Google Ads, {} for
+/// TikTok and YouTube (one account per login).
+model GroupSocialLink {
+  id           String                @id @default(uuid())
+  company      String
+  provider     String
+  connection   GroupSocialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId String
+  selected     Json                  @default("{}")
+  lastSyncAt   DateTime?
+  lastError    String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@unique([company, provider])
+  @@index([connectionId])
+}
+
+/// One day of figures for one platform of a group company (same columns as
+/// SocialMetricDaily). `platform` is ig, fb, tt, li, yt, google_ads or meta_ads.
+model GroupSocialMetricDaily {
+  id           String   @id @default(uuid())
+  company      String
+  platform     String
+  date         DateTime @db.Date
+  reach        Float    @default(0)
+  engagements  Float    @default(0)
+  newFollowers Float    @default(0)
+  linkClicks   Float    @default(0)
+  followers    Float?
+  spend        Float    @default(0)
+  clicks       Float    @default(0)
+  leads        Float    @default(0)
+  revenue      Float    @default(0)
+  impressions  Float    @default(0)
+  source       String
+  updatedAt    DateTime @updatedAt
+
+  @@unique([company, platform, date])
+  @@index([company, date])
+}
+
+/// A post fetched from a group company's connected account.
+model GroupSocialPost {
+  id          String   @id @default(uuid())
+  company     String
+  platform    String
+  externalId  String
+  title       String
+  type        String
+  publishedAt DateTime
+  reach       Float    @default(0)
+  engagements Float    @default(0)
+  shares      Float?
+  permalink   String?
+  imageUrl    String?
+  stats       Json     @default("{}")
+  updatedAt   DateTime @updatedAt
+
+  @@unique([company, platform, externalId])
+  @@index([company, publishedAt])
+}
+
+/// One day of one ad campaign of a group company.
+model GroupSocialCampaignDaily {
+  id           String   @id @default(uuid())
+  company      String
+  platform     String
+  campaignId   String
+  campaignName String
+  active       Boolean  @default(true)
+  date         DateTime @db.Date
+  spend        Float    @default(0)
+  leads        Float    @default(0)
+  revenue      Float    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([company, platform, campaignId, date])
+  @@index([company, date])
+}

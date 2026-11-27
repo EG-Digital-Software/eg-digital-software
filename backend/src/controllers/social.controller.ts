@@ -4,6 +4,7 @@ import * as taskService from '../services/task.service.js';
 import * as clientService from '../services/client.service.js';
 import * as social from '../services/social/social.service.js';
 import * as extra from '../services/social/platforms.sync.js';
+import * as group from '../services/social/group.service.js';
 import { findById } from '../services/accounts.js';
 import { asyncHandler, ok } from '../utils/http.js';
 
@@ -65,26 +66,42 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 /** Meta sends the customer back here after they sign in. Public: the signed `state` identifies them. */
 export const metaCallback = asyncHandler(async (req: Request, res: Response) => {
   const q = req.query as Record<string, string | undefined>;
+  // A Marketing (Eloma Group) sign-in comes back on the same address; its state says so.
+  if (group.isGroupState(q.state)) return resultPage(res, await group.completeConnect('meta', q.code, q.state, q.error));
   resultPage(res, await social.completeMetaConnect(q.code, q.state, q.error));
 });
 
 /** TikTok sends the customer back here after they sign in. Public: the signed `state` identifies them. */
 export const tiktokCallback = asyncHandler(async (req: Request, res: Response) => {
   const q = req.query as Record<string, string | undefined>;
+  if (group.isGroupState(q.state)) return resultPage(res, await group.completeConnect('tiktok', q.code, q.state, q.error));
   resultPage(res, await social.completeTikTokConnect(q.code, q.state, q.error, q.error_description));
 });
 
 /** LinkedIn sends the customer back here after they sign in. */
 export const linkedinCallback = asyncHandler(async (req: Request, res: Response) => {
   const q = req.query as Record<string, string | undefined>;
+  if (group.isGroupState(q.state)) return resultPage(res, await group.completeConnect('linkedin', q.code, q.state, q.error));
   resultPage(res, await extra.completeConnect('linkedin', q.code, q.state, q.error));
 });
 
 /** Google (YouTube and Google Ads) sends the customer back here after they sign in. */
 export const googleCallback = asyncHandler(async (req: Request, res: Response) => {
   const q = req.query as Record<string, string | undefined>;
+  if (group.isGroupState(q.state)) return resultPage(res, await group.completeConnect('google', q.code, q.state, q.error));
   resultPage(res, await extra.completeGoogleConnect(q.code, q.state, q.error));
 });
+
+/** Admin → Marketing: Eloma Group's own social accounts (admin only, mounted under /admin). */
+export const groupSocial = {
+  get: asyncHandler(async (_req: Request, res: Response) => ok(res, await group.getOverview())),
+  sync: asyncHandler(async (_req: Request, res: Response) => ok(res, await group.syncEverything())),
+  connect: asyncHandler(async (req: Request, res: Response) => ok(res, group.startConnect(await actor(req), req.params.provider))),
+  link: asyncHandler(async (req: Request, res: Response) =>
+    ok(res, await group.setLink(req.params.company, req.params.provider, req.body ?? {}), 'Account updated')
+  ),
+  disconnect: asyncHandler(async (req: Request, res: Response) => ok(res, await group.disconnect(req.params.connectionId), 'Account disconnected')),
+};
 
 /** The small "Account connected / Not connected" page shown in the sign-in window. */
 function resultPage(res: Response, result: { ok: boolean; message: string }) {

@@ -55,7 +55,7 @@ export const exchangeCode = (code: string) =>
     LABEL
   );
 
-const refresh = (refreshToken: string): Promise<TokenSet> =>
+export const refresh = (refreshToken: string): Promise<TokenSet> =>
   tokenRequest(`${OAUTH}/accessToken`, { grant_type: 'refresh_token', refresh_token: refreshToken, client_id: env.LINKEDIN_CLIENT_ID!, client_secret: env.LINKEDIN_CLIENT_SECRET! }, LABEL);
 
 export const accessToken = (conn: { id: string; accessTokenEnc: string; tokenExpiresAt: Date | null }) => accessTokenFor(conn, refresh, LABEL);

@@ -34,6 +34,7 @@ import * as timesheet from '../services/timesheet.service.js';
 import { timeSheetDecisionSchema } from '../validators/task.validator.js';
 import { findById } from '../services/accounts.js';
 import { ApiError } from '../utils/ApiError.js';
+import { groupSocial } from '../controllers/social.controller.js';
 
 const router = Router();
 
@@ -137,6 +138,13 @@ router.post(
 );
 
 router.use(authenticate, authorize(Role.SUPER_ADMIN));
+
+// Marketing tab: Eloma Group's own social accounts and figures (never a client's).
+router.get('/marketing/social', groupSocial.get);
+router.post('/marketing/social/sync', groupSocial.sync);
+router.post('/marketing/social/connect/:provider', groupSocial.connect);
+router.put('/marketing/social/links/:company/:provider', groupSocial.link);
+router.delete('/marketing/social/connections/:connectionId', groupSocial.disconnect);
 
 // Access Point PINs — every admin, team member and client login, for the admin.
 router.get('/access-pins', asyncHandler(async (_req, res) => ok(res, await accessPoint.listPins())));

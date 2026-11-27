@@ -100,7 +100,7 @@ export function authUrl(state: string): string {
   return url.toString();
 }
 
-interface TokenResponse {
+export interface TokenResponse {
   access_token: string;
   expires_in: number;
   open_id: string;
@@ -119,7 +119,7 @@ export async function exchangeCode(code: string) {
   });
 }
 
-async function refreshTokens(refreshToken: string) {
+export async function refreshTokens(refreshToken: string) {
   return oauth<TokenResponse>('/oauth/token/', {
     client_key: env.TIKTOK_CLIENT_KEY!,
     client_secret: env.TIKTOK_CLIENT_SECRET!,

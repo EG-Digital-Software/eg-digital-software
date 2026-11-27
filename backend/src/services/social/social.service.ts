@@ -831,21 +831,26 @@ export async function storePostImages(customerId: string, posts: meta.FetchedPos
     const src = byKey.get(`${row.platform}:${row.externalId}`);
     if (!src) continue;
     try {
-      const url = new URL(src);
-      if (url.protocol !== 'https:' || !PICTURE_HOST.test(url.hostname)) continue;
-      const res = await fetch(url, { signal: AbortSignal.timeout(20_000), redirect: 'follow' });
-      const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
-      const ext = PICTURE_TYPES[type];
-      if (!res.ok || !ext) continue;
-      const buf = Buffer.from(await res.arrayBuffer());
-      if (!buf.length || buf.length > PICTURE_MAX_BYTES) continue;
       const safeId = row.externalId.replace(/[^A-Za-z0-9_-]/g, '_');
-      const stored = await storage.save(`social/${customerId}/${row.platform}-${safeId}.${ext}`, buf, type);
-      await prisma.socialPost.update({ where: { id: row.id }, data: { imageUrl: stored } });
+      const stored = await copyPicture(src, `social/${customerId}/${row.platform}-${safeId}`);
+      if (stored) await prisma.socialPost.update({ where: { id: row.id }, data: { imageUrl: stored } });
     } catch (err) {
       logger.warn({ err, post: row.externalId }, 'Social: could not copy a post picture');
     }
   }
+}
+
+/** Copy one post picture from a platform's image host into our storage (`path` without extension). Null when skipped. */
+export async function copyPicture(src: string, path: string): Promise<string | null> {
+  const url = new URL(src);
+  if (url.protocol !== 'https:' || !PICTURE_HOST.test(url.hostname)) return null;
+  const res = await fetch(url, { signal: AbortSignal.timeout(20_000), redirect: 'follow' });
+  const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  const ext = PICTURE_TYPES[type];
+  if (!res.ok || !ext) return null;
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (!buf.length || buf.length > PICTURE_MAX_BYTES) return null;
+  return storage.save(`${path}.${ext}`, buf, type);
 }
 
 /** Refresh button: re-fetch every active connection of this customer, then return the dashboard. */
