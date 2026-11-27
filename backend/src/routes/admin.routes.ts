@@ -36,6 +36,7 @@ import { findById } from '../services/accounts.js';
 import { ApiError } from '../utils/ApiError.js';
 import { groupSocial } from '../controllers/social.controller.js';
 import { getCloudReport } from '../services/cloud/azure.service.js';
+import { getSearchReport } from '../services/social/groupSearch.service.js';
 
 const router = Router();
 
@@ -146,6 +147,11 @@ router.post('/marketing/social/sync', groupSocial.sync);
 router.post('/marketing/social/connect/:provider', groupSocial.connect);
 router.put('/marketing/social/links/:company/:provider', groupSocial.link);
 router.delete('/marketing/social/connections/:connectionId', groupSocial.disconnect);
+// SEO and Local: Search Console, Analytics, Business Profile and PageSpeed, read live per company.
+router.get(
+  '/marketing/search/:company',
+  asyncHandler(async (req, res) => ok(res, await getSearchReport(req.params.company, req.query.refresh === '1')))
+);
 
 // Cloud tab: live figures read from EG Eloma's Azure subscription(s), per client.
 router.get(

@@ -12,6 +12,7 @@ import * as google from './google.service.js';
 import * as youtube from './youtube.service.js';
 import * as gads from './googleads.service.js';
 import * as extra from './platforms.sync.js';
+import * as search from './groupSearch.service.js';
 import { ConnectionError, accessTokenFor, tokenFields, type TokenSet, type TokenStore } from './oauth2.js';
 import { FIRST_DAY, copyPicture, type Actor } from './social.service.js';
 
@@ -33,10 +34,19 @@ export const GROUP_COMPANIES = [
 ] as const;
 const COMPANY_KEYS: readonly string[] = GROUP_COMPANIES.map((c) => c.key);
 
-export const GROUP_PROVIDERS = ['meta', 'tiktok', 'linkedin', 'youtube', 'google_ads'] as const;
+export const GROUP_PROVIDERS = ['meta', 'tiktok', 'linkedin', 'youtube', 'google_ads', 'search_console', 'google_analytics', 'business_profile'] as const;
 type GroupProvider = (typeof GROUP_PROVIDERS)[number];
 const isProvider = (p: string): p is GroupProvider => (GROUP_PROVIDERS as readonly string[]).includes(p);
-const LABEL: Record<GroupProvider, string> = { meta: 'Meta', tiktok: 'TikTok', linkedin: 'LinkedIn', youtube: 'YouTube', google_ads: 'Google Ads' };
+const LABEL: Record<GroupProvider, string> = {
+  meta: 'Meta',
+  tiktok: 'TikTok',
+  linkedin: 'LinkedIn',
+  youtube: 'YouTube',
+  google_ads: 'Google Ads',
+  search_console: 'Search Console',
+  google_analytics: 'Google Analytics',
+  business_profile: 'Business Profile',
+};
 
 /** Signed `state` audience — different from the client flow, so a group sign-in can never land on a client. */
 export const GROUP_OAUTH_AUDIENCE = 'group-social-oauth';
@@ -67,6 +77,7 @@ function span(days: number) {
 function configured(p: GroupProvider) {
   if (p === 'meta') return meta.metaConfigured();
   if (p === 'tiktok') return tiktok.tiktokConfigured();
+  if (google.isGoogleData(p)) return google.googleConfigured(p);
   return extra.configured(p);
 }
 
@@ -111,6 +122,8 @@ function shapeConnection(c: GConn) {
     choices = { options: linkedin.publicAssets(a).choices.map((o) => ({ id: o.id, name: o.name })) };
   } else if (c.provider === 'google_ads') {
     choices = { options: gads.publicAssets(a).choices.map((o) => ({ id: o.id, name: o.name })) };
+  } else if (google.isGoogleData(c.provider)) {
+    choices = { options: ((a.choices ?? []) as search.Choice[]).map((o) => ({ id: o.id, name: o.name })) };
   }
   return {
     id: c.id,
@@ -237,7 +250,7 @@ export async function completeConnect(platform: 'meta' | 'tiktok' | 'linkedin' |
   } catch {
     return { ok: false, message: 'This sign-in link has expired. Close this window and press Connect again.' };
   }
-  const expected = platform === 'google' ? ['youtube', 'google_ads'] : [platform];
+  const expected = platform === 'google' ? ['youtube', 'google_ads', ...google.GOOGLE_DATA_PROVIDERS] : [platform];
   if (!expected.includes(s.provider)) return { ok: false, message: 'This sign-in link is for another platform. Close this window and press Connect again.' };
   const provider = s.provider;
   const by = { connectedById: s.uid, connectedByName: s.name };
@@ -295,6 +308,11 @@ export async function completeConnect(platform: 'meta' | 'tiktok' | 'linkedin' |
         assets = { channelId: ch.id, title: ch.title, handle: ch.handle, thumbnail: ch.thumbnail, uploadsPlaylist: ch.uploadsPlaylist };
         name = ch.title;
         externalUserId = ch.id;
+      } else if (google.isGoogleData(provider)) {
+        const r = await search.listChoices(provider, tok.access_token);
+        assets = { choices: r.choices };
+        name = LABEL[provider];
+        if (r.note) message = r.note;
       } else {
         const accounts = await gads.listAccounts(tok.access_token);
         assets = { accounts };
@@ -345,6 +363,7 @@ export async function setLink(company: string, provider: string, body: LinkInput
   if (!body.connectionId) {
     // Unlinking stops new reads; figures already fetched stay.
     await prisma.groupSocialLink.deleteMany({ where: { company, provider } });
+    search.forget(company);
     return { ok: true };
   }
   const conn = await prisma.groupSocialConnection.findFirst({ where: { id: body.connectionId, provider } });
@@ -367,7 +386,17 @@ export async function setLink(company: string, provider: string, body: LinkInput
     selected = { orgId: pick(body.assetId, (id) => ((a.orgs ?? []) as { id: string }[]).some((o) => o.id === id), 'company Page') };
   } else if (provider === 'google_ads') {
     selected = { customerId: pick(body.assetId, (id) => ((a.accounts ?? []) as { id: string }[]).some((o) => o.id === id), 'ad account') };
+  } else if (google.isGoogleData(provider)) {
+    const list = (a.choices ?? []) as search.Choice[];
+    const id = pick(body.assetId, (x) => list.some((o) => o.id === x), provider === 'business_profile' ? 'location' : 'property');
+    selected =
+      provider === 'search_console'
+        ? { siteUrl: id }
+        : provider === 'google_analytics'
+          ? { propertyId: id }
+          : { locationId: id, accountId: list.find((o) => o.id === id)?.account ?? null };
   }
+  search.forget(company);
   const link = await prisma.groupSocialLink.upsert({
     where: { company_provider: { company, provider } },
     create: { company, provider, connectionId: conn.id, selected: selected as Prisma.InputJsonValue },
@@ -384,7 +413,7 @@ export async function disconnect(connectionId: string) {
   const a = (conn.assets ?? {}) as { refreshTokenEnc?: string | null };
   if (conn.provider === 'tiktok') await tiktok.revoke(conn.accessTokenEnc);
   else if (conn.provider === 'linkedin') await linkedin.revoke(conn.accessTokenEnc);
-  else if (conn.provider === 'youtube' || conn.provider === 'google_ads') await google.revoke(conn.accessTokenEnc, a.refreshTokenEnc);
+  else if (conn.provider === 'youtube' || conn.provider === 'google_ads' || google.isGoogleData(conn.provider)) await google.revoke(conn.accessTokenEnc, a.refreshTokenEnc);
   await prisma.groupSocialConnection.delete({ where: { id: conn.id } });
   return { ok: true };
 }
@@ -502,6 +531,8 @@ export async function syncLink(linkId: string, days = 30) {
   try {
     const link = await prisma.groupSocialLink.findUnique({ where: { id: linkId }, include: { connection: true } });
     if (!link || link.connection.status === 'EXPIRED') return { skipped: true };
+    // Search Console, Analytics and Business Profile are read live by the SEO and Local views.
+    if (google.isGoogleData(link.provider)) return { skipped: true };
     const conn = link.connection;
     const sink: Sink = { ops: [], posts: [] };
     const warnings: string[] = [];

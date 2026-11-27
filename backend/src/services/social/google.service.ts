@@ -4,20 +4,38 @@ import { credentialEncryptionReady, decryptSecret } from '../../utils/secretBox.
 import { accessTokenFor, tokenRequest, type TokenSet } from './oauth2.js';
 
 /**
- * Google sign-in shared by YouTube and Google Ads. Each is its own connection
- * (provider 'youtube' or 'google_ads') with only the permissions it needs; the
- * customer may use a different Google login for each.
+ * Google sign-in shared by YouTube, Google Ads and (Admin → Marketing only)
+ * Search Console, Google Analytics and Business Profile. Each is its own
+ * connection with only the read permissions it needs; a different Google login
+ * may be used for each.
  */
 
-export type GoogleProvider = 'youtube' | 'google_ads';
+export type GoogleProvider = 'youtube' | 'google_ads' | 'search_console' | 'google_analytics' | 'business_profile';
+export const GOOGLE_DATA_PROVIDERS = ['search_console', 'google_analytics', 'business_profile'] as const;
+export type GoogleDataProvider = (typeof GOOGLE_DATA_PROVIDERS)[number];
+export const isGoogleData = (p: string): p is GoogleDataProvider => (GOOGLE_DATA_PROVIDERS as readonly string[]).includes(p);
+
+const SCOPES: Record<GoogleDataProvider, string> = {
+  search_console: 'https://www.googleapis.com/auth/webmasters.readonly',
+  google_analytics: 'https://www.googleapis.com/auth/analytics.readonly',
+  business_profile: 'https://www.googleapis.com/auth/business.manage',
+};
+const LABELS: Record<GoogleProvider, string> = {
+  youtube: 'YouTube',
+  google_ads: 'Google Ads',
+  search_console: 'Search Console',
+  google_analytics: 'Google Analytics',
+  business_profile: 'Business Profile',
+};
 
 export function googleConfigured(provider: GoogleProvider): boolean {
   const base = !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REDIRECT_URI) && credentialEncryptionReady();
   return provider === 'google_ads' ? base && !!env.GOOGLE_ADS_DEVELOPER_TOKEN : base;
 }
 
-export const scopesFor = (provider: GoogleProvider) => (provider === 'youtube' ? env.YOUTUBE_SCOPES : 'https://www.googleapis.com/auth/adwords');
-export const labelFor = (provider: GoogleProvider) => (provider === 'youtube' ? 'YouTube' : 'Google Ads');
+export const scopesFor = (provider: GoogleProvider) =>
+  provider === 'youtube' ? env.YOUTUBE_SCOPES : provider === 'google_ads' ? 'https://www.googleapis.com/auth/adwords' : SCOPES[provider];
+export const labelFor = (provider: GoogleProvider) => LABELS[provider];
 
 export function authUrl(provider: GoogleProvider, state: string) {
   const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');

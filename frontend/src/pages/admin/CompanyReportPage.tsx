@@ -45,6 +45,14 @@ export default function CompanyReportPage({ view }: { view: 'mkt' | 'azure' }) {
           case 'azure':
             result = await get(api.get('/admin/cloud/azure', { params: p.refresh ? { refresh: 1 } : {}, timeout: 300_000 }));
             break;
+          case 'search':
+            result = await get(
+              api.get(`/admin/marketing/search/${encodeURIComponent(String(p.company ?? ''))}`, {
+                params: p.refresh ? { refresh: 1 } : {},
+                timeout: 180_000,
+              })
+            );
+            break;
           case 'load':
             result = await get(api.get(BASE));
             break;

@@ -10,6 +10,8 @@ Ye folder har platform ka developer-app setup step-by-step batata hai. Code port
 | [04-google-ads.md](04-google-ads.md) | Google Ads | Spend, clicks, conversions, ROAS, campaigns, impression share, devices | — (ads ko post nahi kiya jaata) |
 | [05-meta-facebook-instagram-ads.md](05-meta-facebook-instagram-ads.md) | Facebook, Instagram, Meta Ads | Sab figures + Meta Ads campaigns | Facebook + Instagram posts |
 
+> **Admin → Marketing SEO aur Local Listing (Search Console, Google Analytics, Business Profile, PageSpeed):** setup [07-search-console-analytics-business-profile.md](07-search-console-analytics-business-profile.md) mein hai.
+>
 > **Admin → Cloud tab (Azure live figures):** setup [06-azure-cloud-tab.md](06-azure-cloud-tab.md) mein hai. Yeh social platform nahi, ek read-only Azure app registration hai.
 
 > **Google Ads aur Meta Ads Content Calendar mein kyun nahi?** Content Calendar organic posts publish karta hai. Ads ka creative Ads Manager / Google Ads mein banta hai — dono ad platforms Dashboard mein (figures) aate hain, aur unke "Connected accounts" Content Calendar ke Accounts view mein bhi same connection use karte hain.

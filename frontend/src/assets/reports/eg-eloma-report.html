@@ -349,15 +349,15 @@ tr.csel td{background:var(--accent-soft)!important}
     <button class="tab active" data-tab="mkt">Marketing</button><button class="tab" data-tab="azure">Azure Performance</button>
   </nav>
   <div class="cobar">
-    <div class="coname"><span class="eyebrow">Eloma Group</span><b id="coTitle">EG Eloma</b><small id="coSub">egeloma.com.au · Microsoft partner, cybersecurity and digital growth</small></div>
+    <div class="coname"><span class="eyebrow">Eloma Group</span><b id="coTitle">Group overview</b><small id="coSub"></small></div>
     <label class="cosel">Company<select id="coSel"></select></label>
   </div>
   <div id="group" hidden>
     <section style="padding-top:12px">
       <div class="sh"><div><h2>Group overview</h2><p id="grpSub">Every Eloma Group business in one place. Select a company to open its reports.</p></div></div>
       <div class="rgrid" id="grpStats"></div>
-      <div style="overflow-x:auto;margin-top:28px"><table class="grptab"><thead><tr><th>Company</th><th>Marketing</th><th class="n">SEO issues open</th><th class="n">Listing issues open</th><th class="n hide-m">Social reach</th><th class="n hide-m">Google reviews</th><th class="n">Tasks done</th><th>Status</th></tr></thead><tbody id="grpRows"></tbody></table></div>
-      <p class="goalnote" style="margin-top:12px">Business list from elomagroup.com.au. Each company keeps its own data, targets and work log, and a shared link only ever shows one company.</p>
+      <div style="overflow-x:auto;margin-top:28px"><table class="grptab"><thead><tr><th>Company</th><th>Connected</th><th class="n">Clicks from Google</th><th class="n hide-m">Profile views</th><th class="n hide-m">Social reach</th><th class="n hide-m">Google reviews</th><th class="n">Tasks done</th><th>Status</th></tr></thead><tbody id="grpRows"></tbody></table></div>
+      <p class="goalnote" style="margin-top:12px">Websites, accounts and figures come only from what is connected for each company in Connected accounts. Nothing is entered by hand.</p>
     </section>
   </div>
   <div id="coSetup" hidden></div>
@@ -365,7 +365,7 @@ tr.csel td{background:var(--accent-soft)!important}
   <div id="other" class="placeholder" hidden><b id="otherName"></b>This tab is part of your existing portal.</div>
 
   <div id="mkt">
-  <div class="mktbar"><div><div class="eyebrow" id="mktEye">Marketing · EG Eloma</div><div class="mkt-ov" id="mktOv"></div></div>
+  <div class="mktbar"><div><div class="eyebrow" id="mktEye">Marketing</div><div class="mkt-ov" id="mktOv"></div></div>
     <div class="views" id="mktNav"><button data-sub="seo">SEO</button><button data-sub="social">Social Media</button><button data-sub="loc">Local Listing</button></div></div>
   <div id="mktSoon" hidden></div>
   <div id="dash">
@@ -406,8 +406,8 @@ tr.csel td{background:var(--accent-soft)!important}
     </div>
   </header>
   <div class="datastrip">
-    <div><span class="dot"></span>Data last updated <b id="dsWhen"></b> by <b id="dsWho"></b> · Source: <span id="dsSrc"></span> · <span id="dsRef">Refreshed just now</span></div>
-    <div class="acts"><button class="btn primary sm" id="accBtn" data-open-acc><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5l3-3M7 9l-2 2a2.8 2.8 0 004 4l2-2M13 11l2-2a2.8 2.8 0 00-4-4L9 7"/></svg>Connected accounts</button><button class="btn outline sm" id="refreshBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 11-1.8-4.3M16 3.5v3.2h-3.2"/></svg>Refresh</button><button class="btn outline sm" id="updateBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5l3 3L8 15H5v-3z"/></svg>Update data </button></div>
+    <div><span class="dot"></span>Last read <b id="dsWhen"></b><b id="dsWho" hidden></b> · Source: <span id="dsSrc"></span> · <span id="dsRef">Refreshed just now</span></div>
+    <div class="acts"><button class="btn primary sm" id="accBtn" data-open-acc><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5l3-3M7 9l-2 2a2.8 2.8 0 004 4l2-2M13 11l2-2a2.8 2.8 0 00-4-4L9 7"/></svg>Connected accounts</button><button class="btn outline sm" id="refreshBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 11-1.8-4.3M16 3.5v3.2h-3.2"/></svg>Refresh</button></div>
   </div>
 
   <div class="viewbar">
@@ -475,10 +475,8 @@ tr.csel td{background:var(--accent-soft)!important}
   </section>
 
   <section>
-    <div class="sh"><div><h2>Summary</h2><p id="notesSub">Notes from your account manager</p></div></div>
-    <div class="notes">
-      <div><p style="font-size:14px;color:var(--t2)">No summary yet. Figures come in from the connected accounts (Connected accounts, above); a written summary can be added here once there is a month of data.</p></div>
-    </div>
+    <div class="sh"><div><h2>Summary</h2><p id="notesSub">Written from the live figures</p></div></div>
+    <div class="notes" id="socNotes"></div>
   </section>
 
   </div>
@@ -499,8 +497,8 @@ tr.csel td{background:var(--accent-soft)!important}
     <div class="headline" id="sHeadline"></div>
   </header>
   <div class="datastrip">
-    <div><span class="dot"></span>Data last updated <b id="sDsWhen"></b> by <b id="sDsWho"></b> · Source: <span id="sDsSrc"></span> · <span id="sDsRef">Refreshed just now</span></div>
-    <div class="acts"><button class="btn outline sm" id="sRefreshBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 11-1.8-4.3M16 3.5v3.2h-3.2"/></svg>Refresh</button><button class="btn outline sm" id="sUpdateBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5l3 3L8 15H5v-3z"/></svg>Update data </button></div>
+    <div><span class="dot"></span>Last read <b id="sDsWhen"></b><b id="sDsWho" hidden></b> · Source: <span id="sDsSrc"></span> · <span id="sDsRef">Refreshed just now</span></div>
+    <div class="acts"><button class="btn outline sm" id="sRefreshBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 11-1.8-4.3M16 3.5v3.2h-3.2"/></svg>Refresh</button></div>
   </div>
 
   <div class="viewbar">
@@ -537,7 +535,7 @@ tr.csel td{background:var(--accent-soft)!important}
   </section>
 
   <section id="sWorkSec">
-    <div class="sh"><div><h2>Work completed</h2><p id="sWorkSub">What the EG Eloma team has done on the site</p></div><button class="btn outline sm" id="sLogBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>Log work </button></div>
+    <div class="sh"><div><h2>Work completed</h2><p id="sWorkSub">What the EG Eloma team has done on the site</p></div></div>
     <div class="stats" id="sWorkStats"></div>
     <div class="grid2">
       <div class="panel"><div class="ph"><h3>Done</h3><span id="sWorkCount"></span></div><div id="sWorkList"></div></div>
@@ -565,7 +563,7 @@ tr.csel td{background:var(--accent-soft)!important}
 
   <section>
     <div class="sh"><div><h2>Search by country</h2><p id="sCtrySub">Country pages and how each market finds the site</p></div></div>
-    <div style="overflow-x:auto"><table><thead><tr><th>Country</th><th class="hide-m">hreflang</th><th class="n">Clicks</th><th class="n cmp">Change</th><th class="n hide-m">Impressions</th><th class="n">Avg position</th><th class="n hide-m">Keywords on page 1</th><th class="n hide-m">Right country page</th></tr></thead><tbody id="sCtry"></tbody></table></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Country</th><th class="n">Clicks</th><th class="n cmp">Change</th><th class="n hide-m">Impressions</th><th class="n">Avg position</th><th class="n hide-m">Searches on page 1</th><th class="n hide-m">Right page</th></tr></thead><tbody id="sCtry"></tbody></table></div>
     <p class="goalnote" style="margin-top:12px">Select a country to see its keyword rankings below.</p>
   </section>
 
@@ -578,7 +576,7 @@ tr.csel td{background:var(--accent-soft)!important}
     <div class="sh"><div><h2>Keyword rankings</h2><p id="sKwSub">Target keywords</p></div>
       <div class="filters"><div class="filter" id="sKwCtry"></div><div class="filter" id="sKwFilter"><button class="on" data-k="all">All</button><button data-k="up">Improved</button><button data-k="down">Declined</button><button data-k="top">Page 1</button><button data-k="p2">Page 2</button></div></div></div>
     <div class="dist" id="sDist"></div>
-    <div style="overflow-x:auto"><table><thead><tr><th>Keyword</th><th class="n">Position</th><th class="n cmp">Change</th><th class="n hide-m">Monthly searches</th><th class="n hide-m">Est. clicks</th><th class="hide-m">Page</th></tr></thead><tbody id="sKwTable"></tbody></table></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Keyword</th><th class="n">Position</th><th class="n cmp">Change</th><th class="n hide-m">Impressions a month</th><th class="n hide-m">Clicks (28 days)</th><th class="hide-m">Page</th></tr></thead><tbody id="sKwTable"></tbody></table></div>
     <p class="goalnote" id="sKwSiteNote" style="margin-top:12px"></p>
   </section>
 
@@ -594,19 +592,17 @@ tr.csel td{background:var(--accent-soft)!important}
   </section>
 
   <section>
-    <div class="sh"><div><h2>Backlinks and local search</h2><p id="sLinkSub">Other websites linking to the site, and Google Business Profile activity</p></div></div>
-    <div class="vs" id="sLinkPanels"></div>
+    <div class="sh"><div><h2>Local search</h2><p id="sLinkSub">Google Business Profile activity</p></div></div>
+    <div id="sLinkPanels"></div>
   </section>
 
   <section>
-    <div class="sh"><div><h2>Summary</h2><p id="sNotesSub">From the SEO team</p></div></div>
-    <div class="notes">
-      <div><p style="font-size:14px;color:var(--t2)">No summary yet. It is written here once Search Console figures come in and a site check is run.</p></div>
-    </div>
+    <div class="sh"><div><h2>Summary</h2><p id="sNotesSub">Written from the live figures</p></div></div>
+    <div class="notes" id="seoNotes"></div>
   </section>
   </div>
 
-  <footer><span class="brand"><img data-logo alt=""><span class="wm"><b>EG ELOMA</b><small>BY ELOMA GROUP</small></span></span><span>Site checked 11 Nov 2026 from the live pages, robots.txt and sitemap. Traffic figures come from Google Search Console once entered.</span></footer>
+  <footer><span class="brand"><img data-logo alt=""><span class="wm"><b>EG ELOMA</b><small>BY ELOMA GROUP</small></span></span><span>Figures read live from Google Search Console, Google Analytics, Google Business Profile and PageSpeed Insights.</span></footer>
   </div>
   <div id="loc" hidden>
   <header class="report-head">
@@ -622,8 +618,8 @@ tr.csel td{background:var(--accent-soft)!important}
     <div class="headline" id="lHeadline"></div>
   </header>
   <div class="datastrip">
-    <div><span class="dot"></span>Data last updated <b id="lDsWhen"></b> by <b id="lDsWho"></b> · Source: <span id="lDsSrc"></span></div>
-    <div class="acts"><button class="btn outline sm" id="lUpdateBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5l3 3L8 15H5v-3z"/></svg>Update data </button></div>
+    <div><span class="dot"></span>Last read <b id="lDsWhen"></b><b id="lDsWho" hidden></b> · Source: <span id="lDsSrc"></span></div>
+    <div class="acts"><button class="btn outline sm" id="lRefreshBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 11-1.8-4.3M16 3.5v3.2h-3.2"/></svg>Refresh</button></div>
   </div>
 
   <div class="viewbar">
@@ -660,7 +656,7 @@ tr.csel td{background:var(--accent-soft)!important}
   </section>
 
   <section>
-    <div class="sh"><div><h2>Work completed</h2><p id="lWorkSub">What the EG Eloma team has done on the local listings</p></div><button class="btn outline sm" id="lLogBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>Log work </button></div>
+    <div class="sh"><div><h2>Work completed</h2><p id="lWorkSub">What the team has done on the local listing</p></div></div>
     <div class="stats" id="lWorkStats"></div>
     <div class="grid2">
       <div class="panel"><div class="ph"><h3>Done</h3><span id="lWorkCount"></span></div><div id="lWorkList"></div></div>
@@ -674,32 +670,12 @@ tr.csel td{background:var(--accent-soft)!important}
   </section>
 
   <section>
-    <div class="sh"><div><h2>Business details check</h2><p>Name, address and phone (NAP) must match everywhere the business appears. Mismatches confuse Google and customers.</p></div></div>
-    <div style="overflow-x:auto"><table><thead><tr><th>Where</th><th>Business name</th><th class="hide-m">Address</th><th>Phone</th><th class="hide-m">Hours</th><th>Result</th></tr></thead><tbody id="lNap"></tbody></table></div>
-    <p class="goalnote" style="margin-top:12px">The business details used everywhere should be: <b style="color:var(--ink)">EG Eloma · 71 Gipps Street, Collingwood VIC 3066 · 1800 054 555 · egeloma.com.au</b>.</p>
-  </section>
-
-  <section>
-    <div class="sh"><div><h2>Listings and directories</h2><p id="lListSub">Where EG Eloma should be listed, and the status of each listing</p></div></div>
-    <div class="dist" id="lListDist"></div>
-    <div style="overflow-x:auto"><table><thead><tr><th>Listing</th><th class="hide-m">Why it matters</th><th>Status</th><th class="n hide-m">Last checked</th></tr></thead><tbody id="lList"></tbody></table></div>
-  </section>
-
-  <section>
-    <div class="sh"><div><h2>Local rankings</h2><p id="lKwSub">Position in the Google Maps results (the local "map pack") for nearby searches</p></div></div>
-    <div style="overflow-x:auto"><table><thead><tr><th>Search</th><th class="n">Maps position</th><th class="n cmp">Change</th><th>In the map pack?</th></tr></thead><tbody id="lKw"></tbody></table></div>
-    <p class="goalnote" id="lKwNote" style="margin-top:12px"></p>
-  </section>
-
-  <section>
-    <div class="sh"><div><h2>Summary</h2><p>From the local SEO team</p></div></div>
-    <div class="notes">
-      <div><p style="font-size:14px;color:var(--t2)">No summary yet. It is written here once Business Profile figures come in and the listings are checked.</p></div>
-    </div>
+    <div class="sh"><div><h2>Summary</h2><p>Written from the live figures</p></div></div>
+    <div class="notes" id="locNotes"></div>
   </section>
   </div>
 
-  <footer><span class="brand"><img data-logo alt=""><span class="wm"><b>EG ELOMA</b><small>BY ELOMA GROUP</small></span></span><span>Business details checked 11 Nov 2026 on egeloma.com.au, elomagroup.com.au and the ABN register. Listing and profile figures are entered by the EG Eloma team.</span></footer>
+  <footer><span class="brand"><img data-logo alt=""><span class="wm"><b>EG ELOMA</b><small>BY ELOMA GROUP</small></span></span><span>Figures read live from Google Business Profile.</span></footer>
   </div>
   </div>
   <div id="azure" hidden>
@@ -847,79 +823,6 @@ tr.csel td{background:var(--accent-soft)!important}
 
 <div class="modal" id="modal"><div class="box"><div class="img"></div><div class="in"><div class="eyebrow" id="mType"></div><h4 id="mTitle"></h4><div class="grid" id="mGrid"></div><button class="btn outline" id="mClose">Close</button></div></div></div>
 
-<aside class="drawer" id="drawer" aria-label="Update data">
-  <div class="dh"><div class="t"><div><h3>Update dashboard data</h3><p id="dSubtitle">Changes show on the dashboard once you save.</p></div><button class="x" id="dClose" aria-label="Close">×</button></div>
-    <div class="dtabs"><button class="on" data-dt="enter">Enter numbers</button><button data-dt="upload">Upload CSV</button></div></div>
-  <div class="db" id="dtEnter">
-    <h4 id="fSocialH">Social media</h4><table class="ft" id="fSocial"></table>
-    <h4 id="fAdsH">Advertising</h4><table class="ft" id="fAds"></table><h4>Monthly targets</h4><div class="sf" id="fTg"></div>
-    <p class="hint">Totals are for the date range selected on the dashboard. Copy each number from the platform's own insights for the same dates (Meta Business Suite, LinkedIn Page analytics, Threads Insights, Google Ads and Meta Ads Manager). Totals, changes, charts and goals recalculate automatically.</p>
-  </div>
-  <div class="db" id="dtUpload" hidden>
-    <label class="drop" id="drop"><b>Drop a CSV file here</b>or click to choose a file<input type="file" id="file" accept=".csv,text/csv" hidden></label>
-    <div class="tpl"><button class="btn outline sm" id="tplSocial">Download social template</button><button class="btn outline sm" id="tplAds">Download ads template</button></div>
-    <div class="msg" id="upMsg"></div>
-    <ol class="steps"><li>Choose the date range on the dashboard first.</li><li>Download a template (it already contains the current numbers for that range).</li><li>Update the numbers in Excel or Google Sheets and save as CSV.</li><li>Upload it here, check the numbers on the Enter numbers tab, then save.</li></ol>
-  </div>
-  <div class="df"><button class="linkbtn" id="dReset">Reset to original data</button><div class="r"><button class="btn outline" id="dCancel">Cancel</button><button class="btn primary" id="dSave">Save and refresh</button></div></div>
-</aside>
-<aside class="drawer" id="sDrawer" aria-label="Update SEO data">
-  <div class="dh"><div class="t"><div><h3>Update SEO data</h3><p>Leave a section blank if you don't have that data yet.</p></div><button class="x" id="sdClose" aria-label="Close">×</button></div>
-    <div class="dtabs" id="sDtabs"><button class="on" data-dt="enter">Enter numbers</button><button data-dt="upload">Upload keyword CSV</button><button data-dt="log">Log work</button></div></div>
-  <div class="db" id="sdEnter">
-    <div id="sForm"></div>
-    <p class="hint">Search Console and Analytics totals are for the date range selected on the dashboard: in Search Console use Performance, Search results, set the same dates, and copy the totals and the Countries tab. Backlinks come from your backlink tool (Ahrefs, Semrush or Moz). PageSpeed figures come from pagespeed.web.dev on the Mobile tab.</p>
-  </div>
-  <div class="db" id="sdUpload" hidden>
-    <label class="drop" id="sDrop"><b>Drop a keyword CSV here</b>or click to choose a file<input type="file" id="sFile" accept=".csv,text/csv" hidden></label>
-    <div class="tpl"><button class="btn outline sm" id="sTplKw">Download keyword template</button></div>
-    <div class="msg" id="sUpMsg"></div>
-    <ol class="steps"><li>Choose the date range on the dashboard first. Positions you upload are recorded for the last day of that range.</li><li>Download the template. It lists all 20 target keywords for Australia with their target page.</li><li>Fill in each position and the page that ranks, from your rank tracker or Search Console. Copy rows and change the country column (AU, NZ, UK, US, CA) to track other countries. Add new keywords as new rows.</li><li>Save as CSV, upload it here, then click Save and refresh. Columns: keyword, country, position, url, search_volume.</li></ol>
-  </div>
-  <div class="db" id="sdLog" hidden>
-    <h4>Add completed work</h4>
-    <div class="sf">
-      <label>Date<input type="date" id="wDate"></label>
-      <label>Type of work<select id="wCat"></select></label>
-      <label style="grid-column:1/-1">What was done<input type="text" id="wTitle" placeholder="e.g. Rewrote the website development page (850 words)"></label>
-      <label style="grid-column:1/-1">Details and result (optional)<textarea id="wDetail" rows="3" placeholder="e.g. New Melbourne title and meta description, added FAQs and 4 internal links."></textarea></label>
-      <label>Done by<input type="text" id="wOwner" placeholder="e.g. RJ, Content team"></label>
-      <label>Hours (optional)<input type="number" min="0" step="0.25" id="wHours"></label>
-      <label style="grid-column:1/-1">Link (optional)<input type="url" id="wLink" placeholder="https://egeloma.com.au/website-development"></label>
-      <label class="chk" style="grid-column:1/-1"><input type="checkbox" id="wVis" checked> Show in the report</label>
-    </div>
-    <button class="btn primary sm" id="wAdd" style="margin-top:14px">Add to work log</button>
-    <h4>Work log</h4>
-    <p class="hint" style="margin:0 0 10px">Entries you add here, newest first. Fixes ticked off in Team actions are added to the report automatically, with the date they were ticked.</p>
-    <div id="wList"></div>
-  </div>
-  <div class="df"><button class="linkbtn" id="sdReset">Reset to site check only</button><div class="r"><button class="btn outline" id="sdCancel">Cancel</button><button class="btn primary" id="sdSave">Save and refresh</button></div></div>
-</aside>
-<aside class="drawer" id="lDrawer" aria-label="Update local listing data">
-  <div class="dh"><div class="t"><div><h3>Update local listing data</h3><p>Leave a section blank if you don't have that data yet.</p></div><button class="x" id="ldClose" aria-label="Close">×</button></div>
-    <div class="dtabs" id="lDtabs"><button class="on" data-dt="enter">Profile and reviews</button><button data-dt="list">Listings</button><button data-dt="kw">Local rankings</button><button data-dt="log">Log work</button></div></div>
-  <div class="db" id="ldEnter"><div id="lForm"></div>
-    <p class="hint">Business Profile figures come from the profile's Performance page (business.google.com, or search "EG Eloma" on Google while signed in and choose Performance). Set the same dates as the dashboard. Review totals and rating are as of today.</p></div>
-  <div class="db" id="ldList" hidden><p class="hint" style="margin:0 0 12px">Search each site for "EG Eloma", "EG Digital" and 1800 054 555, then set the status. Add the listing link once found.</p><div id="lListForm"></div></div>
-  <div class="db" id="ldKw" hidden><p class="hint" style="margin:0 0 12px">Search each term on Google Maps from Collingwood (or with a local rank checker) and enter EG Eloma's position. Leave blank if it does not appear in the top 20. Positions are recorded for the last day of the selected date range.</p><div id="lKwForm"></div>
-    <div class="sf" style="margin-top:14px"><label style="grid-column:1/-1">Add a search to track<input type="text" id="lKwNew" placeholder="e.g. microsoft 365 support collingwood"></label></div></div>
-  <div class="db" id="ldLog" hidden>
-    <h4>Add completed work</h4>
-    <div class="sf">
-      <label>Date<input type="date" id="lwDate"></label>
-      <label>Type of work<select id="lwCat"></select></label>
-      <label style="grid-column:1/-1">What was done<input type="text" id="lwTitle" placeholder="e.g. Claimed and updated the Yellow Pages listing"></label>
-      <label style="grid-column:1/-1">Details and result (optional)<textarea id="lwDetail" rows="3" placeholder="e.g. Changed name from EG Digital to EG Eloma and updated the website link."></textarea></label>
-      <label>Done by<input type="text" id="lwOwner" placeholder="e.g. RJ"></label>
-      <label>Hours (optional)<input type="number" min="0" step="0.25" id="lwHours"></label>
-      <label style="grid-column:1/-1">Link (optional)<input type="url" id="lwLink" placeholder="https://"></label>
-      <label class="chk" style="grid-column:1/-1"><input type="checkbox" id="lwVis" checked> Show in the report</label>
-    </div>
-    <button class="btn primary sm" id="lwAdd" style="margin-top:14px">Add to work log</button>
-    <h4>Work log</h4><div id="lwList"></div>
-  </div>
-  <div class="df"><button class="linkbtn" id="ldReset">Clear entered figures</button><div class="r"><button class="btn outline" id="ldCancel">Cancel</button><button class="btn primary" id="ldSave">Save and refresh</button></div></div>
-</aside>
 <aside class="drawer" id="accDrawer" aria-label="Connected accounts">
   <div class="dh"><div class="t"><div><h3>Connected accounts</h3><p>Eloma Group's own social media logins. Each company reads only the Pages chosen for it here.</p></div><button class="x" id="accClose" aria-label="Close">×</button></div></div>
   <div class="db" id="accBody"></div>
@@ -966,8 +869,7 @@ const PRESETS=[
  {id:'ytd',name:'Year to date',s:iOf(Date.UTC(CY,0,1)),e:LAST,title:CY+' year to date',cmp:'same period in '+(CY-1),yoy:true},
 ];
 
-const PL=[{k:'ig',n:'Instagram',ab:'IG',h:'instagram.com/egeloma.au'},{k:'fb',n:'Facebook',ab:'FB',h:'facebook.com/egeloma.au'},{k:'li',n:'LinkedIn',ab:'IN',h:'linkedin.com/company/egeloma-au'},{k:'tt',n:'TikTok',ab:'TT',h:''},{k:'yt',n:'YouTube',ab:'YT',h:''},{k:'th',n:'Threads',ab:'TH',h:'threads.com/@egeloma.au'}];
-const PL_H0=Object.fromEntries(PL.map(p=>[p.k,p.h]));
+const PL=[{k:'ig',n:'Instagram',ab:'IG',h:''},{k:'fb',n:'Facebook',ab:'FB',h:''},{k:'li',n:'LinkedIn',ab:'IN',h:''},{k:'tt',n:'TikTok',ab:'TT',h:''},{k:'yt',n:'YouTube',ab:'YT',h:''}];
 const ADN={google:'Google Ads',meta:'Meta Ads'};
 function defaults(){const d={pl:{},ads:{},tg:{nf:null,er:null,leads:null}};PL.forEach(p=>{d.pl[p.k]={fol:0};['reach','eng','nf','clk'].forEach(m=>d.pl[p.k][m]=new Array(N).fill(0));});['google','meta'].forEach(k=>{d.ads[k]={budget:0};['spend','clk','leads','rev','impr'].forEach(m=>d.ads[k][m]=new Array(N).fill(0));});return d;}
 let DATA=defaults();
@@ -977,13 +879,11 @@ let CAMPS=[],CAMPDAYS=[];
 function campsFor(){CAMPS=CAMPDAYS.map(c=>{let sp=0,ld=0,rv=0;for(const[d,v]of Object.entries(c.days)){const i=fromIso(d);if(i>=R.s&&i<=R.e){sp+=v[0]||0;ld+=v[1]||0;rv+=v[2]||0;}}return[esc(c.name),c.k,c.active,sp,ld,rv];}).filter(r=>r[3]>0||r[4]>0||r[5]>0);}
 
 /* ---------- Eloma Group companies: social figures per company ----------
-   Figures from connected accounts (Admin → Marketing API, through the portal) take
-   the place of hand-entered ones for the same platform; everything else stays as
-   entered in Update data, kept per company in this browser. */
+   Every figure comes from the connected accounts (Admin → Marketing API, through
+   the portal). Nothing is typed in or kept in the browser. */
 let LIVE=null,CO='egeloma';
 const ADS_OF={google_ads:'google',meta_ads:'meta'};
-const skey=co=>co==='egeloma'?'egeloma-social-v1':'eg-social-'+co+'-v1';
-function manualOf(co){try{const raw=localStorage.getItem(skey(co));if(raw){const o=JSON.parse(raw);if(o.data&&o.data.pl&&o.data.pl.ig){padDays(o.data,o.data.pl.ig.reach.length);if(o.data.pl.ig.reach.length===N)return o;}}}catch(e){}return null;}
+function manualOf(){return null;}
 function fillMissing(d){const z=defaults();PL.forEach(p=>{if(!d.pl[p.k])d.pl[p.k]=z.pl[p.k];});['google','meta'].forEach(k=>{if(!d.ads[k])d.ads[k]=z.ads[k];});if(!d.tg)d.tg=z.tg;return d;}
 const liveOf=co=>(LIVE&&LIVE.data&&LIVE.data[co])||null;
 const linksOf=co=>LIVE?LIVE.links.filter(l=>l.company===co):[];
@@ -1004,16 +904,17 @@ function useCompany(co){CO=co&&co!=='group'?co:'egeloma';const b=buildCo(CO),L=l
  POSTS.length=0;if(L)(L.posts||[]).forEach(p=>{if(PL.some(q=>q.k===p.pl))POSTS.push(p);});
  CAMPDAYS=L?(L.campaigns||[]).map(c=>({name:c.name,k:ADS_OF[c.platform],active:c.active,days:c.days})).filter(c=>c.k):[];
  const syncs=linksOf(CO).map(l=>l.lastSyncAt).filter(Boolean).sort();
- if(con.size){const names=[...con].map(k=>(PL.find(p=>p.k===k)||{n:ADN[k]}).n);META={at:syncs.length?syncs[syncs.length-1]:(b.m&&b.m.meta.at)||null,by:'automatic read',src:'connected accounts ('+names.join(', ')+')'+(b.m?' and manual entry':'')};}
- else META=b.m&&b.m.meta?b.m.meta:{at:null,by:'nobody yet',src:'not entered yet'};
+ if(con.size){const names=[...con].map(k=>(PL.find(p=>p.k===k)||{n:ADN[k]}).n);META={at:syncs.length?syncs[syncs.length-1]:null,by:'',src:'connected accounts ('+names.join(', ')+')'};}
+ else META={at:null,by:'',src:'no accounts connected yet'};
+ applySearch();
  setHandles();}
-/** Profile names shown under each platform: from the connected accounts, otherwise EG Eloma's own handles. */
-function setHandles(){const own=CO==='egeloma',H={};
+/** Profile names shown under each platform: from the connected accounts only. */
+function setHandles(){const H={};
  linksOf(CO).forEach(l=>{const c=LIVE.connections.find(x=>x.id===l.connectionId);if(!c)return;const s=l.selected||{};
   if(l.provider==='meta'){const pg=(c.pages||[]).find(p=>p.id===s.pageId);if(pg)H.fb=pg.name;const ig=(c.pages||[]).map(p=>p.ig).find(i=>i&&i.id===s.igId);if(ig)H.ig='@'+ig.username;}
   else if(l.provider==='linkedin'){const o=(c.options||[]).find(o=>o.id===s.orgId);if(o)H.li=o.name;}
   else if(l.provider==='tiktok'||l.provider==='youtube')H[l.provider==='tiktok'?'tt':'yt']=c.name||'';});
- PL.forEach(p=>p.h=H[p.k]||(own?PL_H0[p.k]:''));}
+ PL.forEach(p=>p.h=H[p.k]||'Not connected');}
 
 /* ---------- state ---------- */
 const state={plat:'all',ad:'all',cmp:true,s:PRESETS[0].s,e:PRESETS[0].e,preset:'report'};
@@ -1041,7 +942,7 @@ function header(){
  $('metaRange').textContent=rangeText(R.s,R.e)+' ('+R.len+' days)';$('drLabel').textContent=rangeText(R.s,R.e,' – ');
  $('cmpLbl').textContent='Compare with '+R.cmpName;$('cmpToggle').disabled=!R.has;$('cmpToggle').setAttribute('aria-pressed',state.cmp&&R.has);
  document.body.classList.toggle('no-compare',!(state.cmp&&R.has));
- $('notesSub').textContent=state.preset==='report'?'Notes from your account manager':'Notes from your account manager';
+ $('notesSub').textContent='Written from the live figures';
  // curve
  const d=bucket(Array.from({length:R.len},(_,i)=>PL.reduce((a,p)=>a+DATA.pl[p.k].reach[R.s+i],0))).v,n=d.length,mx=Math.max(...d),mn=Math.min(...d);
  const x=i=>n>1?i*1200/(n-1):600,y=v=>92-(mx===mn?.5:(v-mn)/(mx-mn))*70,pth=d.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1)).join('');
@@ -1083,31 +984,36 @@ function organic(){
 function platTable(){
  $('platTable').innerHTML=PL.map(p=>{const D=DATA.pl[p.k],re=sumR(D.reach,R.s,R.e),en=sumR(D.eng,R.s,R.e);return `<tr class="click${state.plat===p.k?' sel':''}" data-p="${p.k}"><td><div style="display:flex;align-items:center"><span class="mono">${p.ab}</span><span class="pg"><b style="font-weight:500">${p.n}</b><small>${p.h}</small></span></div></td><td class="n">${fmt(folAt(p.k,R.e)).join('')}</td><td class="n">+${int(sumR(D.nf,R.s,R.e))}</td><td class="n">${fmt(re).join('')}</td><td class="n hide-m">${re?(en/re*100).toFixed(1)+'%':'–'}</td></tr>`}).join('');}
 
-/* ---------- goals ---------- */
-function goals(){const f=R.len/30,T=DATA.tg||{},nf=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].nf,R.s,R.e),0),rc=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].reach,R.s,R.e),0),er=rc?+(PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].eng,R.s,R.e),0)/rc*100).toFixed(1):0,ld=sumR(DATA.ads.google.leads,R.s,R.e)+sumR(DATA.ads.meta.leads,R.s,R.e);
+/* ---------- goals ----------
+   Targets are set automatically: 10% above the monthly average of the 90 days
+   before the selected period (nothing to set by hand). */
+function autoTg(){const s=Math.max(0,R.s-90),e=R.s-1,n=e-s+1;if(n<30)return{};
+ const nf=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].nf,s,e),0),rc=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].reach,s,e),0),en=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].eng,s,e),0),ld=sumR(DATA.ads.google.leads,s,e)+sumR(DATA.ads.meta.leads,s,e);
+ const up=v=>v>0?Math.ceil(v*1.1):null;return{nf:up(nf/n*30),er:rc?+(en/rc*100*1.1).toFixed(1):null,leads:up(ld/n*30)};}
+function goals(){const f=R.len/30,T=autoTg(),nf=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].nf,R.s,R.e),0),rc=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].reach,R.s,R.e),0),er=rc?+(PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].eng,R.s,R.e),0)/rc*100).toFixed(1):0,ld=sumR(DATA.ads.google.leads,R.s,R.e)+sumR(DATA.ads.meta.leads,R.s,R.e);
  const G=[['Followers gained',Math.round(nf),T.nf?Math.round(T.nf*f):null,''],['Engagement rate',er,T.er||null,'%'],['Leads from ads',Math.round(ld),T.leads?Math.round(T.leads*f):null,'']];
- $('goals').innerHTML=G.map(g=>{if(!g[2])return `<div class="goal"><div class="t">${g[0]}<span>${g[1].toLocaleString('en-AU')}${g[3]} · no target set</span></div><div class="bar"></div></div>`;const r=Math.min(g[1]/g[2],1);return `<div class="goal ${r>=1?'done':''}"><div class="t">${g[0]}<span>${g[1].toLocaleString('en-AU')}${g[3]} of ${g[2].toLocaleString('en-AU')}${g[3]}</span></div><div class="bar"><b style="width:${r*100}%"></b></div></div>`}).join('');
- const set=G.filter(g=>g[2]);$('goalCount').textContent=set.length?set.filter(g=>g[1]>=g[2]).length+' of '+set.length+' met':'Targets not set';
- $('goalNote').textContent=set.length?(R.len===30?'Monthly targets.':'Monthly targets adjusted to '+R.len+' days.'):'Set monthly targets in Update data.';}
+ $('goals').innerHTML=G.map(g=>{if(!g[2])return `<div class="goal"><div class="t">${g[0]}<span>${g[1].toLocaleString('en-AU')}${g[3]} · no earlier figures for a target</span></div><div class="bar"></div></div>`;const r=Math.min(g[1]/g[2],1);return `<div class="goal ${r>=1?'done':''}"><div class="t">${g[0]}<span>${g[1].toLocaleString('en-AU')}${g[3]} of ${g[2].toLocaleString('en-AU')}${g[3]}</span></div><div class="bar"><b style="width:${r*100}%"></b></div></div>`}).join('');
+ const set=G.filter(g=>g[2]);$('goalCount').textContent=set.length?set.filter(g=>g[1]>=g[2]).length+' of '+set.length+' met':'No targets yet';
+ $('goalNote').textContent=set.length?'Targets are 10% above the monthly average of the 90 days before this period'+(R.len===30?'.':', adjusted to '+R.len+' days.'):'Targets appear once there are 90 days of figures before this period.';}
 
 /* ---------- ads ---------- */
 function ads(){
  const keys=state.ad==='all'?['google','meta']:[state.ad];const s=(m,a,b)=>keys.reduce((t,k)=>t+sumR(DATA.ads[k][m],a,b),0);
  const c={},p={};['spend','clk','leads','rev','impr'].forEach(m=>{c[m]=s(m,R.s,R.e);p[m]=s(m,R.ps,R.pe);});
- const budget=keys.reduce((t,k)=>t+DATA.ads[k].budget,0)*R.len/30,cpl=c.spend/c.leads,pcpl=p.spend/p.leads;
- $('adStats').innerHTML=stat('Ad spend',money(c.spend),'',(budget?`${Math.round(c.spend/budget*100)}% of ${money(budget)} budget`:'No budget set'))+stat('Clicks',int(c.clk),'',delta(c.clk,p.clk))+stat('Cost per lead','$'+cpl.toFixed(2),'',delta(cpl,pcpl,true))+stat('Return on ad spend',(c.rev/c.spend).toFixed(1),'×',`${money(c.rev)} revenue`);
+ const cpl=c.spend/c.leads,pcpl=p.spend/p.leads;
+ $('adStats').innerHTML=stat('Ad spend',money(c.spend),'',delta(c.spend,p.spend,true))+stat('Clicks',int(c.clk),'',delta(c.clk,p.clk))+stat('Cost per lead','$'+cpl.toFixed(2),'',delta(cpl,pcpl,true))+stat('Return on ad spend',(c.rev/c.spend).toFixed(1),'×',`${money(c.rev)} revenue`);
  $('adSub').textContent=(state.ad==='all'?'Google Ads and Meta Ads combined':ADN[state.ad]+' only')+', '+rangeText(R.s,R.e,' – ');
  document.querySelectorAll('#adFilter button').forEach(b=>b.classList.toggle('on',b.dataset.ad===state.ad));
  const v={};['google','meta'].forEach(k=>{const A=DATA.ads[k];v[k]={spend:sumR(A.spend,R.s,R.e),leads:sumR(A.leads,R.s,R.e),rev:sumR(A.rev,R.s,R.e),impr:sumR(A.impr,R.s,R.e),budget:A.budget*R.len/30};v[k].cpl=v[k].spend/v[k].leads;v[k].roas=v[k].rev/v[k].spend;});
  const ahead=(k,m,low)=>{if(state.ad!=='all')return'';const o=k==='google'?'meta':'google';return(low?v[k][m]<v[o][m]:v[k][m]>v[o][m])?'lead':''};
  $('adPanels').innerHTML=['google','meta'].map(k=>{const a=v[k];return `<div class="panel ${state.ad!=='all'&&state.ad!==k?'dim':''}"><h3>${ADN[k]}</h3><div class="sp">${money(a.spend)} spent · ${CAMPS.filter(r=>r[1]===k).length} campaigns</div>
-  <div class="kv"><div><b class="${ahead(k,'leads')}">${int(a.leads)}</b><span>Leads</span></div><div><b class="${ahead(k,'cpl',1)}">$${a.cpl.toFixed(2)}</b><span>Cost per lead</span></div><div><b class="${ahead(k,'roas')}">${a.roas.toFixed(1)}×</b><span>Return on ad spend</span></div><div><b class="${ahead(k,'impr')}">${fmt(a.impr).join('')}</b><span>Impressions</span></div></div>
-  <div class="pacing">Budget used: ${money(a.spend)} of ${money(a.budget)}<div class="bar"><b style="width:${Math.min(a.spend/a.budget,1)*100}%"></b></div></div></div>`}).join('');
+  <div class="kv"><div><b class="${ahead(k,'leads')}">${int(a.leads)}</b><span>Leads</span></div><div><b class="${ahead(k,'cpl',1)}">${isFinite(a.cpl)?'$'+a.cpl.toFixed(2):'–'}</b><span>Cost per lead</span></div><div><b class="${ahead(k,'roas')}">${isFinite(a.roas)?a.roas.toFixed(1)+'×':'–'}</b><span>Return on ad spend</span></div><div><b class="${ahead(k,'impr')}">${fmt(a.impr).join('')}</b><span>Impressions</span></div></div>
+  </div>`}).join('');
  $('campTable').innerHTML=CAMPS.filter(r=>state.ad==='all'||r[1]===state.ad).map(r=>{const sp=r[3],ld=r[4],rv=r[5];return{r,sp,ld,rv};}).sort((a,b)=>b.rv/b.sp-a.rv/a.sp)
   .map(({r,sp,ld,rv})=>`<tr><td>${r[0]}</td><td class="hide-m">${ADN[r[1]]}</td><td><span class="status ${r[2]?'':'off'}">${r[2]?'Active':'Paused'}</span></td><td class="n">${money(sp)}</td><td class="n">${int(ld)}</td><td class="n hide-m">$${(sp/Math.max(ld,1)).toFixed(2)}</td><td class="n">${sp>0?(rv/sp).toFixed(1)+"×":"–"}</td></tr>`).join('');}
 
 /* ---------- render ---------- */
-function renderAll(){R=per();campsFor();header();headerFix();if(socOn()){socShow(true);organic();}else socEmpty();goals();if(adsOn()){adsShow(true);ads();}else adsEmpty();insights();seoRender();lRender();AZ.render();mktOverview();if(typeof curCo!=="undefined"&&curCo==="group")grpRender();mgmtAll();}
+function renderAll(){R=per();campsFor();header();headerFix();if(socOn()){socShow(true);organic();}else socEmpty();goals();if(adsOn()){adsShow(true);ads();}else adsEmpty();insights();socNotes();seoRender();lRender();AZ.render();mktOverview();if(typeof curCo!=="undefined"&&curCo==="group")grpRender();mgmtAll();}
 
 /* ---------- date range picker ---------- */
 $('presets').innerHTML=PRESETS.map(p=>`<button data-id="${p.id}">${p.name}<small>${rangeText(p.s,p.e,' – ')}</small></button>`).join('');
@@ -1128,62 +1034,20 @@ $('dApply').onclick=()=>{const f=$('dFrom').value,t=$('dTo').value;if(!f||!t){$(
 /* ---------- data store ---------- */
 let META={at:null,by:'nobody yet',src:'not entered yet'},lastRefresh=Date.now();
 function fmtWhen(s){if(!s)return 'not yet';const d=new Date(s);return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+', '+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}).toLowerCase();}
-function META_UI(){$('dsWhen').textContent=fmtWhen(META.at);$('dsWho').textContent=META.by;$('dsSrc').textContent=META.src;$('metaUpdated').textContent=META.at?'Updated '+new Date(META.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'Not updated yet';refTxt();}
+function META_UI(){$('dsWhen').textContent=fmtWhen(META.at);$('dsSrc').textContent=META.src;$('metaUpdated').textContent=META.at?'Read '+new Date(META.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'Not updated yet';refTxt();}
 function refTxt(){const m=Math.round((Date.now()-lastRefresh)/60000);$('dsRef').textContent=m<1?'Refreshed just now':'Refreshed '+m+' min ago';}
 setInterval(refTxt,30000);
-/** Social figures of the selected company (connected accounts plus what was entered by hand). */
+/** Social figures of the selected company, from its connected accounts. */
 function load(){useCompany(typeof curCo!=='undefined'?curCo:'egeloma');}
-/** Saves what was entered by hand for the selected company, in this browser. */
-function store(){try{localStorage.setItem(skey(CO),JSON.stringify({data:DATA,meta:META}));}catch(e){}}
 /* Refresh: read every connected account again (through the portal), then redraw. */
 $('refreshBtn').onclick=async e=>{const b=e.currentTarget;b.classList.add('spin');b.disabled=true;document.body.classList.add('loading');
- let msg='Dashboard refreshed with the latest saved data';
+ let msg='Dashboard refreshed';
  try{if(LIVE&&LIVE.links.length){setLive(await bridge('sync'));msg='Connected accounts read again. Figures updated';}else load();}catch(err){load();msg=err.message;}
  lastRefresh=Date.now();renderAll();b.classList.remove('spin');b.disabled=false;document.body.classList.remove('loading');toast(msg);};
 
-/* ---------- update drawer (edits apply to the selected range) ---------- */
-const SF=[['fol','Followers (at end)'],['nf','New followers'],['reach','Reach'],['eng','Engagements'],['clk','Link clicks']];
-const AF=[['spend','Spend ($)'],['budget','Monthly budget ($)'],['clk','Clicks'],['leads','Leads'],['rev','Revenue ($)'],['impr','Impressions']];
-function current(){const d={pl:{},ads:{}};PL.forEach(p=>{const D=DATA.pl[p.k];d.pl[p.k]={fol:Math.round(folAt(p.k,R.e))};['nf','reach','eng','clk'].forEach(m=>d.pl[p.k][m]=Math.round(sumR(D[m],R.s,R.e)));});
- ['google','meta'].forEach(k=>{const A=DATA.ads[k];d.ads[k]={budget:A.budget};['spend','clk','leads','rev','impr'].forEach(m=>d.ads[k][m]=Math.round(sumR(A[m],R.s,R.e)));});return d;}
-function setRangeTotal(arr,v){const old=sumR(arr,R.s,R.e);for(let i=R.s;i<=R.e;i++)arr[i]=old>0?arr[i]*v/old:v/R.len;}
-function apply(d){PL.forEach(p=>{const v=d.pl[p.k],D=DATA.pl[p.k];if(!v)return;['nf','reach','eng','clk'].forEach(m=>{if(v[m]!=null&&!isNaN(v[m]))setRangeTotal(D[m],+v[m]);});if(v.fol!=null&&!isNaN(v.fol))D.fol+=(+v.fol-folAt(p.k,R.e));});
- ['google','meta'].forEach(k=>{const v=d.ads[k],A=DATA.ads[k];if(!v)return;['spend','clk','leads','rev','impr'].forEach(m=>{if(v[m]!=null&&!isNaN(v[m]))setRangeTotal(A[m],+v[m]);});if(v.budget!=null&&!isNaN(v.budget))A.budget=+v.budget;});}
-function buildForm(d){const rt=rangeText(R.s,R.e,' – ');$('fSocialH').textContent='Social media · '+rt;$('fAdsH').textContent='Advertising · '+rt;
- $('fSocial').innerHTML='<tr><th>Platform</th>'+SF.map(f=>`<th>${f[1]}</th>`).join('')+'</tr>'+PL.map(p=>`<tr><td>${p.n}</td>${SF.map(f=>`<td><input type="number" min="0" data-g="pl" data-k="${p.k}" data-f="${f[0]}" value="${d.pl[p.k][f[0]]}"${connectedOf(CO).has(p.k)?" disabled title=\"Filled from the connected account\"":""}></td>`).join('')}</tr>`).join('');
- $('fAds').innerHTML='<tr><th>Platform</th>'+AF.map(f=>`<th>${f[1]}</th>`).join('')+'</tr>'+['google','meta'].map(k=>`<tr><td>${ADN[k]}</td>${AF.map(f=>`<td><input type="number" min="0" data-g="ads" data-k="${k}" data-f="${f[0]}" value="${d.ads[k][f[0]]}"${connectedOf(CO).has(k)&&f[0]!=="budget"?" disabled title=\"Filled from the connected account\"":""}></td>`).join('')}</tr>`).join('');}
-function readForm(){const d={pl:{},ads:{}};document.querySelectorAll('#drawer input[data-g]').forEach(i=>{(d[i.dataset.g][i.dataset.k]??={})[i.dataset.f]=i.value===''?null:+i.value;});return d;}
-let srcLabel='manual entry';
-const openD=()=>{buildForm(current());fillTg();srcLabel='manual entry';$('upMsg').className='msg';$('drawer').classList.add('open');$('drawerBg').classList.add('open');};
-const closeD=()=>{$('drawer').classList.remove('open');$('drawerBg').classList.remove('open');};
-$('updateBtn').onclick=openD;$('dClose').onclick=closeD;$('dCancel').onclick=closeD;$('drawerBg').onclick=closeD;
-document.querySelectorAll('.dtabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.dtabs button').forEach(x=>x.classList.toggle('on',x===b));$('dtEnter').hidden=b.dataset.dt!=='enter';$('dtUpload').hidden=b.dataset.dt!=='upload';});
-$('dSave').onclick=()=>{const bad=[...document.querySelectorAll('#drawer input[data-g]')].find(i=>i.value===''||+i.value<0);
- if(bad){bad.focus();toast('Please fill in every number (0 or more)');return;}
- apply(readForm());DATA.tg={};document.querySelectorAll('#drawer [data-tgk]').forEach(i=>DATA.tg[i.dataset.tgk]=i.value===''?null:+i.value);META={at:new Date().toISOString(),by:'RJ',src:srcLabel};store();lastRefresh=Date.now();closeD();renderAll();toast('Saved. The dashboard now shows the new numbers');};
-$('dReset').onclick=()=>{if(!confirm('Clear the numbers entered by hand for '+coName()+'? Figures from connected accounts stay.'))return;try{localStorage.removeItem(skey(CO));}catch(e){}useCompany(CO);lastRefresh=Date.now();closeD();renderAll();toast('Numbers entered by hand cleared');};
-
-/* CSV */
+/* downloads */
 const dl=(name,text)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);};
 const fileRange=()=>iso(R.s)+'_to_'+iso(R.e);
-$('tplSocial').onclick=()=>{const d=current();dl('eg-eloma-social_'+fileRange()+'.csv','platform,followers,new_followers,reach,engagements,link_clicks\n'+PL.map(p=>[p.n,...SF.map(f=>d.pl[p.k][f[0]])].join(',')).join('\n'));toast('Social template downloaded');};
-$('tplAds').onclick=()=>{const d=current();dl('eg-eloma-ads_'+fileRange()+'.csv','platform,spend,budget,clicks,leads,revenue,impressions\n'+['google','meta'].map(k=>[ADN[k],...AF.map(f=>d.ads[k][f[0]])].join(',')).join('\n'));toast('Ads template downloaded');};
-const COL={followers:'fol',new_followers:'nf',reach:'reach',engagements:'eng',engagement:'eng',link_clicks:'clk',spend:'spend',amount_spent:'spend',budget:'budget',monthly_budget:'budget',clicks:'clk',leads:'leads',conversions:'leads',revenue:'rev',conversion_value:'rev',impressions:'impr'};
-function platKey(name){const n=name.toLowerCase().trim();if(/google/.test(n))return['ads','google'];if(/meta ads|facebook ads|^meta$/.test(n))return['ads','meta'];const p=PL.find(q=>q.n.toLowerCase()===n||q.k===n);return p?['pl',p.k]:null;}
-function parseCSV(text,name){const rows=text.replace(/\r/g,'').split('\n').filter(l=>l.trim()).map(l=>l.split(',').map(c=>c.replace(/^"|"$/g,'').trim()));
- if(rows.length<2)throw new Error('The file has no data rows.');
- const head=rows[0].map(h=>h.toLowerCase().replace(/[^a-z]+/g,'_').replace(/^_|_$/g,''));const pi=head.findIndex(h=>h==='platform'||h==='channel');if(pi<0)throw new Error('Add a "platform" column so each row can be matched.');
- const d=current();let n=0;const skipped=[];
- rows.slice(1).forEach(r=>{const pk=platKey(r[pi]||'');if(!pk){skipped.push(r[pi]);return;}n++;head.forEach((h,ci)=>{const f=COL[h],val=(r[ci]||'').replace(/[$\s]/g,'');if(f&&val!==''&&!isNaN(+val)&&f in d[pk[0]][pk[1]])d[pk[0]][pk[1]][f]=+val;});});
- if(!n)throw new Error('No rows matched a platform name (e.g. Instagram, Facebook, Google Ads, Meta Ads).');
- buildForm(d);srcLabel='CSV upload ('+name+')';
- $('upMsg').className='msg ok';$('upMsg').textContent=`Read ${n} row${n>1?'s':''} from ${name}${skipped.length?'. Skipped: '+skipped.join(', '):''}. These numbers will apply to ${rangeText(R.s,R.e,' – ')}. Check the Enter numbers tab, then click Save and refresh.`;}
-function handle(file){if(!file)return;if(!/\.csv$/i.test(file.name)){$('upMsg').className='msg err';$('upMsg').textContent='Please choose a .csv file. In Excel use File, Save As, CSV.';return;}
- const r=new FileReader();r.onload=()=>{try{parseCSV(r.result,file.name);}catch(err){$('upMsg').className='msg err';$('upMsg').textContent=err.message;}};r.readAsText(file);}
-$('file').onchange=e=>{handle(e.target.files[0]);e.target.value='';};
-['dragover','dragenter'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.add('over');}));
-['dragleave','drop'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.remove('over');}));
-$('drop').addEventListener('drop',e=>handle(e.dataTransfer.files[0]));
 
 
 /* ---------- team insights ---------- */
@@ -1236,7 +1100,8 @@ function buildInsights(){
      actions:['Check frequency and replace any ad shown more than 3 times per person',k==='google'?'Review search terms and add negative keywords for irrelevant searches':'Launch 2 fresh creatives and pause the weakest',`Test the landing page form on mobile and remove unnecessary fields`,'Move budget towards the campaign with the lowest cost per lead']});
    else if(d<=-5)add({id:'cpldn-'+k,sev:'good',area:n,score:-d,title:`${n} leads are ${Math.abs(d).toFixed(0)}% cheaper`,ev:[ev('Cost per lead','$'+v.cpl.toFixed(2),'$'+v.pcpl.toFixed(2))],
      keep:['Keep the current targeting and creatives running','Increase budget gradually (about 20% a week) while cost per lead holds']});}
-  const pace=v.sp/v.bud;
+  // No budget is read from the ad platforms, so the pacing checks only run when one is known.
+  const pace=v.bud>0?v.sp/v.bud:1;
   if(pace<.85)add({id:'pace-'+k,sev:'warn',area:n,score:(1-pace)*100,title:`${n} is under-spending (${Math.round(pace*100)}% of budget)`,ev:[ev('Spent',money(v.sp)),ev('Budget',money(v.bud))],
      why:`${money(v.bud-v.sp)} of approved budget was not used, which means missed reach and leads.`,causes:['Daily budgets set too low','Bids or targeting too narrow','Ads limited by review or low quality score'],
      actions:['Check for disapproved or limited ads','Raise daily budgets on campaigns with good cost per lead','Widen targeting or bids slightly on top campaigns']});
@@ -1260,10 +1125,10 @@ function buildInsights(){
    actions:['Cut the daily budget by half while testing changes','Switch the objective to leads or conversions if the goal is sales','Retarget people who watched 50% or more of the video instead of cold audiences','Pause it after 2 weeks if ROAS stays under 2×']});});
  // goals
  const f=R.len/30,gnf=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].nf,R.s,R.e),0),gld=sumR(DATA.ads.google.leads,R.s,R.e)+sumR(DATA.ads.meta.leads,R.s,R.e);
- [['Followers gained',gnf,(DATA.tg&&DATA.tg.nf||0)*f,['Run one follow-focused campaign or giveaway','Add a follow call to action on the top 3 posts']],['Leads from ads',gld,(DATA.tg&&DATA.tg.leads||0)*f,['Move budget to the campaign with the lowest cost per lead','Add a lead form to the best-performing ad']]].filter(g=>g[2]>0&&(g[0]==='Leads from ads'?adsOn():socOn())).forEach(([n,cur,t,act])=>{const r=cur/t;
+ [['Followers gained',gnf,(autoTg().nf||0)*f,['Run one follow-focused campaign or giveaway','Add a follow call to action on the top 3 posts']],['Leads from ads',gld,(autoTg().leads||0)*f,['Move budget to the campaign with the lowest cost per lead','Add a lead form to the best-performing ad']]].filter(g=>g[2]>0&&(g[0]==='Leads from ads'?adsOn():socOn())).forEach(([n,cur,t,act])=>{const r=cur/t;
   if(r<.95)add({id:'goal-'+n,sev:r<.7?'bad':'warn',area:'Goals',score:(1-r)*50,title:`${n} is behind target (${Math.round(r*100)}%)`,ev:[ev(n,int(cur)),ev('Target',int(t))],why:'This is one of the agreed goals.',causes:['See the related channel cards above'],actions:act});
   else add({id:'goalok-'+n,sev:'good',area:'Goals',score:r*10,title:`${n} goal met (${Math.round(r*100)}%)`,ev:[ev(n,int(cur)),ev('Target',int(t))],keep:['Share this win in the monthly summary']});});
- if(!socOn())add({id:'soc-setup',sev:'opp',area:'Setup',score:20,title:"Enter EG Eloma's social media figures",ev:[ev('Platforms','Instagram, Facebook, LinkedIn, Threads')],why:'Reach, engagement and follower growth show whether social media is building the brand and sending visitors to egeloma.com.au.',causes:['New report'],actions:["Export this month's Instagram and Facebook figures from Meta Business Suite",'Export LinkedIn Page analytics and Threads Insights','Enter them in Update data, or upload the social CSV template','Set monthly targets in Update data']});
+ if(!socOn())add({id:'soc-setup',sev:'opp',area:'Setup',score:20,title:`Connect ${coName()}'s social media accounts`,ev:[ev('Platforms','Instagram, Facebook, LinkedIn, TikTok, YouTube')],why:'Reach, engagement and follower growth show whether social media is building the brand and sending visitors to the website.',causes:['Accounts not connected yet'],actions:['Open Connected accounts and connect the Meta, LinkedIn, TikTok and YouTube logins','Under Pages for each company, choose the accounts that belong to '+coName(),'Figures are read automatically every few hours']});
  const order={bad:0,warn:1,opp:1,good:2};L.sort((a,b)=>order[a.sev]-order[b.sev]||b.score-a.score);return L;}
 
 function stOf(id){return IST[id]||(IST[id]={owner:'Unassigned',status:'Open',done:[]});}
@@ -1330,7 +1195,6 @@ const Z=()=>new Array(N).fill(0);
 
 /* countries: egeloma.com.au uses one domain with a page per country (hreflang listed in the sitemap) */
 const CTRY=[{k:'au',n:'Australia',ab:'AU'},{k:'nz',n:'New Zealand',ab:'NZ'},{k:'gb',n:'United Kingdom',ab:'UK'},{k:'us',n:'United States',ab:'US'},{k:'ca',n:'Canada',ab:'CA'}];
-const SITES_DEF={au:'egeloma.com.au',nz:'egeloma.com.au/new-zealand',gb:'egeloma.com.au/united-kingdom',us:'egeloma.com.au/united-states',ca:'egeloma.com.au/canada'};
 const HREFLANG={au:'en-AU',nz:'en-NZ',gb:'en-GB',us:'en-US',ca:'en-CA'};
 
 /* findings from the site check: id, priority, title, where, why it matters, likely causes, actions */
@@ -1346,7 +1210,7 @@ const AREA2CAT={'Site check':'Technical fix','Rankings':'On-page','Countries':'O
 const WORK_DEF=[];
 function seoDefaults(){return{base:{date:DEF_ISO,v:{}},work:WORK_DEF.map(w=>({...w})),clk:Z(),impr:Z(),posw:Z(),leads:Z(),nrd:Z(),lrd:Z(),gbp:{views:Z(),calls:Z(),dirs:Z(),web:Z()},rdEnd:0,auth:null,
  ctry:Object.fromEntries(CTRY.map(c=>[c.k,{clk:Z(),impr:Z(),posw:Z()}])),psi:{perf:null,lcp:null,inp:null,cls:null},
- conn:{gsc:false,leads:false,links:false,gbp:false,psi:false},kw:KW_DEF.map((r,j)=>({k:r[0],url:r[1],vol:null,hist:{},j})),sites:{...SITES_DEF}};}
+ conn:{gsc:false,leads:false,gbp:false,psi:false},kw:KW_DEF.map((r,j)=>({k:r[0],url:r[1],vol:null,hist:{},j})),sites:{}};}
 let SDATA=seoDefaults();
 
 /* ---------- helpers ---------- */
@@ -1361,15 +1225,16 @@ const CTRP=[.28,.16,.11,.08,.06,.045,.035,.03,.025,.02];
 const ctrAt=p=>p<=10?CTRP[p-1]:p<=20?.01:p<=50?.002:0;
 const norm=u=>(u||'').trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').replace(/[?#].*$/,'').replace(/\/+$/,'');
 const siteOf=c=>norm((SDATA.sites||{})[c.k]);
-const mainSite=()=>siteOf(CTRY[0])||'egeloma.com.au';
+const mainSite=()=>siteOf(CTRY[0])||coSite(CO);
 const domain=()=>mainSite().split('/')[0];
 function ownerOf(url){const u=norm(url);let best=null,bl=-1;CTRY.forEach(c=>{const s=siteOf(c);if(s&&(u===s||u.startsWith(s+'/'))&&s.length>bl){best=c.k;bl=s.length;}});return best;}
 const expectedOwner=c=>siteOf(c)?c.k:'au';
 const ctryOf=k=>CTRY.find(c=>c.k===k)||CTRY[0];
 function kAt(k,ck,i){const h=(k.hist&&k.hist[ck])||[];let r=null;for(const e of h){if(e[0]<=i)r=e;else break;}return r;}
-const kwRows=ck=>{const c=ctryOf(ck);return SDATA.kw.map(k=>{const a=kAt(k,c.k,R.e),b=R.has?kAt(k,c.k,R.pe):null,url=a&&a[2]?a[2]:null;return{k,c,cur:a?a[1]:null,prev:b?b[1]:null,url,wrong:!!(url&&ownerOf(url)!==expectedOwner(c))};});};
-const awaitBox=(t,p,steps,cls='')=>`<div class="await ${cls}"><h3>${t}</h3><p>${p}</p>${steps&&steps.length?`<ol>${steps.map(s=>`<li>${s}</li>`).join('')}</ol>`:''}<button class="btn outline sm" data-open-seo>Update data</button></div>`;
-document.addEventListener('click',e=>{if(e.target.closest('[data-open-seo]'))sOpenD();});
+const kwRows=ck=>{const c=ctryOf(ck);return SDATA.kw.filter(k=>k.hist[c.k]).map(k=>{const a=kAt(k,c.k,R.e),b=kAt(k,c.k,a?a[0]-1:R.pe),url=a&&a[2]?a[2]:null;return{k,c,cur:a?a[1]:null,prev:b?b[1]:null,url,impr:a?a[3]:null,clk:a?a[4]:null,wrong:!!(url&&ownerOf(url)!==expectedOwner(c))};});};
+const awaitBox=(t,p,steps,cls='')=>`<div class="await ${cls}"><h3>${t}</h3><p>${p}</p>${steps&&steps.length?`<ol>${steps.map(s=>`<li>${s}</li>`).join('')}</ol>`:''}</div>`;
+/* The same box with a button that opens Connected accounts. */
+const connAwait=(t,p,steps,cls='')=>awaitBox(t,p,steps,cls).replace(/<\/div>$/,'<button class="btn primary sm" data-open-acc>Connected accounts</button></div>');
 const openAudit=()=>AUDIT.filter(a=>!aDone(a));
 const auditScore=()=>Math.max(0,100-openAudit().reduce((t,a)=>t+PW[a[1]],0));
 
@@ -1380,7 +1245,7 @@ function seoHeader(){
  $('sMetaRange').textContent=rangeText(R.s,R.e)+' ('+R.len+' days)';
  if(gscCur()){const c=sAgg('clk',R.s,R.e),p=gscPrev()?sAgg('clk',R.ps,R.pe):null,f=fmt(c),K=kwRows('au'),tr=K.filter(x=>x.cur!=null);
   $('sHeadline').innerHTML=hl(f[0]+'<small>'+f[1]+'</small>','Clicks from Google')+(p?hl((d=>(d>0?'+':'')+d)(Math.round(pct(c,p)))+'<small>%</small>','Clicks vs '+R.cmpName,'cmp'):hl('–','No earlier data'))
-   +hl(tr.length?K.filter(x=>x.cur!=null&&x.cur<=10).length+'<small>/'+tr.length+'</small>':'–','Keywords on page 1 (AU)')+hl(SDATA.conn.leads&&has(SDATA.leads,R.s,R.e)?int(sumR(SDATA.leads,R.s,R.e)):'–','Leads from organic search');
+   +hl(tr.length?K.filter(x=>x.cur!=null&&x.cur<=10).length+'<small>/'+tr.length+'</small>':'–','Searches on page 1 (AU)')+hl(SDATA.conn.leads&&has(SDATA.leads,R.s,R.e)?int(sumR(SDATA.leads,R.s,R.e)):'–','Leads from organic search');
   const d=bucket(SDATA.clk.slice(R.s,R.e+1)).v,n=d.length,mx=Math.max(...d),mn=Math.min(...d);
   const x=i=>n>1?i*1200/(n-1):600,y=v=>92-(mx===mn?.5:(v-mn)/(mx-mn))*70,pth=d.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1)).join('');
   $('sCurve').innerHTML=`<path d="${pth}L1200,100L0,100Z" fill="#2db88c" opacity=".07"/><path d="${pth}" fill="none" stroke="#2db88c" stroke-opacity=".5" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;}
@@ -1407,8 +1272,7 @@ function sSeries(m,start,len){const step=len<=92?1:7,v=[];for(let i=0;i<len;i+=s
 function seoSearch(){
  $('sSearchSub').textContent='Google Search Console, all organic search, '+rangeText(R.s,R.e,' – ');
  const on=gscCur();$('sChartPanel').hidden=!on;$('sSearchGrid').style.gridTemplateColumns=on?'':'1fr';$('sMetric').style.display=on?'':'none';
- if(!on){$('sStats').classList.add('nostats');$('sStats').innerHTML=awaitBox('Search Console figures not entered yet',`Clicks, impressions, click-through rate and average position for ${domain()} will show here for ${rangeText(R.s,R.e,' – ')}.`,
-  [`Open Google Search Console and choose the ${domain()} property (a Domain property covers www and http too).`,'Go to Performance, then Search results, and set the dates to '+rangeText(R.s,R.e,' – ')+'.','Copy the total clicks, impressions and average position, and the figures on the Countries tab.','Click Update data here and paste them in.']);return;}
+ if(!on){$('sStats').classList.add('nostats');$('sStats').innerHTML=srcAwait('gsc','Search Console',`Clicks, impressions, click-through rate and average position for ${domain()} are read from Google Search Console.`,`Search Console has no clicks or impressions for ${domain()} in ${rangeText(R.s,R.e,' – ')}.`,['Open Connected accounts and connect Search Console with the Google login that can see the site.','Under Pages for each company, choose the site for '+esc(coName())+'.']);return;}
  $('sStats').classList.remove('nostats');
  const pv=gscPrev(),c={},p={};['clk','impr','ctr','pos'].forEach(m=>{c[m]=sAgg(m,R.s,R.e);p[m]=pv?sAgg(m,R.ps,R.pe):null;});
  const ck=fmt(c.clk),im=fmt(c.impr),none='<span>No earlier data to compare</span>';
@@ -1425,10 +1289,10 @@ function seoSearch(){
 /* ---------- goals (tied to the site check and data setup) ---------- */
 function seoGoals(){
  const hi=AUDIT.filter(a=>a[1]==='high'),K=kwRows('au'),cn=Object.values(SDATA.conn).filter(Boolean).length;
- const G=[['High-priority fixes done',hi.filter(aDone).length,hi.length],['All site-check fixes done',AUDIT.filter(aDone).length,AUDIT.length],['Keywords with tracked positions (AU)',K.filter(x=>x.cur!=null).length,K.length],['Data sources connected',cn,5]].filter(g=>g[2]>0);
+ const G=[['High-priority fixes done',hi.filter(aDone).length,hi.length],['All site-check fixes done',AUDIT.filter(aDone).length,AUDIT.length],['Searches on page 1 (AU)',K.filter(x=>x.cur!=null&&x.cur<=10).length,K.length],['Data sources connected',cn,4]].filter(g=>g[2]>0);
  $('sGoals').innerHTML=G.map(g=>{const r=Math.min(g[1]/g[2],1);return `<div class="goal ${r>=1?'done':''}"><div class="t">${g[0]}<span>${g[1]} of ${g[2]}</span></div><div class="bar"><b style="width:${r*100}%"></b></div></div>`}).join('');
  $('sGoalCount').textContent=G.filter(g=>g[1]>=g[2]).length+' of '+G.length+' met';
- $('sGoalNote').textContent='Fixes are ticked off in Team actions. Click and lead targets can be added once Search Console has a few months of data.';}
+ $('sGoalNote').textContent='Fixes are ticked off in Team actions. Data sources are connected in Connected accounts.';}
 
 /* ---------- countries ---------- */
 function seoCountries(){
@@ -1436,9 +1300,9 @@ function seoCountries(){
  $('sCtry').innerHTML=CTRY.map(x=>{const D=SDATA.ctry[x.k],on=SDATA.conn.gsc&&has(D.impr,R.s,R.e),cl=on?sumR(D.clk,R.s,R.e):null,pc=on&&pv&&has(D.impr,R.ps,R.pe)?sumR(D.clk,R.ps,R.pe):null;
   const K=kwRows(x.k),tr=K.filter(r=>r.cur!=null),w=tr.filter(r=>r.wrong).length;
   return `<tr class="click${sState.ctry===x.k?' csel':''}" data-c="${x.k}"><td><div style="display:flex;align-items:center"><span class="mono">${x.ab}</span><span class="pg"><b style="font-weight:500">${x.n}</b><small>${siteOf(x)||'No country page · uses '+mainSite()}</small></span></div></td>
-   <td class="hide-m"><span class="chip good">${HREFLANG[x.k]}</span></td><td class="n">${on?int(cl):'–'}</td><td class="n cmp">${pc?pcDelta(cl,pc):'–'}</td><td class="n hide-m">${on?fmt(sumR(D.impr,R.s,R.e)).join(''):'–'}</td><td class="n">${on?sAgg('pos',R.s,R.e,D).toFixed(1):'–'}</td>
-   <td class="n hide-m">${tr.length?tr.filter(r=>r.cur<=10).length+'<small class="muted">/'+tr.length+'</small>':'<span class="muted">Not tracked</span>'}</td><td class="n hide-m">${!tr.length?'–':w?`<span class="chip warn">${w} wrong</span>`:'<span class="chip good">All correct</span>'}</td></tr>`;}).join('');
- $('sCtrySub').textContent=`Each market has its own page on ${domain()}, linked with hreflang tags in the sitemap. `+(SDATA.conn.gsc?'Clicks from Search Console, '+rangeText(R.s,R.e,' – ')+'.':'Clicks appear once Search Console country figures are entered.');}
+   <td class="n">${on?int(cl):'–'}</td><td class="n cmp">${pc?pcDelta(cl,pc):'–'}</td><td class="n hide-m">${on?fmt(sumR(D.impr,R.s,R.e)).join(''):'–'}</td><td class="n">${on?sAgg('pos',R.s,R.e,D).toFixed(1):'–'}</td>
+   <td class="n hide-m">${tr.length?tr.filter(r=>r.cur<=10).length+'<small class="muted">/'+tr.length+'</small>':'<span class="muted">No searches</span>'}</td><td class="n hide-m">${!tr.length?'–':w?`<span class="chip warn">${w} wrong</span>`:'<span class="chip good">All correct</span>'}</td></tr>`;}).join('');
+ $('sCtrySub').textContent=`Searches from each market for ${domain()}. `+(SDATA.conn.gsc?'Clicks from Search Console, '+rangeText(R.s,R.e,' – ')+'.':'Clicks appear once Search Console is connected.');}
 
 /* ---------- key pages ---------- */
 function seoPages(){
@@ -1454,16 +1318,16 @@ function seoKeywords(){
  const C=ctryOf(sState.ctry),K=kwRows(C.k),tot=K.length,tr=K.filter(x=>x.cur!=null);
  const cnt=f=>BK.map(b=>K.filter(x=>{const v=f(x);return v!=null&&v>=b[1]&&v<=b[2];}).length),cc=cnt(x=>x.cur),pc=R.has?cnt(x=>x.prev):null,nt=tot-tr.length,anyPrev=K.some(x=>x.prev!=null);
  $('sDist').innerHTML=`<div class="dbar">${BK.map((b,i)=>cc[i]?`<i style="width:${cc[i]/tot*100}%;background:${b[3]}" title="${b[0]}: ${cc[i]}"></i>`:'').join('')}</div>
-  <div class="dleg">${BK.map((b,i)=>{const d=pc&&anyPrev?cc[i]-pc[i]:null;return `<div><span><i style="background:${b[3]}"></i>${b[0]}</span><b>${cc[i]}</b><small class="cmp">${d==null?'':d===0?'No change':(d>0?'+':'')+d+' vs '+R.cmpName}</small></div>`}).join('')}<div><span><i style="background:#e3e6ea"></i>Not tracked yet</span><b>${nt}</b><small>${nt?'Upload positions':'All tracked'}</small></div></div>`;
+  <div class="dleg">${BK.map((b,i)=>{const d=pc&&anyPrev?cc[i]-pc[i]:null;return `<div><span><i style="background:${b[3]}"></i>${b[0]}</span><b>${cc[i]}</b><small class="cmp">${d==null?'':d===0?'No change':(d>0?'+':'')+d+' vs '+R.cmpName}</small></div>`}).join('')}<div><span><i style="background:#e3e6ea"></i>No position</span><b>${nt}</b><small>${nt?'Not shown in this period':'All have a position'}</small></div></div>`;
  const f=sState.kw,list=K.filter(x=>f==='all'||(f==='up'&&x.prev!=null&&x.cur!=null&&x.cur<x.prev)||(f==='down'&&x.prev!=null&&x.cur!=null&&x.cur>x.prev)||(f==='top'&&x.cur!=null&&x.cur<=10)||(f==='p2'&&x.cur>=11&&x.cur<=20))
   .sort((a,b)=>(a.cur??999)-(b.cur??999)||a.k.j-b.k.j);
  document.querySelectorAll('#sKwFilter button').forEach(b=>b.classList.toggle('on',b.dataset.k===f));
  $('sKwCtry').innerHTML=CTRY.map(c=>`<button data-c="${c.k}" class="${c.k===C.k?'on':''}">${c.ab}</button>`).join('');
- $('sKwSub').textContent=`${tot} target keywords, Google ${C.n}`+(tr.length?`, ${tr.length} with positions on ${dfmt(R.e,{year:'numeric'})}`:', positions not uploaded yet');
- $('sKwTable').innerHTML=list.map(x=>{const pg=x.url?`${norm(x.url)}${x.wrong?' <span class="chip warn">Wrong country page</span>':''}`:`<span class="muted">${domain()}${x.k.url==='/'?'/':x.k.url} (target)</span>`;
-  return `<tr><td><span class="kwname">${x.k.k}</span></td><td class="n">${x.cur!=null?`<span class="kwpos">${x.cur>100?'100+':x.cur}</span>`:'<span class="muted">–</span>'}</td><td class="n cmp">${x.cur!=null&&x.prev!=null?mv(Math.min(x.prev,101)-Math.min(x.cur,101)):'–'}</td><td class="n hide-m">${x.k.vol!=null?int(x.k.vol):'–'}</td><td class="n hide-m">${x.k.vol!=null&&x.cur!=null?int(x.k.vol*ctrAt(x.cur)*R.len/30):'–'}</td><td class="hide-m kwurl">${pg}</td></tr>`;}).join('')||'<tr><td colspan="6" class="empty">No keywords match this filter.</td></tr>';
+ const W=(SL[CO]||{}).windows;$('sKwSub').textContent=tot?`Top ${tot} searches people found ${domain()} with on Google ${C.n}`+(W?`, ${dfmt(fromIso(W.cur[0]))} to ${dfmt(fromIso(W.cur[1]),{year:'numeric'})} compared with the 28 days before`:'')+' (Search Console)':`No searches from Search Console for Google ${C.n} yet`;
+ $('sKwTable').innerHTML=list.map(x=>{const pg=x.url?`${esc(norm(x.url))}${x.wrong?' <span class="chip warn">Wrong country page</span>':''}`:`<span class="muted">${domain()}${x.k.url==='/'?'/':x.k.url} (target)</span>`;
+  return `<tr><td><span class="kwname">${x.k.k}</span></td><td class="n">${x.cur!=null?`<span class="kwpos">${x.cur>100?'100+':x.cur}</span>`:'<span class="muted">–</span>'}</td><td class="n cmp">${x.cur!=null&&x.prev!=null?mv(Math.min(x.prev,101)-Math.min(x.cur,101)):'–'}</td><td class="n hide-m">${x.impr!=null?int(x.impr*30/28):'–'}</td><td class="n hide-m">${x.clk!=null?int(x.clk):'–'}</td><td class="hide-m kwurl">${pg}</td></tr>`;}).join('')||'<tr><td colspan="6" class="empty">No keywords match this filter.</td></tr>';
  const w=tr.filter(x=>x.wrong).length;
- $('sKwSiteNote').textContent=!tr.length?`No positions uploaded yet for Google ${C.n}. In Update data, download the keyword template, fill in positions from your rank tracker or Search Console, and upload it.`
+ $('sKwSiteNote').textContent=!tr.length?(SDATA.conn.gsc?`Search Console has no searches for Google ${C.n} in the last 28 days.`:'Searches and positions come from Search Console once it is connected.')
   :C.k==='au'?`Ranking pages should be on ${mainSite()} and not a country page.${w?' '+w+' keyword'+(w>1?'s rank':' ranks')+' with the wrong page.':''}`
   :siteOf(C)?`Ranking pages in ${C.n} should be on ${siteOf(C)}. ${w?w+' keyword'+(w>1?'s show':' shows')+' another page instead.':'All tracked keywords show the right page.'}`:`${C.n} has no page of its own, so Google shows ${mainSite()} there.`;}
 
@@ -1478,36 +1342,28 @@ function seoTech(){
   <div><b>${sc}<small>/100</small></b><p>${o.length} of ${AUDIT.length} issues open. The score goes up as fixes are marked done in Team actions (high 8 points, medium 3, low 1).</p></div></div>
   <div class="idx"><div class="row"><span>Pages in sitemap</span><b>${SITEMAP_URLS}</b></div><div class="row" style="margin-top:8px"><span>robots.txt</span><b>Allows all crawlers, lists sitemap</b></div><div class="row" style="margin-top:8px"><span>Secure (HTTPS)</span><b>Yes</b></div><div class="row" style="margin-top:8px"><span>Pages indexed by Google</span><b>${SDATA.conn.gsc?'See Search Console, Pages report':'Needs Search Console'}</b></div></div>`;
  const P=SDATA.psi;
- $('sCwv').innerHTML=!SDATA.conn.psi?awaitBox('Not measured yet','Page speed could not be measured from here. Run Google\'s free test and enter the results.',[`Open pagespeed.web.dev and test https://${domain()}/ on the Mobile tab.`,'Copy the Performance score, and LCP, INP and CLS from "Discover what your real users are experiencing" (or the lab results if real-user data is not shown).','Enter them in Update data under PageSpeed Insights.'],'sm')
+ $('sCwv').innerHTML=!SDATA.conn.psi?awaitBox(SLOAD[CO]?'Testing the site…':'Not measured yet',esc((sStat('psi')||{}).error||'PageSpeed Insights tests the home page on mobile each time the report is read.'),null,'sm')
   :(P.perf!=null?`<div class="cwv"><div class="nm">Performance score<small>PageSpeed Insights, mobile</small></div><div class="vl"><b>${Math.round(P.perf)}</b><span class="chip ${P.perf>=90?'good':P.perf>=50?'warn':'bad'}">${P.perf>=90?'Good':P.perf>=50?'Needs improvement':'Poor'}</span></div></div>`:'')
    +CWV.filter(c=>P[c[0]]!=null).map(c=>{const v=P[c[0]],s=cwvSt(v,c[3],c[4]);return `<div class="cwv"><div class="nm">${c[1]}<small>${c[2]}. Target: ${c[5](c[3])} or less</small></div><div class="vl"><b>${c[5](v)}</b><span class="chip ${s[0]}">${s[1]}</span></div></div>`}).join('');
  $('sIssues').innerHTML=AUDIT.map(a=>{const st=stOf('seo-a-'+a[0]).status;return `<tr><td>${a[2]}</td><td class="hide-m kwurl">${a[3]}</td><td><span class="prio-pill ${PS[a[1]]}">${PN[a[1]]}</span></td><td><span class="chip ${st==='Done'?'good':st==='In progress'?'warn':'neu'}">${st}</span></td></tr>`}).join('')||'<tr><td colspan="4" class="empty">No issues recorded yet.</td></tr>';}
 
-/* ---------- backlinks + local ---------- */
+/* ---------- local search (Business Profile) ---------- */
 function seoLinks(){
  const s=(a,x,y)=>sumR(a,x,y),G=SDATA.gbp,cmp=R.has,kvb=(v,l,c)=>`<div><b>${v}</b><span>${l}</span>${c||''}</div>`;
  const chg=(c,p,low)=>cmp&&p>0?`<span class="chg cmp">${pcDelta(c,p,low)} vs ${R.cmpName}</span>`:'';
- const rdAt=e=>SDATA.rdEnd-s(SDATA.nrd,e+1,LAST)+s(SDATA.lrd,e+1,LAST);
- let bl;if(SDATA.conn.links){const nrd=s(SDATA.nrd,R.s,R.e),lrd=s(SDATA.lrd,R.s,R.e),rd=rdAt(R.e);
-  bl=`<div class="sp">${int(rd)} websites link to ${domain()} · net ${nrd-lrd>=0?'+':''}${int(nrd-lrd)} this period</div><div class="kv">${kvb(int(rd),'Referring domains')}${kvb(SDATA.auth??'–','Authority score (out of 100)')}${kvb('+'+int(nrd),'New referring domains',chg(nrd,s(SDATA.nrd,R.ps,R.pe)))}${kvb('−'+int(lrd),'Lost referring domains',chg(lrd,s(SDATA.lrd,R.ps,R.pe),true))}</div>`+(nrd+lrd?`<div class="pacing">New vs lost: ${int(nrd)} gained, ${int(lrd)} lost<div class="bar"><b style="width:${nrd/(nrd+lrd)*100}%"></b></div></div>`:'');}
- else bl=`<div class="sp">Not entered yet</div>`+awaitBox('Add backlink figures','Enter referring domains, new and lost links and an authority score from your backlink tool (Ahrefs, Semrush or Moz). Worth checking that links to egdigital.com.au now count for egeloma.com.au.',null,'sm');
  let gb;if(SDATA.conn.gbp){const v=s(G.views,R.s,R.e);gb=`<div class="sp">Local search and Google Maps · ${int(v)} profile views</div><div class="kv">${kvb(fmt(v).join(''),'Profile views',chg(v,s(G.views,R.ps,R.pe)))}${kvb(int(s(G.calls,R.s,R.e)),'Phone calls',chg(s(G.calls,R.s,R.e),s(G.calls,R.ps,R.pe)))}${kvb(int(s(G.dirs,R.s,R.e)),'Direction requests',chg(s(G.dirs,R.s,R.e),s(G.dirs,R.ps,R.pe)))}${kvb(int(s(G.web,R.s,R.e)),'Website clicks',chg(s(G.web,R.s,R.e),s(G.web,R.ps,R.pe)))}</div>`;}
- else gb=`<div class="sp">Not entered yet</div>`+awaitBox('Add Business Profile figures','If EG Eloma has a Google Business Profile for 71 Gipps Street, Collingwood, enter views, calls, direction requests and website clicks from the profile\'s Performance page. If it doesn\'t have one yet, setting one up is the quickest local SEO win.',null,'sm');
- $('sLinkPanels').innerHTML=`<div class="panel"><h3>Backlinks</h3>${bl}</div><div class="panel"><h3>Google Business Profile</h3>${gb}</div>`;
- $('sLinkSub').textContent='Other websites linking to '+domain()+', and Google Business Profile activity, '+rangeText(R.s,R.e,' – ');}
+ else gb=srcAwait('gbp','Business Profile','Profile views, calls, direction requests and website clicks are read from Google Business Profile.','Business Profile has no figures for this date range.',['Open Connected accounts and connect Business Profile with the Google login that manages the profile.','Under Pages for each company, choose the location for '+esc(coName())+'.'],'sm');
+ $('sLinkPanels').innerHTML=`<div class="panel"><h3>Google Business Profile</h3>${gb}</div>`;
+ $('sLinkSub').textContent='Google Business Profile activity, '+rangeText(R.s,R.e,' – ');}
 
 /* ---------- team insights ---------- */
 let SINS=[];
 function seoBuild(){
  const L=[],add=o=>L.push(o),ev=(label,cur,was)=>({label,cur,was});
  AUDIT.forEach(a=>add({id:'seo-a-'+a[0],sev:a[1]==='high'?'bad':'warn',area:'Site check',score:PW[a[1]],title:a[2],ev:[ev('Where',a[3]),ev('Priority',PN[a[1]])],why:a[4],causes:a[5],actions:a[6]}));
- const miss=[['gsc','Google Search Console: clicks, impressions, position and the Countries tab'],['leads','Google Analytics: leads from organic search'],['links','Backlink tool: referring domains, new and lost links'],['gbp','Google Business Profile: views, calls, directions'],['psi','PageSpeed Insights: mobile score and Core Web Vitals']].filter(m=>!SDATA.conn[m[0]]);
- if(miss.length)add({id:'seo-connect',sev:'opp',area:'Data',score:12,title:`Enter ${miss.length} more data source${miss.length>1?'s':''} to complete the report`,ev:[ev('Connected',(5-miss.length)+' of 5')],
-  why:'Without these the report cannot show how many people find the site through Google or whether the work is paying off.',causes:['New dashboard, figures not entered yet'],actions:miss.map(m=>'Add '+m[1]+' in Update data')});
- const Kau=kwRows('au');
- if(Kau.length&&!Kau.some(x=>x.cur!=null))add({id:'seo-track',sev:'opp',area:'Rankings',score:11,title:`Start tracking the ${Kau.length} target keywords`,ev:[ev('Tracked','0 of '+Kau.length)],
-  why:'Positions show whether the fixes are moving the site up Google, and which pages are close to page 1.',causes:['No rank tracking set up yet'],
-  actions:['Download the keyword template in Update data','Fill in positions from a rank tracker, or the average position per query in Search Console','Add rows with country NZ, UK, US and CA to check the country pages','Upload once a month so changes show']});
+ const miss=[['gsc','Search Console (clicks, impressions, position and searches)'],['leads','Google Analytics (leads from organic search)'],['gbp','Business Profile (views, calls, directions)']].filter(m=>!SDATA.conn[m[0]]);
+ if(miss.length&&!SLOAD[CO])add({id:'seo-connect',sev:'opp',area:'Data',score:12,title:`Connect ${miss.length} more data source${miss.length>1?'s':''} to complete the report`,ev:[ev('Connected',(4-miss.length)+' of 4')],
+  why:'Without these the report cannot show how many people find the site through Google or whether the work is paying off.',causes:['Account not connected yet'],actions:miss.map(m=>'Connect '+m[1]+' in Connected accounts')});
  const cmp=gscCur()&&gscPrev();
  if(cmp){const c=m=>sAgg(m,R.s,R.e),p=m=>sAgg(m,R.ps,R.pe),dc=pct(c('clk'),p('clk'));
   if(dc<=-5)add({id:'seo-clk',sev:dc<=-15?'bad':'warn',area:'Search',score:-dc,title:`Clicks from Google are down ${Math.abs(dc).toFixed(0)}%`,ev:[ev('Clicks',int(c('clk')),int(p('clk')))],why:'Fewer visitors from Google means fewer enquiries.',causes:['Rankings slipped on important keywords','Pages dropped from the index'],actions:['Compare clicks by page in Search Console to find which pages lost traffic','Check the Pages report in Search Console for new indexing problems','Refresh the 3 pages that lost the most clicks']});
@@ -1525,7 +1381,7 @@ function seoBuild(){
  const order={bad:0,warn:1,opp:1,good:2};L.sort((a,b)=>order[a.sev]-order[b.sev]||b.score-a.score);return L;}
 function seoInsights(){SINS=seoBuild();
  const bad=SINS.filter(x=>x.sev==='bad'),warn=SINS.filter(x=>x.sev==='warn'||x.sev==='opp'),good=SINS.filter(x=>x.sev==='good');
- $('sInsSub').textContent=(AUDIT.length?'Site check on '+AUDIT_DATE+' plus any':'Any')+' figures entered for '+rangeText(R.s,R.e,' – ')+'.';
+ $('sInsSub').textContent='Automatic checks on the live figures for '+rangeText(R.s,R.e,' – ')+'.';
  $('sNBad').textContent=bad.length;$('sNWarn').textContent=warn.length;$('sNGood').textContent=good.length;
  const openBad=bad.filter(x=>stOf(x.id).status!=='Done').length;$('sVCnt').textContent=openBad;$('sVCnt').style.display=openBad?'':'none';
  const top=bad.find(x=>stOf(x.id).status!=='Done')||warn.find(x=>stOf(x.id).status!=='Done');$('sPrio').textContent=top?top.title+'. First step: '+top.actions[0].charAt(0).toLowerCase()+top.actions[0].slice(1)+'.':'Nothing urgent. Keep doing what is working.';
@@ -1533,13 +1389,12 @@ function seoInsights(){SINS=seoBuild();
  $('sCBad').innerHTML=bad.map(card).join('')||empty('Nothing needs urgent attention.');
  $('sCWarn').innerHTML=warn.map(card).join('')||empty('No warning signs.');
  $('sCGood').innerHTML=good.map(card).join('')||empty('No standout wins yet.');
- const cc=(on,t)=>`<span class="chip ${on?'good':'neu'}">${t||(on?'Connected':'Not entered')}</span>`,pv=gscPrev(),s=a=>sumR(a,R.s,R.e),q=a=>sumR(a,R.ps,R.pe),o=openAudit();
+ const cc=(on,t)=>`<span class="chip ${on?'good':'neu'}">${t||(on?'Connected':'Not connected')}</span>`,pv=gscPrev(),s=a=>sumR(a,R.s,R.e),q=a=>sumR(a,R.ps,R.pe),o=openAudit();
  const tr=kwRows('au').filter(x=>x.cur!=null).length;
  const rows=[['Clicks from Google',gscCur()?int(s(SDATA.clk)):'–',pv?int(q(SDATA.clk)):'–',cc(gscCur())],
   ['Average position',gscCur()?sAgg('pos',R.s,R.e).toFixed(1):'–',pv?sAgg('pos',R.ps,R.pe).toFixed(1):'–',cc(gscCur())],
   ['Leads from organic search',SDATA.conn.leads?int(s(SDATA.leads)):'–',SDATA.conn.leads&&R.has&&q(SDATA.leads)>0?int(q(SDATA.leads)):'–',cc(SDATA.conn.leads)],
-  ['Keyword positions tracked (AU)',tr+' of '+SDATA.kw.length,'–',cc(tr>0,tr?'Tracking':'Not tracked')],
-  ['New referring domains',SDATA.conn.links?int(s(SDATA.nrd)):'–','–',cc(SDATA.conn.links)],
+  ['Searches on page 1 (AU)',tr?kwRows('au').filter(x=>x.cur!=null&&x.cur<=10).length+' of '+tr:'–','–',cc(tr>0)],
   ['Business Profile calls',SDATA.conn.gbp?int(s(SDATA.gbp.calls)):'–','–',cc(SDATA.conn.gbp)],
   ['PageSpeed performance (mobile)',SDATA.conn.psi&&SDATA.psi.perf!=null?Math.round(SDATA.psi.perf):'–','–',cc(SDATA.conn.psi)],
   ['Site check issues open',AUDIT.length?o.length+' of '+AUDIT.length:'–','–',!AUDIT.length?'<span class="chip neu">No site check yet</span>':o.some(a=>a[1]==='high')?'<span class="chip bad">High priority open</span>':o.length?'<span class="chip warn">Watch</span>':'<span class="chip good">All fixed</span>']];
@@ -1558,45 +1413,33 @@ const dIdx=d=>d?fromIso(String(d).slice(0,10)):null;
 const inRange=d=>{const i=dIdx(d);return i==null||(i>=R.s&&(R.e===LAST||i<=R.e));};
 let SHOWALL=false;
 function workItems(all){const L=[];
- (SDATA.work||[]).forEach(w=>{if(w.vis||all)L.push({...w,src:'log'});});
+ (SDATA.work||[]).forEach(w=>L.push({...w}));
  (SINS.length?SINS:seoBuild()).filter(x=>x.sev!=='good').forEach(x=>{const st=stOf(x.id),cat=AREA2CAT[x.area]||'Other';
   if(st.status==='Done'){const n=x.actions.length;L.push({id:'a-'+x.id,date:st.doneAt||null,cat,title:(x.id.startsWith('seo-a-')?'Fixed: ':'Done: ')+x.title,detail:x.why||'',owner:st.owner!=='Unassigned'?st.owner:'EG Eloma',fix:true,steps:n});}
   else st.done.forEach(i=>L.push({id:'s-'+x.id+'-'+i,date:(st.at||{})[i]||null,cat,title:x.actions[i],detail:'Part of: '+x.title,owner:st.owner!=='Unassigned'?st.owner:'EG Eloma',fix:true}));});
  return L.filter(w=>inRange(w.date)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));}
 function seoWork(){
- const W=workItems(),hrs=W.reduce((t,w)=>t+(+w.hours||0),0),fixed=AUDIT.filter(aDone).length,prog=SINS.filter(x=>x.sev!=='good'&&stOf(x.id).status==='In progress');
+ const W=workItems(),tasks=W.filter(w=>w.src==='task').length,fixed=AUDIT.filter(aDone).length,prog=SINS.filter(x=>x.sev!=='good'&&stOf(x.id).status==='In progress');
  $('sWorkSub').textContent='What the EG Eloma team has done on '+domain()+', '+(R.e===LAST?rangeText(R.s,R.e,' – ').replace(/ – .*/,'')+' to today':rangeText(R.s,R.e,' – '));
- $('sWorkStats').innerHTML=stat('Tasks completed',W.length,'',W.filter(w=>w.fix).length+' from the action plan')+stat('Site-check fixes',AUDIT.length?fixed:'–',AUDIT.length?'/'+AUDIT.length:'',AUDIT.length?(fixed?'issues fixed so far':'Fixes start this month'):'No site check yet')+stat('In progress',prog.length,'',prog.length?'being worked on now':'Nothing started yet')+stat('Hours logged',hrs?trim(hrs.toFixed(1)):'–','',hrs?'from the work log':'Add hours when logging work');
+ $('sWorkStats').innerHTML=stat('Tasks completed',W.length,'',W.filter(w=>w.fix).length+' from the action plan')+stat('Site-check fixes',AUDIT.length?fixed:'–',AUDIT.length?'/'+AUDIT.length:'',AUDIT.length?(fixed?'issues fixed so far':'Fixes start this month'):'No site check yet')+stat('In progress',prog.length,'',prog.length?'being worked on now':'Nothing started yet')+stat('Portal tasks',tasks,'',tasks?'completed in the portal':'None completed in this period');
  $('sWorkCount').textContent=W.length+' item'+(W.length===1?'':'s');
  const show=SHOWALL?W:W.slice(0,6),cat=w=>`<span class="wc ${w.fix?'fix':''}">${esc(w.cat)}</span>`;
  $('sWorkList').innerHTML=show.map(w=>`<div class="wk"><div class="wd">${w.date?dfmt(dIdx(w.date)):'Date not recorded'}</div><div class="wb">${cat(w)}<h4>${esc(w.title)}</h4>${w.detail?`<p>${esc(w.detail)}</p>`:''}<small>By ${esc(w.owner||'EG Eloma')}${w.hours?' · '+trim((+w.hours).toFixed(2))+' h':''}${w.link&&/^https?:\/\//i.test(w.link)?` · <a href="${esc(w.link)}" target="_blank" rel="noopener">View</a>`:''}</small></div></div>`).join('')
-  +(W.length>6?`<button class="morebtn" id="sWorkMore">${SHOWALL?'Show fewer':'Show all '+W.length}</button>`:'')||'<p class="goalnote">No work logged in this period yet.</p>';
+  +(W.length>6?`<button class="morebtn" id="sWorkMore">${SHOWALL?'Show fewer':'Show all '+W.length}</button>`:'')||'<p class="goalnote">No completed tasks in this period.</p>';
  const nx=SINS.filter(x=>x.sev!=='good'&&stOf(x.id).status==='Open'&&!stOf(x.id).done.length).slice(0,4);
  $('sNextCount').textContent=prog.length+nx.length?prog.length+' in progress':'';
  $('sWorkNext').innerHTML=(prog.length?`<div class="nxh">In progress</div>`+prog.map(x=>{const st=stOf(x.id),d=st.done.length,n=x.actions.length;return `<div class="nx"><span class="wc">${esc(AREA2CAT[x.area]||'Other')}</span><b>${esc(x.title)}</b><small>${d} of ${n} steps done${st.owner!=='Unassigned'?' · '+esc(st.owner):''}</small><div class="bar"><i style="width:${d/n*100}%"></i></div></div>`}).join(''):'')
   +(nx.length?`<div class="nxh">Coming next</div>`+nx.map(x=>`<div class="nx"><span class="prio-pill ${x.sev==='bad'?'bad':'warn'}">${x.sev==='bad'?'High priority':x.sev==='opp'?'Opportunity':'Medium priority'}</span><b>${esc(x.title)}</b><small>First step: ${esc(x.actions[0])}</small></div>`).join(''):'')||'<p class="goalnote">Everything planned is done.</p>';}
-document.addEventListener('click',e=>{if(e.target.id==='bCopy'){let n=0;RMB.forEach(m=>{const c=m.cur(),i=document.querySelector(`#sDrawer input[data-bf="${m.k}"]`);if(c!=null&&i){i.value=+(+c).toFixed(m.dp||0);n++;}});$('bDate').value=iso(R.s);toast(n?'Copied '+n+' figures. Click Save and refresh to keep them':'No figures entered for this period yet');}
- if(e.target.id==='sWorkMore'){SHOWALL=!SHOWALL;seoWork();}});
-function wListRender(){const L=(SDATA.work||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
- $('wList').innerHTML=L.map(w=>`<div class="wl"><div><b>${esc(w.title)}</b><small>${w.date?dfmt(dIdx(w.date),{year:'numeric'}):''} · ${esc(w.cat)} · ${esc(w.owner||'')}${w.hours?' · '+w.hours+' h':''}${w.vis?'':' · Hidden from report'}</small></div><div class="r"><button class="btn outline sm" data-wvis="${w.id}">${w.vis?'Hide':'Show'}</button><button class="btn outline sm" data-wdel="${w.id}">Delete</button></div></div>`).join('')||'<p class="goalnote">No entries yet.</p>';}
-$('wCat').innerHTML=WCAT.map(c=>`<option>${c}</option>`).join('');
-$('wAdd').onclick=()=>{const t=$('wTitle').value.trim(),d=$('wDate').value;if(!t){$('wTitle').focus();toast('Describe what was done');return;}if(!d){$('wDate').focus();toast('Choose the date it was done');return;}
- SDATA.work=SDATA.work||[];SDATA.work.push({id:'w'+Date.now(),date:d,cat:$('wCat').value,title:t,detail:$('wDetail').value.trim(),owner:$('wOwner').value.trim()||'EG Eloma',hours:$('wHours').value===''?null:+$('wHours').value,link:$('wLink').value.trim(),vis:$('wVis').checked});
- sStore();['wTitle','wDetail','wHours','wLink'].forEach(i=>$(i).value='');wListRender();renderAll();toast('Added to the work log');};
-$('wList').onclick=e=>{const v=e.target.closest('[data-wvis]'),d=e.target.closest('[data-wdel]');
- if(v){const w=SDATA.work.find(x=>x.id===v.dataset.wvis);w.vis=!w.vis;}else if(d){if(!confirm('Delete this work log entry?'))return;SDATA.work=SDATA.work.filter(x=>x.id!==d.dataset.wdel);}else return;sStore();wListRender();renderAll();};
-$('sLogBtn').onclick=()=>{sOpenD();document.querySelector('#sDtabs [data-dt="log"]').click();$('wTitle').focus();};
+document.addEventListener('click',e=>{if(e.target.id==='sWorkMore'){SHOWALL=!SHOWALL;seoWork();}});
 /* ---------- results in numbers (before vs after) ---------- */
 const AUDIT_ISO=DEF_ISO,SCORE0=100-AUDIT.reduce((t,a)=>t+PW[a[1]],0);
-const rdNow=e=>SDATA.rdEnd-sumR(SDATA.nrd,e+1,LAST)+sumR(SDATA.lrd,e+1,LAST);
 const per30=v=>v*30/R.len;
 const RM=[
  {k:'clk',sl:'clicks from Google',l:'Clicks from Google',u:'a month',cur:()=>gscCur()?per30(sAgg('clk',R.s,R.e)):null,f:v=>int(v),dir:1,pct:1,src:'Search Console'},
  {k:'impr',sl:'how often the site appears in Google',l:'Times shown in Google',u:'a month',cur:()=>gscCur()?per30(sAgg('impr',R.s,R.e)):null,f:v=>fmt(v).join(''),dir:1,pct:1,src:'Search Console'},
  {k:'pos',sl:'average position in Google',l:'Average position in Google',cur:()=>gscCur()?sAgg('pos',R.s,R.e):null,f:v=>(+v).toFixed(1),dir:-1,unit:'places',dp:1,src:'Search Console'},
- {k:'top10',l:'Keywords on page 1',u:'Australia',cur:()=>{const K=kwRows('au').filter(x=>x.cur!=null);return K.length?K.filter(x=>x.cur<=10).length:null;},f:v=>int(v),dir:1,unit:'',src:'keyword positions'},
+ {k:'top10',l:'Searches on page 1',u:'Australia',cur:()=>{const K=kwRows('au').filter(x=>x.cur!=null);return K.length?K.filter(x=>x.cur<=10).length:null;},f:v=>int(v),dir:1,unit:'',src:'Search Console'},
  {k:'leads',sl:'leads from Google',l:'Leads from Google',u:'a month',cur:()=>SDATA.conn.leads&&has(SDATA.leads,R.s,R.e)?per30(sumR(SDATA.leads,R.s,R.e)):null,f:v=>int(v),dir:1,pct:1,src:'Google Analytics'},
- {k:'rd',l:'Websites linking to the site',cur:()=>SDATA.conn.links?rdNow(R.e):null,f:v=>int(v),dir:1,unit:'',src:'backlink tool'},
  {k:'perf',sl:'page speed',l:'Page speed score',u:'mobile, out of 100',cur:()=>SDATA.conn.psi&&SDATA.psi.perf!=null?SDATA.psi.perf:null,f:v=>Math.round(v),dir:1,unit:'points',src:'PageSpeed Insights'},
  {k:'lcp',sl:'mobile loading time',l:'Mobile loading time',u:'LCP',cur:()=>SDATA.conn.psi&&SDATA.psi.lcp!=null?SDATA.psi.lcp:null,f:v=>(+v).toFixed(1)+'s',dir:-1,unit:'s',dp:1,src:'PageSpeed Insights'},
  {k:'score',l:'Site check score',u:'out of 100',cur:()=>auditScore(),base:SCORE0,bdate:AUDIT_ISO,f:v=>Math.round(v),dir:1,unit:'points'},
@@ -1611,101 +1454,99 @@ const bdateOf=m=>m.bdate||(SDATA.base&&SDATA.base.date)||AUDIT_ISO;
 function seoResults(){
  let up=0,both=0;const best=[];
  $('sRes').innerHTML=RM.map(m=>{const c=m.cur(),b=baseOf(m),bd=dfmt(dIdx(bdateOf(m)),{year:'numeric'});
-  if(c==null)return `<div class="rc na"><div class="l">${m.l}${m.u?` <small>· ${m.u}</small>`:''}</div><div class="v">Not entered yet</div><div class="w">${b!=null?'Was '+m.f(b)+' on '+bd:'Needs '+m.src}</div></div>`;
+  if(c==null)return `<div class="rc na"><div class="l">${m.l}${m.u?` <small>· ${m.u}</small>`:''}</div><div class="v">No data yet</div><div class="w">${b!=null?'Was '+m.f(b)+' on '+bd:'Comes from '+m.src}</div></div>`;
   let chg='',cls='';
   if(b!=null){const diff=c-b,good=m.dir*diff>0,bad=m.dir*diff<0;if(!m.nc){both++;if(good)up++;}cls=good?'up':bad?'down':'';
    let t;if(Math.abs(diff)<(m.dp?0.05:0.5))t='No change';else if(m.pct&&b>0)t=(diff>0?'+':'')+pct(c,b).toFixed(0)+'%';else if(m.k==='pos')t=(diff<0?'▲ ':'▼ ')+Math.abs(diff).toFixed(1)+(diff<0?' places higher':' places lower');else t=(diff>0?'+':'−')+(m.dp?Math.abs(diff).toFixed(m.dp):int(Math.abs(diff)))+(m.unit?' '+m.unit:'');
    chg=`<div class="d"><span class="chip ${good?'good':bad?'bad':'neu'}">${t}</span></div>`;if(good&&!m.nc)best.push(m.sl||m.l.toLowerCase());}
-  return `<div class="rc ${cls}"><div class="l">${m.l}${m.u?` <small>· ${m.u}</small>`:''}</div><div class="v">${m.f(c)}</div><div class="w">${b!=null?'Was '+m.f(b)+' on '+bd:'Starting point not recorded'}</div>${chg}</div>`;}).join('');
+  return `<div class="rc ${cls}"><div class="l">${m.l}${m.u?` <small>· ${m.u}</small>`:''}</div><div class="v">${m.f(c)}</div><div class="w">${b!=null?'Was '+m.f(b)+' on '+bd:'No earlier figure'}</div>${chg}</div>`;}).join('');
  const since=dfmt(dIdx(SDATA.base.date||AUDIT_ISO),{year:'numeric'});
- $('sResSub').textContent=`Where ${domain()} started and where it is now. "Now" uses ${rangeText(R.s,R.e,' – ')}; monthly figures are scaled to 30 days.`;
- $('sResSum').innerHTML=up?`Since ${since}, <b>${up} of ${both}</b> measures have improved`+(best.length?`, including ${best.slice(0,3).join(', ')}.`:'.'):`The starting point was recorded on ${since}. The comparison below fills in as fixes are completed and figures are entered.`;
+ $('sResSub').textContent=`Where ${domain()} was in its first month of figures and where it is now. "Now" uses ${rangeText(R.s,R.e,' – ')}; monthly figures are scaled to 30 days.`;
+ $('sResSum').innerHTML=up?`Since ${since}, <b>${up} of ${both}</b> measures have improved`+(best.length?`, including ${best.slice(0,3).join(', ')}.`:'.'):`"Was" is the first month of figures, from ${since}. The comparison fills in as more months of figures come in.`;
  const miss=RMB.filter(m=>m.cur()==null).map(m=>m.src).filter((v,i,a)=>a.indexOf(v)===i);
- $('sResNote').textContent=miss.length?'Still to come: figures from '+miss.join(', ')+'. They are entered in Update data, along with the starting point.':'';}
-function seoRender(){seoHeader();seoSearch();seoGoals();seoCountries();seoPages();seoKeywords();seoTech();seoLinks();seoInsights();seoWork();seoResults();seoHeader();}
+ $('sResNote').textContent=miss.length?'Still to come: figures from '+miss.join(', ')+'. They appear once connected in Connected accounts.':'';}
+function seoRender(){seoHeader();seoSearch();seoGoals();seoCountries();seoPages();seoKeywords();seoTech();seoLinks();seoInsights();seoWork();seoResults();seoNotes();seoHeader();}
 
-/* ---------- SEO data store + drawer ---------- */
-const SKEY='egeloma-seo-v2',SMETA_DEF={at:null,by:'nobody yet',src:'not entered yet'};
-let SMETA={...SMETA_DEF},sLastRefresh=Date.now(),sPendingKw=null;
-function sMetaUI(){$('sDsWhen').textContent=fmtWhen(SMETA.at);$('sDsWho').textContent=SMETA.by;$('sDsSrc').textContent=SMETA.src;$('sMetaUpdated').textContent=SMETA.at?'Updated '+new Date(SMETA.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'Not updated yet';sRefTxt();}
-function sRefTxt(){const m=Math.round((Date.now()-sLastRefresh)/60000);$('sDsRef').textContent=m<1?'Refreshed just now':'Refreshed '+m+' min ago';}
-setInterval(sRefTxt,30000);
-function sLoad(){try{const raw=localStorage.getItem(SKEY);if(raw){const o=JSON.parse(raw);if(o.data&&o.data.clk)padDays(o.data,o.data.clk.length);if(o.data&&o.data.conn&&o.data.clk&&o.data.clk.length===N&&o.data.kw){SDATA=o.data;SMETA=o.meta;SDATA.work=(SDATA.work||[]).filter(w=>!['w-check','w-dash'].includes(w.id));SDATA.kw=(SDATA.kw||[]).filter(k=>k.vol!=null||Object.keys(k.hist||{}).length);if(!SDATA.work)SDATA.work=WORK_DEF.map(w=>({...w}));if(!SDATA.base)SDATA.base={date:DEF_ISO,v:{}};}}}catch(e){}}
-function sStore(){try{localStorage.setItem(SKEY,JSON.stringify({data:SDATA,meta:SMETA}));}catch(e){}}
-$('sRefreshBtn').onclick=e=>{const b=e.currentTarget;b.classList.add('spin');b.disabled=true;document.body.classList.add('loading');
- setTimeout(()=>{sLoad();sLastRefresh=Date.now();renderAll();b.classList.remove('spin');b.disabled=false;document.body.classList.remove('loading');toast('SEO dashboard refreshed with the latest saved data');},800);};
-const SFG=[
- ['gsc','Search Console · totals',[['clk','Clicks'],['impr','Impressions'],['pos','Average position']],true],
- ['ctry','Search Console · Countries tab',CTRY.flatMap(c=>[['c_'+c.k+'_clk',c.n+' clicks'],['c_'+c.k+'_impr','Impressions'],['c_'+c.k+'_pos','Avg position']]),true,'three'],
- ['leads','Google Analytics',[['leads','Leads from organic search']],true],
- ['links','Backlinks',[['rd','Referring domains (at end)'],['nrd','New referring domains'],['lrd','Lost referring domains'],['auth','Authority score (0 to 100)']],true],
- ['gbp','Google Business Profile',[['views','Profile views'],['calls','Phone calls'],['dirs','Direction requests'],['web','Website clicks']],true],
- ['psi','PageSpeed Insights · mobile',[['perf','Performance score (0 to 100)'],['lcp','LCP (seconds)'],['inp','INP (ms)'],['cls','CLS']],false]];
-function sCurrent(){const s=a=>Math.round(sumR(a,R.s,R.e)),v={},C=SDATA.conn,G=SDATA.gbp;
- if(gscCur()){v.clk=s(SDATA.clk);v.impr=s(SDATA.impr);v.pos=+sAgg('pos',R.s,R.e).toFixed(1);}
- CTRY.forEach(c=>{const D=SDATA.ctry[c.k];if(has(D.impr,R.s,R.e)){v['c_'+c.k+'_clk']=s(D.clk);v['c_'+c.k+'_impr']=s(D.impr);v['c_'+c.k+'_pos']=+sAgg('pos',R.s,R.e,D).toFixed(1);}});
- if(C.leads)v.leads=s(SDATA.leads);
- if(C.links){v.rd=Math.round(SDATA.rdEnd-sumR(SDATA.nrd,R.e+1,LAST)+sumR(SDATA.lrd,R.e+1,LAST));v.nrd=s(SDATA.nrd);v.lrd=s(SDATA.lrd);v.auth=SDATA.auth??'';}
- if(C.gbp){v.views=s(G.views);v.calls=s(G.calls);v.dirs=s(G.dirs);v.web=s(G.web);}
- if(C.psi)['perf','lcp','inp','cls'].forEach(k=>v[k]=SDATA.psi[k]??'');return v;}
-function sBuildForm(v){const rt=rangeText(R.s,R.e,' – ');
- $('sForm').innerHTML=`<h4>Country pages</h4><p class="hint" style="margin:0 0 12px">The website or section each country uses, for example egeloma.com.au/new-zealand, egeloma.co.nz or nz.egeloma.com. Leave a country blank if it uses the Australian site.</p><div class="sf">${CTRY.map(c=>`<label>${c.n}${c.k==='au'?' (main site)':''}<input type="text" data-site="${c.k}" value="${(SDATA.sites||{})[c.k]||''}" placeholder="${c.k==='au'?'egeloma.com.au':'Uses the Australian site'}"></label>`).join('')}</div>`
- +`<h4>Starting point (before SEO work)</h4><p class="hint" style="margin:0 0 12px">Figures from before the work began, so the report can show before and after. Monthly figures should cover one month. ${AUDIT.length?`The site check score and issue counts are recorded automatically from the check on ${AUDIT_DATE}.`:''}</p>
-  <div class="sf"><label>Date of starting point<input type="date" id="bDate" value="${SDATA.base.date||AUDIT_ISO}"></label><span></span>${RMB.map(m=>`<label>${m.l}${m.u?' ('+m.u+')':''}<input type="number" step="any" min="0" data-bf="${m.k}" value="${SDATA.base.v[m.k]??''}" placeholder="Not recorded"></label>`).join('')}</div>
-  <button class="btn outline sm" id="bCopy" type="button" style="margin-top:12px">Use this period's figures as the starting point</button>`
- +SFG.map(([g,h,fs,rng,cls])=>`<h4>${h}${rng?' · '+rt:''}</h4><div class="sf ${cls||''}">${fs.map(f=>`<label>${f[1]}<input type="number" step="any" min="0" data-g="${g}" data-sf="${f[0]}" value="${v[f[0]]??''}" placeholder="Not entered"></label>`).join('')}</div>`).join('');}
-function sApplyForm(){const val=k=>{const i=document.querySelector(`#sDrawer input[data-sf="${k}"]`);return i&&i.value!==''?+i.value:null;};
- const grp=g=>[...document.querySelectorAll(`#sDrawer input[data-g="${g}"]`)].some(i=>i.value!=='');
- const bad=[...document.querySelectorAll('#sDrawer input[data-sf]')].find(i=>i.value!==''&&(isNaN(+i.value)||+i.value<0));if(bad){bad.focus();return 'Numbers must be 0 or more';}
- const S=SDATA,setG=(a,v)=>setRangeTotal(a,v||0);
- if(grp('gsc')){const c=val('clk'),im=val('impr'),p=val('pos');if(!(im>0)||!(p>=1))return 'Enter impressions above 0 and an average position of 1 or more';setG(S.clk,c);setG(S.impr,im);setG(S.posw,p*im);S.conn.gsc=true;}
- for(const c of CTRY){const k='c_'+c.k+'_',D=S.ctry[c.k];if([k+'clk',k+'impr',k+'pos'].some(f=>val(f)!=null)){const im=val(k+'impr'),p=val(k+'pos');if(!(im>0)||!(p>=1))return `Enter impressions and average position for ${c.n}`;setG(D.clk,val(k+'clk'));setG(D.impr,im);setG(D.posw,p*im);S.conn.gsc=true;}}
- if(grp('leads')){setG(S.leads,val('leads'));S.conn.leads=true;}
- if(grp('links')){setG(S.nrd,val('nrd'));setG(S.lrd,val('lrd'));if(val('rd')!=null)S.rdEnd+=val('rd')-(S.rdEnd-sumR(S.nrd,R.e+1,LAST)+sumR(S.lrd,R.e+1,LAST));S.auth=val('auth');S.conn.links=true;}
- if(grp('gbp')){['views','calls','dirs','web'].forEach(k=>setG(S.gbp[k],val(k)));S.conn.gbp=true;}
- if(grp('psi')){['perf','lcp','inp','cls'].forEach(k=>S.psi[k]=val(k));S.conn.psi=true;}
- const bb=[...document.querySelectorAll('#sDrawer input[data-bf]')].find(i=>i.value!==''&&(isNaN(+i.value)||+i.value<0));if(bb){bb.focus();return 'Starting point figures must be 0 or more';}
- S.base={date:$('bDate').value||AUDIT_ISO,v:{}};document.querySelectorAll('#sDrawer input[data-bf]').forEach(i=>{if(i.value!=='')S.base.v[i.dataset.bf]=+i.value;});
- S.sites={};document.querySelectorAll('#sDrawer input[data-site]').forEach(i=>S.sites[i.dataset.site]=norm(i.value));
- if(sPendingKw)sPendingKw.forEach(r=>{let k=S.kw.find(q=>q.k.toLowerCase()===r.k.toLowerCase());
-  if(!k){k={k:r.k,url:r.url?'/'+norm(r.url).split('/').slice(1).join('/'):'/',vol:null,hist:{},j:S.kw.length};S.kw.push(k);}
-  if(r.vol!=null)k.vol=r.vol;if(r.pos!=null){const h=(k.hist[r.c]=(k.hist[r.c]||[]).filter(e=>e[0]!==R.e));h.push([R.e,r.pos,r.url||null]);h.sort((a,b)=>a[0]-b[0]);}});
- return null;}
-let sSrcLabel='manual entry';
-const sOpenD=()=>{sBuildForm(sCurrent());wListRender();if(!$('wDate').value)$('wDate').value=new Date().toISOString().slice(0,10);document.querySelector('#sDtabs button').click();sPendingKw=null;sSrcLabel='manual entry';$('sUpMsg').className='msg';$('sDrawer').classList.add('open');$('drawerBg').classList.add('open');};
-const sCloseD=()=>{$('sDrawer').classList.remove('open');$('drawerBg').classList.remove('open');};
-$('sUpdateBtn').onclick=sOpenD;$('sdClose').onclick=sCloseD;$('sdCancel').onclick=sCloseD;$('drawerBg').onclick=()=>{closeD();sCloseD();};
-document.querySelectorAll('#sDtabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#sDtabs button').forEach(x=>x.classList.toggle('on',x===b));$('sdEnter').hidden=b.dataset.dt!=='enter';$('sdUpload').hidden=b.dataset.dt!=='upload';$('sdLog').hidden=b.dataset.dt!=='log';});
-$('sdSave').onclick=()=>{const err=sApplyForm();if(err){document.querySelector('#sDtabs button').click();toast(err);return;}
- SMETA={at:new Date().toISOString(),by:'RJ',src:sSrcLabel==='manual entry'?'site check + manual entry':sSrcLabel};sStore();sLastRefresh=Date.now();sCloseD();renderAll();toast('Saved. The SEO dashboard now shows the new numbers');};
-$('sdReset').onclick=()=>{if(!confirm('Clear all entered SEO figures and keyword positions? The site check findings and work log stay.'))return;const keepW=SDATA.work;try{localStorage.removeItem(SKEY);}catch(e){}SDATA=seoDefaults();SDATA.work=keepW;sStore();SMETA={...SMETA_DEF};sLastRefresh=Date.now();sCloseD();renderAll();toast('SEO dashboard reset to the site check');};
-$('sTplKw').onclick=()=>{const q=v=>/[",]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v,K=kwRows('au');dl('eg-eloma-keywords_'+iso(R.e)+'.csv','keyword,country,position,url,search_volume\n'+K.map(x=>[q(x.k.k),'AU',x.cur??'',q(x.url||('https://'+domain()+x.k.url)),x.k.vol??''].join(',')).join('\n'));toast('Keyword template downloaded');};
-const CMAP={au:'au',australia:'au',nz:'nz','new zealand':'nz',uk:'gb',gb:'gb','united kingdom':'gb',us:'us',usa:'us','united states':'us',ca:'ca',canada:'ca'};
-function sParseCSV(text,name){
- const rows=text.replace(/\r/g,'').split('\n').filter(l=>l.trim()).map(l=>{const o=[];let cur='',qt=false;for(const ch of l){if(ch==='"'){qt=!qt;}else if(ch===','&&!qt){o.push(cur.trim());cur='';}else cur+=ch;}o.push(cur.trim());return o;});
- if(rows.length<2)throw new Error('The file has no data rows.');
- const head=rows[0].map(h=>h.toLowerCase().replace(/[^a-z]+/g,'_').replace(/^_|_$/g,'')),col=n=>head.findIndex(h=>n.includes(h));
- const ki=col(['keyword','query','search_term','keywords','top_queries']),pi=col(['position','rank','current_position','pos']),vi=col(['search_volume','volume','monthly_searches']),ui=col(['url','ranking_url','page','landing_page']),ci=col(['country','market','location']);
- if(ki<0)throw new Error('Add a "keyword" column so each row can be matched.');if(pi<0)throw new Error('Add a "position" column with each keyword\'s ranking.');
- const out=[],skip=[];
- rows.slice(1).forEach(r=>{const k=(r[ki]||'').trim();if(!k)return;const cRaw=ci>=0?(r[ci]||'').trim().toLowerCase():'',c=cRaw?CMAP[cRaw]:'au';if(!c){skip.push(r[ci]);return;}
-  const p=parseFloat(r[pi]),v=vi>=0?parseFloat((r[vi]||'').replace(/[,\s]/g,'')):NaN;out.push({k,c,pos:isNaN(p)||p<1?null:Math.round(p),vol:isNaN(v)?null:v,url:ui>=0?(r[ui]||'').trim():''});});
- if(!out.length)throw new Error('No keyword rows found.');
- sPendingKw=out;sSrcLabel='keyword CSV ('+name+')';const wp=out.filter(r=>r.pos!=null).length,cs=[...new Set(out.map(r=>r.c.toUpperCase().replace('GB','UK')))].join(', ');
- $('sUpMsg').className='msg ok';$('sUpMsg').textContent=`Read ${out.length} row${out.length>1?'s':''} from ${name} (${cs}), ${wp} with positions${skip.length?'. Skipped unknown countries: '+skip.join(', '):''}. Positions will be recorded for ${dfmt(R.e,{year:'numeric'})}. Click Save and refresh to apply.`;}
-function sHandle(file){if(!file)return;if(!/\.csv$/i.test(file.name)){$('sUpMsg').className='msg err';$('sUpMsg').textContent='Please choose a .csv file. In Excel use File, Save As, CSV.';return;}
- const r=new FileReader();r.onload=()=>{try{sParseCSV(r.result,file.name);}catch(err){$('sUpMsg').className='msg err';$('sUpMsg').textContent=err.message;}};r.readAsText(file);}
-$('sFile').onchange=e=>{sHandle(e.target.files[0]);e.target.value='';};
-['dragover','dragenter'].forEach(ev=>$('sDrop').addEventListener(ev,e=>{e.preventDefault();$('sDrop').classList.add('over');}));
-['dragleave','drop'].forEach(ev=>$('sDrop').addEventListener(ev,e=>{e.preventDefault();$('sDrop').classList.remove('over');}));
-$('sDrop').addEventListener('drop',e=>sHandle(e.dataTransfer.files[0]));
+/* ---------- SEO and Local: live figures ----------
+   Search Console, Google Analytics, Business Profile and PageSpeed Insights are read by
+   the server for the selected company (Admin → Marketing API, through the portal).
+   Nothing is typed in or kept in the browser. */
+let SL={},SLOAD={},SERR={},SMETA={at:null,by:'',src:''};
+const sStat=k=>{const L=SL[CO];return L&&L.status?L.status[k]:null;};
+/** Empty-state box for one source: reading, failed, connected but empty, or not connected. */
+function srcAwait(k,label,intro,empty,steps,cls=''){
+ if(SLOAD[CO])return awaitBox('Reading '+label+'…','The latest figures are being read from Google.',null,cls);
+ if(SERR[CO])return awaitBox('Could not read '+label,esc(SERR[CO]),null,cls);
+ const st=sStat(k);if(st&&st.connected)return awaitBox(st.error?label+' could not be read':'No figures in this date range',esc(st.error||empty),null,cls);
+ return connAwait(label+' not connected',intro,steps,cls);}
+async function searchLoad(co,refresh){if(!co||SLOAD[co])return;SLOAD[co]=true;SERR[co]=null;if(co===CO){applySearch();renderAll();}
+ try{SL[co]=await bridge('search',{company:co,refresh:!!refresh});}catch(err){SERR[co]=err.message;}
+ SLOAD[co]=false;if(co===CO){applySearch();renderAll();}}
+/** Builds the SEO and Local figures of the selected company from its live read. */
+function applySearch(){SDATA=seoDefaults();LDATA=locDefaults();
+ SDATA.sites={au:coSite(CO)};
+ const L=SL[CO];
+ const src=coSrc(CO);if(!L&&!SLOAD[CO]&&!SERR[CO]&&(src.seo||src.local||src.ga)&&document.body.dataset.view!=='azure')setTimeout(()=>searchLoad(CO),0);
+ if(!L){SMETA={at:null,by:'',src:SLOAD[CO]?'reading now':'nothing connected yet'};LMETA={at:null,by:'',src:SMETA.src};return;}
+ const st=L.status||{},put=(arr,d,v)=>{const i=fromIso(d);if(i>=0&&i<N)arr[i]=v||0;};
+ if(st.gsc&&st.gsc.name)SDATA.sites.au=norm(st.gsc.name);
+ for(const[d,v]of Object.entries(L.gsc||{})){put(SDATA.clk,d,v[0]);put(SDATA.impr,d,v[1]);put(SDATA.posw,d,v[2]);}
+ SDATA.conn.gsc=!!(st.gsc&&st.gsc.connected&&Object.keys(L.gsc||{}).length);
+ for(const[k,days]of Object.entries(L.countries||{})){const D=SDATA.ctry[k];if(!D)continue;for(const[d,v]of Object.entries(days)){put(D.clk,d,v[0]);put(D.impr,d,v[1]);put(D.posw,d,v[2]);}}
+ for(const[d,v]of Object.entries(L.leads||{}))put(SDATA.leads,d,v);
+ SDATA.conn.leads=!!(st.ga&&st.ga.connected&&!st.ga.error);
+ if(L.psi){SDATA.psi={perf:L.psi.perf,lcp:L.psi.lcp,inp:L.psi.inp,cls:L.psi.cls};SDATA.conn.psi=true;}
+ for(const[d,v]of Object.entries(L.gbp||{})){['views','calls','dirs','web'].forEach((k,j)=>{put(SDATA.gbp[k],d,v[j]);put(LDATA.gbp[k],d,v[j]);});put(LDATA.gbp.newrev,d,v[4]);}
+ SDATA.conn.gbp=LDATA.conn.gbp=!!(st.gbp&&st.gbp.connected&&!st.gbp.error&&Object.keys(L.gbp||{}).length);
+ if(L.reviews){LDATA.rev={total:L.reviews.total,rating:L.reviews.rating,resp:L.reviews.replied};LDATA.conn.rev=true;}
+ // Searches per country: [day, position, page, impressions, clicks] for the last 28 days and the 28 before.
+ const W=L.windows,kw=new Map(),path=u=>{const n=norm(u),i=n.indexOf('/');return i<0?'/':n.slice(i);};
+ if(W){const ci=fromIso(W.cur[0]),pi=fromIso(W.prev[0]);
+  for(const[c,rows]of Object.entries(L.queries||{}))(rows||[]).forEach(r=>{const q=esc(r.q);let k=kw.get(q);if(!k){k={k:q,url:path(r.url),vol:null,hist:{},j:kw.size};kw.set(q,k);}
+   const h=k.hist[c]=[];if(r.prevPos!=null)h.push([pi,Math.round(r.prevPos),r.prevUrl,null,null]);h.push([ci,Math.round(r.pos),r.url,r.impr,r.clicks]);});}
+ SDATA.kw=[...kw.values()];
+ // "Was": the first 30 days of figures.
+ const first=a=>a.findIndex(v=>v>0),fi=first(SDATA.impr);
+ if(fi>=0&&fi+29<LAST){const e=fi+29,im=sumR(SDATA.impr,fi,e);SDATA.base={date:iso(fi),v:{clk:sumR(SDATA.clk,fi,e),impr:im,pos:im?sumR(SDATA.posw,fi,e)/im:null}};if(SDATA.conn.leads)SDATA.base.v.leads=sumR(SDATA.leads,fi,e);}
+ const gi=first(LDATA.gbp.views);
+ if(gi>=0&&gi+29<LAST){const e=gi+29,g=k=>sumR(LDATA.gbp[k],gi,e);LDATA.base={date:iso(gi),v:{views:g('views'),calls:g('calls'),dirs:g('dirs'),web:g('web')}};}
+ // Tasks completed in the portal: local listing ones on the Local view, the rest on SEO.
+ const loc=/local|listing|business profile|gbp|google maps|review|citation|director/i;
+ (L.tasks||[]).forEach(t=>{const w={id:'t-'+t.id,date:t.date,cat:'Portal task',title:t.title,detail:t.list+(t.team?' · '+t.team:''),owner:t.team||'EG Eloma',src:'task'};(loc.test(t.title+' '+t.list)?LDATA.work:SDATA.work).push(w);});
+ const on=k=>st[k]&&st[k].connected;
+ SMETA={at:L.fetchedAt,by:'',src:[on('gsc')?'Search Console':null,on('ga')?'Google Analytics':null,on('gbp')?'Business Profile':null,L.psi?'PageSpeed Insights':null].filter(Boolean).join(', ')||'nothing connected yet'};
+ LMETA={at:L.fetchedAt,by:'',src:on('gbp')?'Google Business Profile':'Business Profile not connected yet'};}
+function sMetaUI(){$('sDsWhen').textContent=SLOAD[CO]?'reading now…':fmtWhen(SMETA.at);$('sDsSrc').textContent=SMETA.src;
+ $('sMetaUpdated').textContent=SMETA.at?'Read '+new Date(SMETA.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';
+ $('sDsRef').textContent=SERR[CO]?'Could not read: '+SERR[CO]:'Read live from Google';}
+$('sRefreshBtn').onclick=$('lRefreshBtn').onclick=async e=>{const b=e.currentTarget;b.classList.add('spin');b.disabled=true;
+ await searchLoad(CO,true);b.classList.remove('spin');b.disabled=false;toast(SERR[CO]||'Figures read again from Google');};
+
+/* ---------- summaries, written from the live figures ---------- */
+function notesHtml(parts,ins){const next=(ins||[]).filter(x=>x.sev!=='good'&&x.actions&&x.actions.length).slice(0,3).map(x=>x.actions[0]+' ('+x.title.charAt(0).toLowerCase()+x.title.slice(1)+')');
+ return parts.length?`<div><p>${esc(parts.join(' '))}</p><div class="sig"><i>EG</i>Written from the live figures</div></div><ol>${next.map(i=>`<li>${esc(i)}</li>`).join('')}</ol>`
+  :'<div><p style="font-size:14px;color:var(--t2)">The summary is written here once the connected accounts return figures for this period.</p></div><div></div>';}
+function socNotes(){const P=[],sum=(m,s,e)=>PL.reduce((a,p)=>a+sumR(DATA.pl[p.k][m],s,e),0),rc=sum('reach',R.s,R.e),pr=sum('reach',R.ps,R.pe);
+ if(socOn()){P.push(`Social media reached ${fmt(rc).join('')} people`+(R.has&&pr>0?` (${pct(rc,pr)>0?'+':''}${pct(rc,pr).toFixed(0)}% vs ${R.cmpName})`:'')+`, with ${int(sum('eng',R.s,R.e))} engagements and ${int(sum('nf',R.s,R.e))} new followers.`);
+  const top=PL.map(p=>[p.n,sumR(DATA.pl[p.k].reach,R.s,R.e)]).sort((a,b)=>b[1]-a[1])[0];if(top&&top[1])P.push(`${top[0]} brought the most reach.`);}
+ if(adsOn()){const sp=sumR(DATA.ads.google.spend,R.s,R.e)+sumR(DATA.ads.meta.spend,R.s,R.e),ld=sumR(DATA.ads.google.leads,R.s,R.e)+sumR(DATA.ads.meta.leads,R.s,R.e);P.push(`Ads spent ${money(sp)} for ${int(ld)} leads.`);}
+ $('socNotes').innerHTML=notesHtml(P,typeof INS!=='undefined'?INS:[]);}
+function seoNotes(){const P=[];
+ if(gscCur()){const c=sAgg('clk',R.s,R.e),p=gscPrev()?sAgg('clk',R.ps,R.pe):null;P.push(`${domain()} got ${int(c)} clicks from Google`+(p?` (${pct(c,p)>0?'+':''}${pct(c,p).toFixed(0)}% vs ${R.cmpName})`:'')+` at an average position of ${sAgg('pos',R.s,R.e).toFixed(1)}.`);}
+ const K=kwRows('au').filter(x=>x.cur!=null);if(K.length)P.push(`${K.filter(x=>x.cur<=10).length} of the top ${K.length} searches in Australia are on page 1.`);
+ if(SDATA.conn.leads)P.push(`Organic search brought ${int(sumR(SDATA.leads,R.s,R.e))} leads.`);
+ if(SDATA.conn.psi&&SDATA.psi.perf!=null)P.push(`The mobile page speed score is ${Math.round(SDATA.psi.perf)} out of 100.`);
+ $('seoNotes').innerHTML=notesHtml(P,SINS);}
+function locNotes(){const P=[];
+ if(gbpOn()){const g=k=>lsum(k,R.s,R.e);P.push(`The Business Profile was seen ${int(g('views'))} times and brought ${int(g('calls'))} calls, ${int(g('dirs'))} direction requests and ${int(g('web'))} website clicks.`);}
+ if(LDATA.conn.rev&&LDATA.rev.total!=null)P.push(`It has ${int(LDATA.rev.total)} Google reviews`+(LDATA.rev.rating!=null?` at ${(+LDATA.rev.rating).toFixed(1)} stars`:'')+'.');
+ $('locNotes').innerHTML=notesHtml(P,LINS);}
 
 /* ---------- SEO controls + tabs ---------- */
 $('sMetric').onclick=e=>{const b=e.target.closest('button');if(b){sState.metric=b.dataset.m;seoSearch();}};
 $('sKwFilter').onclick=e=>{const b=e.target.closest('button');if(b){sState.kw=b.dataset.k;seoKeywords();}};
 $('sKwCtry').onclick=e=>{const b=e.target.closest('button');if(b){sState.ctry=b.dataset.c;seoKeywords();seoCountries();}};
 $('sCtry').onclick=e=>{const tr=e.target.closest('tr');if(!tr||!tr.dataset.c)return;sState.ctry=tr.dataset.c;seoKeywords();seoCountries();$('sDist').scrollIntoView({behavior:'smooth',block:'center'});};
-document.addEventListener('keydown',e=>{if(e.key==='Escape')sCloseD();});
 let curSub='seo';
 function updHash(){try{history.replaceState(null,'','#range='+(state.preset!=='custom'?state.preset:iso(state.s)+'_'+iso(state.e))+'&tab='+(curTab==='mkt'?curSub:curTab)+(curTab==='azure'?(typeof AZ!=='undefined'?'&az='+AZ.cl():''):(typeof curCo!=='undefined'?'&co='+curCo:'')));}catch(_){}}
 function showTab(t,sub){if(['seo','loc','social','dash'].includes(t)){sub=t==='dash'?'social':t;t='mkt';}if(t==='cloud')t='azure';
@@ -1717,10 +1558,8 @@ function showTab(t,sub){if(['seo','loc','social','dash'].includes(t)){sub=t==='d
  if(typeof coView==='function')coView();
  updHash();}
 $('tabs').onclick=e=>{const b=e.target.closest('.tab');if(b)showTab(b.dataset.tab);};
-sLoad();
 
 /* ================= LOCAL LISTING DASHBOARD: EG Eloma ================= */
-const NAP_OK={name:'EG Eloma',addr:'71 Gipps Street, Collingwood VIC 3066',phone:'1800 054 555'};
 /* findings: id, priority, title, where, why, causes, actions */
 const LAUD=[];
 const LIST_DEF=[
@@ -1747,10 +1586,7 @@ const LCAT=['Business Profile','Listings and citations','Reviews','Website','Pho
 function locDefaults(){return{gbp:{views:Z(),calls:Z(),dirs:Z(),web:Z(),newrev:Z()},rev:{total:null,rating:null,resp:null},conn:{gbp:false,rev:false},
  lists:Object.fromEntries(LIST_DEF.map(l=>[l[0],{st:'Not checked',url:'',at:null}])),kw:LKW_DEF.map((k,j)=>({k,hist:[],j})),base:{date:DEF_ISO,v:{}},work:LWORK_DEF.map(w=>({...w}))};}
 let LDATA=locDefaults();
-const LKEY='egeloma-local-v1',LMETA_DEF={at:null,by:'nobody yet',src:'not entered yet'};
-let LMETA={...LMETA_DEF};
-function lLoad(){try{const raw=localStorage.getItem(LKEY);if(raw){const o=JSON.parse(raw);if(o.data&&o.data.gbp&&o.data.gbp.views)padDays(o.data,o.data.gbp.views.length);if(o.data&&o.data.gbp&&o.data.gbp.views.length===N){LDATA=o.data;LMETA=o.meta;LDATA.work=(LDATA.work||[]).filter(w=>!['lw-nap','lw-dash'].includes(w.id));LDATA.kw=(LDATA.kw||[]).filter(k=>(k.hist||[]).length);LIST_DEF.forEach(l=>{if(!LDATA.lists[l[0]])LDATA.lists[l[0]]={st:'Not checked',url:'',at:null};});}}}catch(e){}}
-function lStore(){try{localStorage.setItem(LKEY,JSON.stringify({data:LDATA,meta:LMETA}));}catch(e){}}
+let LMETA={at:null,by:'',src:'Business Profile not connected yet'};
 const lDone=a=>stOf('loc-a-'+a[0]).status==='Done';
 const lOpen=()=>LAUD.filter(a=>!lDone(a));
 const gbpOn=()=>LDATA.conn.gbp&&(has(LDATA.gbp.views,R.s,R.e)||has(LDATA.gbp.calls,R.s,R.e));
@@ -1758,17 +1594,16 @@ const lsum=(k,s,e)=>sumR(LDATA.gbp[k],s,e);
 const lKAt=(k,i)=>{let r=null;for(const e of k.hist){if(e[0]<=i)r=e;else break;}return r;};
 const lKw=()=>LDATA.kw.map(k=>{const a=lKAt(k,R.e),b=R.has?lKAt(k,R.pe):null;return{k,cur:a?a[1]:null,prev:b?b[1]:null,checked:!!a};});
 const listCount=st=>LIST_DEF.filter(l=>LDATA.lists[l[0]].st===st).length;
-const lAwait=(t,p,steps,cls='')=>awaitBox(t,p,steps,cls).replace('data-open-seo','data-open-loc');
-document.addEventListener('click',e=>{if(e.target.closest('[data-open-loc]'))lOpenD();});
+
 
 /* ---------- header ---------- */
 function locHeader(){const P=R.P,hl=(v,l,cls='')=>`<div class="hl ${cls}"><b>${v}</b><span>${l}</span></div>`;
  $('lTitle').textContent=P&&P.title?P.title:(P?P.name:'Custom range');$('lMetaRange').textContent=rangeText(R.s,R.e)+' ('+R.len+' days)';
- const ok=listCount('Listed and correct'),o=lOpen();
+ const o=lOpen();
  if(gbpOn()){const c=lsum('calls',R.s,R.e),d=lsum('dirs',R.s,R.e),w=lsum('web',R.s,R.e),v=fmt(lsum('views',R.s,R.e));
-  $('lHeadline').innerHTML=hl(v[0]+'<small>'+v[1]+'</small>','Business Profile views')+hl(int(c+d+w),'Calls, directions and website clicks')+hl(LDATA.conn.rev&&LDATA.rev.rating!=null?(+LDATA.rev.rating).toFixed(1)+'<small>★</small>':'–','Google rating')+hl(ok+'<small>/'+LIST_DEF.length+'</small>','Listings correct');}
- else $('lHeadline').innerHTML=hl(LAUD.length?o.length+'<small>/'+LAUD.length+'</small>':'–','Listing issues open')+hl(o.filter(a=>a[1]==='high').length,'High priority')+hl(ok+'<small>/'+LIST_DEF.length+'</small>','Listings confirmed correct')+hl(lWorkItems().length,'Tasks completed this period');
- $('lDsWhen').textContent=fmtWhen(LMETA.at);$('lDsWho').textContent=LMETA.by;$('lDsSrc').textContent=LMETA.src;$('lMetaUpdated').textContent=LMETA.at?'Updated '+new Date(LMETA.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'Not updated yet';}
+  $('lHeadline').innerHTML=hl(v[0]+'<small>'+v[1]+'</small>','Business Profile views')+hl(int(c+d+w),'Calls, directions and website clicks')+hl(LDATA.conn.rev&&LDATA.rev.rating!=null?(+LDATA.rev.rating).toFixed(1)+'<small>★</small>':'–','Google rating')+hl(LDATA.conn.rev&&LDATA.rev.total!=null?int(LDATA.rev.total):'–','Google reviews');}
+ else $('lHeadline').innerHTML=hl(LAUD.length?o.length+'<small>/'+LAUD.length+'</small>':'–','Listing issues open')+hl(o.filter(a=>a[1]==='high').length,'High priority')+hl(LDATA.conn.rev&&LDATA.rev.total!=null?int(LDATA.rev.total):'–','Google reviews')+hl(lWorkItems().length,'Tasks completed this period');
+ $('lDsWhen').textContent=fmtWhen(LMETA.at);$('lDsSrc').textContent=LMETA.src;$('lMetaUpdated').textContent=LMETA.at?'Read '+new Date(LMETA.at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'Not updated yet';}
 
 /* ---------- results in numbers ---------- */
 const LSCORE=o=>Math.max(0,100-o.reduce((t,a)=>t+PW[a[1]],0));
@@ -1777,10 +1612,8 @@ const LRM=[
  {k:'calls',sl:'calls from Google',l:'Calls from Google',u:'a month',cur:()=>gbpOn()?per30(lsum('calls',R.s,R.e)):null,f:v=>int(v),dir:1,pct:1,src:'Business Profile'},
  {k:'dirs',sl:'direction requests',l:'Direction requests',u:'a month',cur:()=>gbpOn()?per30(lsum('dirs',R.s,R.e)):null,f:v=>int(v),dir:1,pct:1,src:'Business Profile'},
  {k:'web',sl:'website clicks from the profile',l:'Website clicks from the profile',u:'a month',cur:()=>gbpOn()?per30(lsum('web',R.s,R.e)):null,f:v=>int(v),dir:1,pct:1,src:'Business Profile'},
- {k:'reviews',sl:'Google reviews',l:'Google reviews',u:'total',cur:()=>LDATA.conn.rev&&LDATA.rev.total!=null?LDATA.rev.total:null,f:v=>int(v),dir:1,unit:'',src:'reviews'},
- {k:'rating',sl:'Google rating',l:'Google rating',u:'out of 5',cur:()=>LDATA.conn.rev&&LDATA.rev.rating!=null?LDATA.rev.rating:null,f:v=>(+v).toFixed(1)+'★',dir:1,unit:'',dp:1,src:'reviews'},
- {k:'pack',sl:'searches in the map pack',l:'Searches in the map pack',u:'top 3 on Maps',cur:()=>{const K=lKw().filter(x=>x.checked);return K.length?K.filter(x=>x.cur!=null&&x.cur<=3).length:null;},f:v=>int(v),dir:1,unit:'',src:'local rankings'},
- {k:'lists',l:'Listings correct',u:'of '+LIST_DEF.length,cur:()=>listCount('Listed and correct'),base:0,bdate:DEF_ISO,f:v=>int(v),dir:1,unit:''},
+ {k:'reviews',sl:'Google reviews',l:'Google reviews',u:'total',cur:()=>LDATA.conn.rev&&LDATA.rev.total!=null?LDATA.rev.total:null,f:v=>int(v),dir:1,unit:'',src:'Business Profile'},
+ {k:'rating',sl:'Google rating',l:'Google rating',u:'out of 5',cur:()=>LDATA.conn.rev&&LDATA.rev.rating!=null?LDATA.rev.rating:null,f:v=>(+v).toFixed(1)+'★',dir:1,unit:'',dp:1,src:'Business Profile'},
  {k:'score',l:'Listing check score',u:'out of 100',cur:()=>LSCORE(lOpen()),base:LSCORE(LAUD),bdate:DEF_ISO,f:v=>Math.round(v),dir:1,unit:'points'},
  {k:'high',l:'High-priority issues',cur:()=>lOpen().filter(a=>a[1]==='high').length,base:LAUD.filter(a=>a[1]==='high').length,bdate:DEF_ISO,f:v=>int(v),dir:-1,unit:''},
  {k:'open',l:'Listing issues open',cur:()=>lOpen().length,base:LAUD.length,bdate:DEF_ISO,f:v=>int(v),dir:-1,unit:''},
@@ -1791,33 +1624,32 @@ const LRMB=LRM.filter(m=>m.base==null);
 function renderResults(M,B,ids){let up=0;const best=[];
  const baseOf=m=>m.base!=null?m.base:(B.v[m.k]!=null&&B.v[m.k]!==''?+B.v[m.k]:null),bdateOf=m=>m.bdate||B.date||DEF_ISO;
  $(ids[0]).innerHTML=M.map(m=>{const c=m.cur(),b=baseOf(m),bd=dfmt(dIdx(bdateOf(m)),{year:'numeric'});
-  if(c==null)return `<div class="rc na"><div class="l">${m.l}${m.u?` <small>· ${m.u}</small>`:''}</div><div class="v">Not entered yet</div><div class="w">${b!=null?'Was '+m.f(b)+' on '+bd:'Needs '+m.src}</div></div>`;
+  if(c==null)return `<div class="rc na"><div class="l">${m.l}${m.u?` <small>· ${m.u}</small>`:''}</div><div class="v">No data yet</div><div class="w">${b!=null?'Was '+m.f(b)+' on '+bd:'Comes from '+m.src}</div></div>`;
   let chg='',cls='';if(b!=null){const diff=c-b,good=m.dir*diff>0,bad=m.dir*diff<0;if(good&&!m.nc){up++;best.push(m.sl||m.l.toLowerCase());}cls=good?'up':bad?'down':'';
    const t=Math.abs(diff)<(m.dp?0.05:0.5)?'No change':m.pct&&b>0?(diff>0?'+':'')+pct(c,b).toFixed(0)+'%':(diff>0?'+':'−')+(m.dp?Math.abs(diff).toFixed(m.dp):int(Math.abs(diff)))+(m.unit?' '+m.unit:'');
    chg=`<div class="d"><span class="chip ${good?'good':bad?'bad':'neu'}">${t}</span></div>`;}
-  return `<div class="rc ${cls}"><div class="l">${m.l}${m.u?` <small>· ${m.u}</small>`:''}</div><div class="v">${m.f(c)}</div><div class="w">${b!=null?'Was '+m.f(b)+' on '+bd:'Starting point not recorded'}</div>${chg}</div>`;}).join('');
+  return `<div class="rc ${cls}"><div class="l">${m.l}${m.u?` <small>· ${m.u}</small>`:''}</div><div class="v">${m.f(c)}</div><div class="w">${b!=null?'Was '+m.f(b)+' on '+bd:'No earlier figure'}</div>${chg}</div>`;}).join('');
  const since=dfmt(dIdx(B.date||DEF_ISO),{year:'numeric'});
- $(ids[1]).innerHTML=up?`Since ${since}, <b>${up} measure${up>1?'s have':' has'} improved</b>, including ${best.slice(0,3).join(', ')}.`:`The starting point was recorded on ${since}. The comparison below fills in as fixes are completed and figures are entered.`;
+ $(ids[1]).innerHTML=up?`Since ${since}, <b>${up} measure${up>1?'s have':' has'} improved</b>, including ${best.slice(0,3).join(', ')}.`:`"Was" is the first month of figures, from ${since}. The comparison fills in as more months of figures come in.`;
  const miss=M.filter(m=>m.base==null&&m.cur()==null).map(m=>m.src).filter((v,i,a)=>a.indexOf(v)===i);
- $(ids[2]).textContent=miss.length?'Still to come: figures from '+miss.join(', ')+'. They are entered in Update data, along with the starting point.':'';}
+ $(ids[2]).textContent=miss.length?'Still to come: figures from '+miss.join(', ')+'. They appear once connected in Connected accounts.':'';}
 
 /* ---------- work completed ---------- */
 let LINS=[],LSHOWALL=false;
 const LAREA2CAT={'Listing check':'Business Profile','Listings':'Listings and citations','Reviews':'Reviews','Data':'Tracking and reporting','Rankings':'Business Profile','Profile':'Business Profile'};
-function lWorkItems(){const L=[];(LDATA.work||[]).forEach(w=>{if(w.vis)L.push({...w});});
+function lWorkItems(){const L=(LDATA.work||[]).map(w=>({...w}));
  (LINS.length?LINS:locBuild()).filter(x=>x.sev!=='good').forEach(x=>{const st=stOf(x.id),cat=LAREA2CAT[x.area]||'Other',own=st.owner!=='Unassigned'?st.owner:'EG Eloma';
   if(st.status==='Done')L.push({id:'a-'+x.id,date:st.doneAt||null,cat,title:'Fixed: '+x.title,detail:x.why||'',owner:own,fix:true});
   else st.done.forEach(i=>L.push({id:'s-'+x.id+'-'+i,date:(st.at||{})[i]||null,cat,title:x.actions[i],detail:'Part of: '+x.title,owner:own,fix:true}));});
- LIST_DEF.forEach(l=>{const s=LDATA.lists[l[0]];if(s.st==='Listed and correct'&&s.at)L.push({id:'ls-'+l[0],date:s.at,cat:'Listings and citations',title:'Confirmed '+l[1]+' listing is correct',detail:'',owner:'EG Eloma',link:s.url,fix:true});});
  return L.filter(w=>inRange(w.date)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));}
 function locWork(){
- const W=lWorkItems(),hrs=W.reduce((t,w)=>t+(+w.hours||0),0),fixed=LAUD.filter(lDone).length,prog=LINS.filter(x=>x.sev!=='good'&&stOf(x.id).status==='In progress');
- $('lWorkSub').textContent='What the EG Eloma team has done on the local listings, '+(R.e===LAST?rangeText(R.s,R.e,' – ').replace(/ – .*/,'')+' to today':rangeText(R.s,R.e,' – '));
- $('lWorkStats').innerHTML=stat('Tasks completed',W.length,'',W.filter(w=>w.fix).length+' from the action plan')+stat('Listing fixes',fixed,'/'+LAUD.length,fixed?'issues fixed so far':'Fixes start this month')+stat('Listings confirmed',listCount('Listed and correct'),'/'+LIST_DEF.length,listCount('Not checked')+' still to check')+stat('Hours logged',hrs?trim(hrs.toFixed(1)):'–','',hrs?'from the work log':'Add hours when logging work');
+ const W=lWorkItems(),tasks=W.filter(w=>w.src==='task').length,prog=LINS.filter(x=>x.sev!=='good'&&stOf(x.id).status==='In progress'),nr=lsum('newrev',R.s,R.e);
+ $('lWorkSub').textContent='What the team has done on the local listing, '+(R.e===LAST?rangeText(R.s,R.e,' – ').replace(/ – .*/,'')+' to today':rangeText(R.s,R.e,' – '));
+ $('lWorkStats').innerHTML=stat('Tasks completed',W.length,'',W.filter(w=>w.fix).length+' from the action plan')+stat('Portal tasks',tasks,'',tasks?'local listing tasks completed':'None completed in this period')+stat('New reviews',LDATA.conn.rev?int(nr):'–','',LDATA.conn.rev?'in this period':'Business Profile not connected')+stat('Reviews with a reply',LDATA.conn.rev&&LDATA.rev.resp!=null?Math.round(LDATA.rev.resp):'–',LDATA.conn.rev&&LDATA.rev.resp!=null?'%':'',LDATA.conn.rev?'of the latest reviews':'Business Profile not connected');
  $('lWorkCount').textContent=W.length+' item'+(W.length===1?'':'s');
  const show=LSHOWALL?W:W.slice(0,6);
  $('lWorkList').innerHTML=show.map(w=>`<div class="wk"><div class="wd">${w.date?dfmt(dIdx(w.date)):'Date not recorded'}</div><div class="wb"><span class="wc ${w.fix?'fix':''}">${esc(w.cat)}</span><h4>${esc(w.title)}</h4>${w.detail?`<p>${esc(w.detail)}</p>`:''}<small>By ${esc(w.owner||'EG Eloma')}${w.hours?' · '+trim((+w.hours).toFixed(2))+' h':''}${w.link&&/^https?:\/\//i.test(w.link)?` · <a href="${esc(w.link)}" target="_blank" rel="noopener">View</a>`:''}</small></div></div>`).join('')
-  +(W.length>6?`<button class="morebtn" id="lWorkMore">${LSHOWALL?'Show fewer':'Show all '+W.length}</button>`:'')||'<p class="goalnote">No work logged in this period yet.</p>';
+  +(W.length>6?`<button class="morebtn" id="lWorkMore">${LSHOWALL?'Show fewer':'Show all '+W.length}</button>`:'')||'<p class="goalnote">No completed tasks in this period.</p>';
  const nx=LINS.filter(x=>x.sev!=='good'&&stOf(x.id).status==='Open'&&!stOf(x.id).done.length).slice(0,4);
  $('lNextCount').textContent=prog.length?prog.length+' in progress':'';
  $('lWorkNext').innerHTML=(prog.length?`<div class="nxh">In progress</div>`+prog.map(x=>{const st=stOf(x.id),d=st.done.length,n=x.actions.length;return `<div class="nx"><span class="wc">${esc(LAREA2CAT[x.area]||'Other')}</span><b>${esc(x.title)}</b><small>${d} of ${n} steps done${st.owner!=='Unassigned'?' · '+esc(st.owner):''}</small><div class="bar"><i style="width:${d/n*100}%"></i></div></div>`}).join(''):'')
@@ -1829,46 +1661,18 @@ function locGbp(){const kvb=(v,l,c)=>`<div><b>${v}</b><span>${l}</span>${c||''}<
  let a;if(gbpOn()){const g=k=>lsum(k,R.s,R.e),q=k=>R.has?lsum(k,R.ps,R.pe):0;
   a=`<div class="sp">${rangeText(R.s,R.e,' – ')}</div><div class="kv">${kvb(fmt(g('views')).join(''),'Profile views',ch(g('views'),q('views')))}${kvb(int(g('calls')),'Phone calls',ch(g('calls'),q('calls')))}${kvb(int(g('dirs')),'Direction requests',ch(g('dirs'),q('dirs')))}${kvb(int(g('web')),'Website clicks',ch(g('web'),q('web')))}</div>
   <div class="pacing">Actions per 100 views: ${g('views')?((g('calls')+g('dirs')+g('web'))/g('views')*100).toFixed(1):'–'}</div>`;}
- else a=`<div class="sp">Not entered yet</div>`+lAwait('Add Business Profile figures','Profile views, calls, direction requests and website clicks show here once entered.',['Open business.google.com, or search "EG Eloma" on Google while signed in.','Choose Performance and set the dates to '+rangeText(R.s,R.e,' – ')+'.','Enter the figures in Update data.'],'sm');
+ else a=srcAwait('gbp','Business Profile','Profile views, calls, direction requests and website clicks are read from Google Business Profile.','Business Profile has no figures for this date range.',['Open Connected accounts and connect Business Profile with the Google login that manages the profile.','Under Pages for each company, choose the location for '+esc(coName())+'.'],'sm');
  let r;const V=LDATA.rev;if(LDATA.conn.rev&&V.total!=null){const nr=lsum('newrev',R.s,R.e);
-  r=`<div class="sp">As of the last update</div><div class="kv">${kvb(int(V.total),'Google reviews')}${kvb(V.rating!=null?(+V.rating).toFixed(1)+'★':'–','Average rating')}${kvb(int(nr),'New reviews this period')}${kvb(V.resp!=null?Math.round(V.resp)+'%':'–','Reviews with a reply')}</div>
+  r=`<div class="sp">As of the last read</div><div class="kv">${kvb(int(V.total),'Google reviews')}${kvb(V.rating!=null?(+V.rating).toFixed(1)+'★':'–','Average rating')}${kvb(int(nr),'New reviews this period')}${kvb(V.resp!=null?Math.round(V.resp)+'%':'–','Reviews with a reply')}</div>
   <div class="pacing">Target: reply to every review within 2 days, and at least 4 new reviews a month<div class="bar"><b style="width:${Math.min(nr/(4*R.len/30),1)*100}%"></b></div></div>`;}
- else r=`<div class="sp">Not entered yet</div>`+lAwait('Add review figures','Total Google reviews, average rating and reply rate show here once entered. If there are no reviews yet, enter 0 and start asking clients.',null,'sm');
+ else r=srcAwait('gbp','Business Profile','Total Google reviews, average rating, new reviews and reply rate are read from Google Business Profile.','Business Profile returned no reviews.',null,'sm');
  $('lGbp').innerHTML=`<div class="panel"><h3>Profile activity</h3>${a}</div><div class="panel"><h3>Reviews</h3>${r}</div>`;}
-
-/* ---------- business details (NAP) ---------- */
-function locNap(){const g=LDATA.lists.gbp.st,ok='<span class="chip good">Matches</span>';
- const rows=[
-  ['Google Business Profile','business.google.com','–','–','–','–',`<span class="chip ${LSTC[g]}">${g}</span>`]];
- $('lNap').innerHTML=rows.map(r=>`<tr><td class="pg"><b>${r[0]}</b><small>${r[1]}</small></td><td>${r[2]}</td><td class="hide-m">${r[3]}</td><td>${r[4]}</td><td class="hide-m">${r[5]}</td><td>${r[6]}</td></tr>`).join('');}
-
-/* ---------- listings ---------- */
-function locLists(){const n=LIST_DEF.length,cols=[['Listed and correct','#2db88c'],['Listed, needs update','#c98a1b'],['Not listed','#c2522d'],['Duplicate found','#8a3b22'],['Not checked','#e3e6ea']];
- $('lListDist').innerHTML=`<div class="dbar">${cols.map(c=>{const k=listCount(c[0]);return k?`<i style="width:${k/n*100}%;background:${c[1]}"></i>`:''}).join('')}</div><div class="dleg">${cols.map(c=>`<div><span><i style="background:${c[1]}"></i>${c[0]}</span><b>${listCount(c[0])}</b></div>`).join('')}</div>`;
- $('lList').innerHTML=LIST_DEF.map(l=>{const s=LDATA.lists[l[0]],u=s.url&&/^https?:\/\//i.test(s.url)?s.url:'';return `<tr><td class="pg"><b>${l[1]}${l[3]?' <span class="prio-pill note" style="margin-left:4px">Essential</span>':''}</b><small>${u?`<a href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--navy)">View listing</a>`:l[4].replace(/^https:\/\/(www\.)?/,'')}</small></td><td class="hide-m" style="color:var(--t2);font-size:13px">${l[2]}</td><td><span class="chip ${LSTC[s.st]}">${s.st}</span></td><td class="n hide-m">${s.at?dfmt(dIdx(s.at),{year:'numeric'}):'–'}</td></tr>`}).join('');
- $('lListSub').textContent=`${listCount('Listed and correct')} of ${n} listings confirmed correct, ${listCount('Not checked')} still to check. Directory sites block automated checks, so the team checks each one by hand.`;}
-
-/* ---------- local rankings ---------- */
-function locKw(){const K=lKw(),any=K.some(x=>x.checked);
- $('lKw').innerHTML=K.map(x=>`<tr><td><span class="kwname">${esc(x.k.k)}</span></td><td class="n">${x.checked?(x.cur!=null?`<span class="kwpos">${x.cur}</span>`:'<span class="muted">Not in top 20</span>'):'<span class="muted">–</span>'}</td><td class="n cmp">${x.cur!=null&&x.prev!=null?mv(x.prev-x.cur):'–'}</td><td>${!x.checked?'<span class="chip neu">Not checked</span>':x.cur!=null&&x.cur<=3?'<span class="chip good">Yes, top 3</span>':x.cur!=null&&x.cur<=10?'<span class="chip warn">Close (4 to 10)</span>':'<span class="chip bad">No</span>'}</td></tr>`).join('');
- $('lKwNote').textContent=any?`Positions on ${dfmt(R.e,{year:'numeric'})}. The map pack is the top 3 businesses shown on the map in Google Search.`:'No positions entered yet. Check each search on Google Maps from Collingwood and enter positions in Update data, Local rankings.';
- $('lKwSub').textContent='Position in Google Maps results for nearby searches, '+(any?dfmt(R.e,{year:'numeric'}):'not checked yet');}
 
 /* ---------- team insights ---------- */
 function locBuild(){const L=[],add=o=>L.push(o),ev=(label,cur,was)=>({label,cur,was});
  LAUD.forEach(a=>add({id:'loc-a-'+a[0],sev:a[1]==='high'?'bad':a[1]==='medium'?'warn':'warn',area:'Listing check',score:PW[a[1]],title:a[2],ev:[ev('Where',a[3]),ev('Priority',PN[a[1]])],why:a[4],causes:a[5],actions:a[6]}));
- const nc=LIST_DEF.filter(l=>LDATA.lists[l[0]].st==='Not checked');
- if(nc.length)add({id:'loc-check',sev:'opp',area:'Listings',score:10,title:`Check ${nc.length} listing${nc.length>1?'s':''} and record their status`,ev:[ev('Checked',(LIST_DEF.length-nc.length)+' of '+LIST_DEF.length)],
-  why:'Until each listing is checked, we cannot say where the business appears or whether the details are right.',causes:['Directory sites block automated checks'],
-  actions:['Search each site for "EG Eloma", "EG Digital" and 1800 054 555','Set the status and paste the listing link in Update data, Listings','Start with the essential ones: '+nc.filter(l=>l[3]).map(l=>l[1]).join(', ')]});
- LIST_DEF.forEach(l=>{const s=LDATA.lists[l[0]].st;
-  if(s==='Listed, needs update'||s==='Duplicate found')add({id:'loc-l-'+l[0],sev:s==='Duplicate found'?'bad':'warn',area:'Listings',score:l[3]?9:5,title:`${l[1]}: ${s==='Duplicate found'?'duplicate listing found':'details need updating'}`,ev:[ev('Status',s)],
-   why:s==='Duplicate found'?'Duplicate listings split reviews and can make Google distrust the business details.':'Wrong details send customers to the wrong place and weaken Google\'s trust in the address and phone.',causes:['Old name EG Digital or old website still listed'],
-   actions:s==='Duplicate found'?['Claim both listings','Ask the site to merge or remove the duplicate','Keep the one with the most reviews and update its details']:['Claim the listing','Update name to EG Eloma, phone, address, hours and website egeloma.com.au','Set the status to Listed and correct']});
-  else if(s==='Not listed'&&l[3])add({id:'loc-l-'+l[0],sev:'warn',area:'Listings',score:7,title:`Create a ${l[1]} listing`,ev:[ev('Status','Not listed')],why:l[2],causes:['Not set up yet'],actions:['Create the listing at '+l[4].replace(/^https:\/\//,''),'Use exactly: EG Eloma · 71 Gipps Street, Collingwood VIC 3066 · phone · egeloma.com.au','Add logo, photos, categories and hours']});});
- if(!LDATA.conn.gbp||!LDATA.conn.rev)add({id:'loc-data',sev:'opp',area:'Data',score:8,title:'Enter Business Profile and review figures',ev:[ev('Profile',LDATA.conn.gbp?'Entered':'Not entered'),ev('Reviews',LDATA.conn.rev?'Entered':'Not entered')],
-  why:'These show how many people find and contact the business through Google Maps.',causes:['New dashboard'],actions:[!LDATA.conn.gbp?'Enter views, calls, directions and website clicks from the profile\'s Performance page':'Keep Business Profile figures up to date each month',!LDATA.conn.rev?'Enter total reviews, average rating and reply rate':'Keep review figures up to date each month']});
- if(LDATA.kw.length&&!lKw().some(x=>x.checked))add({id:'loc-kw',sev:'opp',area:'Rankings',score:7,title:`Check the ${LDATA.kw.length} local searches on Google Maps`,ev:[ev('Checked','0 of '+LDATA.kw.length)],why:'Map pack positions are the clearest measure of local listing work.',causes:['Not tracked yet'],actions:['Search each term on Google Maps from Collingwood, or use a local rank checker','Enter positions in Update data, Local rankings','Repeat monthly on the same day']});
+ if(!LDATA.conn.gbp&&!SLOAD[CO])add({id:'loc-data',sev:'opp',area:'Data',score:8,title:'Connect Google Business Profile',ev:[ev('Profile','Not connected')],
+  why:'Views, calls, directions and reviews show how many people find and contact the business through Google Maps.',causes:['Account not connected yet'],actions:['Open Connected accounts and connect Business Profile','Choose the location for '+coName()+' under Pages for each company']});
  if(LDATA.conn.rev){const V=LDATA.rev;
   if(V.total!=null&&V.total<10)add({id:'loc-rev-few',sev:'warn',area:'Reviews',score:9,title:V.total?`Only ${V.total} Google review${V.total>1?'s':''}`:'No Google reviews yet',ev:[ev('Reviews',int(V.total))],why:'Reviews are one of the biggest map pack ranking factors and the first thing new clients look at.',causes:['No review request process'],
    actions:['List 20 happy clients and send each a direct review link','Add the review link to invoices, email signatures and project wrap-up emails','Reply to every review within 2 days']});
@@ -1879,130 +1683,109 @@ function locBuild(){const L=[],add=o=>L.push(o),ev=(label,cur,was)=>({label,cur,
  const order={bad:0,warn:1,opp:1,good:2};L.sort((a,b)=>order[a.sev]-order[b.sev]||b.score-a.score);return L;}
 function locInsights(){LINS=locBuild();
  const bad=LINS.filter(x=>x.sev==='bad'),warn=LINS.filter(x=>x.sev==='warn'||x.sev==='opp'),good=LINS.filter(x=>x.sev==='good');
- $('lInsSub').textContent=(LAUD.length?'Business details check plus listing':'Listing')+' statuses and figures entered by the team.';
+ $('lInsSub').textContent='Automatic checks on the live Business Profile figures for '+rangeText(R.s,R.e,' – ')+'.';
  $('lNBad').textContent=bad.length;$('lNWarn').textContent=warn.length;$('lNGood').textContent=good.length;
  const openBad=bad.filter(x=>stOf(x.id).status!=='Done').length;$('lVCnt').textContent=openBad;$('lVCnt').style.display=openBad?'':'none';
  const top=bad.find(x=>stOf(x.id).status!=='Done')||warn.find(x=>stOf(x.id).status!=='Done');$('lPrio').textContent=top?top.title+'. First step: '+top.actions[0].charAt(0).toLowerCase()+top.actions[0].slice(1)+'.':'Nothing urgent.';
  const empty=t=>`<div class="allgood" style="grid-column:1/-1">${t}</div>`;
  $('lCBad').innerHTML=bad.map(card).join('')||empty('Nothing needs urgent attention.');$('lCWarn').innerHTML=warn.map(card).join('')||empty('No warning signs.');$('lCGood').innerHTML=good.map(card).join('')||empty('No standout wins yet.');
- const cc=(on,t)=>`<span class="chip ${on?'good':'neu'}">${t||(on?'Entered':'Not entered')}</span>`,o=lOpen(),pv=R.has&&gbpOn()&&lsum('views',R.ps,R.pe)>0;
+ const cc=(on,t)=>`<span class="chip ${on?'good':'neu'}">${t||(on?'Connected':'Not connected')}</span>`,o=lOpen(),pv=R.has&&gbpOn()&&lsum('views',R.ps,R.pe)>0;
  const rows=[['Business Profile views',gbpOn()?int(lsum('views',R.s,R.e)):'–',pv?int(lsum('views',R.ps,R.pe)):'–',cc(gbpOn())],['Calls, directions and website clicks',gbpOn()?int(lsum('calls',R.s,R.e)+lsum('dirs',R.s,R.e)+lsum('web',R.s,R.e)):'–',pv?int(lsum('calls',R.ps,R.pe)+lsum('dirs',R.ps,R.pe)+lsum('web',R.ps,R.pe)):'–',cc(gbpOn())],
   ['Google reviews',LDATA.conn.rev&&LDATA.rev.total!=null?int(LDATA.rev.total):'–','–',cc(LDATA.conn.rev)],['Average rating',LDATA.conn.rev&&LDATA.rev.rating!=null?(+LDATA.rev.rating).toFixed(1):'–','–',cc(LDATA.conn.rev)],
-  ['Listings checked',(LIST_DEF.length-listCount('Not checked'))+' of '+LIST_DEF.length,'–',cc(listCount('Not checked')<LIST_DEF.length,listCount('Not checked')?'In progress':'All checked')],
-  ['Local searches checked',lKw().filter(x=>x.checked).length+' of '+LDATA.kw.length,'–',cc(lKw().some(x=>x.checked),lKw().some(x=>x.checked)?'Tracking':'Not tracked')],
-  ['Listing issues open',o.length+' of '+LAUD.length,'–',o.some(a=>a[1]==='high')?'<span class="chip bad">High priority open</span>':o.length?'<span class="chip warn">Watch</span>':'<span class="chip good">All fixed</span>']];
+  ['Listing issues open',LAUD.length?o.length+' of '+LAUD.length:'–','–',!LAUD.length?'<span class="chip neu">No listing check</span>':o.some(a=>a[1]==='high')?'<span class="chip bad">High priority open</span>':o.length?'<span class="chip warn">Watch</span>':'<span class="chip good">All fixed</span>']];
  $('lHealth').innerHTML=rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('');
  const pr=lPlanRows();$('lPlan').innerHTML=pr.map(r=>`<tr class="${r.done?'done':''}"><td><input type="checkbox" data-id="${r.x.id}" data-i="${r.i}" ${r.done?'checked':''} style="accent-color:var(--accent);width:15px;height:15px"></td><td><span class="act">${r.a}</span><span class="src">${r.x.area} · ${r.x.title}</span></td><td>${r.owner}</td><td>${r.done?'Done':r.status}</td></tr>`).join('')||'<tr><td></td><td colspan="3">No actions needed.</td></tr>';}
 function lPlanRows(){const r=[];LINS.filter(x=>x.sev!=='good').forEach(x=>{const st=stOf(x.id);x.actions.forEach((a,i)=>r.push({x,a,i,done:st.done.includes(i),owner:st.owner,status:st.status}));});return r;}
-$('lCopyPlan').onclick=async()=>{const txt='Local listing action plan, EG Eloma\n\n'+lPlanRows().filter(r=>!r.done).map(r=>`- ${r.a} (${r.x.area}; owner: ${r.owner})`).join('\n');try{await navigator.clipboard.writeText(txt);toast('Action plan copied');}catch(_){toast('Could not copy. Use Download CSV instead');}};
+$('lCopyPlan').onclick=async()=>{const txt='Local listing action plan, '+coName()+'\n\n'+lPlanRows().filter(r=>!r.done).map(r=>`- ${r.a} (${r.x.area}; owner: ${r.owner})`).join('\n');try{await navigator.clipboard.writeText(txt);toast('Action plan copied');}catch(_){toast('Could not copy. Use Download CSV instead');}};
 $('lDlPlan').onclick=()=>{const q=v=>'"'+String(v).replace(/"/g,'""')+'"';dl('eg-eloma-local-action-plan_'+fileRange()+'.csv','issue,area,action,owner,status,done\n'+lPlanRows().map(r=>[r.x.title,r.x.area,r.a,r.owner,r.status,r.done?'yes':'no'].map(q).join(',')).join('\n'));toast('Action plan downloaded');};
 $('lViews').onclick=e=>{const b=e.target.closest('button');if(!b)return;const team=b.dataset.v==='team';document.querySelectorAll('#lViews button').forEach(x=>x.classList.toggle('on',x===b));
  $('lTeamView').hidden=!team;$('lClientView').hidden=team;$('lViewNote').textContent=team?'Only your team sees this view.':'Quick summary for management.';};
 
-function lRender(){locInsights();locHeader();renderResults(LRM,LDATA.base,['lRes','lResSum','lResNote']);$('lResSub').textContent=`Where EG Eloma's local listings started and where they are now. "Now" uses ${rangeText(R.s,R.e,' – ')}; monthly figures are scaled to 30 days.`;
- locWork();locGbp();locNap();locLists();locKw();}
-
-/* ---------- drawer ---------- */
-const LFG=[['gbp','Business Profile performance · ',[['views','Profile views'],['calls','Phone calls'],['dirs','Direction requests'],['web','Website clicks'],['newrev','New reviews this period']],1],['rev','Reviews (as of today)',[['total','Total Google reviews'],['rating','Average rating (1 to 5)'],['resp','Reviews with a reply (%)']],0]];
-function lBuildForm(){const s=k=>Math.round(lsum(k,R.s,R.e)),v={};if(gbpOn())['views','calls','dirs','web','newrev'].forEach(k=>v[k]=s(k));if(LDATA.conn.rev)['total','rating','resp'].forEach(k=>v[k]=LDATA.rev[k]??'');
- $('lForm').innerHTML=LFG.map(([g,h,fs,rng])=>`<h4>${h}${rng?rangeText(R.s,R.e,' – '):''}</h4><div class="sf">${fs.map(f=>`<label>${f[1]}<input type="number" step="any" min="0" data-lg="${g}" data-lf="${f[0]}" value="${v[f[0]]??''}" placeholder="Not entered"></label>`).join('')}</div>`).join('')
-  +`<h4>Starting point (before local listing work)</h4><p class="hint" style="margin:0 0 12px">Figures from before the work began. Monthly figures should cover one month.</p><div class="sf"><label>Date of starting point<input type="date" id="lbDate" value="${LDATA.base.date||DEF_ISO}"></label><span></span>${LRMB.map(m=>`<label>${m.l}${m.u?' ('+m.u+')':''}<input type="number" step="any" min="0" data-lbf="${m.k}" value="${LDATA.base.v[m.k]??''}" placeholder="Not recorded"></label>`).join('')}</div><button class="btn outline sm" id="lbCopy" type="button" style="margin-top:12px">Use this period's figures as the starting point</button>`;
- $('lListForm').innerHTML=LIST_DEF.map(l=>{const s=LDATA.lists[l[0]];return `<div class="sf" style="grid-template-columns:1.1fr 1fr 1.4fr;align-items:end;padding:10px 0;border-top:1px solid var(--line)"><label style="color:var(--strong);font-weight:600;font-size:13px">${l[1]}<select data-ls="${l[0]}">${LST.map(o=>`<option ${o===s.st?'selected':''}>${o}</option>`).join('')}</select></label><span></span><label>Listing link<input type="url" data-lu="${l[0]}" value="${esc(s.url||'')}" placeholder="https://"></label></div>`}).join('');
- $('lKwForm').innerHTML='<div class="sf">'+LDATA.kw.map((k,i)=>{const a=lKAt(k,R.e),same=a&&a[0]===R.e;return `<label>${esc(k.k)}<input type="number" min="1" step="1" data-lk="${i}" value="${same&&a[1]!=null?a[1]:''}" placeholder="${same?'Not in top 20':'Position'}"></label>`}).join('')+'</div>';}
-const lOpenD=()=>{lBuildForm();lwListRender();if(!$('lwDate').value)$('lwDate').value=new Date().toISOString().slice(0,10);document.querySelector('#lDtabs button').click();$('lDrawer').classList.add('open');$('drawerBg').classList.add('open');};
-const lCloseD=()=>{$('lDrawer').classList.remove('open');$('drawerBg').classList.remove('open');};
-$('lUpdateBtn').onclick=lOpenD;$('ldClose').onclick=lCloseD;$('ldCancel').onclick=lCloseD;$('drawerBg').onclick=()=>{closeD();sCloseD();lCloseD();};
-document.querySelectorAll('#lDtabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#lDtabs button').forEach(x=>x.classList.toggle('on',x===b));['enter','list','kw','log'].forEach(t=>$('ld'+t.charAt(0).toUpperCase()+t.slice(1)).hidden=b.dataset.dt!==t);});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')lCloseD();});
-document.addEventListener('click',e=>{if(e.target.id!=='lbCopy')return;let n=0;LRMB.forEach(m=>{const c=m.cur(),i=document.querySelector(`#lDrawer input[data-lbf="${m.k}"]`);if(c!=null&&i){i.value=+(+c).toFixed(m.dp||0);n++;}});$('lbDate').value=iso(R.s);toast(n?'Copied '+n+' figures. Click Save and refresh to keep them':'No figures entered for this period yet');});
-$('ldSave').onclick=()=>{const all=[...document.querySelectorAll('#lDrawer input[data-lf],#lDrawer input[data-lbf],#lDrawer input[data-lk]')],bad=all.find(i=>i.value!==''&&(isNaN(+i.value)||+i.value<0));if(bad){bad.focus();toast('Numbers must be 0 or more');return;}
- const val=k=>{const i=document.querySelector(`#lDrawer input[data-lf="${k}"]`);return i.value===''?null:+i.value;},grp=g=>[...document.querySelectorAll(`#lDrawer input[data-lg="${g}"]`)].some(i=>i.value!=='');
- if(grp('gbp')){['views','calls','dirs','web','newrev'].forEach(k=>setRangeTotal(LDATA.gbp[k],val(k)||0));LDATA.conn.gbp=true;}
- if(grp('rev')){const r=val('rating');if(r!=null&&(r<1||r>5)){toast('Rating must be between 1 and 5');return;}const p=val('resp');if(p!=null&&p>100){toast('Reply rate must be 100% or less');return;}LDATA.rev={total:val('total'),rating:r,resp:p};LDATA.conn.rev=true;}
- LDATA.base={date:$('lbDate').value||DEF_ISO,v:{}};document.querySelectorAll('#lDrawer input[data-lbf]').forEach(i=>{if(i.value!=='')LDATA.base.v[i.dataset.lbf]=+i.value;});
- const today=new Date().toISOString().slice(0,10);document.querySelectorAll('#lDrawer select[data-ls]').forEach(s=>{const L=LDATA.lists[s.dataset.ls],u=document.querySelector(`#lDrawer input[data-lu="${s.dataset.ls}"]`).value.trim();if(L.st!==s.value){L.st=s.value;L.at=s.value==='Not checked'?null:today;}L.url=u;});
- const kws=[...document.querySelectorAll('#lDrawer input[data-lk]')];if(kws.some(i=>i.value!==''))kws.forEach(i=>{const k=LDATA.kw[+i.dataset.lk];k.hist=k.hist.filter(e=>e[0]!==R.e);k.hist.push([R.e,i.value===''?null:Math.round(+i.value)]);k.hist.sort((a,b)=>a[0]-b[0]);});
- const nk=$('lKwNew').value.trim();if(nk){LDATA.kw.push({k:nk,hist:[],j:LDATA.kw.length});$('lKwNew').value='';}
- LMETA={at:new Date().toISOString(),by:'RJ',src:'business details check + team updates'};lStore();lCloseD();renderAll();toast('Saved. The local listing dashboard now shows the new numbers');};
-$('ldReset').onclick=()=>{if(!confirm('Clear the Business Profile, review, ranking and starting point figures? Listing statuses and the work log stay.'))return;const keep={lists:LDATA.lists,work:LDATA.work};LDATA=locDefaults();Object.assign(LDATA,keep);lStore();lCloseD();renderAll();toast('Figures cleared');};
-function lwListRender(){const L=(LDATA.work||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
- $('lwList').innerHTML=L.map(w=>`<div class="wl"><div><b>${esc(w.title)}</b><small>${w.date?dfmt(dIdx(w.date),{year:'numeric'}):''} · ${esc(w.cat)} · ${esc(w.owner||'')}${w.hours?' · '+w.hours+' h':''}${w.vis?'':' · Hidden from report'}</small></div><div class="r"><button class="btn outline sm" data-lwvis="${w.id}">${w.vis?'Hide':'Show'}</button><button class="btn outline sm" data-lwdel="${w.id}">Delete</button></div></div>`).join('')||'<p class="goalnote">No entries yet.</p>';}
-$('lwCat').innerHTML=LCAT.map(c=>`<option>${c}</option>`).join('');
-$('lwAdd').onclick=()=>{const t=$('lwTitle').value.trim(),d=$('lwDate').value;if(!t){$('lwTitle').focus();toast('Describe what was done');return;}if(!d){toast('Choose the date it was done');return;}
- LDATA.work.push({id:'lw'+Date.now(),date:d,cat:$('lwCat').value,title:t,detail:$('lwDetail').value.trim(),owner:$('lwOwner').value.trim()||'EG Eloma',hours:$('lwHours').value===''?null:+$('lwHours').value,link:$('lwLink').value.trim(),vis:$('lwVis').checked});
- lStore();['lwTitle','lwDetail','lwHours','lwLink'].forEach(i=>$(i).value='');lwListRender();renderAll();toast('Added to the work log');};
-$('lwList').onclick=e=>{const v=e.target.closest('[data-lwvis]'),d=e.target.closest('[data-lwdel]');if(v){const w=LDATA.work.find(x=>x.id===v.dataset.lwvis);w.vis=!w.vis;}else if(d){if(!confirm('Delete this work log entry?'))return;LDATA.work=LDATA.work.filter(x=>x.id!==d.dataset.lwdel);}else return;lStore();lwListRender();renderAll();};
-$('lLogBtn').onclick=()=>{lOpenD();document.querySelector('#lDtabs [data-dt="log"]').click();$('lwTitle').focus();};
-lLoad();
+function lRender(){locInsights();locHeader();renderResults(LRM,LDATA.base,['lRes','lResSum','lResNote']);$('lResSub').textContent=`Where ${coName()}'s local listing was in its first month of figures and where it is now. "Now" uses ${rangeText(R.s,R.e,' – ')}; monthly figures are scaled to 30 days.`;
+ locWork();locGbp();locNotes();}
 
 /* ================= MARKETING (EG Eloma): social media guards + overview ================= */
 function socOn(){return PL.some(p=>sumR(DATA.pl[p.k].reach,R.s,R.e)>0);}
 function adsOn(){return['google','meta'].some(k=>sumR(DATA.ads[k].spend,R.s,R.e)>0);}
-const socAwait=(t,p,steps)=>awaitBox(t,p,steps).replace('<button class="btn outline sm" data-open-seo>Update data</button>','<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" data-open-acc>Connect accounts</button><button class="btn outline sm" data-open-soc>Enter by hand</button></div>');
-document.addEventListener('click',e=>{if(e.target.closest('[data-open-soc]'))openD();});
+const socAwait=(t,p,steps)=>connAwait(t,p,steps);
 function socShow(on){const g=$('line').closest('.grid2');g.hidden=!on;$('orgStats').classList.toggle('nostats',!on);$('platFilter').style.display=on?'':'none';}
 function socEmpty(){socShow(false);const con=connectedOf(CO).size>0;
  $('orgStats').innerHTML=socAwait(con?'No social media figures in this date range yet':'Social media not connected yet',con?`The connected accounts of ${esc(coName())} have no reach recorded for ${rangeText(R.s,R.e,' – ')}. A first read can take a few minutes; press Refresh to check again.`:`Connect ${esc(coName())}'s Facebook, Instagram, LinkedIn, TikTok or YouTube and reach, engagement, new followers, link clicks and top posts are read automatically.`,
-  con?[]:['Click Connect accounts and sign in with the login that manages the business Pages (one Meta login covers every Page it manages).','Under This company, choose the Page, Instagram account or channel that belongs to '+esc(coName())+'.','Figures load within a few minutes and refresh on their own every few hours. Threads, or anything not connected, can still be entered by hand.']);
+  con?[]:['Open Connected accounts and sign in with the login that manages the business Pages (one Meta login covers every Page it manages).','Under This company, choose the Page, Instagram account or channel that belongs to '+esc(coName())+'.','Figures load within a few minutes and refresh on their own every few hours.']);
  $('orgSub').textContent='Instagram, Facebook, LinkedIn, TikTok, YouTube and Threads';platTable();
  $('posts').innerHTML='<div class="empty">Top posts appear here once social media figures come in.</div>';$('postSub').textContent='Highest engagement in this period';}
 function adsShow(on){$('adStats').classList.toggle('nostats',!on);$('adFilter').style.display=on?'':'none';}
 function adsEmpty(){adsShow(false);
  $('adStats').innerHTML=socAwait('No advertising figures yet','If '+esc(coName())+' runs Google Ads or Meta Ads, spend, clicks, leads and return on ad spend show here. Leave this empty if there are no paid campaigns.',
-  ['Connect accounts: choose the Meta ad account or Google Ads account for this company, and figures are read automatically.','Or enter them by hand in Update data, Advertising, with the monthly budget.']);
+  ['Open Connected accounts and choose the Meta ad account or Google Ads account for this company. Spend, clicks, leads and campaigns are then read automatically.']);
  $('adPanels').innerHTML='';$('campTable').innerHTML='<tr><td colspan="7" class="empty">No campaigns recorded.</td></tr>';$('adSub').textContent='Google Ads and Meta Ads';}
 function headerFix(){const pr=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].reach,R.ps,R.pe),0);
  if(!socOn()){$('hlReach').textContent='–';}
  if(!socOn()||!R.has||!(pr>0)){$('hlDelta').textContent='–';$('hlDeltaLbl').textContent=R.has?'Reach vs '+R.cmpName:'No earlier data';}
  if(!adsOn()){$('hlRoas').textContent='–';$('hlLeads').textContent='–';}}
-function fillTg(){const T=DATA.tg||{};$('fTg').innerHTML=[['nf','New followers a month (all platforms)'],['er','Engagement rate (%)'],['leads','Leads from ads a month']].map(([k,l])=>`<label>${l}<input type="number" min="0" step="any" data-tgk="${k}" value="${T[k]??''}" placeholder="Not set"></label>`).join('');}
 function mktOverview(){const reach=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].reach,R.s,R.e),0);
  $('mktOv').innerHTML=`SEO issues open <b>${openAudit().length}</b><span>·</span>Listing issues open <b>${lOpen().length}</b><span>·</span>Social reach <b>${reach?fmt(reach).join(''):'–'}</b><span>·</span>Marketing tasks completed <b>${workItems().length+lWorkItems().length}</b><span>·</span>${rangeText(R.s,R.e,' – ')}`;}
 $('mktNav').onclick=e=>{const b=e.target.closest('button');if(b)showTab('mkt',b.dataset.sub);};
 
 /* ================= ELOMA GROUP: company switcher + group overview ================= */
-const COS=[
- {k:'egeloma',n:'EG Eloma',site:'egeloma.com.au',d:'Microsoft partner, cybersecurity and digital growth',live:true,sec:['SEO','Social Media','Local Listing']},
- {k:'bivry',n:'Bivry',site:'bivry.com.au',d:'Road freight and warehousing logistics, Australia-wide',sec:['SEO','Social Media','Local Listing']},
- {k:'egimports',n:'EG Imports',site:'',d:'Overseas product sourcing, customs and shipping',sec:['SEO','Social Media']},
- {k:'egtravels',n:'EG Travels',site:'',d:'Corporate and leisure travel booking',sec:['SEO','Social Media','Local Listing']},
- {k:'elomacare',n:'ELOMA Customer Care',site:'',d:'Inbound and outbound calls, email and chat',sec:['SEO','Local Listing']}];
-let curCo=(location.hash.match(/[#&]co=(\w+)/)||[])[1]||'group';if(curCo!=='group'&&!COS.find(c=>c.k===curCo))curCo='egeloma';
+/* The group companies (names from the server). Whether each one is connected, its website
+   and which reports it has all come from Connected accounts: nothing is pre-filled. */
+const COS=[{k:'egeloma',n:'EG Eloma'},{k:'bivry',n:'Bivry'},{k:'egimports',n:'EG Imports'},{k:'egtravels',n:'EG Travels'},{k:'elomacare',n:'ELOMA Customer Care'}];
+let curCo=(location.hash.match(/[#&]co=(\w+)/)||[])[1]||'group';if(curCo!=='group'&&!COS.find(c=>c.k===curCo))curCo='group';
 const coName=()=>(COS.find(x=>x.k===CO)||COS[0]).n;
-/** A company with connected social accounts (or fetched figures) gets its Social Media report even before SEO and Local Listing are set up. */
-const socialLive=k=>linksOf(k).length>0||connectedOf(k).size>0;
-const coLive=c=>!!c&&(c.live||socialLive(c.k));
-function coOpts(){$('coSel').innerHTML='<option value="group">Group overview</option>'+COS.map(c=>`<option value="${c.k}">${esc(c.n)}${c.live?'':socialLive(c.k)?' (social media only)':' (not set up)'}</option>`).join('');$('coSel').value=curCo;}
+const cleanSite=u=>String(u||'').replace(/^sc-domain:/,'').replace(/^https?:\/\//,'').replace(/^www\./,'').replace(/\/$/,'');
+const linkSel=(k,p)=>{const l=linksOf(k).find(x=>x.provider===p);return l?(l.selected||{}):null;};
+/** The website chosen for the company in Search Console. */
+function coSite(k){const s=linkSel(k,'search_console');return s&&s.siteUrl?cleanSite(s.siteUrl):'';}
+/** Which reports have a connected source: Social Media (social or ad accounts), SEO (Search Console), Local Listing (Business Profile). */
+function coSrc(k){const s=linkSel(k,'search_console'),g=linkSel(k,'business_profile'),a=linkSel(k,'google_analytics');
+ return{social:connectedOf(k).size>0,seo:!!(s&&s.siteUrl),local:!!(g&&g.locationId),ga:!!(a&&a.propertyId)};}
+const SRCN=[['social','Social Media'],['seo','SEO'],['local','Local Listing']];
+const srcList=k=>{const s=coSrc(k);return SRCN.filter(x=>s[x[0]]).map(x=>x[1]);};
+const coLive=c=>!!c&&srcList(c.k).length>0;
+function coOpts(){$('coSel').innerHTML='<option value="group">Group overview</option>'+COS.map(c=>{const l=srcList(c.k);return `<option value="${c.k}">${esc(c.n)}${!LIVE?'':l.length===SRCN.length?'':l.length?' ('+l.join(', ')+')':' (nothing connected)'}</option>`;}).join('');$('coSel').value=curCo;}
 coOpts();
-function grpRender(){const tasks=workItems().length+lWorkItems().length;
- const live=COS.filter(c=>c.live).length;
- $('grpStats').innerHTML=[['Companies set up',live+'<small>/'+COS.length+'</small>',COS.filter(c=>!c.live).map(c=>c.n).join(', ')+' to set up'],['SEO issues open',openAudit().length,'across companies set up'],['Listing issues open',lOpen().length,'across companies set up'],['Marketing tasks done',tasks,rangeText(R.s,R.e,' – ')]]
+/** A company's live SEO and Local figures in the selected range (null until read or when not connected). */
+function slSum(k,pick){const L=SL[k];if(!L)return null;let t=0;for(const[d,v]of Object.entries(pick(L)||{})){const i=fromIso(d);if(i>=R.s&&i<=R.e)t+=Array.isArray(v)?(v[0]||0):(v||0);}return t;}
+function grpRender(){
+ if(!LIVE){$('grpStats').innerHTML='';$('grpRows').innerHTML='<tr><td colspan="8" class="empty">Reading the connected accounts…</td></tr>';$('grpSub').textContent='Every Eloma Group business in one place.';return;}
+ // Read SEO and Local figures for every company that has them connected.
+ COS.forEach(c=>{const s=coSrc(c.k);if((s.seo||s.local||s.ga)&&!SL[c.k]&&!SLOAD[c.k]&&!SERR[c.k])setTimeout(()=>searchLoad(c.k).then(()=>{if(curCo==='group')grpRender();}),0);});
+ const rows=COS.map(c=>{const s=coSrc(c.k),L=SL[c.k];return{c,s,site:coSite(c.k),reach:s.social?coReach(c.k,R.s,R.e):null,clk:s.seo?slSum(c.k,x=>x.gsc):null,views:s.local?slSum(c.k,x=>x.gbp):null,rev:s.local&&L&&L.reviews?L.reviews.total:null,tasks:L?(L.tasks||[]).filter(t=>inRange(t.date)).length:null,n:srcList(c.k).length};});
+ const con=rows.filter(r=>r.n),add=(f)=>rows.reduce((t,r)=>t+(r[f]||0),0),any=f=>rows.some(r=>r[f]!=null);
+ $('grpStats').innerHTML=[['Companies connected',con.length+'<small>/'+COS.length+'</small>',con.length===COS.length?'All companies have a connected account':rows.filter(r=>!r.n).map(r=>r.c.n).join(', ')+(con.length===COS.length-1?' has':' have')+' nothing connected'],
+  ['Social reach',any('reach')?fmt(add('reach')).join(''):'–',any('reach')?'Companies with social accounts connected':'No social accounts connected'],
+  ['Clicks from Google',any('clk')?int(add('clk')):'–',any('clk')?'Companies with Search Console connected':'Search Console not connected'],
+  ['Tasks done',any('tasks')?int(add('tasks')):'–',rangeText(R.s,R.e,' – ')]]
   .map(s=>`<div class="rc"><div class="l">${s[0]}</div><div class="v">${s[1]}</div><div class="w">${s[2]}</div></div>`).join('');
- const chips=c=>c.sec.map(s=>`<span class="chip neu" style="margin:0 4px 4px 0">${s}</span>`).join('');
- $('grpRows').innerHTML=COS.map(c=>{const reach=coReach(c.k,R.s,R.e);
-  if(!c.live)return `<tr class="click" data-co="${c.k}"><td class="pg"><b>${esc(c.n)}</b><small>${c.site||'Website not linked on elomagroup.com.au'}</small></td><td>${chips(c)}</td><td class="n muted">–</td><td class="n muted">–</td><td class="n hide-m${reach?'':' muted'}">${reach?fmt(reach).join(''):'–'}</td><td class="n hide-m muted">–</td><td class="n muted">–</td><td>${socialLive(c.k)?'<span class="chip good">Social connected</span>':'<span class="chip neu">Not set up</span>'}</td></tr>`;
-  const hi=openAudit().filter(a=>a[1]==='high').length+lOpen().filter(a=>a[1]==='high').length;
-  return `<tr class="click" data-co="${c.k}"><td class="pg"><b>${esc(c.n)}</b><small>${c.site}</small></td><td>${chips(c)}</td><td class="n">${openAudit().length}</td><td class="n">${lOpen().length}</td><td class="n hide-m">${reach?fmt(reach).join(''):'–'}</td><td class="n hide-m">${LDATA.conn.rev&&LDATA.rev.total!=null?int(LDATA.rev.total):'–'}</td><td class="n">${tasks}</td><td>${hi?`<span class="chip bad">${hi} high priority</span>`:'<span class="chip good">On track</span>'}</td></tr>`;}).join('');
+ const f=(v,fn)=>v==null?'<span class="muted">–</span>':fn(v);
+ $('grpRows').innerHTML=rows.map(r=>`<tr class="click" data-co="${r.c.k}"><td class="pg"><b>${esc(r.c.n)}</b><small>${r.site?esc(r.site):'No website connected (Search Console)'}</small></td>
+  <td>${r.n?SRCN.filter(x=>r.s[x[0]]).map(x=>`<span class="chip good" style="margin:0 4px 4px 0">${x[1]}</span>`).join(''):'<span class="chip neu">Nothing connected</span>'}</td>
+  <td class="n">${f(r.clk,int)}</td><td class="n hide-m">${f(r.views,v=>fmt(v).join(''))}</td><td class="n hide-m">${f(r.reach,v=>fmt(v).join(''))}</td><td class="n hide-m">${f(r.rev,int)}</td><td class="n">${f(r.tasks,int)}</td>
+  <td>${!r.n?'<span class="chip neu">Not connected</span>':r.n===SRCN.length?'<span class="chip good">All connected</span>':`<span class="chip warn">${r.n} of ${SRCN.length} connected</span>`}</td></tr>`).join('');
  $('grpSub').textContent='Every Eloma Group business in one place, '+rangeText(R.s,R.e,' – ')+'. Select a company to open its reports.';}
 function coSetupRender(c){
- $('coSetup').innerHTML=`<section style="padding-top:12px"><div class="sh"><div><h2>${esc(c.n)} isn't set up yet</h2><p>${esc(c.d)}${c.site?' · '+c.site:''}</p></div></div>
- <div class="grid2"><div class="panel"><div class="ph"><h3>What ${esc(c.n)} will get</h3><span>Suggested for this business</span></div>
-  ${[['SEO','Site check of '+(c.site||'the website')+', keywords, countries and before-and-after results'],['Social Media','Reach, engagement and followers for its own social profiles'],['Local Listing','Google Business Profile, directories, reviews and Maps rankings']].map(s=>`<div class="nx"><span class="chip ${c.sec.includes(s[0])?'good':'neu'}">${c.sec.includes(s[0])?'Included':'Optional'}</span><b>${s[0]}</b><small>${s[1]}</small></div>`).join('')}</div>
- <div class="panel"><div class="ph"><h3>To set it up</h3></div><ol class="steps" style="margin-top:0">
-  <li>${c.site?`Confirm the website (${c.site}) so the site check can run, like the one for egeloma.com.au.`:'Add its website. None is linked on elomagroup.com.au.'}</li>
-  <li>Connect its social media accounts: click Connect accounts below and choose its Pages. Its Social Media report starts straight away.</li><li>Add its Google Business Profile.</li><li>Choose who on the team owns its reports.</li></ol>
-  <button class="btn primary sm" data-open-acc style="margin-top:6px">Connect accounts</button>
-  <p class="hint">Once set up, ${esc(c.n)} gets the same SEO, Social Media and Local Listing reports as EG Eloma, with its own data, targets and work log.</p></div></div></section>`;}
-function coView(){const az=curTab==='azure',c=COS.find(x=>x.k===curCo),grp=curCo==='group',live=!grp&&coLive(c),partial=live&&!c.live;
- $('coSel').value=curCo;$('coTitle').textContent=grp?'Group overview':c.n;$('coSub').textContent=grp?'All Eloma Group businesses':(c.site?c.site+' · ':'')+c.d;
+ if(!LIVE){$('coSetup').innerHTML='<section style="padding-top:12px"><div class="await"><h3>Reading the connected accounts…</h3><p>If this stays, reload the page.</p></div></section>';return;}
+ $('coSetup').innerHTML=`<section style="padding-top:12px"><div class="sh"><div><h2>Nothing is connected for ${esc(c.n)} yet</h2><p>Its reports fill in from the accounts connected for it. Nothing is entered by hand.</p></div></div>
+ <div class="grid2"><div class="panel"><div class="ph"><h3>What to connect</h3></div>
+  ${[['Social Media','Its Facebook Page, Instagram, LinkedIn Page, TikTok or YouTube, and any Meta Ads or Google Ads account'],['SEO','Its website in Google Search Console (and Google Analytics for leads)'],['Local Listing','Its location in Google Business Profile']].map(x=>`<div class="nx"><span class="chip neu">Not connected</span><b>${x[0]}</b><small>${x[1]}</small></div>`).join('')}</div>
+ <div class="panel"><div class="ph"><h3>To connect</h3></div><ol class="steps" style="margin-top:0">
+  <li>Click Connected accounts and sign in to each platform with the login that manages ${esc(c.n)}'s accounts.</li>
+  <li>Under Pages for each company, choose ${esc(c.n)} and pick its Page, website or location.</li><li>Its reports start as soon as the figures are read.</li></ol>
+  <button class="btn primary sm" data-open-acc style="margin-top:6px">Connected accounts</button></div></div></section>`;}
+function coView(){const az=curTab==='azure',c=COS.find(x=>x.k===curCo),grp=curCo==='group',live=!grp&&coLive(c),s=c?coSrc(c.k):{};
+ $('coSel').value=curCo;$('coTitle').textContent=grp?'Group overview':c.n;
+ $('coSub').textContent=grp?'All Eloma Group businesses':(coSite(c.k)||'No website connected')+' · '+(LIVE?(srcList(c.k).join(', ')||'nothing connected'):'reading the connected accounts');
  document.querySelector('.cobar').style.display=az?'none':'';$('group').hidden=az||!grp;$('coSetup').hidden=az||grp||live;
  if(!az)$('mkt').hidden=!live;
- $('mktEye').textContent='Marketing · '+(grp||!c?'EG Eloma':c.n);
- // Social-only company: SEO and Local Listing are not set up for it yet (they show EG Eloma's own data otherwise).
- const soon=!az&&partial&&curSub!=='social';$('mktSoon').hidden=!soon;
- if(soon){$('seo').hidden=true;$('loc').hidden=true;$('mktSoon').innerHTML=`<section style="padding-top:12px"><div class="await"><h3>${curSub==='seo'?'SEO':'Local Listing'} for ${esc(c.n)} isn't set up yet</h3><p>Its Social Media report is live from the connected accounts. ${curSub==='seo'?'SEO (Google Search Console)':'Local Listing (Google Business Profile)'} for ${esc(c.n)} comes next.</p><button class="btn outline sm" data-sub-go="social">Open Social Media</button></div></section>`;}
+ $('mktEye').textContent='Marketing · '+(grp||!c?'Group overview':c.n);
+ // A report whose source is not connected for this company says so instead of showing empty figures.
+ const miss=!az&&live&&((curSub==='seo'&&!s.seo)||(curSub==='loc'&&!s.local)||(curSub==='social'&&!s.social));$('mktSoon').hidden=!miss;
+ if(miss){const nm={seo:['SEO','Search Console'],loc:['Local Listing','Business Profile'],social:['Social Media','its social media or ad accounts']}[curSub];$('seo').hidden=true;$('loc').hidden=true;$('dash').hidden=true;
+  $('mktSoon').innerHTML=`<section style="padding-top:12px"><div class="await"><h3>${nm[0]} for ${esc(c.n)} isn't connected yet</h3><p>Connect ${nm[1]} for ${esc(c.n)} in Connected accounts and this report fills in from it. Connected now: ${esc(srcList(c.k).join(', '))}.</p><button class="btn primary sm" data-open-acc>Connected accounts</button></div></section>`;}
  if(!az&&grp)grpRender();else if(!az&&!live)coSetupRender(c);}
-function coApply(){if(CO!==(curCo==='group'?'egeloma':curCo)){useCompany(curCo);renderAll();}const c=COS.find(x=>x.k===curCo);showTab('mkt',c&&!c.live&&coLive(c)?'social':curSub);}
+function coApply(){if(CO!==(curCo==='group'?'egeloma':curCo)){useCompany(curCo);renderAll();}const c=COS.find(x=>x.k===curCo),s=c?coSrc(c.k):null;
+ const sub=s&&!({seo:s.seo,loc:s.local,social:s.social})[curSub]?(s.seo?'seo':s.local?'loc':s.social?'social':curSub):curSub;showTab('mkt',sub);}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-sub-go]');if(b)showTab('mkt',b.dataset.subGo);});
 $('coSel').onchange=()=>{curCo=$('coSel').value;coApply();window.scrollTo(0,0);};
 $('grpRows').onclick=e=>{const tr=e.target.closest('tr[data-co]');if(tr){curCo=tr.dataset.co;coApply();window.scrollTo(0,0);}};
@@ -2015,7 +1798,7 @@ VWS.forEach(([nav,mg,cv,tv,note])=>{$(nav).onclick=e=>{const b=e.target.closest(
 function mgmtRender(id,o){
  const open=o.ins.filter(x=>x.sev!=='good'&&stOf(x.id).status!=='Done'),bad=open.filter(x=>x.sev==='bad'),warn=open.filter(x=>x.sev==='warn'),opp=open.filter(x=>x.sev==='opp'),good=o.ins.filter(x=>x.sev==='good'),done=o.ins.filter(x=>x.sev!=='good'&&stOf(x.id).status==='Done');
  const setup=open.some(x=>/-setup(@|$)/.test(x.id));const st=o.nodata&&!bad.length&&!warn.length?['neu','No figures yet']:bad.length?['bad','Needs attention']:setup?['neu','Not set up yet']:warn.length?['warn','Watch']:['good','On track'];
- const sent=o.nodata&&!bad.length&&!warn.length?'Nothing has been connected or entered yet, so there is nothing to judge.'+(o.note?' '+o.note:''):(setup&&!bad.length?'Figures have not been entered yet, so there is nothing to judge. '+(warn.length?warn.length+' item'+(warn.length>1?'s':'')+' to watch.':''):bad.length?`${bad.length} high-priority issue${bad.length>1?'s':''} open, starting with: ${bad[0].title.charAt(0).toLowerCase()+bad[0].title.slice(1)}.`:warn.length?`No urgent issues. ${warn.length} item${warn.length>1?'s':''} to watch.`:'No open issues.')
+ const sent=o.nodata&&!bad.length&&!warn.length?'Nothing has been connected yet, so there is nothing to judge.'+(o.note?' '+o.note:''):(setup&&!bad.length?'No figures have come in yet, so there is nothing to judge. '+(warn.length?warn.length+' item'+(warn.length>1?'s':'')+' to watch.':''):bad.length?`${bad.length} high-priority issue${bad.length>1?'s':''} open, starting with: ${bad[0].title.charAt(0).toLowerCase()+bad[0].title.slice(1)}.`:warn.length?`No urgent issues. ${warn.length} item${warn.length>1?'s':''} to watch.`:'No open issues.')
   +(o.fixTotal?` ${o.fixDone} of ${o.fixTotal} planned fixes done.`:'')+(o.tasks!=null?` ${o.tasks} task${o.tasks===1?'':'s'} completed this period.`:'')+(o.note?' '+o.note:'');
  const li=(t,s,cls)=>`<div class="nx">${cls?`<span class="prio-pill ${cls[0]}">${cls[1]}</span>`:''}<b>${esc(t)}</b>${s?`<small>${esc(s)}</small>`:''}</div>`;
  const ownerOf=x=>{const s=stOf(x.id);return (s.owner!=='Unassigned'?s.owner:'No owner yet')+' · '+s.status+(s.done.length?` (${s.done.length} of ${x.actions.length} steps)`:'');};
@@ -2030,11 +1813,10 @@ function mgmtRender(id,o){
   ${opp.length?`<div class="panel" style="margin-top:16px"><div class="ph"><h3>Opportunities and missing data</h3><span>${opp.length}</span></div><div class="mg2">${opp.slice(0,6).map(x=>li(x.title,x.actions[0])).join('')}</div></div>`:''}</section>`;}
 function mgmtAll(){
  const reach=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].reach,R.s,R.e),0),eng=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].eng,R.s,R.e),0),nf=PL.reduce((a,p)=>a+sumR(DATA.pl[p.k].nf,R.s,R.e),0),ld=sumR(DATA.ads.google.leads,R.s,R.e)+sumR(DATA.ads.meta.leads,R.s,R.e);
- mgmtRender('mgmtView',{name:'Social media',ins:INS,tasks:null,tiles:[['People reached',reach?fmt(reach).join(''):'–',reach?rangeText(R.s,R.e,' – '):'Not entered yet'],['Engagement rate',reach?(eng/reach*100).toFixed(1)+'%':'–','Engagements ÷ reach'],['New followers',reach?int(nf):'–','All platforms'],['Leads from ads',adsOn()?int(ld):'–',adsOn()?'Google and Meta Ads':'No ad figures']],nodata:!socOn()&&!adsOn(),note:socOn()?'':'Connect the accounts under Connected accounts to bring figures in.'});
+ mgmtRender('mgmtView',{name:'Social media',ins:INS,tasks:null,tiles:[['People reached',reach?fmt(reach).join(''):'–',reach?rangeText(R.s,R.e,' – '):'No figures yet'],['Engagement rate',reach?(eng/reach*100).toFixed(1)+'%':'–','Engagements ÷ reach'],['New followers',reach?int(nf):'–','All platforms'],['Leads from ads',adsOn()?int(ld):'–',adsOn()?'Google and Meta Ads':'No ad figures']],nodata:!socOn()&&!adsOn(),note:socOn()?'':'Connect the accounts under Connected accounts to bring figures in.'});
  const sk=kwRows('au').filter(x=>x.cur!=null);
- mgmtRender('sMgmt',{name:'SEO',ins:SINS,fixDone:AUDIT.filter(aDone).length,fixTotal:AUDIT.length,tasks:workItems().length,nodata:!AUDIT.length&&!Object.values(SDATA.conn).some(Boolean)&&!sk.length,tiles:[['Site check score',AUDIT.length?auditScore()+'<small>/100</small>':'–',AUDIT.length?'Started at '+SCORE0:'No site check yet'],['High-priority issues',AUDIT.length?openAudit().filter(a=>a[1]==='high').length:'–',AUDIT.length?'of '+AUDIT.filter(a=>a[1]==='high').length+' found':'No site check yet'],['Clicks from Google',gscCur()?int(sAgg('clk',R.s,R.e)):'–',gscCur()?rangeText(R.s,R.e,' – '):'Search Console not entered'],['Keywords on page 1',sk.length?sk.filter(x=>x.cur<=10).length+'<small>/'+sk.length+'</small>':'–',sk.length?'Australia':'Positions not uploaded']]});
- const kp=lKw().filter(x=>x.checked);
- mgmtRender('lMgmt',{name:'Local listing',ins:LINS,fixDone:LAUD.filter(lDone).length,fixTotal:LAUD.length,tasks:lWorkItems().length,nodata:!LAUD.length&&!LDATA.conn.gbp&&!LDATA.conn.rev&&listCount('Not checked')===LIST_DEF.length,tiles:[['Listing check score',LAUD.length?LSCORE(lOpen())+'<small>/100</small>':'–',LAUD.length?'Started at '+LSCORE(LAUD):'No check yet'],['Listings correct',listCount('Listed and correct')+'<small>/'+LIST_DEF.length+'</small>',listCount('Not checked')+' still to check'],['Google reviews',LDATA.conn.rev&&LDATA.rev.total!=null?int(LDATA.rev.total):'–',LDATA.conn.rev&&LDATA.rev.rating!=null?(+LDATA.rev.rating).toFixed(1)+'★ average':'Not entered'],['In the map pack',kp.length?kp.filter(x=>x.cur!=null&&x.cur<=3).length+'<small>/'+kp.length+'</small>':'–',kp.length?'Searches in Google Maps top 3':'Not checked yet']]});
+ mgmtRender('sMgmt',{name:'SEO',ins:SINS,fixDone:AUDIT.filter(aDone).length,fixTotal:AUDIT.length,tasks:workItems().length,nodata:!AUDIT.length&&!Object.values(SDATA.conn).some(Boolean)&&!sk.length,tiles:[['Site check score',AUDIT.length?auditScore()+'<small>/100</small>':'–',AUDIT.length?'Started at '+SCORE0:'No site check yet'],['High-priority issues',AUDIT.length?openAudit().filter(a=>a[1]==='high').length:'–',AUDIT.length?'of '+AUDIT.filter(a=>a[1]==='high').length+' found':'No site check yet'],['Clicks from Google',gscCur()?int(sAgg('clk',R.s,R.e)):'–',gscCur()?rangeText(R.s,R.e,' – '):'Search Console not connected'],['Searches on page 1',sk.length?sk.filter(x=>x.cur<=10).length+'<small>/'+sk.length+'</small>':'–',sk.length?'Australia, from Search Console':'Search Console not connected']]});
+ mgmtRender('lMgmt',{name:'Local listing',ins:LINS,fixDone:LAUD.filter(lDone).length,fixTotal:LAUD.length,tasks:lWorkItems().length,nodata:!LAUD.length&&!LDATA.conn.gbp&&!LDATA.conn.rev,tiles:[['Profile views',gbpOn()?fmt(lsum('views',R.s,R.e)).join(''):'–',gbpOn()?rangeText(R.s,R.e,' – '):'Business Profile not connected'],['Calls, directions and website clicks',gbpOn()?int(lsum('calls',R.s,R.e)+lsum('dirs',R.s,R.e)+lsum('web',R.s,R.e)):'–',gbpOn()?'From Google Search and Maps':'Business Profile not connected'],['Google reviews',LDATA.conn.rev&&LDATA.rev.total!=null?int(LDATA.rev.total):'–',LDATA.conn.rev&&LDATA.rev.rating!=null?(+LDATA.rev.rating).toFixed(1)+'★ average':'Business Profile not connected'],['New reviews',LDATA.conn.rev?int(lsum('newrev',R.s,R.e)):'–',LDATA.conn.rev?'In this period':'Business Profile not connected']]});
  if(AZ.cl()!=='all')mgmtRender('azMgmt',{name:'Azure',ins:AZ.ins(),tasks:null,tiles:AZ.tiles()});}
 
 /* ================= AZURE PERFORMANCE (live from Azure) ================= */
@@ -2306,7 +2088,6 @@ const clCloseD=()=>{};
 if(document.body.dataset.view==='azure'&&!SCHED){SCHED=true;setTimeout(()=>azLoad(false),0);}
 
 return{render:clRender,ins:()=>CLINS,close:clCloseD,sum:()=>({cost:MV('cost',curM()),bud:MV('budget',curM())}),tiles:clTiles,cl:()=>CLID};})();
-$("drawerBg").onclick=()=>{closeD();sCloseD();lCloseD();AZ.close();};
 
 /* ================= CONNECTED ACCOUNTS (Eloma Group's own social logins) =================
    The page has no access of its own: it asks the admin portal over postMessage, and the
@@ -2316,12 +2097,13 @@ addEventListener('message',e=>{const m=e.data;if(!m||!m.__mkr||e.source!==parent
 function bridge(type,payload){return new Promise((res,rej)=>{if(parent===window){rej(new Error('Open this report from the admin portal to use connected accounts'));return;}
  const id=++BR.n;BR.p.set(id,{res,rej});parent.postMessage({__mk:true,id,type,payload},'*');
  setTimeout(()=>{if(BR.p.has(id)){BR.p.delete(id);rej(new Error('The portal did not answer. Reload the page and try again.'));}},200000);});}
-function setLive(d){if(!d||!d.data)return;LIVE=d;useCompany(curCo);coOpts();renderAll();if(curTab==='mkt')coView();if($('accDrawer').classList.contains('open'))accRender();}
+function setLive(d){if(!d||!d.data)return;LIVE=d;if(Array.isArray(d.companies)&&d.companies.length)COS.splice(0,COS.length,...d.companies.map(c=>({k:c.key,n:c.name})));useCompany(curCo);coOpts();renderAll();if(curTab==='mkt')coView();if($('accDrawer').classList.contains('open'))accRender();}
 async function liveLoad(quiet=true){try{setLive(await bridge('load'));}catch(err){if(!quiet)toast(err.message);}}
 /* A first read can take minutes: reload until the server says it is done (up to 15 minutes). */
 let syncT=null;function watchSync(){let n=0;clearInterval(syncT);syncT=setInterval(async()=>{if(++n>150){clearInterval(syncT);return;}try{const d=await bridge('load');setLive(d);if(!d.syncing){clearInterval(syncT);toast('Figures updated from the connected accounts');}}catch(_){}},6000);}
 
-const PROV=[['meta','Meta','Facebook Pages, Instagram accounts and Meta ad accounts. One login covers every Page it manages.'],['linkedin','LinkedIn','Company Pages the login is an admin of.'],['tiktok','TikTok','One TikTok account per login. Connect each company\'s account.'],['youtube','YouTube','One channel per Google login (or brand account). Connect each company\'s channel.'],['google_ads','Google Ads','Ad accounts the Google login can read.']];
+const PROV=[['meta','Meta','Facebook Pages, Instagram accounts and Meta ad accounts. One login covers every Page it manages.'],['linkedin','LinkedIn','Company Pages the login is an admin of.'],['tiktok','TikTok','One TikTok account per login. Connect each company\'s account.'],['youtube','YouTube','One channel per Google login (or brand account). Connect each company\'s channel.'],['google_ads','Google Ads','Ad accounts the Google login can read.'],['search_console','Search Console','Websites (properties) the Google login can see in Search Console. Feeds the SEO report.'],['google_analytics','Google Analytics','Google Analytics 4 properties the login can read. Feeds leads from organic search.'],['business_profile','Business Profile','Business locations the Google login manages. Feeds Local Listing and local search.']];
+const DATA_SEL={search_console:['siteUrl','Website'],google_analytics:['propertyId','Analytics property'],business_profile:['locationId','Location']};
 const PNAME=Object.fromEntries(PROV.map(p=>[p[0],p[1]]));
 let accCo='egeloma';
 const ago=s=>{if(!s)return 'not read yet';const m=Math.round((Date.now()-new Date(s))/60000);return m<1?'read just now':m<60?'read '+m+' min ago':m<1440?'read '+Math.round(m/60)+' h ago':'read '+fmtWhen(s);};
@@ -2330,18 +2112,18 @@ function accRender(){const L=LIVE;
  if(!L){$('accBody').innerHTML='<div class="await"><h3>Loading the connected accounts…</h3><p>If this stays, reload the page.</p></div>';return;}
  const conns=p=>L.connections.filter(c=>c.provider===p),link=p=>L.links.find(l=>l.company===accCo&&l.provider===p);
  const many=p=>conns(p).length>1,tag=(c,p)=>many(p)?' · '+(c.name||PNAME[p]):'';
- const status=l=>!l?'<small>Not chosen for this company yet</small>':`<small${l.lastError?' class="bad"':''}>${l.lastError?esc(l.lastError):'Figures '+ago(l.lastSyncAt)}</small>`;
+ const status=(l,p)=>!l?'<small>Not chosen for this company yet</small>':`<small${l.lastError?' class="bad"':''}>${l.lastError?esc(l.lastError):DATA_SEL[p]?'Read live when the report opens':'Figures '+ago(l.lastSyncAt)}</small>`;
  // This company
  let h=`<div class="acc-sec"><h4>Pages for each company</h4><div class="acc-co">Company<select id="accCo">${COS.map(c=>opt(c.k,c.n,accCo)).join('')}</select></div>`;
  PROV.forEach(([p,n])=>{const cs=conns(p),l=link(p),s=(l&&l.selected)||{},cid=l?l.connectionId:'';
-  h+=`<div class="acc-row" data-prov="${p}"><div class="acc-top"><div><h5>${n}</h5>${status(l)}</div>${l?`<button class="btn outline sm" data-unlink="${p}">Remove from ${esc((COS.find(c=>c.k===accCo)||{}).n)}</button>`:''}</div>`;
+  h+=`<div class="acc-row" data-prov="${p}"><div class="acc-top"><div><h5>${n}</h5>${status(l,p)}</div>${l?`<button class="btn outline sm" data-unlink="${p}">Remove from ${esc((COS.find(c=>c.k===accCo)||{}).n)}</button>`:''}</div>`;
   if(!cs.length){h+=`<small style="margin-top:8px">Connect a ${n} login below first.</small></div>`;return;}
   if(p==='meta'){const pv=l&&s.pageId?cid+'|'+s.pageId:'',iv=l&&s.igId?cid+'|'+s.igId:'',av=l&&s.adAccountId?cid+'|'+s.adAccountId:'';
    h+=`<div class="acc-sel"><label>Facebook Page<select data-f="page"><option value="">None</option>${cs.flatMap(c=>(c.pages||[]).map(x=>opt(c.id+'|'+x.id,x.name+tag(c,p),pv))).join('')}</select></label>
    <label>Instagram account<select data-f="ig"><option value="">None</option>${cs.flatMap(c=>(c.pages||[]).filter(x=>x.ig).map(x=>opt(c.id+'|'+x.ig.id,'@'+x.ig.username+tag(c,p),iv))).join('')}</select></label>
    <label>Meta ad account<select data-f="ad"><option value="">None</option>${cs.flatMap(c=>(c.adAccounts||[]).map(x=>opt(c.id+'|'+x.id,x.name+tag(c,p),av))).join('')}</select></label></div>`;}
-  else if(p==='linkedin'||p==='google_ads'){const v=l?cid+'|'+(p==='linkedin'?s.orgId:s.customerId):'';
-   h+=`<div class="acc-sel"><label>${p==='linkedin'?'Company Page':'Ad account'}<select data-f="asset"><option value="">None</option>${cs.flatMap(c=>(c.options||[]).map(x=>opt(c.id+'|'+x.id,x.name+tag(c,p),v))).join('')}</select></label></div>`;}
+  else if(p==='linkedin'||p==='google_ads'||DATA_SEL[p]){const v=l?cid+'|'+(p==='linkedin'?s.orgId:p==='google_ads'?s.customerId:s[DATA_SEL[p][0]]):'';
+   h+=`<div class="acc-sel"><label>${p==='linkedin'?'Company Page':p==='google_ads'?'Ad account':DATA_SEL[p][1]}<select data-f="asset"><option value="">None</option>${cs.flatMap(c=>(c.options||[]).map(x=>opt(c.id+'|'+x.id,x.name+tag(c,p),v))).join('')}</select></label></div>`;}
   else h+=`<div class="acc-sel"><label>${p==='tiktok'?'TikTok account':'YouTube channel'}<select data-f="conn"><option value="">None</option>${cs.map(c=>opt(c.id,c.name||PNAME[p],cid)).join('')}</select></label></div>`;
   h+=`<div style="margin-top:12px"><button class="btn primary sm" data-save="${p}">Save for ${esc((COS.find(c=>c.k===accCo)||{}).n)}</button></div></div>`;});
  h+='</div>';
@@ -2365,7 +2147,7 @@ $('accBody').onclick=async e=>{const t=e.target.closest('button');if(!t)return;
   if(t.dataset.connect){const p=t.dataset.connect,w=window.open('about:blank','eg-group-connect','width=620,height=760');
    const r=await bridge('connect',{provider:p});if(w&&!w.closed)w.location.href=r.url;else window.open(r.url,'_blank');
    toast('Sign in with '+PNAME[p]+' in the new window');
-   if(w){const iv=setInterval(()=>{if(w.closed){clearInterval(iv);liveLoad(false).then(()=>toast(PNAME[p]+': now choose the Page for each company'));}},1000);setTimeout(()=>clearInterval(iv),15*60000);}
+   if(w){const iv=setInterval(()=>{if(w.closed){clearInterval(iv);liveLoad(false).then(()=>toast(PNAME[p]+': now choose the '+(DATA_SEL[p]?DATA_SEL[p][1].toLowerCase():'Page')+' for each company'));}},1000);setTimeout(()=>clearInterval(iv),15*60000);}
    return;}
   if(t.dataset.disconnect){const c=LIVE.connections.find(x=>x.id===t.dataset.disconnect);if(!c||!confirm('Disconnect '+(c.name||PNAME[c.provider])+'? Companies using it stop updating. Figures already read stay.'))return;
    t.disabled=true;await bridge('disconnect',{id:c.id});await liveLoad(false);toast('Disconnected');return;}
@@ -2380,6 +2162,7 @@ $('accBody').onclick=async e=>{const t=e.target.closest('button');if(!t)return;
    else{const v=val('asset');if(!v){toast('Choose one from the list');return;}const[c,id]=v.split('|');body={...body,connectionId:c,assetId:id};}
    t.disabled=true;t.textContent='Saving and reading figures…';
    setLive(await bridge('link',body).then(()=>bridge('load')));
+   if(DATA_SEL[p]){delete SL[accCo];if(accCo===CO)searchLoad(CO,true);}
    toast('Saved. '+PNAME[p]+' figures for '+(COS.find(c=>c.k===accCo)||{}).n+' are loading');if(LIVE&&LIVE.syncing)watchSync();}
  }catch(err){toast(err.message);t.disabled=false;accRender();}};
 $("drawerBg").addEventListener('click',accClose);

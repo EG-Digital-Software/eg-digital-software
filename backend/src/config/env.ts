@@ -179,6 +179,10 @@ const schema = z.object({
   GOOGLE_ADS_LOGIN_CUSTOMER_ID: z.string().optional(),
   // Google Ads API versions are retired about a year after release — update when Google announces a sunset.
   GOOGLE_ADS_API_VERSION: z.string().default('v24'),
+  // Admin → Marketing SEO: PageSpeed Insights works without a key at a low daily
+  // limit; a free API key (Google Cloud → Credentials, PageSpeed Insights API,
+  // no billing needed) raises it.
+  PAGESPEED_API_KEY: z.string().optional(),
 
   // ── Admin → Cloud: live Azure figures ──
   // An Entra ID app registration (client secret) that can read the subscriptions.
